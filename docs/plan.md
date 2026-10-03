@@ -23,10 +23,10 @@ Tick items off as they land. The feature details are in [design.md](design.md).
 
 ## 2. Wallpaper
 
-- [ ] `WallpaperWindow` per monitor at `HWND_BOTTOM`
-- [ ] Read wallpaper, style and background colour; style mapping (tests)
-- [ ] Reload on wallpaper/display changes
-- [ ] Only in shell mode
+- [x] `WallpaperWindow` per monitor at `HWND_BOTTOM`
+- [x] Read wallpaper, style and background colour; style mapping (tests)
+- [x] Reload on wallpaper/display changes
+- [x] Only in shell mode
 
 ## 3. Taskbar window
 

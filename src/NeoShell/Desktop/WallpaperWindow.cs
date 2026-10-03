@@ -1,0 +1,89 @@
+using Microsoft.UI;
+using Microsoft.UI.Windowing;
+using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Media;
+using Microsoft.UI.Xaml.Media.Imaging;
+using NeoShell.Interop.Windowing;
+using Windows.Graphics;
+
+namespace NeoShell.Desktop;
+
+/// <summary>Shows the wallpaper on one monitor, behind every other window.</summary>
+internal sealed class WallpaperWindow : Window
+{
+    private readonly DisplayMonitor _monitor;
+    private readonly RectInt32 _virtualScreen;
+    private readonly Grid _root = new();
+    private readonly Canvas _canvas = new();
+    private readonly FramelessWindow _frameless;
+    private readonly WindowSubclass _messages;
+    private readonly BottomWindow _placement;
+    private WallpaperSettings? _settings;
+    private BitmapImage? _image;
+
+    /// <param name="onMessage">Sees this window's messages; top-level windows receive the system broadcasts.</param>
+    public WallpaperWindow(DisplayMonitor monitor, RectInt32 virtualScreen, MessageHandler onMessage)
+    {
+        _monitor = monitor;
+        _virtualScreen = virtualScreen;
+
+        _root.Children.Add(_canvas);
+        _root.SizeChanged += (_, _) => Arrange();
+        _root.Loaded += (_, _) => _root.XamlRoot.Changed += (_, _) => Arrange();
+        Content = _root;
+
+        var presenter = OverlappedPresenter.Create();
+        presenter.SetBorderAndTitleBar(false, false);
+        presenter.IsResizable = false;
+        presenter.IsMaximizable = false;
+        presenter.IsMinimizable = false;
+        AppWindow.SetPresenter(presenter);
+
+        // Not AppWindow.IsShownInSwitchers: it goes through the taskbar and throws when there is none.
+        nint hwnd = Win32Interop.GetWindowFromWindowId(AppWindow.Id);
+        WindowStyles.AddExtended(hwnd, ExtendedWindowStyles.ToolWindow);
+        _frameless = new FramelessWindow(hwnd);
+        _messages = new WindowSubclass(hwnd, onMessage);
+        _placement = new BottomWindow(hwnd, monitor.Bounds);
+
+        Closed += (_, _) =>
+        {
+            _placement.Dispose();
+            _messages.Dispose();
+            _frameless.Dispose();
+        };
+    }
+
+    public void SetWallpaper(WallpaperSettings settings, BitmapImage? image)
+    {
+        _settings = settings;
+        _image = image;
+        _root.Background = new SolidColorBrush(settings.Background);
+        Arrange();
+    }
+
+    private void Arrange()
+    {
+        _canvas.Children.Clear();
+        if (_settings is null || _image is null || _root.XamlRoot is null)
+            return;
+
+        // Layout is in physical pixels; XAML positions are in effective pixels.
+        double scale = _root.XamlRoot.RasterizationScale;
+        var imageSize = new SizeInt32(_image.PixelWidth, _image.PixelHeight);
+        foreach (RectInt32 rect in WallpaperLayout.Arrange(_settings.Style, imageSize, _monitor.Bounds, _virtualScreen))
+        {
+            var element = new Image
+            {
+                Source = _image,
+                Stretch = Stretch.Fill,
+                Width = rect.Width / scale,
+                Height = rect.Height / scale,
+            };
+            Canvas.SetLeft(element, rect.X / scale);
+            Canvas.SetTop(element, rect.Y / scale);
+            _canvas.Children.Add(element);
+        }
+    }
+}

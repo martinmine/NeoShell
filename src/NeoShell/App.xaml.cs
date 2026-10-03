@@ -1,5 +1,6 @@
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
+using NeoShell.Desktop;
 using NeoShell.Interop.Windowing;
 using NeoShell.Logging;
 using NeoShell.Settings;
@@ -16,6 +17,7 @@ public partial class App : Application
     private readonly SettingsStore _settingsStore = new(Path.Combine(Program.DataDirectory, "settings.json"));
     private ShellSettings _settings = new();
     private MessageWindow? _controlWindow;
+    private Wallpaper? _wallpaper;
     private Window? _placeholderWindow;
     private bool _shuttingDown;
 
@@ -46,6 +48,12 @@ public partial class App : Application
             return 0;
         });
 
+        if (_runMode == RunMode.Shell)
+        {
+            _wallpaper = new Wallpaper();
+            _wallpaper.Show();
+        }
+
         // Placeholder until the taskbar lands in milestone 3.
         _placeholderWindow = new Window { Title = $"NeoShell ({_runMode})" };
         _placeholderWindow.Closed += (_, _) =>
@@ -66,6 +74,7 @@ public partial class App : Application
 
         Log.Info("Shutting down");
         _placeholderWindow?.Close();
+        _wallpaper?.Dispose();
         _controlWindow?.Dispose();
         Exit();
     }

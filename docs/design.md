@@ -89,13 +89,19 @@ Start menu button → confirmation dialog → delete the per-user `Winlogon\Shel
 
 ## Wallpaper (`Desktop/`)
 
-- One `WallpaperWindow` per monitor covering the full monitor bounds, kept at `HWND_BOTTOM` by handling
-  `WM_WINDOWPOSCHANGING` through `WindowSubclass`.
+- One `WallpaperWindow` per monitor covering the full monitor bounds, kept there and at `HWND_BOTTOM` by
+  `BottomWindow` (rewrites `WM_WINDOWPOSCHANGING`).
+- Frameless through `FramelessWindow`: a borderless `OverlappedPresenter` still keeps `WS_DLGFRAME` and restores it on
+  every style change, so `WM_STYLECHANGING` strips the frame and isn't passed on; DWM border and rounded corners off.
+- Not `AppWindow.IsShownInSwitchers`: it goes through the taskbar and throws when there is none; `WS_EX_TOOLWINDOW`
+  keeps the window out of Alt+Tab instead.
 - Reads `HKCU\Control Panel\Desktop`: `Wallpaper`, `WallpaperStyle`, `TileWallpaper`, and
   `HKCU\Control Panel\Colors\Background` for the fill colour.
-- Style mapping (unit tested): Fill → `UniformToFill`, Fit → `Uniform`, Stretch → `Fill`, Center → `None`,
-  Tile → tiled brush, Span → one image across the virtual screen.
-- Reloads on `WM_SETTINGCHANGE` (`SPI_SETDESKWALLPAPER`) and `WM_DISPLAYCHANGE`.
+- Layout (unit tested): `WallpaperLayout.Arrange` returns the image rectangles in physical pixels for each style —
+  Fill, Fit, Stretch, Center (exact pixels), Tile (one rectangle per tile; WinUI has no tiled brush) and Span (Fill
+  over the virtual screen, offset per monitor). The window places `Image` elements on a `Canvas` at those rectangles.
+- Any `WM_SETTINGCHANGE` or `WM_SYSCOLORCHANGE` re-reads the settings and reloads only if path, style, colour or the
+  file's timestamp changed; `WM_DISPLAYCHANGE` recreates the windows. Bursts of broadcasts become one update.
 - Shell mode only.
 
 ## Taskbar (`Taskbar/`)
