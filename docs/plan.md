@@ -14,12 +14,12 @@ Tick items off as they land. The feature details are in [design.md](design.md).
 
 ## 1. Skeleton
 
-- [ ] Single instance (named mutex) and `/exit` via a registered window message
-- [ ] Run-mode detection (`GetShellWindow`)
-- [ ] File logger
-- [ ] Settings record + JSON load/save, corrupt-file fallback (tests)
-- [ ] Crash handlers: log, start `explorer.exe` in shell mode
-- [ ] Interop basics: `MessageWindow`, `WindowSubclass`, window-style helpers
+- [x] Single instance (named mutex) and `/exit` via a registered window message
+- [x] Run-mode detection (`GetShellWindow`)
+- [x] File logger
+- [x] Settings record + JSON load/save, corrupt-file fallback (tests)
+- [x] Crash handlers: log, start `explorer.exe` in shell mode
+- [x] Interop basics: `MessageWindow`, `WindowSubclass`, window-style helpers
 
 ## 2. Wallpaper
 

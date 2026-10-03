@@ -47,7 +47,11 @@ All shell surfaces (taskbar, Start menu, wallpaper, flyouts) are WinUI `Window`s
     (`NeoShell_Exit`) to the running instance and exits; without arguments it just exits.
   - Detects the run mode: `GetShellWindow() == 0` means NeoShell is the shell.
   - Installs crash handlers (`AppDomain.UnhandledException`, `Application.UnhandledException`,
-    `TaskScheduler.UnobservedTaskException`): log, and in shell mode start `explorer.exe`.
+    `TaskScheduler.UnobservedTaskException`): log, and in shell mode start `explorer.exe`. Unobserved task
+    exceptions only log, because they don't end the process.
+  - Native callbacks (window procedures, subclasses, hooks) catch every exception and raise
+    `NativeCallback.UnhandledException`, which the app logs: an exception escaping `[UnmanagedCallersOnly]`
+    would end the process without running any handler.
 - **`App`** creates and wires the long-lived objects by hand: settings, logger, `ShellSession` (shell mode only),
   taskbars per monitor, Start menu, tray host, indicators.
 - **Clean exit** disposes in reverse order: unregister AppBars (frees the reserved space), unhook hooks,
