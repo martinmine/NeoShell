@@ -3,9 +3,9 @@ using NeoShell.Interop.Native;
 namespace NeoShell.Interop.Windowing;
 
 /// <summary>
-/// Keeps a window a plain rectangle: no frame of any kind. A borderless WinUI presenter still leaves a dialog frame
-/// (and puts it back whenever the style is changed), and Windows 11 adds a 1px border and rounded corners to every
-/// top-level window.
+/// Keeps a window free of any frame. A borderless WinUI presenter still leaves a dialog frame (and puts it back
+/// whenever the style is changed). Windows 11 also gives every top-level window a 1px border and rounded corners:
+/// kept for popups like Start, removed for surfaces that sit flush with the screen edge.
 /// </summary>
 public sealed unsafe class FramelessWindow : IDisposable
 {
@@ -16,7 +16,7 @@ public sealed unsafe class FramelessWindow : IDisposable
 
     private readonly WindowSubclass _subclass;
 
-    public FramelessWindow(nint hwnd)
+    public FramelessWindow(nint hwnd, bool roundedCorners = false)
     {
         _subclass = new WindowSubclass(hwnd, OnMessage);
 
@@ -26,6 +26,8 @@ public sealed unsafe class FramelessWindow : IDisposable
         User32.SetWindowPos(hwnd, 0, 0, 0, 0, 0,
             User32.SWP_NOMOVE | User32.SWP_NOSIZE | User32.SWP_NOZORDER | User32.SWP_NOACTIVATE | User32.SWP_FRAMECHANGED);
 
+        if (roundedCorners)
+            return;
         int corners = Dwmapi.DWMWCP_DONOTROUND;
         Dwmapi.DwmSetWindowAttribute(hwnd, Dwmapi.DWMWA_WINDOW_CORNER_PREFERENCE, &corners, sizeof(int));
         uint borderColor = Dwmapi.DWMWA_COLOR_NONE;

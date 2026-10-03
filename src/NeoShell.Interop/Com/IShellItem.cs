@@ -15,6 +15,16 @@ internal unsafe partial interface IShellItem
 }
 
 [GeneratedComInterface]
+[Guid("70629033-e363-4a28-a567-0db78006e6d7")]
+internal unsafe partial interface IEnumShellItems
+{
+    [PreserveSig] int Next(uint count, nint* items, uint* fetched);
+    [PreserveSig] int Skip(uint count);
+    [PreserveSig] int Reset();
+    [PreserveSig] int Clone(nint* clone);
+}
+
+[GeneratedComInterface]
 [Guid("bcc18b79-ba16-442f-80c4-8a59c30c463b")]
 internal partial interface IShellItemImageFactory
 {

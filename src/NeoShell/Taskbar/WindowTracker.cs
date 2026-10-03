@@ -1,9 +1,6 @@
 using System.Diagnostics;
-using System.Runtime.InteropServices.WindowsRuntime;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml.Media;
-using Microsoft.UI.Xaml.Media.Imaging;
-using NeoShell.Interop.Imaging;
 using NeoShell.Interop.Shell;
 using NeoShell.Interop.Windowing;
 using NeoShell.Logging;
@@ -19,20 +16,19 @@ internal sealed class WindowTracker : IDisposable
 {
     private readonly DispatcherQueue _dispatcher = DispatcherQueue.GetForCurrentThread();
     private readonly int _ownProcess = Environment.ProcessId;
-    private readonly int _iconSize;
+    private readonly AppIcons _appIcons;
     private readonly List<WindowInfo> _windows = [];
     private readonly HashSet<nint> _flashing = [];
     private readonly Dictionary<nint, ImageSource?> _windowIcons = [];
-    private readonly Dictionary<string, ImageSource?> _appIcons = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, string> _appNames = new(StringComparer.OrdinalIgnoreCase);
     private ShellHook? _shellHook;
     private WindowEvents? _windowEvents;
     private bool _changeQueued;
 
-    /// <param name="iconSize">Icon size in pixels.</param>
-    public WindowTracker(int iconSize)
+    public WindowTracker(AppIcons appIcons)
     {
-        _iconSize = iconSize;
+        _appIcons = appIcons;
+        _appIcons.Loaded += QueueChanged;
     }
 
     public event Action? Changed;
@@ -65,6 +61,7 @@ internal sealed class WindowTracker : IDisposable
 
     public void Dispose()
     {
+        _appIcons.Loaded -= QueueChanged;
         _windowEvents?.Dispose();
         _shellHook?.Dispose();
     }
@@ -78,25 +75,19 @@ internal sealed class WindowTracker : IDisposable
             return icon ?? AppIcon(AppFor(window));
 
         _windowIcons[window.Handle] = null;
-        LoadIcon(() => WindowInfo.ReadIcon(window.Handle), loaded =>
+        AppIcons.Load(() => WindowInfo.ReadIcon(window.Handle), loaded =>
         {
             if (_windowIcons.ContainsKey(window.Handle))
+            {
                 _windowIcons[window.Handle] = loaded;
+                QueueChanged();
+            }
         });
         return AppIcon(AppFor(window));
     }
 
     /// <summary>The app's icon from the shell, or null until it has loaded.</summary>
-    public ImageSource? AppIcon(PinnedApp app)
-    {
-        string item = ShellItemFor(app);
-        if (_appIcons.TryGetValue(item, out ImageSource? icon))
-            return icon;
-
-        _appIcons[item] = null;
-        LoadIcon(() => ShellItems.GetIcon(item, _iconSize), loaded => _appIcons[item] = loaded);
-        return null;
-    }
+    public ImageSource? AppIcon(PinnedApp app) => _appIcons.Get(app);
 
     /// <summary>The app a window belongs to, named as Explorer would name it.</summary>
     public PinnedApp AppFor(WindowInfo window)
@@ -112,8 +103,6 @@ internal sealed class WindowTracker : IDisposable
         return TaskGrouping.AppFor(window, name);
     }
 
-    private static string ShellItemFor(PinnedApp app) =>
-        app.AppUserModelId is { } appId ? ShellItems.AppsFolderPath(appId) : app.Path ?? "";
 
     private static string? FileDescription(string? path)
     {
@@ -127,29 +116,6 @@ internal sealed class WindowTracker : IDisposable
         catch (FileNotFoundException)
         {
             return Path.GetFileNameWithoutExtension(path);
-        }
-    }
-
-    // Icons are read off the UI thread (WM_GETICON can wait on a hung window, the shell may read from disk) and
-    // turned into bitmaps back on it.
-    private async void LoadIcon(Func<IconBitmap?> read, Action<ImageSource?> store)
-    {
-        try
-        {
-            IconBitmap? icon = await Task.Run(read);
-            if (icon is null)
-                return;
-
-            var bitmap = new WriteableBitmap(icon.Width, icon.Height);
-            using (Stream stream = bitmap.PixelBuffer.AsStream())
-                stream.Write(icon.Pixels);
-            bitmap.Invalidate();
-            store(bitmap);
-            QueueChanged();
-        }
-        catch (Exception ex)
-        {
-            Log.Warn("Loading an icon failed", ex);
         }
     }
 

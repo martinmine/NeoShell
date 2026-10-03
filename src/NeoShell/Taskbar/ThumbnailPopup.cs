@@ -46,7 +46,7 @@ internal sealed class ThumbnailPopup : Window
 
         _hwnd = Win32Interop.GetWindowFromWindowId(AppWindow.Id);
         WindowStyles.AddExtended(_hwnd, ExtendedWindowStyles.ToolWindow | ExtendedWindowStyles.NoActivate);
-        _frameless = new FramelessWindow(_hwnd);
+        _frameless = new FramelessWindow(_hwnd, roundedCorners: true);
         _placement = new PinnedWindow(_hwnd, default, PinnedLayer.Topmost);
 
         Closed += (_, _) =>

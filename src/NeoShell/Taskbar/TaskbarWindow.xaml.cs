@@ -6,6 +6,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Input;
+using Microsoft.UI.Xaml.Media;
 using NeoShell.Interop.Windowing;
 using NeoShell.Settings;
 using Windows.Foundation;
@@ -74,6 +75,8 @@ internal sealed partial class TaskbarWindow : Window
         _placement = new PinnedWindow(hwnd, bounds, PinnedLayer.Topmost);
 
         TaskList.ItemsSource = _tasks;
+        // A click anywhere else on the taskbar closes Start, as in Windows; the Start button toggles it itself.
+        Root.AddHandler(UIElement.PointerPressedEvent, new PointerEventHandler(Root_PointerPressed), handledEventsToo: true);
         Root.SizeChanged += (_, _) => RefreshTasks();
         RightPanel.SizeChanged += (_, _) => RefreshTasks();
 
@@ -103,6 +106,11 @@ internal sealed partial class TaskbarWindow : Window
             _frameless.Dispose();
         };
     }
+
+    public DisplayMonitor Monitor => _monitor;
+
+    /// <summary>Where the taskbar is on screen, in pixels.</summary>
+    public RectInt32 ScreenBounds => _placement.Bounds;
 
     public void SetTheme(ElementTheme theme)
     {
@@ -170,6 +178,18 @@ internal sealed partial class TaskbarWindow : Window
         else
             _owner.OnBroadcast(message);
         return null;
+    }
+
+    private void StartButton_Click(object sender, RoutedEventArgs e) => _owner.ToggleStartMenu(this);
+
+    private void Root_PointerPressed(object sender, PointerRoutedEventArgs e)
+    {
+        for (var element = e.OriginalSource as DependencyObject; element is not null; element = VisualTreeHelper.GetParent(element))
+        {
+            if (element == StartButton || element == SearchButton)
+                return;
+        }
+        _owner.HideStartMenu();
     }
 
     private void TaskList_ItemClick(object sender, ItemClickEventArgs e)

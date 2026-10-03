@@ -53,16 +53,16 @@ Tick items off as they land. The feature details are in [design.md](design.md).
 
 ## 5. Start menu
 
-- [ ] Popup window, anchoring, hide on deactivate/Esc
-- [ ] App catalog from `shell:AppsFolder` with icons
-- [ ] Pinned grid + All apps list; pin to Start / taskbar
-- [ ] App search ranking (tests)
-- [ ] Indexer search via `ISearchQueryHelper` + `System.Data.OleDb` (query building tests), debounce + cancellation
-- [ ] Keyboard navigation (type-to-search, arrows, Enter)
-- [ ] Settings button
-- [ ] Power menu: Lock, Sign out, Sleep, Restart, Shut down
-- [ ] Switch to Explorer (confirm, clear HKCU Shell value, start Explorer, exit)
-- [ ] Start/Search buttons on the taskbar open it
+- [x] Popup window, anchoring, hide on deactivate/Esc
+- [x] App catalog from `shell:AppsFolder` with icons
+- [x] Pinned grid + All apps list; pin to Start / taskbar
+- [x] App search ranking (tests)
+- [x] Indexer search via `ISearchQueryHelper` + `System.Data.OleDb` (query building tests), debounce + cancellation
+- [x] Keyboard navigation (type-to-search, arrows, Enter) — not driven live: that needs global keystrokes
+- [x] Settings button
+- [x] Power menu: Lock, Sign out, Sleep, Restart, Shut down — not invoked live: each ends the test session
+- [x] Switch to Explorer (confirm, clear HKCU Shell value, start Explorer, exit)
+- [x] Start/Search buttons on the taskbar open it
 
 ## 6. System tray
 

@@ -255,25 +255,39 @@ Task Manager, the taskbar settings toggles (alignment, combine, auto-hide, all d
 
 ## Start menu (`StartMenu/`)
 
-- Topmost popup window anchored above the Start button on the taskbar's monitor; acrylic; hides on deactivation,
-  Esc, or Win.
-- **Pinned** grid (persisted in settings) and an **All apps** alphabetical list with letter headers.
-- **App catalog**: enumerate `shell:AppsFolder` (`SHCreateItemFromParsingName` → `BHID_EnumItems`), reading display
-  name, parsing name (AUMID) and icon (`IShellItemImageFactory`). Covers Win32 and packaged apps. Refreshed in the
-  background when the Start menu opens if stale.
+- One topmost popup window (`StartMenuWindow`), created at startup and shown above the taskbar that opened it:
+  centred on the monitor, or at its left when taskbar items are left-aligned. Acrylic, rounded corners, activatable
+  (unlike the taskbar) for the search box; hides on deactivation, Esc, a click elsewhere on the taskbar, or Win.
+- Activation: `Window.Activate` alone doesn't take the foreground from the app the user was in, so Start calls
+  `SetForegroundWindow` (allowed: the click or key was the last input). On closing it hands the foreground back to
+  that app; otherwise Windows picks the next window in z-order, which can be Explorer's invisible Start/search host.
+- Toggling: pressing the Start button deactivates Start before the button's click arrives, so a click within
+  400 ms of a deactivation doesn't reopen it.
+- **Pinned** grid (persisted in settings, drag to reorder) and an **All apps** alphabetical list with letter
+  headers ("#" first). Context menu: Open, Pin to/Unpin from Start, Pin to/Unpin from taskbar.
+- **App catalog** (`AppCatalog`): enumerate `shell:AppsFolder` (`SHCreateItemFromParsingName` → `BHID_EnumItems`),
+  reading display name and parent-relative parsing name — an AUMID, or a path such as `{KnownFolder}\app.exe` that
+  is resolved with `SHGetKnownFolderPath` — and, for shortcuts, `System.Link.TargetParsingPath`. Shortcuts may give
+  an app an AUMID its windows don't carry, so the pinned app keeps the target path to match those windows. Icons
+  load only for items being shown. Reloaded in the background when Start opens if older than two minutes.
 - **Search** — typing anywhere in the open menu focuses the search box:
-  - Apps: ranked exact > prefix > word-start > contains (case-insensitive, unit tested). Shown first, instantly.
-  - Indexer: `ISearchManager` → catalog `SystemIndex` → `ISearchQueryHelper` (set `QuerySelectColumns`,
-    `QueryMaxResults`, `QueryContentLocale`), `GenerateSQLFromUserQuery`, executed with `OleDbConnection`
-    (`Provider=Search.CollatorDSO;Extended Properties='Application=Windows'`).
-    Columns: `System.ItemNameDisplay`, `System.ItemUrl`/`System.ItemPathDisplay`, `System.Kind`,
-    `System.DateModified`. Results grouped as Settings, Folders, Documents, Other.
-  - Runs on a background thread, ~150 ms debounce, cancelled by the next keystroke.
-  - Enter opens the top result; arrow keys move the selection.
+  - Apps: ranked exact > prefix > every-word-starts-a-word > contains (case-insensitive, unit tested). Shown first,
+    instantly.
+  - Indexer: `CSearchManager` → catalog `SystemIndex` → `ISearchQueryHelper` (`QuerySelectColumns`,
+    `QueryContentProperties` = `System.ItemNameDisplay` so words match names like the Windows search box,
+    `QueryWhereRestrictions` = files only and no `.lnk`, prefix term expansion, `QueryMaxResults`),
+    `GenerateSQLFromUserQuery`, executed with `OleDbConnection`
+    (`Provider=Search.CollatorDSO;Extended Properties='Application=Windows'`). OLE DB needs built-in COM interop,
+    which the app has (a file-based or AOT build would not).
+    Columns: `System.ItemNameDisplay`, `System.ItemPathDisplay`, `System.Kind`. Results grouped as Documents,
+    Folders, Other (Settings pages aren't in `SystemIndex`).
+  - Runs on a background thread, 150 ms debounce, cancelled by the next keystroke; index failures leave app results.
+  - Enter opens the selected result (the best match is selected); arrow keys move the selection.
 - **Bottom row**:
-  - User name/picture (from `HKCU\...\AccountPicture` or a placeholder).
+  - User name (`GetUserNameEx(NameDisplay)`, else the account name) and picture
+    (`HKLM\...\AccountPicture\Users\<SID>\Image96`, else initials).
   - Settings button → `ms-settings:`.
-  - Switch to Explorer button (see lifecycle).
+  - Switch to Explorer button (see lifecycle), shell mode only, behind a confirmation dialog that defaults to Cancel.
   - Power button menu:
     - Lock → `LockWorkStation`
     - Sign out → `ExitWindowsEx(EWX_LOGOFF)`

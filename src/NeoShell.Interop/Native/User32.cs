@@ -264,6 +264,16 @@ internal static unsafe partial class User32
     [LibraryImport("user32.dll")]
     public static partial short GetAsyncKeyState(int key);
 
+    [LibraryImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static partial bool LockWorkStation();
+
+    public const uint EWX_LOGOFF = 0;
+
+    [LibraryImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static partial bool ExitWindowsEx(uint flags, uint reason);
+
     [LibraryImport("user32.dll")]
     public static partial nint GetDC(nint hwnd);
 

@@ -33,6 +33,9 @@ internal static unsafe partial class Shell32
     public static partial int SHGetPropertyStoreForWindow(
         nint hwnd, in Guid iid, [MarshalAs(UnmanagedType.Interface)] out Com.IPropertyStore store);
 
+    [LibraryImport("shell32.dll")]
+    public static partial int SHGetKnownFolderPath(in Guid folder, uint flags, nint token, out char* path);
+
     [LibraryImport("shell32.dll", StringMarshalling = StringMarshalling.Utf16)]
     public static partial int SHCreateItemFromParsingName(
         string path, nint bindContext, in Guid iid, [MarshalAs(UnmanagedType.Interface)] out Com.IShellItem item);

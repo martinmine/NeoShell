@@ -6,6 +6,9 @@ internal static unsafe partial class Ole32
 {
     public const ushort VT_LPWSTR = 31;
 
+    public const uint CLSCTX_INPROC_SERVER = 0x1;
+    public const uint CLSCTX_LOCAL_SERVER = 0x4;
+
     /// <summary>PROPVARIANT, laid out for 64-bit: a type tag and a 16-byte union of which only a pointer is read.</summary>
     [StructLayout(LayoutKind.Sequential)]
     public struct PROPVARIANT
@@ -27,4 +30,8 @@ internal static unsafe partial class Ole32
 
     [LibraryImport("ole32.dll")]
     public static partial int PropVariantClear(PROPVARIANT* value);
+
+    [LibraryImport("ole32.dll")]
+    public static partial int CoCreateInstance(
+        in Guid clsid, nint outer, uint context, in Guid iid, [MarshalAs(UnmanagedType.Interface)] out Com.ISearchManager instance);
 }

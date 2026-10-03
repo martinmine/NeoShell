@@ -5,6 +5,7 @@ using Microsoft.UI.Xaml;
 using NeoShell.Interop.Windowing;
 using NeoShell.Logging;
 using NeoShell.Settings;
+using NeoShell.StartMenu;
 
 namespace NeoShell.Taskbar;
 
@@ -15,22 +16,26 @@ internal sealed class Taskbars : IDisposable
 {
     private readonly DispatcherQueue _dispatcher = DispatcherQueue.GetForCurrentThread();
     private readonly Action _exit;
+    private readonly Action _switchToExplorer;
     private readonly ShowDesktop _showDesktop = new();
     private readonly List<TaskbarWindow> _windows = [];
     private ElementTheme _theme = SystemTheme.Read();
     private ShellSettings _windowSettings;
+    private StartMenuWindow? _startMenu;
     private bool _updateQueued;
     private bool _recreate;
 
-    public Taskbars(RunMode runMode, SettingsStore settings, Action exit)
+    public Taskbars(RunMode runMode, SettingsStore settings, Action exit, Action switchToExplorer)
     {
         RunMode = runMode;
         Settings = settings;
         _exit = exit;
+        _switchToExplorer = switchToExplorer;
         _windowSettings = settings.Current;
-        // Icons are 24 effective pixels; load them sharp for the densest monitor.
+        // Start shows icons at up to 32 effective pixels; load them sharp for the densest monitor.
         uint dpi = DisplayMonitor.GetAll().Select(m => m.Dpi).DefaultIfEmpty(96u).Max();
-        Tracker = new WindowTracker((int)Math.Round(24 * dpi / 96.0));
+        Icons = new AppIcons((int)Math.Round(32 * dpi / 96.0));
+        Tracker = new WindowTracker(Icons);
         Tracker.Changed += RefreshTasks;
         Settings.Changed += OnSettingsChanged;
     }
@@ -39,11 +44,15 @@ internal sealed class Taskbars : IDisposable
 
     public SettingsStore Settings { get; }
 
+    public AppIcons Icons { get; }
+
     public WindowTracker Tracker { get; }
 
     public void Show()
     {
         Tracker.Start();
+        // Created up front, so it opens instantly and its app catalog is already loaded.
+        _startMenu = new StartMenuWindow(this);
         QueueRecreate();
     }
 
@@ -51,8 +60,25 @@ internal sealed class Taskbars : IDisposable
     {
         Settings.Changed -= OnSettingsChanged;
         Tracker.Dispose();
+        _startMenu?.Close();
         CloseWindows();
     }
+
+    /// <summary>Opens Start above <paramref name="taskbar"/>, or closes it if it's open.</summary>
+    public void ToggleStartMenu(TaskbarWindow taskbar)
+    {
+        if (_startMenu is null)
+            return;
+
+        if (_startMenu.IsOpen)
+            _startMenu.Hide();
+        else if (!_startMenu.WasJustDeactivated)
+            _startMenu.Show(taskbar.Monitor, taskbar.ScreenBounds, Settings.Current.TaskbarAlignment == TaskbarAlignment.Center, _theme);
+    }
+
+    public void HideStartMenu() => _startMenu?.Hide();
+
+    public void SwitchToExplorer() => _switchToExplorer();
 
     public void Pin(PinnedApp app)
     {
