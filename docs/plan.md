@@ -5,12 +5,12 @@ Tick items off as they land. The feature details are in [design.md](design.md).
 
 ## 0. Scaffold
 
-- [ ] `NeoShell.slnx`, `Directory.Build.props` (TFM, nullable, implicit usings, warnings as errors, `LangVersion latest`)
-- [ ] `src/NeoShell` — WinUI 3, unpackaged, self-contained Windows App SDK, custom `Main`
-- [ ] `src/NeoShell.Interop` — class library, `AllowUnsafeBlocks`, `InternalsVisibleTo` tests
-- [ ] `tests/NeoShell.Tests` — xunit, references both projects
-- [ ] `.gitignore` (Visual Studio template), `README.md`
-- [ ] `tools/set-shell.ps1`, `tools/restore-explorer.ps1` (Windows PowerShell 5.1, HKCU only)
+- [x] `NeoShell.slnx`, `Directory.Build.props` (TFM, nullable, implicit usings, warnings as errors, `LangVersion latest`)
+- [x] `src/NeoShell` — WinUI 3, unpackaged, self-contained Windows App SDK, custom `Main`
+- [x] `src/NeoShell.Interop` — class library, `AllowUnsafeBlocks`, `InternalsVisibleTo` tests
+- [x] `tests/NeoShell.Tests` — xunit, references both projects
+- [x] `.gitignore` (Visual Studio template), `README.md`
+- [x] `tools/set-shell.ps1`, `tools/restore-explorer.ps1` (Windows PowerShell 5.1, HKCU only)
 
 ## 1. Skeleton
 

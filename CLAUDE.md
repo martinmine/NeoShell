@@ -7,6 +7,13 @@ search and power options.
 - Design and feature spec: [docs/design.md](docs/design.md)
 - Milestones and progress: [docs/plan.md](docs/plan.md) — tick items off as they land
 
+## Development environment
+
+Development happens in a disposable virtual machine dedicated to this project. Nothing of value lives on it, so
+Claude is free to install tools, change system settings, create test accounts and run NeoShell as the shell here
+without asking. The Safety rules below still describe how NeoShell must behave on real machines.
+The owner manages git (branches and commits); don't commit unless asked.
+
 ## Code principles
 
 - **Clean, simple, readable.** Write the smallest readable thing that works. No speculative abstractions,
