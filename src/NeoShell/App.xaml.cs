@@ -4,6 +4,7 @@ using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.Win32;
 using NeoShell.Desktop;
+using NeoShell.Interop.Shell;
 using NeoShell.Interop.Windowing;
 using NeoShell.Logging;
 using NeoShell.Settings;
@@ -20,14 +21,17 @@ public partial class App : Application
     private readonly RunMode _runMode;
     private readonly SettingsStore _settings = new(Path.Combine(Program.DataDirectory, "settings.json"));
     private MessageWindow? _controlWindow;
+    private readonly ShellRegistration? _shellRegistration;
     private Wallpaper? _wallpaper;
     private Taskbars? _taskbars;
     private bool _shuttingDown;
     private bool _startExplorerOnExit;
 
-    public App(RunMode runMode)
+    /// <param name="shellRegistration">Held while NeoShell is the shell; released last on exit.</param>
+    public App(RunMode runMode, ShellRegistration? shellRegistration)
     {
         _runMode = runMode;
+        _shellRegistration = shellRegistration;
         InitializeComponent();
 
         // A shell keeps running without windows; it only exits through /exit or its menu.
@@ -94,6 +98,8 @@ public partial class App : Application
         // Taskbars first: they give the reserved screen space back.
         _taskbars?.Dispose();
         _wallpaper?.Dispose();
+        // Last, so Explorer started below becomes the shell rather than opening a folder window.
+        _shellRegistration?.Dispose();
         _controlWindow?.Dispose();
 
         if (_startExplorerOnExit)

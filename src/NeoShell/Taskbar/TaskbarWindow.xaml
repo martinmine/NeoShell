@@ -3,7 +3,8 @@
     x:Class="NeoShell.Taskbar.TaskbarWindow"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    xmlns:local="using:NeoShell.Taskbar">
+    xmlns:local="using:NeoShell.Taskbar"
+    xmlns:tray="using:NeoShell.Tray">
 
     <!-- Transparent, not null: the background must take right-clicks for the context menu. -->
     <Grid x:Name="Root" Background="Transparent">
@@ -12,6 +13,26 @@
                 <ResourceDictionary.MergedDictionaries>
                     <ResourceDictionary Source="ms-appx:///FlatButtons.xaml" />
                 </ResourceDictionary.MergedDictionaries>
+
+                <!-- A tray icon: every mouse action goes to the icon's app. -->
+                <DataTemplate x:Key="TrayIconTemplate" x:DataType="tray:TrayIcon">
+                    <Grid
+                        Width="28"
+                        Height="40"
+                        Background="Transparent"
+                        AutomationProperties.AutomationId="TrayIcon"
+                        AutomationProperties.Name="{x:Bind Name, Mode=OneWay}"
+                        ToolTipService.ToolTip="{x:Bind ToolTip, Mode=OneWay}"
+                        PointerPressed="TrayIcon_PointerPressed"
+                        PointerReleased="TrayIcon_PointerReleased"
+                        PointerMoved="TrayIcon_PointerMoved"
+                        PointerEntered="TrayIcon_PointerEntered"
+                        PointerExited="TrayIcon_PointerExited"
+                        ContextRequested="TrayIcon_ContextRequested">
+                        <Border CornerRadius="4" Background="{ThemeResource SubtleFillColorSecondaryBrush}" Opacity="0" />
+                        <Image Width="16" Height="16" Source="{x:Bind Icon, Mode=OneWay}" />
+                    </Grid>
+                </DataTemplate>
             </ResourceDictionary>
         </Grid.Resources>
 
@@ -136,7 +157,37 @@
         </StackPanel>
 
         <StackPanel x:Name="RightPanel" Grid.Column="1" Orientation="Horizontal">
-            <!-- Tray icons: milestone 6. Network, volume and microphone indicators: milestone 7. -->
+            <!-- The tray, on the primary taskbar while NeoShell is the shell: all icons, or behind a chevron. -->
+            <StackPanel x:Name="TrayArea" Orientation="Horizontal" VerticalAlignment="Center" Visibility="Collapsed">
+                <Button
+                    x:Name="OverflowButton"
+                    AutomationProperties.AutomationId="TrayOverflowButton"
+                    AutomationProperties.Name="Show hidden icons"
+                    ToolTipService.ToolTip="Show hidden icons"
+                    Width="28"
+                    Style="{StaticResource FlatButtonStyle}">
+                    <FontIcon Glyph="&#xE70E;" FontSize="12" />
+                    <Button.Flyout>
+                        <Flyout x:Name="OverflowFlyout" Placement="Top" ShouldConstrainToRootBounds="False">
+                            <ItemsControl x:Name="OverflowIcons" ItemTemplate="{StaticResource TrayIconTemplate}" MaxWidth="140">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <ItemsWrapGrid Orientation="Horizontal" MaximumRowsOrColumns="5" />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                            </ItemsControl>
+                        </Flyout>
+                    </Button.Flyout>
+                </Button>
+                <ItemsControl x:Name="TrayIcons" ItemTemplate="{StaticResource TrayIconTemplate}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <StackPanel Orientation="Horizontal" />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                </ItemsControl>
+            </StackPanel>
+            <!-- Network, volume and microphone indicators: milestone 7. -->
             <local:Clock x:Name="Clock" Margin="4,0" VerticalAlignment="Center" />
             <Button
                 x:Name="ShowDesktopButton"
@@ -196,6 +247,11 @@
                         Text="Never"
                         Click="Combine_Click" />
                 </MenuFlyoutSubItem>
+                <ToggleMenuFlyoutItem
+                    x:Name="ShowAllTrayIconsItem"
+                    AutomationProperties.AutomationId="ShowAllTrayIconsMenuItem"
+                    Text="Show all tray icons"
+                    Click="ShowAllTrayIcons_Click" />
                 <ToggleMenuFlyoutItem
                     x:Name="AllDisplaysItem"
                     AutomationProperties.AutomationId="AllDisplaysMenuItem"

@@ -4,7 +4,9 @@ using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using NeoShell.Interop.Windowing;
 using NeoShell.Logging;
+using NeoShell.Interop.Tray;
 using NeoShell.Settings;
+using NeoShell.Tray;
 using NeoShell.StartMenu;
 
 namespace NeoShell.Taskbar;
@@ -48,9 +50,17 @@ internal sealed class Taskbars : IDisposable
 
     public WindowTracker Tracker { get; }
 
+    /// <summary>The system tray; only when NeoShell is the shell and no other tray is running.</summary>
+    public NotificationArea? Tray { get; private set; }
+
     public void Show()
     {
         Tracker.Start();
+        if (RunMode == RunMode.Shell && !TrayHost.IsTrayRunning())
+        {
+            Tray = new NotificationArea();
+            Tray.IconBounds = icon => _windows.FirstOrDefault(w => w.Monitor.IsPrimary)?.TrayIconBounds(icon);
+        }
         // Created up front, so it opens instantly and its app catalog is already loaded.
         _startMenu = new StartMenuWindow(this);
         QueueRecreate();
@@ -60,6 +70,7 @@ internal sealed class Taskbars : IDisposable
     {
         Settings.Changed -= OnSettingsChanged;
         Tracker.Dispose();
+        Tray?.Dispose();
         _startMenu?.Close();
         CloseWindows();
     }
@@ -146,7 +157,10 @@ internal sealed class Taskbars : IDisposable
     private void RefreshTasks()
     {
         foreach (TaskbarWindow window in _windows)
+        {
             window.RefreshTasks();
+            window.RefreshTray();
+        }
     }
 
     private void QueueUpdate()
@@ -200,6 +214,8 @@ internal sealed class Taskbars : IDisposable
             window.RefreshTasks();
             window.AppWindow.Show(activateWindow: false);
             _windows.Add(window);
+            if (monitor.IsPrimary)
+                Tray?.SetTaskbarBounds(window.ScreenBounds);
         }
         Log.Info($"Taskbars on {monitors.Count} monitor(s)");
     }

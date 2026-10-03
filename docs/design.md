@@ -45,7 +45,10 @@ All shell surfaces (taskbar, Start menu, wallpaper, flyouts) are WinUI `Window`s
 - **Custom `Main`** (`Program.cs`):
   - Single instance via a named mutex. A second instance with `/exit` posts a registered message
     (`NeoShell_Exit`) to the running instance and exits; without arguments it just exits.
-  - Detects the run mode: `GetShellWindow() == 0` means NeoShell is the shell.
+  - Detects the run mode: when `GetShellWindow() == 0` it registers as the shell right away (`ShellRegistration`:
+    `SetShellWindow` on a hidden window of its own, on the thread WinUI then runs on) and runs in shell mode; if that
+    fails, or another shell exists, it runs alongside. Registering this early matters: a killed Explorer is restarted
+    by Winlogon within a second or two.
   - Installs crash handlers (`AppDomain.UnhandledException`, `Application.UnhandledException`,
     `TaskScheduler.UnobservedTaskException`): log, and in shell mode start `explorer.exe`. Unobserved task
     exceptions only log, because they don't end the process.
@@ -59,7 +62,9 @@ All shell surfaces (taskbar, Start menu, wallpaper, flyouts) are WinUI `Window`s
 
 ### Shell mode (`ShellSession`)
 
-1. `SetShellWindow` on the primary wallpaper window and `SetTaskmanWindow` on the taskbar.
+1. `SetShellWindow` (done in `Main`, see above; a dedicated window rather than a wallpaper window, which is
+   recreated on display changes) and `SetTaskmanWindow` on the taskbar. The registration is released last on exit,
+   so Explorer started by Switch to Explorer becomes the shell.
 2. Create `Shell_TrayWnd` (see Tray) and broadcast `TaskbarCreated`.
 3. Signal the shell-ready event (`ShellDesktopSwitchEvent` / `msgina: ShellReadyEvent`) so logon completes.
 4. Run startup apps (below).
@@ -212,23 +217,32 @@ Task Manager, the taskbar settings toggles (alignment, combine, auto-hide, all d
 
 ## System tray (`Tray/`)
 
-- `TrayHost` (Interop) creates a top-level window of class `Shell_TrayWnd` and a child `TrayNotifyWnd`, because
-  `Shell_NotifyIcon` finds the tray by that class name.
+- `TrayHost` (Interop) creates a hidden top-level window of class `Shell_TrayWnd` and a child `TrayNotifyWnd`,
+  because `Shell_NotifyIcon` finds the tray by that class name. It is placed over the primary taskbar: apps read its
+  rectangle to learn where the taskbar is.
 - Handles `WM_COPYDATA`:
-  - `dwData == 1`: `SHELLTRAYDATA` → `NIM_ADD`, `NIM_MODIFY`, `NIM_DELETE`, `NIM_SETFOCUS`, `NIM_SETVERSION`.
-  - `dwData == 3`: `Shell_NotifyIconGetRect` — reply with the icon's screen rect.
+  - `dwData == 1`: `SHELLTRAYDATA` → `NIM_ADD`, `NIM_MODIFY`, `NIM_DELETE`, `NIM_SETFOCUS`, `NIM_SETVERSION`;
+    replies 1 or 0, which the app gets back from `Shell_NotifyIcon`.
+  - `dwData == 3`: `Shell_NotifyIconGetRect`, asked twice: `dwMessage` 1 → the top-left corner, 2 → the size, each
+    as MAKELONG. An icon in the overflow answers with the chevron, as Explorer does.
+  - `dwData == 0` (`SHAppBarMessage` from other app bars) is not served yet; it returns 0.
   - `NOTIFYICONDATA` parsing is done from a byte buffer and handles both 32- and 64-bit callers
-    (HWND/HICON fields are 32-bit handles in both). Unit tested with captured buffers.
-- Icons are keyed by (`hWnd`, `uID`) or `guidItem`. `NIS_HIDDEN` is honoured. Tooltips from `szTip`; balloon
-  notifications are ignored (toasts are out of scope).
+    (HWND/HICON fields are 32-bit handles in both, sign-extended) and the V1/V2/V3/current sizes. Unit tested.
+- Icons are keyed by (`hWnd`, `uID`) or `guidItem` (`TrayIconStore`, unit tested): adding an existing icon or
+  changing a missing one fails, as in Explorer; only flagged fields change. `NIS_HIDDEN` is honoured. Icon pixels
+  are copied when they arrive, as the app may destroy its HICON. Tooltips from `szTip` (version 4 icons without
+  `NIF_SHOWTIP` get `NIN_POPUPOPEN`/`NIN_POPUPCLOSE` instead); balloon notifications are ignored (toasts are out of
+  scope).
 - After `Shell_TrayWnd` exists, broadcast `RegisterWindowMessage("TaskbarCreated")` so running apps re-add icons.
-- Remove icons whose owner window has died (`IsWindow` check on a timer and on mouse-over).
+- Remove icons whose owner window has died (`IsWindow` every 5 s and before forwarding input).
 - **Mouse forwarding** with `NOTIFYICON_VERSION_4` semantics: `wParam` = anchor point (x, y), `lParam` low word =
   message (`WM_LBUTTONUP`, `NIN_SELECT`, `WM_CONTEXTMENU`, `NIN_POPUPOPEN`…), high word = icon ID; older versions
-  get `wParam = uID`, `lParam = mouse message`. Call `AllowSetForegroundWindow` for the owner process first.
-- **Display mode** (setting `TrayMode`): `ShowAll` (every icon in the taskbar) or `Overflow` (icons behind a chevron
-  flyout).
-- Alongside Explorer: Explorer owns `Shell_TrayWnd`, so the tray is best-effort/disabled. Fully supported as the shell.
+  get `wParam = uID`, `lParam = mouse message` (version 3 also gets `NIN_SELECT`/`WM_CONTEXTMENU`). Clicks call
+  `AllowSetForegroundWindow` for the owner process first. A second press within the double-click time becomes
+  `WM_LBUTTONDBLCLK`. Unit tested.
+- **Display mode** (setting `TrayMode`, toggled from the taskbar menu): `ShowAll` (every icon in the taskbar) or
+  `Overflow` (icons behind a chevron flyout). Primary taskbar only.
+- Alongside Explorer: Explorer owns `Shell_TrayWnd`, so NeoShell shows no tray. Fully supported as the shell.
 
 ## Indicators (`Tray/`)
 

@@ -25,6 +25,8 @@ internal static unsafe partial class User32
     public static readonly nint HWND_BOTTOM = 1;
     public static readonly nint HWND_MESSAGE = -3;
 
+    public const uint WS_POPUP = 0x8000_0000;
+    public const uint WS_CHILD = 0x4000_0000;
     public const uint WS_MINIMIZEBOX = 0x0002_0000;
     public const uint WS_EX_TOOLWINDOW = 0x0000_0080;
 
@@ -156,6 +158,10 @@ internal static unsafe partial class User32
     [LibraryImport("user32.dll")]
     public static partial nint GetShellWindow();
 
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static partial bool SetShellWindow(nint hwnd);
+
     // The Ptr variants only exist as exports on 64-bit Windows; NeoShell is x64 only.
     [LibraryImport("user32.dll", EntryPoint = "GetWindowLongPtrW")]
     public static partial nint GetWindowLongPtr(nint hwnd, int index);
@@ -263,6 +269,38 @@ internal static unsafe partial class User32
 
     [LibraryImport("user32.dll")]
     public static partial short GetAsyncKeyState(int key);
+
+    public static readonly nint HWND_BROADCAST = 0xFFFF;
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct COPYDATASTRUCT
+    {
+        public nint dwData;
+        public uint cbData;
+        public nint lpData;
+    }
+
+    [LibraryImport("user32.dll", EntryPoint = "SendNotifyMessageW")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static partial bool SendNotifyMessage(nint hwnd, uint message, nint wParam, nint lParam);
+
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static partial bool AllowSetForegroundWindow(uint processId);
+
+    [LibraryImport("user32.dll")]
+    public static partial uint GetDoubleClickTime();
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct POINT
+    {
+        public int x;
+        public int y;
+    }
+
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static partial bool GetCursorPos(out POINT point);
 
     [LibraryImport("user32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]

@@ -30,7 +30,10 @@ public static class Program
         if (exitRequested)
             return 0;
 
-        s_runMode = ShellRegistration.IsShellRunning() ? RunMode.AlongsideExplorer : RunMode.Shell;
+        // Register as the shell straight away when there is none: a restarting Explorer would take the role within
+        // a second or two. Registered here, on the thread WinUI then runs on, the window keeps getting its messages.
+        ShellRegistration? shellRegistration = ShellRegistration.IsShellRunning() ? null : TryRegisterShell();
+        s_runMode = shellRegistration is null ? RunMode.AlongsideExplorer : RunMode.Shell;
 
         Log.Initialize(Path.Combine(DataDirectory, "logs"));
         Log.Info($"NeoShell {typeof(Program).Assembly.GetName().Version} starting, run mode {s_runMode}");
@@ -50,7 +53,7 @@ public static class Program
         {
             SynchronizationContext.SetSynchronizationContext(
                 new DispatcherQueueSynchronizationContext(DispatcherQueue.GetForCurrentThread()));
-            new App(s_runMode);
+            new App(s_runMode, shellRegistration);
         });
 
         Log.Info("NeoShell exited");
@@ -75,6 +78,19 @@ public static class Program
         catch (Exception ex)
         {
             Log.Error("Could not start explorer.exe", ex);
+        }
+    }
+
+    private static ShellRegistration? TryRegisterShell()
+    {
+        try
+        {
+            return new ShellRegistration();
+        }
+        catch (InvalidOperationException)
+        {
+            // Explorer registered in the meantime.
+            return null;
         }
     }
 

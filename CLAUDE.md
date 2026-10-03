@@ -14,6 +14,9 @@ Claude is free to install tools, change system settings, create test accounts an
 without asking. The Safety rules below still describe how NeoShell must behave on real machines.
 The owner manages git (branches and commits); don't commit unless asked.
 
+The VM has `HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon\AutoRestartShell = 0` (set 2026-10-03 for
+shell-mode testing): a killed Explorer stays down, so start `explorer.exe` again yourself after a shell-mode test.
+
 ## Code principles
 
 - **Clean, simple, readable.** Write the smallest readable thing that works. No speculative abstractions,

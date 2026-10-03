@@ -8,7 +8,10 @@ using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using NeoShell.Interop.Windowing;
+using Microsoft.UI.Input;
+using NeoShell.Interop.Tray;
 using NeoShell.Settings;
+using NeoShell.Tray;
 using Windows.Foundation;
 using Windows.Graphics;
 using AppBar = NeoShell.Interop.Windowing.AppBar;
@@ -33,6 +36,11 @@ internal sealed partial class TaskbarWindow : Window
     private readonly DispatcherQueueTimer _hoverTimer;
     private readonly DispatcherQueueTimer _hideTimer;
     private (TaskButton Button, FrameworkElement Element)? _hovered;
+    private readonly NotificationArea? _tray;
+    private readonly DispatcherQueueTimer _trayHoverTimer;
+    private TrayIcon? _trayHovered;
+    private bool _trayPopupOpen;
+    private (TrayIcon Icon, long Time)? _lastTrayLeftDown;
 
     public TaskbarWindow(Taskbars owner, DisplayMonitor monitor, ShellSettings settings, ElementTheme theme)
     {
@@ -91,8 +99,29 @@ internal sealed partial class TaskbarWindow : Window
         });
         _hideTimer = CreateTimer(dispatcher, TimeSpan.FromMilliseconds(400), _thumbnails.Hide);
 
+        // The tray lives on the primary taskbar only, as in Windows 11.
+        _tray = monitor.IsPrimary ? owner.Tray : null;
+        _trayHoverTimer = CreateTimer(dispatcher, TimeSpan.FromMilliseconds(400), () =>
+        {
+            if (_trayHovered is { } icon)
+            {
+                _trayPopupOpen = true;
+                _tray?.Send(icon, TrayMouseEvent.HoverStart);
+            }
+        });
+        if (_tray is not null)
+        {
+            TrayArea.Visibility = Visibility.Visible;
+            TrayIcons.ItemsSource = OverflowIcons.ItemsSource = _tray.Icons;
+            _tray.Icons.CollectionChanged += OnTrayIconsChanged;
+            RefreshTray();
+        }
+
         Closed += (_, _) =>
         {
+            if (_tray is not null)
+                _tray.Icons.CollectionChanged -= OnTrayIconsChanged;
+            _trayHoverTimer.Stop();
             _hoverTimer.Stop();
             _hideTimer.Stop();
             _thumbnails.Close();
@@ -119,6 +148,144 @@ internal sealed partial class TaskbarWindow : Window
     }
 
     public void UpdateClock() => Clock.Update();
+
+    /// <summary>Shows the tray icons on the taskbar, or behind the chevron, as the tray mode setting says.</summary>
+    public void RefreshTray()
+    {
+        if (_tray is null)
+            return;
+
+        bool showAll = _owner.Settings.Current.TrayMode == TrayMode.ShowAll;
+        TrayIcons.Visibility = showAll ? Visibility.Visible : Visibility.Collapsed;
+        OverflowButton.Visibility = !showAll && _tray.Icons.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    /// <summary>
+    /// Where a tray icon is on screen: the icon itself, or the chevron when it's in the overflow (as Explorer
+    /// answers for icons it doesn't show).
+    /// </summary>
+    public RectInt32? TrayIconBounds(TrayIcon icon)
+    {
+        if (_tray is null)
+            return null;
+
+        FrameworkElement? element = TrayIcons.Visibility == Visibility.Visible
+            ? TrayIcons.ContainerFromItem(icon) as FrameworkElement
+            : OverflowButton;
+        return element is null ? null : BoundsOnScreen(element);
+    }
+
+    /// <summary>An element's place on screen, in pixels.</summary>
+    private RectInt32 BoundsOnScreen(FrameworkElement element)
+    {
+        double scale = Root.XamlRoot.RasterizationScale;
+        Rect rect = element.TransformToVisual(Root).TransformBounds(new Rect(0, 0, element.ActualWidth, element.ActualHeight));
+        RectInt32 taskbar = _placement.Bounds;
+        return new RectInt32(
+            taskbar.X + (int)(rect.X * scale), taskbar.Y + (int)(rect.Y * scale), (int)(rect.Width * scale), (int)(rect.Height * scale));
+    }
+
+    private void OnTrayIconsChanged(object? sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e) => RefreshTray();
+
+    private void TrayIcon_PointerPressed(object sender, PointerRoutedEventArgs e)
+    {
+        if (_tray is null || sender is not FrameworkElement { DataContext: TrayIcon icon } element)
+            return;
+
+        PointerPointProperties button = e.GetCurrentPoint(element).Properties;
+        TrayMouseEvent mouseEvent;
+        if (button.IsLeftButtonPressed)
+        {
+            // Windows turns a second press within the double-click time into a double-click; so does the tray.
+            long now = Environment.TickCount64;
+            bool doubleClick = _lastTrayLeftDown is { } last && last.Icon == icon && now - last.Time <= NotifyIconInput.DoubleClickTime;
+            mouseEvent = doubleClick ? TrayMouseEvent.LeftDoubleClick : TrayMouseEvent.LeftDown;
+            _lastTrayLeftDown = doubleClick ? null : (icon, now);
+        }
+        else if (button.IsRightButtonPressed)
+        {
+            mouseEvent = TrayMouseEvent.RightDown;
+        }
+        else if (button.IsMiddleButtonPressed)
+        {
+            mouseEvent = TrayMouseEvent.MiddleDown;
+        }
+        else
+        {
+            return;
+        }
+
+        element.CapturePointer(e.Pointer);
+        EndTrayHover();
+        _tray.Send(icon, mouseEvent);
+        e.Handled = true;
+    }
+
+    private void TrayIcon_PointerReleased(object sender, PointerRoutedEventArgs e)
+    {
+        if (_tray is null || sender is not FrameworkElement { DataContext: TrayIcon icon } element)
+            return;
+
+        element.ReleasePointerCapture(e.Pointer);
+        TrayMouseEvent? mouseEvent = e.GetCurrentPoint(element).Properties.PointerUpdateKind switch
+        {
+            PointerUpdateKind.LeftButtonReleased => TrayMouseEvent.LeftUp,
+            PointerUpdateKind.RightButtonReleased => TrayMouseEvent.RightUp,
+            PointerUpdateKind.MiddleButtonReleased => TrayMouseEvent.MiddleUp,
+            _ => null,
+        };
+        if (mouseEvent is not { } released)
+            return;
+
+        _tray.Send(icon, released);
+        // Out of the way of the menu or window the app opens.
+        if (released is TrayMouseEvent.LeftUp or TrayMouseEvent.RightUp)
+            OverflowFlyout.Hide();
+        e.Handled = true;
+    }
+
+    private void TrayIcon_PointerMoved(object sender, PointerRoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement { DataContext: TrayIcon icon } element)
+            return;
+
+        // A captured pointer keeps reporting after leaving the icon; the app only cares about moves over it.
+        Point point = e.GetCurrentPoint(element).Position;
+        if (point.X >= 0 && point.Y >= 0 && point.X < element.ActualWidth && point.Y < element.ActualHeight)
+            _tray?.Send(icon, TrayMouseEvent.Move);
+    }
+
+    private void TrayIcon_PointerEntered(object sender, PointerRoutedEventArgs e)
+    {
+        if (sender is not Grid { DataContext: TrayIcon icon } element)
+            return;
+
+        element.Children[0].Opacity = 1; // hover background
+        _trayHovered = icon;
+        _trayHoverTimer.Start();
+    }
+
+    private void TrayIcon_PointerExited(object sender, PointerRoutedEventArgs e)
+    {
+        if (sender is Grid element)
+            element.Children[0].Opacity = 0;
+        EndTrayHover();
+    }
+
+    private void EndTrayHover()
+    {
+        _trayHoverTimer.Stop();
+        if (_trayPopupOpen && _trayHovered is { } icon)
+            _tray?.Send(icon, TrayMouseEvent.HoverEnd);
+        _trayPopupOpen = false;
+        _trayHovered = null;
+    }
+
+    // A right-click on an icon is the app's; the taskbar's own menu must not open too.
+    private void TrayIcon_ContextRequested(UIElement sender, ContextRequestedEventArgs e) => e.Handled = true;
+
+    private void ShowAllTrayIcons_Click(object sender, RoutedEventArgs e) =>
+        _owner.Settings.Update(_owner.Settings.Current with { TrayMode = ShowAllTrayIconsItem.IsChecked ? TrayMode.ShowAll : TrayMode.Overflow });
 
     /// <summary>Rebuilds the task buttons from the pinned apps and the tracked windows.</summary>
     public void RefreshTasks()
@@ -254,13 +421,7 @@ internal sealed partial class TaskbarWindow : Window
 
     private void ShowThumbnails(TaskButton button, FrameworkElement element)
     {
-        // The button's place on screen, in pixels.
-        double scale = Root.XamlRoot.RasterizationScale;
-        Rect rect = element.TransformToVisual(Root).TransformBounds(new Rect(0, 0, element.ActualWidth, element.ActualHeight));
-        RectInt32 taskbar = _placement.Bounds;
-        var anchor = new RectInt32(
-            taskbar.X + (int)(rect.X * scale), taskbar.Y + (int)(rect.Y * scale), (int)(rect.Width * scale), (int)(rect.Height * scale));
-        _thumbnails.Show(button, anchor, _monitor, Root.ActualTheme);
+        _thumbnails.Show(button, BoundsOnScreen(element), _monitor, Root.ActualTheme);
     }
 
     private void TaskMenu_Opening(object sender, object e)
@@ -302,6 +463,8 @@ internal sealed partial class TaskbarWindow : Window
         CombineWhenFullItem.IsChecked = settings.CombineButtons == CombineButtons.WhenFull;
         CombineNeverItem.IsChecked = settings.CombineButtons == CombineButtons.Never;
         AllDisplaysItem.IsChecked = settings.ShowOnAllDisplays;
+        ShowAllTrayIconsItem.Visibility = _tray is not null ? Visibility.Visible : Visibility.Collapsed;
+        ShowAllTrayIconsItem.IsChecked = settings.TrayMode == TrayMode.ShowAll;
     }
 
     private void TaskManager_Click(object sender, RoutedEventArgs e) => _owner.OpenTaskManager();

@@ -66,12 +66,12 @@ Tick items off as they land. The feature details are in [design.md](design.md).
 
 ## 6. System tray
 
-- [ ] `TrayHost` with `Shell_TrayWnd` / `TrayNotifyWnd`, `TaskbarCreated` broadcast
-- [ ] `NOTIFYICONDATA` parsing for 32/64-bit callers (tests)
-- [ ] Add/modify/delete/set version, `NIS_HIDDEN`, dead-owner cleanup
-- [ ] `Shell_NotifyIconGetRect` replies
-- [ ] Mouse forwarding (v4 and legacy semantics), `AllowSetForegroundWindow`
-- [ ] `TrayMode`: show all / overflow flyout
+- [x] `TrayHost` with `Shell_TrayWnd` / `TrayNotifyWnd`, `TaskbarCreated` broadcast
+- [x] `NOTIFYICONDATA` parsing for 32/64-bit callers (tests)
+- [x] Add/modify/delete/set version, `NIS_HIDDEN`, dead-owner cleanup
+- [x] `Shell_NotifyIconGetRect` replies
+- [x] Mouse forwarding (v4 and legacy semantics), `AllowSetForegroundWindow`
+- [x] `TrayMode`: show all / overflow flyout
 
 ## 7. Indicators
 
@@ -81,7 +81,7 @@ Tick items off as they land. The feature details are in [design.md](design.md).
 
 ## 8. Shell mode
 
-- [ ] `SetShellWindow` / `SetTaskmanWindow`, shell-ready event
+- [ ] `SetShellWindow` / `SetTaskmanWindow`, shell-ready event — `SetShellWindow` landed with the tray (milestone 6)
 - [ ] Startup apps: RunOnce, Run (incl. WOW6432Node), Startup folders, `StartupApproved` (tests), once per session,
       no double launch after switching to Explorer
 - [ ] Session end handling

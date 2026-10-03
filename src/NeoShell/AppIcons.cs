@@ -44,19 +44,23 @@ internal sealed class AppIcons(int size)
         try
         {
             IconBitmap? icon = await Task.Run(read);
-            if (icon is null)
-                return;
-
-            var bitmap = new WriteableBitmap(icon.Width, icon.Height);
-            using (Stream stream = bitmap.PixelBuffer.AsStream())
-                stream.Write(icon.Pixels);
-            bitmap.Invalidate();
-            store(bitmap);
+            if (icon is not null)
+                store(ToImageSource(icon));
         }
         catch (Exception ex)
         {
             Log.Warn("Loading an icon failed", ex);
         }
+    }
+
+    /// <summary>Makes a bitmap XAML can show from icon pixels. UI thread only.</summary>
+    public static ImageSource ToImageSource(IconBitmap icon)
+    {
+        var bitmap = new WriteableBitmap(icon.Width, icon.Height);
+        using (Stream stream = bitmap.PixelBuffer.AsStream())
+            stream.Write(icon.Pixels);
+        bitmap.Invalidate();
+        return bitmap;
     }
 
     private static string ShellItemFor(PinnedApp app) =>

@@ -14,14 +14,23 @@ public sealed unsafe class MessageWindow : IDisposable
     private GCHandle _self;
 
     public MessageWindow(string className, MessageHandler handler)
+        : this(className, handler, User32.HWND_MESSAGE, 0, 0)
+    {
+    }
+
+    /// <summary>
+    /// A hidden window under <paramref name="parent"/>: 0 makes a top-level window, which <c>FindWindow</c> finds and
+    /// system broadcasts reach, unlike a message-only one.
+    /// </summary>
+    internal MessageWindow(string className, MessageHandler handler, nint parent, uint style, uint exStyle)
     {
         _handler = handler;
         RegisterClass(className);
 
         _self = GCHandle.Alloc(this);
         Handle = User32.CreateWindowEx(
-            0, className, null, 0, 0, 0, 0, 0,
-            User32.HWND_MESSAGE, 0, Kernel32.GetModuleHandle(null), GCHandle.ToIntPtr(_self));
+            exStyle, className, null, style, 0, 0, 0, 0,
+            parent, 0, Kernel32.GetModuleHandle(null), GCHandle.ToIntPtr(_self));
         if (Handle == 0)
         {
             int error = Marshal.GetLastPInvokeError();

@@ -5,8 +5,11 @@ namespace NeoShell.Interop.Imaging;
 /// <summary>An icon as top-down 32-bit BGRA pixels with premultiplied alpha, ready for a WinUI <c>WriteableBitmap</c>.</summary>
 public sealed record IconBitmap(int Width, int Height, byte[] Pixels)
 {
-    /// <summary>Copies an HICON's pixels. The icon itself is left alone (the caller may not own it).</summary>
-    internal static unsafe IconBitmap? FromIcon(nint icon)
+    /// <summary>
+    /// Copies an HICON's pixels. The icon itself is left alone: it may belong to another process (icon handles are
+    /// valid session-wide), which can destroy it at any time after handing it over.
+    /// </summary>
+    public static unsafe IconBitmap? FromIcon(nint icon)
     {
         User32.ICONINFO info;
         if (!User32.GetIconInfo(icon, &info))
