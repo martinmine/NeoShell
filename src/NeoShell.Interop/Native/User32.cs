@@ -28,8 +28,28 @@ internal static unsafe partial class User32
     public const uint WS_MINIMIZEBOX = 0x0002_0000;
     public const uint WS_EX_TOOLWINDOW = 0x0000_0080;
 
+    public const uint WS_EX_APPWINDOW = 0x0004_0000;
+    public const uint WS_EX_NOACTIVATE = 0x0800_0000;
+
+    public const int SW_MINIMIZE = 6;
     public const int SW_RESTORE = 9;
     public const int SW_SHOWMINNOACTIVE = 7;
+
+    public const uint GW_OWNER = 4;
+    public const uint GA_ROOT = 2;
+
+    public const uint WM_GETICON = 0x007F;
+    public const uint WM_SYSCOMMAND = 0x0112;
+    public const nint SC_CLOSE = 0xF060;
+    public const nint ICON_SMALL = 0;
+    public const nint ICON_BIG = 1;
+    public const nint ICON_SMALL2 = 2;
+    public const int GCLP_HICON = -14;
+    public const int GCLP_HICONSM = -34;
+    public const uint SMTO_ABORTIFHUNG = 0x0002;
+
+    public const uint WINEVENT_OUTOFCONTEXT = 0x0000;
+    public const uint WINEVENT_SKIPOWNPROCESS = 0x0002;
 
     public const uint SPI_SETWORKAREA = 0x002F;
     public const uint SPIF_SENDCHANGE = 0x0002;
@@ -50,6 +70,13 @@ internal static unsafe partial class User32
 
         public static RECT From(Windows.Graphics.RectInt32 rect) =>
             new() { left = rect.X, top = rect.Y, right = rect.X + rect.Width, bottom = rect.Y + rect.Height };
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct SIZE
+    {
+        public int cx;
+        public int cy;
     }
 
     [StructLayout(LayoutKind.Sequential)]
@@ -171,4 +198,75 @@ internal static unsafe partial class User32
     [LibraryImport("user32.dll", EntryPoint = "SystemParametersInfoW", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     public static partial bool SystemParametersInfo(uint action, uint param, void* value, uint flags);
+
+    [LibraryImport("user32.dll", EntryPoint = "GetWindowTextW")]
+    public static partial int GetWindowText(nint hwnd, char* text, int maxCount);
+
+    [LibraryImport("user32.dll", EntryPoint = "GetWindowTextLengthW")]
+    public static partial int GetWindowTextLength(nint hwnd);
+
+    [LibraryImport("user32.dll")]
+    public static partial nint GetWindow(nint hwnd, uint command);
+
+    [LibraryImport("user32.dll")]
+    public static partial nint GetAncestor(nint hwnd, uint flags);
+
+    [LibraryImport("user32.dll")]
+    public static partial nint GetForegroundWindow();
+
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static partial bool SetForegroundWindow(nint hwnd);
+
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static partial bool IsWindow(nint hwnd);
+
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static partial bool RegisterShellHookWindow(nint hwnd);
+
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static partial bool DeregisterShellHookWindow(nint hwnd);
+
+    [LibraryImport("user32.dll")]
+    public static partial nint SetWinEventHook(
+        uint eventMin, uint eventMax, nint module,
+        delegate* unmanaged<nint, uint, nint, int, int, uint, uint, void> callback,
+        uint processId, uint threadId, uint flags);
+
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static partial bool UnhookWinEvent(nint hook);
+
+    [LibraryImport("user32.dll", EntryPoint = "SendMessageTimeoutW")]
+    public static partial nint SendMessageTimeout(
+        nint hwnd, uint message, nint wParam, nint lParam, uint flags, uint timeout, out nint result);
+
+    [LibraryImport("user32.dll", EntryPoint = "GetClassLongPtrW")]
+    public static partial nint GetClassLongPtr(nint hwnd, int index);
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct ICONINFO
+    {
+        public int fIcon;
+        public uint xHotspot;
+        public uint yHotspot;
+        public nint hbmMask;
+        public nint hbmColor;
+    }
+
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static partial bool GetIconInfo(nint icon, ICONINFO* info);
+
+    [LibraryImport("user32.dll")]
+    public static partial short GetAsyncKeyState(int key);
+
+    [LibraryImport("user32.dll")]
+    public static partial nint GetDC(nint hwnd);
+
+    [LibraryImport("user32.dll")]
+    public static partial int ReleaseDC(nint hwnd, nint hdc);
 }

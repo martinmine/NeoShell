@@ -18,6 +18,7 @@ internal sealed class Taskbars : IDisposable
     private readonly ShowDesktop _showDesktop = new();
     private readonly List<TaskbarWindow> _windows = [];
     private ElementTheme _theme = SystemTheme.Read();
+    private ShellSettings _windowSettings;
     private bool _updateQueued;
     private bool _recreate;
 
@@ -26,19 +27,46 @@ internal sealed class Taskbars : IDisposable
         RunMode = runMode;
         Settings = settings;
         _exit = exit;
-        Settings.Changed += QueueRecreate;
+        _windowSettings = settings.Current;
+        // Icons are 24 effective pixels; load them sharp for the densest monitor.
+        uint dpi = DisplayMonitor.GetAll().Select(m => m.Dpi).DefaultIfEmpty(96u).Max();
+        Tracker = new WindowTracker((int)Math.Round(24 * dpi / 96.0));
+        Tracker.Changed += RefreshTasks;
+        Settings.Changed += OnSettingsChanged;
     }
 
     public RunMode RunMode { get; }
 
     public SettingsStore Settings { get; }
 
-    public void Show() => QueueRecreate();
+    public WindowTracker Tracker { get; }
+
+    public void Show()
+    {
+        Tracker.Start();
+        QueueRecreate();
+    }
 
     public void Dispose()
     {
-        Settings.Changed -= QueueRecreate;
+        Settings.Changed -= OnSettingsChanged;
+        Tracker.Dispose();
         CloseWindows();
+    }
+
+    public void Pin(PinnedApp app)
+    {
+        if (!Settings.Current.PinnedTaskbarApps.Any(p => TaskGrouping.SameApp(p, app)))
+            SetPinnedOrder([.. Settings.Current.PinnedTaskbarApps, app]);
+    }
+
+    public void Unpin(PinnedApp app) =>
+        SetPinnedOrder([.. Settings.Current.PinnedTaskbarApps.Where(p => !TaskGrouping.SameApp(p, app))]);
+
+    public void SetPinnedOrder(IReadOnlyList<PinnedApp> pinned)
+    {
+        if (!pinned.SequenceEqual(Settings.Current.PinnedTaskbarApps))
+            Settings.Update(Settings.Current with { PinnedTaskbarApps = pinned });
     }
 
     public void QueueRecreate()
@@ -78,6 +106,22 @@ internal sealed class Taskbars : IDisposable
     }
 
     public void Exit() => _exit();
+
+    private void OnSettingsChanged()
+    {
+        // Where the taskbars go and how they're laid out needs new windows; the rest is just their buttons.
+        ShellSettings current = Settings.Current;
+        if (current.TaskbarAlignment != _windowSettings.TaskbarAlignment || current.ShowOnAllDisplays != _windowSettings.ShowOnAllDisplays)
+            QueueRecreate();
+        else
+            RefreshTasks();
+    }
+
+    private void RefreshTasks()
+    {
+        foreach (TaskbarWindow window in _windows)
+            window.RefreshTasks();
+    }
 
     private void QueueUpdate()
     {
@@ -121,11 +165,13 @@ internal sealed class Taskbars : IDisposable
     {
         CloseWindows();
 
+        _windowSettings = Settings.Current;
         IReadOnlyList<DisplayMonitor> monitors =
-            TaskbarLayout.MonitorsWithTaskbar(DisplayMonitor.GetAll(), Settings.Current.ShowOnAllDisplays);
+            TaskbarLayout.MonitorsWithTaskbar(DisplayMonitor.GetAll(), _windowSettings.ShowOnAllDisplays);
         foreach (DisplayMonitor monitor in monitors)
         {
-            var window = new TaskbarWindow(this, monitor, Settings.Current, _theme);
+            var window = new TaskbarWindow(this, monitor, _windowSettings, _theme);
+            window.RefreshTasks();
             window.AppWindow.Show(activateWindow: false);
             _windows.Add(window);
         }

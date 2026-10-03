@@ -1,15 +1,25 @@
+using System.Collections.ObjectModel;
 using Microsoft.UI;
+using Microsoft.UI.Dispatching;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Controls.Primitives;
+using Microsoft.UI.Xaml.Input;
 using NeoShell.Interop.Windowing;
 using NeoShell.Settings;
+using Windows.Foundation;
 using Windows.Graphics;
+using AppBar = NeoShell.Interop.Windowing.AppBar;
 
 namespace NeoShell.Taskbar;
 
 /// <summary>The taskbar on one monitor.</summary>
 internal sealed partial class TaskbarWindow : Window
 {
+    // Effective pixels taken by the Start and Search buttons and the margins around the task list.
+    private const double FixedButtonsWidth = 2 * 44 + 24;
+
     private readonly Taskbars _owner;
     private readonly DisplayMonitor _monitor;
     private readonly AcrylicBackdrop _backdrop = new();
@@ -17,6 +27,11 @@ internal sealed partial class TaskbarWindow : Window
     private readonly WindowSubclass _messages;
     private readonly PinnedWindow _placement;
     private readonly AppBar? _appBar;
+    private readonly ObservableCollection<TaskButton> _tasks = [];
+    private readonly ThumbnailPopup _thumbnails;
+    private readonly DispatcherQueueTimer _hoverTimer;
+    private readonly DispatcherQueueTimer _hideTimer;
+    private (TaskButton Button, FrameworkElement Element)? _hovered;
 
     public TaskbarWindow(Taskbars owner, DisplayMonitor monitor, ShellSettings settings, ElementTheme theme)
     {
@@ -58,8 +73,26 @@ internal sealed partial class TaskbarWindow : Window
         }
         _placement = new PinnedWindow(hwnd, bounds, PinnedLayer.Topmost);
 
+        TaskList.ItemsSource = _tasks;
+        Root.SizeChanged += (_, _) => RefreshTasks();
+        RightPanel.SizeChanged += (_, _) => RefreshTasks();
+
+        _thumbnails = new ThumbnailPopup(owner.Tracker);
+        _thumbnails.Root.PointerEntered += (_, _) => _hideTimer!.Stop();
+        _thumbnails.Root.PointerExited += (_, _) => _hideTimer!.Start();
+        DispatcherQueue dispatcher = DispatcherQueue.GetForCurrentThread();
+        _hoverTimer = CreateTimer(dispatcher, TimeSpan.FromMilliseconds(500), () =>
+        {
+            if (_hovered is { } hovered && hovered.Button.Windows.Count > 0)
+                ShowThumbnails(hovered.Button, hovered.Element);
+        });
+        _hideTimer = CreateTimer(dispatcher, TimeSpan.FromMilliseconds(400), _thumbnails.Hide);
+
         Closed += (_, _) =>
         {
+            _hoverTimer.Stop();
+            _hideTimer.Stop();
+            _thumbnails.Close();
             // Give the space back first, so windows can use it straight away.
             if (_appBar is not null)
                 _appBar.Dispose();
@@ -79,6 +112,55 @@ internal sealed partial class TaskbarWindow : Window
 
     public void UpdateClock() => Clock.Update();
 
+    /// <summary>Rebuilds the task buttons from the pinned apps and the tracked windows.</summary>
+    public void RefreshTasks()
+    {
+        ShellSettings settings = _owner.Settings.Current;
+        IReadOnlyList<WindowInfo> windows = _owner.Tracker.Windows;
+        double available = AvailableTaskWidth();
+        // More buttons than fit are cut off rather than drawn over the clock.
+        TaskList.MaxWidth = Math.Max(0, available);
+        IReadOnlyList<TaskButtonModel> uncombined = TaskListBuilder.Build(settings.PinnedTaskbarApps, windows, combine: false);
+        bool combine = TaskListBuilder.ShouldCombine(settings.CombineButtons, uncombined, available);
+        IReadOnlyList<TaskButtonModel> models = combine
+            ? TaskListBuilder.Build(settings.PinnedTaskbarApps, windows, combine: true)
+            : uncombined;
+
+        // Update in place, so buttons keep their state and the list doesn't flicker.
+        for (int i = 0; i < models.Count; i++)
+        {
+            int existing = IndexOf(models[i].Key, i);
+            if (existing < 0)
+                _tasks.Insert(i, new TaskButton(models[i].Key));
+            else if (existing != i)
+                _tasks.Move(existing, i);
+            _tasks[i].Update(models[i], _owner.Tracker, combine);
+        }
+        while (_tasks.Count > models.Count)
+            _tasks.RemoveAt(_tasks.Count - 1);
+
+        // The previews show windows that may have closed or opened.
+        if (_thumbnails.Button is { } shown && !_tasks.Contains(shown))
+            _thumbnails.Hide();
+    }
+
+    private double AvailableTaskWidth()
+    {
+        // Centred, the task list must stay clear of the right-hand panel on both sides to stay centred.
+        double right = AppsPanel.HorizontalAlignment == HorizontalAlignment.Center ? 2 * RightPanel.ActualWidth : RightPanel.ActualWidth;
+        return Root.ActualWidth - right - FixedButtonsWidth;
+    }
+
+    private int IndexOf(string key, int start)
+    {
+        for (int i = start; i < _tasks.Count; i++)
+        {
+            if (_tasks[i].Key == key)
+                return i;
+        }
+        return -1;
+    }
+
     private nint? OnMessage(uint message, nint wParam, nint lParam)
     {
         // WinUI resizes the window for the new DPI; the taskbar needs a new height, so it's recreated. A window
@@ -90,11 +172,115 @@ internal sealed partial class TaskbarWindow : Window
         return null;
     }
 
+    private void TaskList_ItemClick(object sender, ItemClickEventArgs e)
+    {
+        if (e.ClickedItem is not TaskButton button)
+            return;
+
+        if (KeyboardState.IsShiftDown() || button.Windows.Count == 0)
+        {
+            _thumbnails.Hide();
+            Launcher.Launch(button.App);
+        }
+        else if (button.Windows.Count == 1)
+        {
+            _thumbnails.Hide();
+            nint hwnd = button.Windows[0].Handle;
+            if (hwnd == _owner.Tracker.Foreground && !TopLevelWindows.IsMinimized(hwnd))
+                TopLevelWindows.MinimizeAndActivateNext(hwnd);
+            else
+                TopLevelWindows.Activate(hwnd);
+        }
+        else if (_thumbnails.Button == button)
+        {
+            _thumbnails.Hide();
+        }
+        else if (TaskList.ContainerFromItem(button) is FrameworkElement element)
+        {
+            ShowThumbnails(button, element);
+        }
+    }
+
+    private void TaskItem_PointerPressed(object sender, PointerRoutedEventArgs e)
+    {
+        if (sender is FrameworkElement { DataContext: TaskButton button } element
+            && e.GetCurrentPoint(element).Properties.IsMiddleButtonPressed)
+        {
+            Launcher.Launch(button.App);
+            e.Handled = true;
+        }
+    }
+
+    private void TaskItem_PointerEntered(object sender, PointerRoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement { DataContext: TaskButton button } element)
+            return;
+
+        _hovered = (button, element);
+        _hideTimer.Stop();
+        // Once previews are open, moving along the taskbar switches them straight away.
+        if (_thumbnails.Button is not null && _thumbnails.Button != button && button.Windows.Count > 0)
+            ShowThumbnails(button, element);
+        else
+            _hoverTimer.Start();
+    }
+
+    private void TaskItem_PointerExited(object sender, PointerRoutedEventArgs e)
+    {
+        _hovered = null;
+        _hoverTimer.Stop();
+        _hideTimer.Start();
+    }
+
+    private void ShowThumbnails(TaskButton button, FrameworkElement element)
+    {
+        // The button's place on screen, in pixels.
+        double scale = Root.XamlRoot.RasterizationScale;
+        Rect rect = element.TransformToVisual(Root).TransformBounds(new Rect(0, 0, element.ActualWidth, element.ActualHeight));
+        RectInt32 taskbar = _placement.Bounds;
+        var anchor = new RectInt32(
+            taskbar.X + (int)(rect.X * scale), taskbar.Y + (int)(rect.Y * scale), (int)(rect.Width * scale), (int)(rect.Height * scale));
+        _thumbnails.Show(button, anchor, _monitor, Root.ActualTheme);
+    }
+
+    private void TaskMenu_Opening(object sender, object e)
+    {
+        var menu = (MenuFlyout)sender;
+        if (menu.Target?.DataContext is not TaskButton button)
+            return;
+
+        _thumbnails.Hide();
+        menu.Items.Clear();
+        menu.Items.Add(MenuItem(button.App.DisplayName, "", "TaskLaunchMenuItem", () => Launcher.Launch(button.App)));
+        menu.Items.Add(button.Pinned is { } pinned
+            ? MenuItem("Unpin from taskbar", "", "TaskUnpinMenuItem", () => _owner.Unpin(pinned))
+            : MenuItem("Pin to taskbar", "", "TaskPinMenuItem", () => _owner.Pin(button.App)));
+        if (button.Windows.Count > 0)
+        {
+            IReadOnlyList<WindowInfo> windows = button.Windows;
+            menu.Items.Add(new MenuFlyoutSeparator());
+            menu.Items.Add(MenuItem(windows.Count == 1 ? "Close window" : "Close all windows", "", "TaskCloseMenuItem", () =>
+            {
+                foreach (WindowInfo window in windows)
+                    TopLevelWindows.Close(window.Handle);
+            }));
+        }
+    }
+
+    private void TaskList_DragItemsCompleted(ListViewBase sender, DragItemsCompletedEventArgs args)
+    {
+        // Only pinned apps keep their place; running apps fall back in line on the next refresh.
+        _owner.SetPinnedOrder([.. _tasks.Select(t => t.Pinned).OfType<PinnedApp>().DistinctBy(TaskGrouping.Key)]);
+    }
+
     private void TaskbarMenu_Opening(object sender, object e)
     {
         ShellSettings settings = _owner.Settings.Current;
         AlignCenterItem.IsChecked = settings.TaskbarAlignment == TaskbarAlignment.Center;
         AlignLeftItem.IsChecked = settings.TaskbarAlignment == TaskbarAlignment.Left;
+        CombineAlwaysItem.IsChecked = settings.CombineButtons == CombineButtons.Always;
+        CombineWhenFullItem.IsChecked = settings.CombineButtons == CombineButtons.WhenFull;
+        CombineNeverItem.IsChecked = settings.CombineButtons == CombineButtons.Never;
         AllDisplaysItem.IsChecked = settings.ShowOnAllDisplays;
     }
 
@@ -106,10 +292,35 @@ internal sealed partial class TaskbarWindow : Window
             TaskbarAlignment = ReferenceEquals(sender, AlignLeftItem) ? TaskbarAlignment.Left : TaskbarAlignment.Center,
         });
 
+    private void Combine_Click(object sender, RoutedEventArgs e) =>
+        _owner.Settings.Update(_owner.Settings.Current with
+        {
+            CombineButtons = ReferenceEquals(sender, CombineNeverItem) ? CombineButtons.Never
+                : ReferenceEquals(sender, CombineWhenFullItem) ? CombineButtons.WhenFull
+                : CombineButtons.Always,
+        });
+
     private void AllDisplays_Click(object sender, RoutedEventArgs e) =>
         _owner.Settings.Update(_owner.Settings.Current with { ShowOnAllDisplays = AllDisplaysItem.IsChecked });
 
     private void Exit_Click(object sender, RoutedEventArgs e) => _owner.Exit();
 
     private void ShowDesktopButton_Click(object sender, RoutedEventArgs e) => _owner.ToggleDesktop();
+
+    private static MenuFlyoutItem MenuItem(string text, string glyph, string automationId, Action onClick)
+    {
+        var item = new MenuFlyoutItem { Text = text, Icon = new FontIcon { Glyph = glyph } };
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetAutomationId(item, automationId);
+        item.Click += (_, _) => onClick();
+        return item;
+    }
+
+    private static DispatcherQueueTimer CreateTimer(DispatcherQueue dispatcher, TimeSpan interval, Action onTick)
+    {
+        DispatcherQueueTimer timer = dispatcher.CreateTimer();
+        timer.Interval = interval;
+        timer.IsRepeating = false;
+        timer.Tick += (_, _) => onTick();
+        return timer;
+    }
 }

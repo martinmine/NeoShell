@@ -41,15 +41,15 @@ Tick items off as they land. The feature details are in [design.md](design.md).
 
 ## 4. Tasks
 
-- [ ] `ShellHook` + `SetWinEventHook` + `EnumWindows`
-- [ ] `WindowInfo` snapshot and the "gets a button" filter (tests)
-- [ ] AUMID / exe grouping (tests), window icons
-- [ ] Task buttons: indicators, click/middle-click/Shift+click, flashing
-- [ ] Context menu: launch, pin/unpin, close window(s)
-- [ ] Pinned apps (settings), drag to reorder
-- [ ] Combine modes: always / when full / never
-- [ ] DWM thumbnail popup with close buttons
-- [ ] Centre / left alignment
+- [x] `ShellHook` + `SetWinEventHook` + `EnumWindows`
+- [x] `WindowInfo` snapshot and the "gets a button" filter (tests)
+- [x] AUMID / exe grouping (tests), window icons
+- [x] Task buttons: indicators, click/middle-click/Shift+click, flashing
+- [x] Context menu: launch, pin/unpin, close window(s)
+- [x] Pinned apps (settings), drag to reorder (pinned apps keep their order; running apps fall back in line)
+- [x] Combine modes: always / when full / never
+- [x] DWM thumbnail popup with close buttons
+- [x] Centre / left alignment
 
 ## 5. Start menu
 

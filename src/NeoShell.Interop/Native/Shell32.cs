@@ -28,4 +28,12 @@ internal static unsafe partial class Shell32
 
     [LibraryImport("shell32.dll")]
     public static partial nuint SHAppBarMessage(uint message, APPBARDATA* data);
+
+    [LibraryImport("shell32.dll")]
+    public static partial int SHGetPropertyStoreForWindow(
+        nint hwnd, in Guid iid, [MarshalAs(UnmanagedType.Interface)] out Com.IPropertyStore store);
+
+    [LibraryImport("shell32.dll", StringMarshalling = StringMarshalling.Utf16)]
+    public static partial int SHCreateItemFromParsingName(
+        string path, nint bindContext, in Guid iid, [MarshalAs(UnmanagedType.Interface)] out Com.IShellItem item);
 }

@@ -39,6 +39,27 @@ public static unsafe class TopLevelWindows
 
     public static bool IsMinimized(nint hwnd) => User32.IsIconic(hwnd);
 
+    public static bool Exists(nint hwnd) => User32.IsWindow(hwnd);
+
+    public static nint GetForeground() => User32.GetForegroundWindow();
+
+    /// <summary>
+    /// Brings a window to the front, restoring it if minimized. Windows allows this because the user's click on the
+    /// taskbar was the last input.
+    /// </summary>
+    public static void Activate(nint hwnd)
+    {
+        if (User32.IsIconic(hwnd))
+            User32.ShowWindowAsync(hwnd, User32.SW_RESTORE);
+        User32.SetForegroundWindow(hwnd);
+    }
+
+    /// <summary>Minimizes and activates the next window, as clicking the active window's taskbar button does.</summary>
+    public static void MinimizeAndActivateNext(nint hwnd) => User32.ShowWindowAsync(hwnd, User32.SW_MINIMIZE);
+
+    /// <summary>Asks the window to close, as its title bar's close button would; it may ask to save first.</summary>
+    public static void Close(nint hwnd) => User32.PostMessage(hwnd, User32.WM_SYSCOMMAND, User32.SC_CLOSE, 0);
+
     /// <summary>Minimizes without activating the next window, so nothing flickers to the front.</summary>
     public static void Minimize(nint hwnd) => User32.ShowWindowAsync(hwnd, User32.SW_SHOWMINNOACTIVE);
 

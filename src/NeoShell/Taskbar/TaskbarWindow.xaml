@@ -82,10 +82,83 @@
                 Style="{StaticResource TaskbarButtonStyle}">
                 <FontIcon Glyph="&#xE721;" FontSize="16" />
             </Button>
-            <!-- Task buttons: milestone 4. -->
+            <ListView
+                x:Name="TaskList"
+                AutomationProperties.AutomationId="TaskList"
+                AutomationProperties.Name="Running applications"
+                Padding="0"
+                SelectionMode="None"
+                IsItemClickEnabled="True"
+                ItemClick="TaskList_ItemClick"
+                CanDragItems="True"
+                CanReorderItems="True"
+                AllowDrop="True"
+                DragItemsCompleted="TaskList_DragItemsCompleted"
+                ScrollViewer.HorizontalScrollMode="Disabled"
+                ScrollViewer.HorizontalScrollBarVisibility="Hidden"
+                ScrollViewer.VerticalScrollMode="Disabled"
+                ScrollViewer.VerticalScrollBarVisibility="Hidden">
+                <ListView.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <ItemsStackPanel Orientation="Horizontal" />
+                    </ItemsPanelTemplate>
+                </ListView.ItemsPanel>
+                <ListView.ItemContainerStyle>
+                    <Style TargetType="ListViewItem" BasedOn="{StaticResource DefaultListViewItemStyle}">
+                        <Setter Property="MinWidth" Value="0" />
+                        <Setter Property="MinHeight" Value="0" />
+                        <Setter Property="Height" Value="40" />
+                        <Setter Property="Padding" Value="0" />
+                        <Setter Property="Margin" Value="2,0" />
+                        <Setter Property="CornerRadius" Value="4" />
+                        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                        <Setter Property="VerticalContentAlignment" Value="Stretch" />
+                    </Style>
+                </ListView.ItemContainerStyle>
+                <ListView.ItemTemplate>
+                    <DataTemplate x:DataType="local:TaskButton">
+                        <Grid
+                            Width="{x:Bind Width, Mode=OneWay}"
+                            Background="Transparent"
+                            AutomationProperties.AutomationId="TaskButton"
+                            AutomationProperties.Name="{x:Bind Title, Mode=OneWay}"
+                            ToolTipService.ToolTip="{x:Bind ToolTip, Mode=OneWay}"
+                            PointerPressed="TaskItem_PointerPressed"
+                            PointerEntered="TaskItem_PointerEntered"
+                            PointerExited="TaskItem_PointerExited">
+                            <Grid.ContextFlyout>
+                                <MenuFlyout ShouldConstrainToRootBounds="False" Opening="TaskMenu_Opening" />
+                            </Grid.ContextFlyout>
+                            <!-- The window asks for attention. -->
+                            <Border
+                                CornerRadius="4"
+                                Background="{ThemeResource SystemFillColorCautionBrush}"
+                                Opacity="0.4"
+                                Visibility="{x:Bind FlashVisibility, Mode=OneWay}" />
+                            <StackPanel Orientation="Horizontal" Spacing="8" Padding="8,0" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                <Image Width="24" Height="24" Source="{x:Bind Icon, Mode=OneWay}" />
+                                <TextBlock
+                                    Width="108"
+                                    VerticalAlignment="Center"
+                                    FontSize="12"
+                                    TextTrimming="CharacterEllipsis"
+                                    Text="{x:Bind Title, Mode=OneWay}"
+                                    Visibility="{x:Bind LabelVisibility, Mode=OneWay}" />
+                            </StackPanel>
+                            <!-- Running: short grey pill (two for several windows); active: long accent pill. -->
+                            <StackPanel Orientation="Horizontal" Spacing="3" HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,1">
+                                <Rectangle Width="6" Height="3" RadiusX="1.5" RadiusY="1.5" Fill="{ThemeResource TextFillColorTertiaryBrush}" Visibility="{x:Bind RunningVisibility, Mode=OneWay}" />
+                                <Rectangle Width="6" Height="3" RadiusX="1.5" RadiusY="1.5" Fill="{ThemeResource TextFillColorTertiaryBrush}" Visibility="{x:Bind MultipleVisibility, Mode=OneWay}" />
+                                <Rectangle Width="6" Height="3" RadiusX="1.5" RadiusY="1.5" Fill="{ThemeResource TextFillColorTertiaryBrush}" Visibility="{x:Bind MultipleVisibility, Mode=OneWay}" />
+                                <Rectangle Width="16" Height="3" RadiusX="1.5" RadiusY="1.5" Fill="{ThemeResource AccentFillColorDefaultBrush}" Visibility="{x:Bind ActiveVisibility, Mode=OneWay}" />
+                            </StackPanel>
+                        </Grid>
+                    </DataTemplate>
+                </ListView.ItemTemplate>
+            </ListView>
         </StackPanel>
 
-        <StackPanel Grid.Column="1" Orientation="Horizontal">
+        <StackPanel x:Name="RightPanel" Grid.Column="1" Orientation="Horizontal">
             <!-- Tray icons: milestone 6. Network, volume and microphone indicators: milestone 7. -->
             <local:Clock x:Name="Clock" Margin="4,0" VerticalAlignment="Center" />
             <Button
@@ -126,6 +199,26 @@
                     GroupName="Alignment"
                     Text="Left-align taskbar items"
                     Click="Alignment_Click" />
+                <MenuFlyoutSubItem AutomationProperties.AutomationId="CombineMenuItem" Text="Combine taskbar buttons">
+                    <RadioMenuFlyoutItem
+                        x:Name="CombineAlwaysItem"
+                        AutomationProperties.AutomationId="CombineAlwaysMenuItem"
+                        GroupName="Combine"
+                        Text="Always"
+                        Click="Combine_Click" />
+                    <RadioMenuFlyoutItem
+                        x:Name="CombineWhenFullItem"
+                        AutomationProperties.AutomationId="CombineWhenFullMenuItem"
+                        GroupName="Combine"
+                        Text="When taskbar is full"
+                        Click="Combine_Click" />
+                    <RadioMenuFlyoutItem
+                        x:Name="CombineNeverItem"
+                        AutomationProperties.AutomationId="CombineNeverMenuItem"
+                        GroupName="Combine"
+                        Text="Never"
+                        Click="Combine_Click" />
+                </MenuFlyoutSubItem>
                 <ToggleMenuFlyoutItem
                     x:Name="AllDisplaysItem"
                     AutomationProperties.AutomationId="AllDisplaysMenuItem"

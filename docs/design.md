@@ -143,29 +143,39 @@ Start menu button → confirmation dialog → delete the per-user `Winlogon\Shel
   `WINDOWACTIVATED`/`RUDEAPPACTIVATED`, `REDRAW`, `FLASH`, `WINDOWREPLACED`.
 - `SetWinEventHook` for `EVENT_OBJECT_NAMECHANGE`, `EVENT_OBJECT_SHOW/HIDE`, `EVENT_OBJECT_CLOAKED/UNCLOAKED`,
   `EVENT_SYSTEM_FOREGROUND`, `EVENT_SYSTEM_MINIMIZESTART/END` to catch what shell hooks miss.
-- Initial list from `EnumWindows`.
+- Initial list from `EnumWindows`; afterwards each event re-reads only the window it is about (`WindowTracker`).
+  Show/uncloak events of unknown windows are checked, hide/cloak of unknown ones ignored (menus and tooltips fire
+  these constantly); title changes only re-read the title. Changes are coalesced into one refresh per burst.
 - **Which windows get a button** (unit tested on a `WindowInfo` snapshot), Explorer's rules:
   - visible, not cloaked (`DWMWA_CLOAKED`), and
   - `WS_EX_APPWINDOW`, or (no owner and not `WS_EX_TOOLWINDOW` and not `WS_EX_NOACTIVATE`).
   - Exclude NeoShell's own windows.
-- **Grouping** (unit tested): by AppUserModelID from `SHGetPropertyStoreForWindow` (`PKEY_AppUserModel_ID`), falling
-  back to the process image path (`QueryFullProcessImageName`). Pinned apps use the same key so running windows land
-  on their pinned button.
-- Icons: `WM_GETICON` (`ICON_BIG`/`ICON_SMALL2`) with timeout, `GetClassLongPtr(GCLP_HICON)`, then the AUMID/exe icon
-  via `IShellItemImageFactory`. HICON → WinUI `SoftwareBitmapSource` in the app.
+- **Grouping** (unit tested): by AppUserModelID from `SHGetPropertyStoreForWindow` (`PKEY_AppUserModel_ID`), else the
+  packaged process's (`GetApplicationUserModelId`), falling back to the process image path
+  (`QueryFullProcessImageName`). A pinned app matches windows by AUMID, or by path for windows without one.
+- App names: the `shell:AppsFolder\<AUMID>` item's display name, else the executable's `FileDescription`.
+- Icons are read on a background thread and arrive as premultiplied BGRA bytes for a `WriteableBitmap`:
+  - window icon: `WM_GETICON` (`ICON_BIG`/`ICON_SMALL2`/`ICON_SMALL`, `SMTO_ABORTIFHUNG`), then the class icon;
+  - app icon (combined and pinned buttons): `IShellItemImageFactory` on the AppsFolder item or the executable.
+  - Alpha comes straight, premultiplied, or not at all (AND mask); `IconBitmap.PremultiplyAlpha` tells them apart.
 
 ### Task buttons
 
-- Indicators: running (short underline), active (long accent underline), multiple windows, flashing (orange background
-  until activated).
+- A `ListView` of `TaskButton` view models (built by `TaskListBuilder`, unit tested, and synced in place by key);
+  `ListView` gives drag-to-reorder.
+- Indicators: running (short grey pill), several windows (two pills), active (long accent pill), flashing (amber
+  background until activated).
 - Left click: one window → activate it, or minimize if it's already foreground; several windows → show thumbnails.
   Pinned, not running → launch.
-- Middle click or Shift+click: launch a new instance.
-- Right click menu: app name (launch), Pin to taskbar / Unpin, Close window / Close all windows.
+- Middle click or Shift+click: launch a new instance. Shift is read with `GetAsyncKeyState`: the taskbar never has
+  focus, so its thread's key state doesn't see it.
+- Right click menu: app name (launch), Pin to taskbar / Unpin, Close window / Close all windows (`SC_CLOSE`).
 - Drag to reorder; order is persisted for pinned apps.
-- Combine setting: always combine, combine when full, never combine (labels shown).
-- Activation uses `SetForegroundWindow` after `AllowSetForegroundWindow`; restore minimized windows with
-  `ShowWindow(SW_RESTORE)`.
+- Combine setting: always combine, combine when full, never combine (labels shown). "When full" compares the labeled
+  buttons' width with the space left beside the right-hand panel (on both sides when centred); the list is capped at
+  that width so it never covers the clock.
+- Activation uses `SetForegroundWindow` (allowed: the user's click on the taskbar was the last input); minimized
+  windows are restored with `ShowWindow(SW_RESTORE)`. Clicking the active window's button minimizes it.
 
 ### Pinned apps
 
@@ -175,8 +185,10 @@ Start menu button → confirmation dialog → delete the per-user `Winlogon\Shel
 
 ### Thumbnails
 
-- Hovering a button opens a popup with one live DWM thumbnail per window (`DwmRegisterThumbnail` on the popup's
-  HWND, `DwmUpdateThumbnailProperties` to place each one), title and close button.
+- Hovering a button (500 ms) opens a popup with one live DWM thumbnail per window (`DwmRegisterThumbnail` on the
+  popup's HWND, `DwmUpdateThumbnailProperties` to place each one over a XAML placeholder), title and close button.
+  It closes 400 ms after the pointer leaves both the button and the popup; once open, it follows the pointer along
+  the taskbar.
 - Hovering a thumbnail could later add aero peek; not planned.
 
 ### Progress, overlay badges (last milestone)
