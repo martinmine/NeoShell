@@ -4,6 +4,7 @@ namespace NeoShell.Interop.Native;
 
 internal static unsafe partial class Dwmapi
 {
+    public const uint DWMWA_CLOAKED = 14;
     public const uint DWMWA_WINDOW_CORNER_PREFERENCE = 33;
     public const uint DWMWA_BORDER_COLOR = 34;
 
@@ -12,4 +13,7 @@ internal static unsafe partial class Dwmapi
 
     [LibraryImport("dwmapi.dll")]
     public static partial int DwmSetWindowAttribute(nint hwnd, uint attribute, void* value, uint size);
+
+    [LibraryImport("dwmapi.dll")]
+    public static partial int DwmGetWindowAttribute(nint hwnd, uint attribute, void* value, uint size);
 }

@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<UserControl
+    x:Class="NeoShell.Taskbar.Clock"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <Button
+        x:Name="ClockButton"
+        AutomationProperties.AutomationId="ClockButton"
+        AutomationProperties.Name="Clock"
+        Height="40"
+        Padding="8,0"
+        CornerRadius="4"
+        BorderThickness="0">
+        <Button.Flyout>
+            <!-- Unconstrained: the taskbar window is only as tall as the taskbar. -->
+            <Flyout Placement="TopEdgeAlignedRight" ShouldConstrainToRootBounds="False" Opening="CalendarFlyout_Opening">
+                <CalendarView
+                    x:Name="Calendar"
+                    AutomationProperties.AutomationId="Calendar"
+                    SelectionMode="None"
+                    IsTodayHighlighted="True" />
+            </Flyout>
+        </Button.Flyout>
+        <StackPanel VerticalAlignment="Center">
+            <TextBlock x:Name="TimeText" HorizontalAlignment="Right" FontSize="12" />
+            <TextBlock x:Name="DateText" HorizontalAlignment="Right" FontSize="12" />
+        </StackPanel>
+    </Button>
+</UserControl>

@@ -18,7 +18,7 @@ internal sealed class WallpaperWindow : Window
     private readonly Canvas _canvas = new();
     private readonly FramelessWindow _frameless;
     private readonly WindowSubclass _messages;
-    private readonly BottomWindow _placement;
+    private readonly PinnedWindow _placement;
     private WallpaperSettings? _settings;
     private BitmapImage? _image;
 
@@ -45,7 +45,7 @@ internal sealed class WallpaperWindow : Window
         WindowStyles.AddExtended(hwnd, ExtendedWindowStyles.ToolWindow);
         _frameless = new FramelessWindow(hwnd);
         _messages = new WindowSubclass(hwnd, onMessage);
-        _placement = new BottomWindow(hwnd, monitor.Bounds);
+        _placement = new PinnedWindow(hwnd, monitor.Bounds, PinnedLayer.Bottom);
 
         Closed += (_, _) =>
         {

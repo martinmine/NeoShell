@@ -4,6 +4,7 @@ using NeoShell.Desktop;
 using NeoShell.Interop.Windowing;
 using NeoShell.Logging;
 using NeoShell.Settings;
+using NeoShell.Taskbar;
 
 namespace NeoShell;
 
@@ -14,11 +15,10 @@ public partial class App : Application
     internal const string ExitMessageName = "NeoShell_Exit";
 
     private readonly RunMode _runMode;
-    private readonly SettingsStore _settingsStore = new(Path.Combine(Program.DataDirectory, "settings.json"));
-    private ShellSettings _settings = new();
+    private readonly SettingsStore _settings = new(Path.Combine(Program.DataDirectory, "settings.json"));
     private MessageWindow? _controlWindow;
     private Wallpaper? _wallpaper;
-    private Window? _placeholderWindow;
+    private Taskbars? _taskbars;
     private bool _shuttingDown;
 
     public App(RunMode runMode)
@@ -33,7 +33,7 @@ public partial class App : Application
 
     protected override void OnLaunched(LaunchActivatedEventArgs args)
     {
-        _settings = _settingsStore.Load();
+        _settings.Load();
 
         uint exitMessage = WindowMessages.Register(ExitMessageName);
         DispatcherQueue dispatcher = DispatcherQueue.GetForCurrentThread();
@@ -54,14 +54,8 @@ public partial class App : Application
             _wallpaper.Show();
         }
 
-        // Placeholder until the taskbar lands in milestone 3.
-        _placeholderWindow = new Window { Title = $"NeoShell ({_runMode})" };
-        _placeholderWindow.Closed += (_, _) =>
-        {
-            _placeholderWindow = null;
-            Shutdown();
-        };
-        _placeholderWindow.Activate();
+        _taskbars = new Taskbars(_runMode, _settings, Shutdown);
+        _taskbars.Show();
 
         Log.Info("Started");
     }
@@ -73,7 +67,8 @@ public partial class App : Application
         _shuttingDown = true;
 
         Log.Info("Shutting down");
-        _placeholderWindow?.Close();
+        // Taskbars first: they give the reserved screen space back.
+        _taskbars?.Dispose();
         _wallpaper?.Dispose();
         _controlWindow?.Dispose();
         Exit();

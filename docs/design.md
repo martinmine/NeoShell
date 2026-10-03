@@ -108,14 +108,24 @@ Start menu button → confirmation dialog → delete the per-user `Winlogon\Shel
 
 ### Window
 
-- One `TaskbarWindow` per monitor (setting: show on all displays), registered as an AppBar with `SHAppBarMessage`
-  (`ABM_NEW`, `ABM_QUERYPOS`, `ABM_SETPOS`), bottom edge, 48 effective pixels high.
+- One `TaskbarWindow` per monitor (setting: show on all displays), bottom edge, 48 effective pixels high, kept in
+  place and topmost by `PinnedWindow`, frameless (`FramelessWindow`), `WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE`.
+- Screen space:
+  - Alongside Explorer: registered as an AppBar with `SHAppBarMessage` (`ABM_NEW`, `ABM_QUERYPOS`, `ABM_SETPOS`,
+    `ABM_REMOVE`); Explorer places it above its own taskbar and sends `ABN_POSCHANGED` when it must move.
+  - As the shell: `SHAppBarMessage` is served by Explorer's `Shell_TrayWnd`, so it doesn't work. NeoShell sets the
+    monitor's work area itself (`SPI_SETWORKAREA`) and restores it on exit. Serving other apps' AppBar messages
+    belongs with `Shell_TrayWnd` (Tray).
 - Rect calculation (unit tested) from monitor bounds and DPI.
-- Recreated on `WM_DISPLAYCHANGE` and DPI changes.
+- Recreated on `WM_DISPLAYCHANGE`, on `WM_DPICHANGED` to a DPI other than the monitor's, and on settings changes.
 - `ABN_FULLSCREENAPP`: drop topmost / hide while a full-screen app is active on that monitor.
 - Auto-hide (setting): `ABM_SETAUTOHIDEBAREX`, slide out when the cursor reaches the edge.
-- Acrylic backdrop, light/dark following the system theme
-  (`HKCU\...\Themes\Personalize\SystemUsesLightTheme`), updated on `WM_SETTINGCHANGE` (`ImmersiveColorSet`).
+- Acrylic backdrop (`AcrylicBackdrop`: a `DesktopAcrylicController` whose configuration keeps `IsInputActive` true),
+  light/dark following the system theme (`HKCU\...\Themes\Personalize\SystemUsesLightTheme`), re-read on every
+  `WM_SETTINGCHANGE`.
+- Flyouts and menus set `ShouldConstrainToRootBounds="False"`: the window is only as tall as the taskbar.
+- Show desktop minimizes every minimizable window of other processes (`SW_SHOWMINNOACTIVE`) and the next click
+  restores those still minimized; Explorer's own toggle isn't available as the shell.
 
 ### Layout (left → right, or centred like Windows 11 by setting)
 

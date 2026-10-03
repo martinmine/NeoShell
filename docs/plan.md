@@ -30,13 +30,14 @@ Tick items off as they land. The feature details are in [design.md](design.md).
 
 ## 3. Taskbar window
 
-- [ ] `AppBar` registration and rect calculation (tests); release on exit
-- [ ] One taskbar per monitor; recreate on display/DPI changes
-- [ ] Acrylic backdrop kept active; light/dark theme following the system
-- [ ] Layout: Start, Search, task area, tray area, indicators, clock, show-desktop
-- [ ] Clock (time + date) and calendar flyout
-- [ ] Show desktop
-- [ ] Taskbar context menu (Task Manager, settings toggles, Exit)
+- [x] `AppBar` registration and rect calculation (tests); release on exit
+- [x] One taskbar per monitor; recreate on display/DPI changes
+- [x] Acrylic backdrop kept active; light/dark theme following the system
+- [x] Layout: Start, Search, task area, tray area, indicators, clock, show-desktop
+- [x] Clock (time + date) and calendar flyout
+- [x] Show desktop
+- [x] Taskbar context menu (Task Manager, settings toggles, Exit) — toggles for combine, auto-hide and tray mode
+      are added with those features
 
 ## 4. Tasks
 

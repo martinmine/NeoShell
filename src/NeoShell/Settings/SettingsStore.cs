@@ -4,16 +4,50 @@ using NeoShell.Logging;
 
 namespace NeoShell.Settings;
 
-/// <summary>Loads and saves <see cref="ShellSettings"/> as JSON.</summary>
+/// <summary>Holds the current <see cref="ShellSettings"/> and loads and saves them as JSON.</summary>
 public sealed class SettingsStore(string path)
 {
     public string Path { get; } = path;
 
+    public ShellSettings Current { get; private set; } = new();
+
+    /// <summary>Raised after <see cref="Update"/> changed <see cref="Current"/>.</summary>
+    public event Action? Changed;
+
     /// <summary>
-    /// Returns the saved settings, with defaults for anything missing. A file that can't be parsed is renamed
-    /// to <c>.bak</c> so the user's edits aren't lost, and defaults are used.
+    /// Loads the saved settings into <see cref="Current"/>, with defaults for anything missing. A file that can't be
+    /// parsed is renamed to <c>.bak</c> so the user's edits aren't lost, and defaults are used.
     /// </summary>
-    public ShellSettings Load()
+    public ShellSettings Load() => Current = Read();
+
+    /// <summary>Makes <paramref name="settings"/> current and saves them.</summary>
+    public void Update(ShellSettings settings)
+    {
+        if (settings == Current)
+            return;
+
+        Current = settings;
+        try
+        {
+            Save(settings);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            Log.Warn($"Could not save {Path}", ex);
+        }
+        Changed?.Invoke();
+    }
+
+    public void Save(ShellSettings settings)
+    {
+        Directory.CreateDirectory(System.IO.Path.GetDirectoryName(Path)!);
+        string temp = Path + ".tmp";
+        File.WriteAllText(temp, JsonSerializer.Serialize(settings, SettingsJsonContext.Default.ShellSettings));
+        // Replace in one step so a crash while writing never leaves a truncated settings file.
+        File.Move(temp, Path, overwrite: true);
+    }
+
+    private ShellSettings Read()
     {
         string json;
         try
@@ -42,15 +76,6 @@ public sealed class SettingsStore(string path)
             File.Move(Path, backup, overwrite: true);
             return new ShellSettings();
         }
-    }
-
-    public void Save(ShellSettings settings)
-    {
-        Directory.CreateDirectory(System.IO.Path.GetDirectoryName(Path)!);
-        string temp = Path + ".tmp";
-        File.WriteAllText(temp, JsonSerializer.Serialize(settings, SettingsJsonContext.Default.ShellSettings));
-        // Replace in one step so a crash while writing never leaves a truncated settings file.
-        File.Move(temp, Path, overwrite: true);
     }
 }
 

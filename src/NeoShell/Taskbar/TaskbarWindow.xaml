@@ -1,0 +1,143 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Window
+    x:Class="NeoShell.Taskbar.TaskbarWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:NeoShell.Taskbar">
+
+    <!-- Transparent, not null: the background must take right-clicks for the context menu. -->
+    <Grid x:Name="Root" Background="Transparent">
+        <Grid.Resources>
+            <ResourceDictionary>
+                <!-- Taskbar buttons are flat until hovered, like Windows 11's. -->
+                <ResourceDictionary.ThemeDictionaries>
+                    <ResourceDictionary x:Key="Default">
+                        <StaticResource x:Key="ButtonBackground" ResourceKey="SubtleFillColorTransparentBrush" />
+                        <StaticResource x:Key="ButtonBackgroundPointerOver" ResourceKey="SubtleFillColorSecondaryBrush" />
+                        <StaticResource x:Key="ButtonBackgroundPressed" ResourceKey="SubtleFillColorTertiaryBrush" />
+                        <StaticResource x:Key="ButtonBorderBrush" ResourceKey="SubtleFillColorTransparentBrush" />
+                        <StaticResource x:Key="ButtonBorderBrushPointerOver" ResourceKey="SubtleFillColorTransparentBrush" />
+                        <StaticResource x:Key="ButtonBorderBrushPressed" ResourceKey="SubtleFillColorTransparentBrush" />
+                    </ResourceDictionary>
+                    <ResourceDictionary x:Key="Light">
+                        <StaticResource x:Key="ButtonBackground" ResourceKey="SubtleFillColorTransparentBrush" />
+                        <StaticResource x:Key="ButtonBackgroundPointerOver" ResourceKey="SubtleFillColorSecondaryBrush" />
+                        <StaticResource x:Key="ButtonBackgroundPressed" ResourceKey="SubtleFillColorTertiaryBrush" />
+                        <StaticResource x:Key="ButtonBorderBrush" ResourceKey="SubtleFillColorTransparentBrush" />
+                        <StaticResource x:Key="ButtonBorderBrushPointerOver" ResourceKey="SubtleFillColorTransparentBrush" />
+                        <StaticResource x:Key="ButtonBorderBrushPressed" ResourceKey="SubtleFillColorTransparentBrush" />
+                    </ResourceDictionary>
+                </ResourceDictionary.ThemeDictionaries>
+
+                <Style x:Key="TaskbarButtonStyle" TargetType="Button" BasedOn="{StaticResource DefaultButtonStyle}">
+                    <Setter Property="Width" Value="40" />
+                    <Setter Property="Height" Value="40" />
+                    <Setter Property="Padding" Value="0" />
+                    <Setter Property="Margin" Value="2,0" />
+                    <Setter Property="CornerRadius" Value="4" />
+                    <Setter Property="BorderThickness" Value="0" />
+                </Style>
+            </ResourceDictionary>
+        </Grid.Resources>
+
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="Auto" />
+        </Grid.ColumnDefinitions>
+
+        <!-- Spans both columns so "centred" means the middle of the screen, as in Windows 11. -->
+        <StackPanel
+            x:Name="AppsPanel"
+            Grid.ColumnSpan="2"
+            Margin="12,0"
+            Orientation="Horizontal"
+            HorizontalAlignment="Center"
+            VerticalAlignment="Center">
+            <Button
+                x:Name="StartButton"
+                AutomationProperties.AutomationId="StartButton"
+                AutomationProperties.Name="Start"
+                ToolTipService.ToolTip="Start"
+                Style="{StaticResource TaskbarButtonStyle}">
+                <Grid Width="18" Height="18" ColumnSpacing="1" RowSpacing="1">
+                    <Grid.RowDefinitions>
+                        <RowDefinition />
+                        <RowDefinition />
+                    </Grid.RowDefinitions>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition />
+                        <ColumnDefinition />
+                    </Grid.ColumnDefinitions>
+                    <Rectangle Grid.Row="0" Grid.Column="0" RadiusX="1" RadiusY="1" Fill="{ThemeResource AccentFillColorDefaultBrush}" />
+                    <Rectangle Grid.Row="0" Grid.Column="1" RadiusX="1" RadiusY="1" Fill="{ThemeResource AccentFillColorDefaultBrush}" />
+                    <Rectangle Grid.Row="1" Grid.Column="0" RadiusX="1" RadiusY="1" Fill="{ThemeResource AccentFillColorDefaultBrush}" />
+                    <Rectangle Grid.Row="1" Grid.Column="1" RadiusX="1" RadiusY="1" Fill="{ThemeResource AccentFillColorDefaultBrush}" />
+                </Grid>
+            </Button>
+            <Button
+                x:Name="SearchButton"
+                AutomationProperties.AutomationId="SearchButton"
+                AutomationProperties.Name="Search"
+                ToolTipService.ToolTip="Search"
+                Style="{StaticResource TaskbarButtonStyle}">
+                <FontIcon Glyph="&#xE721;" FontSize="16" />
+            </Button>
+            <!-- Task buttons: milestone 4. -->
+        </StackPanel>
+
+        <StackPanel Grid.Column="1" Orientation="Horizontal">
+            <!-- Tray icons: milestone 6. Network, volume and microphone indicators: milestone 7. -->
+            <local:Clock x:Name="Clock" Margin="4,0" VerticalAlignment="Center" />
+            <Button
+                x:Name="ShowDesktopButton"
+                AutomationProperties.AutomationId="ShowDesktopButton"
+                AutomationProperties.Name="Show desktop"
+                ToolTipService.ToolTip="Show desktop"
+                Width="12"
+                Height="48"
+                Padding="0"
+                CornerRadius="0"
+                BorderThickness="1,0,0,0"
+                BorderBrush="{ThemeResource DividerStrokeColorDefaultBrush}"
+                Click="ShowDesktopButton_Click" />
+        </StackPanel>
+
+        <Grid.ContextFlyout>
+            <!-- Unconstrained: the window is only as tall as the taskbar. -->
+            <MenuFlyout x:Name="TaskbarMenu" ShouldConstrainToRootBounds="False" Opening="TaskbarMenu_Opening">
+                <MenuFlyoutItem
+                    AutomationProperties.AutomationId="TaskManagerMenuItem"
+                    Text="Task Manager"
+                    Click="TaskManager_Click">
+                    <MenuFlyoutItem.Icon>
+                        <FontIcon Glyph="&#xE9D9;" />
+                    </MenuFlyoutItem.Icon>
+                </MenuFlyoutItem>
+                <MenuFlyoutSeparator />
+                <RadioMenuFlyoutItem
+                    x:Name="AlignCenterItem"
+                    AutomationProperties.AutomationId="AlignCenterMenuItem"
+                    GroupName="Alignment"
+                    Text="Center taskbar items"
+                    Click="Alignment_Click" />
+                <RadioMenuFlyoutItem
+                    x:Name="AlignLeftItem"
+                    AutomationProperties.AutomationId="AlignLeftMenuItem"
+                    GroupName="Alignment"
+                    Text="Left-align taskbar items"
+                    Click="Alignment_Click" />
+                <ToggleMenuFlyoutItem
+                    x:Name="AllDisplaysItem"
+                    AutomationProperties.AutomationId="AllDisplaysMenuItem"
+                    Text="Show taskbar on all displays"
+                    Click="AllDisplays_Click" />
+                <MenuFlyoutSeparator x:Name="ExitSeparator" />
+                <MenuFlyoutItem
+                    x:Name="ExitItem"
+                    AutomationProperties.AutomationId="ExitMenuItem"
+                    Text="Exit NeoShell"
+                    Click="Exit_Click" />
+            </MenuFlyout>
+        </Grid.ContextFlyout>
+    </Grid>
+</Window>

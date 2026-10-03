@@ -94,6 +94,41 @@ public sealed class SettingsStoreTests : IDisposable
         Assert.False(File.Exists(_store.Path + ".tmp"));
     }
 
+    [Fact]
+    public void Load_makes_the_saved_settings_current()
+    {
+        _store.Save(new ShellSettings { AutoHide = true });
+
+        _store.Load();
+
+        Assert.True(_store.Current.AutoHide);
+    }
+
+    [Fact]
+    public void Update_saves_and_raises_changed()
+    {
+        int changes = 0;
+        _store.Changed += () => changes++;
+
+        _store.Update(_store.Current with { TaskbarAlignment = TaskbarAlignment.Left });
+
+        Assert.Equal(1, changes);
+        Assert.Equal(TaskbarAlignment.Left, _store.Current.TaskbarAlignment);
+        Assert.Equal(TaskbarAlignment.Left, new SettingsStore(_store.Path).Load().TaskbarAlignment);
+    }
+
+    [Fact]
+    public void Update_with_equal_settings_does_nothing()
+    {
+        int changes = 0;
+        _store.Changed += () => changes++;
+
+        _store.Update(_store.Current with { });
+
+        Assert.Equal(0, changes);
+        Assert.False(File.Exists(_store.Path));
+    }
+
     private void WriteFile(string json)
     {
         Directory.CreateDirectory(_directory);
