@@ -400,4 +400,35 @@ internal static unsafe partial class User32
 
     [LibraryImport("user32.dll")]
     public static partial int ReleaseDC(nint hwnd, nint hdc);
+
+    public const uint WM_DRAWITEM = 0x002B;
+    public const uint WM_MEASUREITEM = 0x002C;
+    public const uint WM_INITMENUPOPUP = 0x0117;
+    public const uint WM_MENUCHAR = 0x0120;
+
+    public const uint TPM_RETURNCMD = 0x0100;
+    public const uint TPM_RIGHTBUTTON = 0x0002;
+
+    [LibraryImport("user32.dll")]
+    public static partial nint CreatePopupMenu();
+
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static partial bool DestroyMenu(nint menu);
+
+    [LibraryImport("user32.dll")]
+    public static partial int TrackPopupMenuEx(nint menu, uint flags, int x, int y, nint hwnd, nint parameters);
+
+    [LibraryImport("user32.dll")]
+    public static partial uint GetMenuDefaultItem(nint menu, uint byPosition, uint flags);
+
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static partial bool DestroyIcon(nint icon);
+
+    public const uint CF_HDROP = 15;
+
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static partial bool IsClipboardFormatAvailable(uint format);
 }

@@ -39,4 +39,71 @@ internal static unsafe partial class Shell32
     [LibraryImport("shell32.dll", StringMarshalling = StringMarshalling.Utf16)]
     public static partial int SHCreateItemFromParsingName(
         string path, nint bindContext, in Guid iid, [MarshalAs(UnmanagedType.Interface)] out Com.IShellItem item);
+
+    [LibraryImport("shell32.dll")]
+    public static partial int SHGetDesktopFolder(out nint folder);
+
+    [LibraryImport("shell32.dll")]
+    public static partial int SHCreateItemFromIDList(
+        nint idList, in Guid iid, [MarshalAs(UnmanagedType.Interface)] out Com.IShellItem item);
+
+    [LibraryImport("shell32.dll")]
+    public static partial uint ILGetSize(nint idList);
+
+    public const uint SIID_LINK = 29;
+    public const uint SHGSI_ICONLOCATION = 0x0;
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct SHSTOCKICONINFO
+    {
+        public uint cbSize;
+        public nint hIcon;
+        public int iSysImageIndex;
+        public int iIcon;
+        public fixed char szPath[260];
+    }
+
+    [LibraryImport("shell32.dll")]
+    public static partial int SHGetStockIconInfo(uint id, uint flags, SHSTOCKICONINFO* info);
+
+    [LibraryImport("shell32.dll", EntryPoint = "SHDefExtractIconW")]
+    public static partial int SHDefExtractIcon(char* iconFile, int index, uint flags, nint* largeIcon, nint* smallIcon, uint size);
+
+    [LibraryImport("shell32.dll", EntryPoint = "SHEmptyRecycleBinW", StringMarshalling = StringMarshalling.Utf16)]
+    public static partial int SHEmptyRecycleBin(nint hwnd, string? rootPath, uint flags);
+
+    public const uint CMF_NORMAL = 0x0;
+    public const uint CMF_DEFAULTONLY = 0x1;
+    public const uint CMF_EXTENDEDVERBS = 0x100;
+    public const uint CMF_CANRENAME = 0x10;
+
+    public const uint GCS_VERBW = 0x4;
+
+    public const uint CMIC_MASK_FLAG_NO_UI = 0x0000_0400;
+    public const uint CMIC_MASK_UNICODE = 0x0000_4000;
+    public const uint CMIC_MASK_ASYNCOK = 0x0010_0000;
+    public const uint CMIC_MASK_SHIFT_DOWN = 0x1000_0000;
+    public const uint CMIC_MASK_PTINVOKE = 0x2000_0000;
+    public const uint CMIC_MASK_CONTROL_DOWN = 0x4000_0000;
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct CMINVOKECOMMANDINFOEX
+    {
+        public uint cbSize;
+        public uint fMask;
+        public nint hwnd;
+        /// <summary>An ANSI verb, or a command offset in the low word.</summary>
+        public nint lpVerb;
+        public nint lpParameters;
+        public nint lpDirectory;
+        public int nShow;
+        public uint dwHotKey;
+        public nint hIcon;
+        public nint lpTitle;
+        public nint lpVerbW;
+        public nint lpParametersW;
+        public nint lpDirectoryW;
+        public nint lpTitleW;
+        public User32.POINT ptInvoke;
+    }
 }

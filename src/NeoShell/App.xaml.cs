@@ -70,7 +70,7 @@ public partial class App : Application
 
         if (_runMode == RunMode.Shell)
         {
-            _wallpaper = new Wallpaper();
+            _wallpaper = new Wallpaper(_settings);
             _wallpaper.Show();
         }
 

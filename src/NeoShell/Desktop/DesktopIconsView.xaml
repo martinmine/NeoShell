@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="utf-8"?>
+<UserControl
+    x:Class="NeoShell.Desktop.DesktopIconsView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:NeoShell.Desktop">
+
+    <UserControl.Resources>
+        <Style x:Key="DesktopLabelStyle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="LineHeight" Value="16" />
+            <Setter Property="MaxLines" Value="2" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+            <Setter Property="TextAlignment" Value="Center" />
+            <Setter Property="IsHitTestVisible" Value="False" />
+        </Style>
+
+        <!-- The rename box: just the text box, over the icon's label. -->
+        <Style x:Key="RenameFlyoutStyle" TargetType="FlyoutPresenter">
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="MinWidth" Value="0" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="CornerRadius" Value="4" />
+        </Style>
+    </UserControl.Resources>
+
+    <!-- Transparent rather than null so the empty desktop gets clicks and right-clicks. -->
+    <Grid x:Name="Root" Background="Transparent" ContextRequested="Root_ContextRequested" Tapped="Root_Tapped">
+        <GridView
+            x:Name="IconGrid"
+            AutomationProperties.AutomationId="DesktopIcons"
+            AutomationProperties.Name="Desktop"
+            SelectionMode="Extended"
+            Padding="4"
+            ScrollViewer.HorizontalScrollMode="Auto"
+            ScrollViewer.HorizontalScrollBarVisibility="Auto"
+            ScrollViewer.VerticalScrollMode="Disabled"
+            ScrollViewer.VerticalScrollBarVisibility="Disabled"
+            DoubleTapped="IconGrid_DoubleTapped"
+            PreviewKeyDown="IconGrid_PreviewKeyDown">
+            <GridView.Resources>
+                <!-- Explorer's translucent highlight, readable on any wallpaper; no check marks. -->
+                <SolidColorBrush x:Key="GridViewItemBackgroundPointerOver" Color="#30FFFFFF" />
+                <SolidColorBrush x:Key="GridViewItemBackgroundPressed" Color="#48FFFFFF" />
+                <SolidColorBrush x:Key="GridViewItemBackgroundSelected" Color="#5080C0FF" />
+                <SolidColorBrush x:Key="GridViewItemBackgroundSelectedPointerOver" Color="#6080C0FF" />
+                <SolidColorBrush x:Key="GridViewItemBackgroundSelectedPressed" Color="#7080C0FF" />
+                <SolidColorBrush x:Key="GridViewItemSelectedBorderBrush" Color="#A0A0D0FF" />
+                <SolidColorBrush x:Key="GridViewItemSelectedPointerOverBorderBrush" Color="#C0A0D0FF" />
+                <SolidColorBrush x:Key="GridViewItemSelectedPressedBorderBrush" Color="#C0A0D0FF" />
+                <SolidColorBrush x:Key="GridViewItemSelectedInnerBorderBrush" Color="Transparent" />
+                <Thickness x:Key="GridViewItemSelectedBorderThickness">1</Thickness>
+                <x:Boolean x:Key="GridViewItemSelectionCheckMarkVisualEnabled">False</x:Boolean>
+            </GridView.Resources>
+            <GridView.ItemsPanel>
+                <ItemsPanelTemplate>
+                    <!-- Columns from the top left, like Explorer's desktop. -->
+                    <ItemsWrapGrid Orientation="Vertical" />
+                </ItemsPanelTemplate>
+            </GridView.ItemsPanel>
+            <GridView.ItemContainerStyle>
+                <Style TargetType="GridViewItem" BasedOn="{StaticResource DefaultGridViewItemStyle}">
+                    <Setter Property="Margin" Value="2" />
+                    <Setter Property="Padding" Value="2,4" />
+                    <Setter Property="MinWidth" Value="0" />
+                    <Setter Property="MinHeight" Value="0" />
+                    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                    <Setter Property="VerticalContentAlignment" Value="Top" />
+                    <Setter Property="AllowDrop" Value="False" />
+                </Style>
+            </GridView.ItemContainerStyle>
+            <GridView.ItemTemplate>
+                <DataTemplate x:DataType="local:DesktopIcon">
+                    <StackPanel
+                        Spacing="4"
+                        AutomationProperties.AutomationId="DesktopIcon"
+                        AutomationProperties.Name="{x:Bind Name, Mode=OneWay}">
+                        <Grid Width="{x:Bind Size, Mode=OneWay}" Height="{x:Bind Size, Mode=OneWay}" HorizontalAlignment="Center">
+                            <Image Source="{x:Bind Image, Mode=OneWay}" Stretch="Uniform" />
+                            <Image
+                                Source="{x:Bind Overlay, Mode=OneWay}"
+                                Width="{x:Bind OverlaySize, Mode=OneWay}"
+                                Height="{x:Bind OverlaySize, Mode=OneWay}"
+                                HorizontalAlignment="Left"
+                                VerticalAlignment="Bottom" />
+                        </Grid>
+                        <!-- White text with a shadow under it, so names read on light and dark wallpapers. -->
+                        <Grid>
+                            <TextBlock
+                                Text="{x:Bind Name, Mode=OneWay}"
+                                Style="{StaticResource DesktopLabelStyle}"
+                                Foreground="#C0000000"
+                                Margin="1,1,-1,-1" />
+                            <TextBlock Text="{x:Bind Name, Mode=OneWay}" Style="{StaticResource DesktopLabelStyle}" Foreground="White" />
+                        </Grid>
+                    </StackPanel>
+                </DataTemplate>
+            </GridView.ItemTemplate>
+        </GridView>
+    </Grid>
+</UserControl>

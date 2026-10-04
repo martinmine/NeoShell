@@ -9,7 +9,7 @@ using Windows.Graphics;
 
 namespace NeoShell.Desktop;
 
-/// <summary>Shows the wallpaper on one monitor, behind every other window.</summary>
+/// <summary>Shows the wallpaper on one monitor, behind every other window, and the desktop icons over it.</summary>
 internal sealed class WallpaperWindow : Window
 {
     private readonly DisplayMonitor _monitor;
@@ -23,7 +23,8 @@ internal sealed class WallpaperWindow : Window
     private BitmapImage? _image;
 
     /// <param name="onMessage">Sees this window's messages; top-level windows receive the system broadcasts.</param>
-    public WallpaperWindow(DisplayMonitor monitor, RectInt32 virtualScreen, MessageHandler onMessage)
+    /// <param name="icons">The desktop icons to show, on the primary monitor only.</param>
+    public WallpaperWindow(DisplayMonitor monitor, RectInt32 virtualScreen, MessageHandler onMessage, DesktopIcons? icons)
     {
         _monitor = monitor;
         _virtualScreen = virtualScreen;
@@ -46,6 +47,9 @@ internal sealed class WallpaperWindow : Window
         _frameless = new FramelessWindow(hwnd);
         _messages = new WindowSubclass(hwnd, onMessage);
         _placement = new PinnedWindow(hwnd, monitor.Bounds, PinnedLayer.Bottom);
+
+        if (icons is not null)
+            _root.Children.Add(new DesktopIconsView(icons, hwnd, monitor));
 
         Closed += (_, _) =>
         {

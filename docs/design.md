@@ -5,14 +5,14 @@ coding rules are in [CLAUDE.md](../CLAUDE.md).
 
 ## Scope
 
-- Display the wallpaper.
+- Display the wallpaper and the desktop icons, with Explorer's context menus for icons and the desktop.
 - A WinUI taskbar with feature parity with the Windows 11 taskbar (exceptions in the system tray area).
 - System tray icons, either all shown or hidden behind an overflow flyout.
 - Network, volume and microphone-in-use indicators.
 - A Start menu with search (apps + Windows Search Indexer), Settings, power options (Lock, Sign out, Sleep,
   Restart, Shut down) and a button to switch back to `explorer.exe`.
 
-Out of scope: desktop icons, Quick Settings, Action Center/toasts, Widgets, Task View, Win+X, jump lists (for now).
+Out of scope: Quick Settings, Action Center/toasts, Widgets, Task View, Win+X, jump lists (for now).
 
 ## Technical decisions
 
@@ -121,6 +121,54 @@ Start menu button → confirmation dialog → delete the per-user `Winlogon\Shel
 - Any `WM_SETTINGCHANGE` or `WM_SYSCOLORCHANGE` re-reads the settings and reloads only if path, style, colour or the
   file's timestamp changed; `WM_DISPLAYCHANGE` recreates the windows. Bursts of broadcasts become one update.
 - Shell mode only.
+
+## Desktop icons (`Desktop/`)
+
+Shell mode only, like the wallpaper: alongside Explorer, Explorer's desktop has its own icons.
+
+- **Contents.** `DesktopFolder` (Interop) enumerates the desktop's `IShellFolder` (`SHGetDesktopFolder`), which
+  merges the user's and the public Desktop folders and also lists the namespace (This PC, Libraries, OneDrive,
+  drives…). `DesktopContents.IsShown` (unit tested) keeps what Explorer's desktop shows: items directly in one of the
+  two Desktop folders, and the five icons of "Desktop icon settings" (This PC, User's Files, Network, Recycle Bin,
+  Control Panel) as chosen in `HKCU\…\Explorer\HideDesktopIcons\NewStartPanel` (1 hides, 0 shows; only the Recycle
+  Bin shows by default). Hidden and protected files follow Explorer's `Hidden` and `ShowSuperHidden` values.
+- Each item is kept as its desktop-relative ID list (a byte array; a child of the desktop is also an absolute PIDL),
+  so one menu can cover several items, even from both Desktop folders.
+- **Order** (unit tested): system icons first in Explorer's order, then folders, then files, by the Sort by choice
+  (Name, Size, Item type, Date modified; `ShellSettings.DesktopSortOrder`) and then by name, numbers compared by
+  value. Icons fill columns from the top left of the primary monitor's work area; there is no free positioning.
+- **View settings** live where Explorer keeps them, so they carry over when switching shells: the icon size in
+  `HKCU\Software\Microsoft\Windows\Shell\Bags\1\Desktop\IconSize` (32/48/96), "Show desktop icons" in
+  `Explorer\Advanced\HideIcons`.
+- **Images** come from `IShellItemImageFactory` without `SIIGBF_ICONONLY`, so pictures get thumbnails, loaded off the
+  UI thread at physical pixel size. Shortcuts get the stock link overlay (`SHGetStockIconInfo(SIID_LINK)`) in the
+  corner, at most medium-icon size. Labels are white over a dark copy offset by a pixel, readable on any wallpaper.
+- **Updates.** `FileSystemWatcher`s on both Desktop folders and on each fixed drive's `$Recycle.Bin\<SID>` (the
+  Recycle Bin icon shows whether it's empty), and every `WM_SETTINGCHANGE` (folder options, Desktop icon settings,
+  the work area), queue a debounced refresh. A refresh enumerates off the UI thread and updates the
+  `ObservableCollection` in place (remove, move, insert), so the selection and loaded images survive.
+- **View** (`DesktopIconsView`): a `GridView` (extended selection, vertical `ItemsWrapGrid`) in the primary monitor's
+  `WallpaperWindow`. Double-click or Enter opens; Delete, F2, F5, Ctrl+C/X/V and Alt+Enter work as in Explorer; a
+  click on the empty desktop clears the selection.
+- **Menus**, as in Windows 11: a short WinUI menu, and "Show more options" for the shell's full menu.
+  - Icons: Open, Run as administrator, Open with, Empty Recycle Bin, Cut, Copy, Rename, Delete, Copy as path,
+    Properties, each shown according to the items' `SFGAO_*` attributes.
+  - Desktop: View (icon size, Show desktop icons), Sort by, Refresh, Paste, Paste shortcut, New (Folder, Text
+    Document), Desktop icon settings (`desk.cpl,,0`, a classic dialog). Explorer's Personalize and Display settings
+    are left out: they open the Settings app, which can't run without Explorer.
+  - Commands run through the shell's own `IContextMenu` (`GetUIObjectOf` for icons, `CreateViewObject` for the
+    desktop) by canonical verb (`open`, `delete`, `copyaspath`, `paste`…), so they behave exactly as in Explorer:
+    Recycle Bin, confirmations, progress.
+  - The full menu is `TrackPopupMenuEx` owned by the wallpaper window, which forwards `WM_INITMENUPOPUP`,
+    `WM_DRAWITEM`, `WM_MEASUREITEM` and `WM_MENUCHAR` to `IContextMenu3` so Send to, Open with and New fill in. It
+    opens once the WinUI menu has closed (it runs its own message loop). Its Rename comes back to NeoShell: only the
+    view can edit a name.
+- **Rename**: a text box in a flyout over the label, with the name selected without its extension; Enter or a click
+  elsewhere renames through `IShellFolder::SetNameOf` (keeps a hidden extension, reports errors in the shell's
+  dialogs), Esc cancels. New → Folder / Text Document create the first free "New folder (2)"-style name and start
+  renaming it.
+- After a file operation the desktop takes the foreground back: the shell's operation windows hand it to the next
+  window in the z-order when they close, and that is never the bottom-most desktop.
 
 ## Taskbar (`Taskbar/`)
 
@@ -381,13 +429,15 @@ ShowOnAllDisplays    bool
 TrayMode             ShowAll | Overflow
 PinnedTaskbarApps    list
 PinnedStartApps      list
+DesktopSortOrder     Name | Size | ItemType | DateModified
 ```
 
 ## Testing strategy
 
 - **xunit** tests in `tests/NeoShell.Tests` for pure logic: taskbar window filter, grouping keys, NOTIFYICONDATA
   parsing (32/64-bit), app search ranking, indexer query building, startup entry parsing and `StartupApproved`,
-  settings round-trip and corrupt-file handling, wallpaper style mapping, AppBar rect calculation.
+  settings round-trip and corrupt-file handling, wallpaper style mapping, AppBar rect calculation, which desktop
+  items get icons and in which order.
 - Logic that touches Windows is split so the decision is a pure function over a snapshot (e.g. `WindowInfo`) that
   tests can construct.
 - **Live UI checks** through UI Automation (`AutomationId`s on all interactive controls), never global keystrokes.

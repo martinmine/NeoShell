@@ -98,7 +98,18 @@ Tick items off as they land. The feature details are in [design.md](design.md).
 - [x] Show on all displays setting (since milestone 3; only one monitor on the VM to test with)
 - [x] Progress bars and overlay badges (`ITaskbarList3` messages)
 
+## 10. Desktop icons
+
+- [x] Desktop items: user + public Desktop merged, system icons per "Desktop icon settings", hidden-file options (tests)
+- [x] Sort by name / size / type / date, system icons and folders first (tests); icon size and "Show desktop icons"
+      in Explorer's own registry values
+- [x] Thumbnails and shortcut overlays; refresh on file, Recycle Bin and setting changes
+- [x] Selection, open, keyboard (Enter, Delete, F2, F5, Ctrl+C/X/V, Alt+Enter), inline rename — keys not driven
+      live (global keystrokes); the same actions were tested through the menus
+- [x] Icon menu and desktop menu (View, Sort by, Refresh, Paste, New, Desktop icon settings), "Show more options"
+      with the shell's full menu — Empty Recycle Bin not invoked live (it deletes for good)
+
 ## Later / not planned yet
 
 - Jump lists
-- Desktop icons
+- Desktop icons: moving icons to free positions, dragging files onto the desktop and its icons

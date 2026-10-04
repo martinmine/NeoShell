@@ -6,6 +6,8 @@ public enum CombineButtons { Always, WhenFull, Never }
 
 public enum TrayMode { ShowAll, Overflow }
 
+public enum DesktopSortOrder { Name, Size, ItemType, DateModified }
+
 /// <summary>A pinned app: launched through its AppUserModelID when it has one, otherwise through its path.</summary>
 public sealed record PinnedApp(string DisplayName, string? AppUserModelId = null, string? Path = null, string? Arguments = null);
 
@@ -23,4 +25,5 @@ public sealed record ShellSettings
     public TrayMode TrayMode { get; set; } = TrayMode.Overflow;
     public IReadOnlyList<PinnedApp> PinnedTaskbarApps { get; set; } = [];
     public IReadOnlyList<PinnedApp> PinnedStartApps { get; set; } = [];
+    public DesktopSortOrder DesktopSortOrder { get; set; } = DesktopSortOrder.Name;
 }

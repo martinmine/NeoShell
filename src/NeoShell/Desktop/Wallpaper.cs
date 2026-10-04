@@ -2,16 +2,18 @@ using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml.Media.Imaging;
 using NeoShell.Interop.Windowing;
 using NeoShell.Logging;
+using NeoShell.Settings;
 
 namespace NeoShell.Desktop;
 
 /// <summary>
-/// The wallpaper on every monitor (shell mode only; Explorer draws it otherwise). Follows changes to the wallpaper,
-/// the background colour and the displays.
+/// The wallpaper on every monitor, and the desktop icons on the primary one (shell mode only; Explorer draws both
+/// otherwise). Follows changes to the wallpaper, the background colour and the displays.
 /// </summary>
-internal sealed class Wallpaper : IDisposable
+internal sealed class Wallpaper(SettingsStore settings) : IDisposable
 {
     private readonly DispatcherQueue _dispatcher = DispatcherQueue.GetForCurrentThread();
+    private readonly DesktopIcons _icons = new(settings);
     private readonly List<WallpaperWindow> _windows = [];
     private WallpaperSettings? _settings;
     private BitmapImage? _image;
@@ -25,6 +27,7 @@ internal sealed class Wallpaper : IDisposable
     {
         _updateVersion++;
         CloseWindows();
+        _icons.Dispose();
     }
 
     private nint? OnMessage(uint message, nint wParam, nint lParam)
@@ -37,6 +40,8 @@ internal sealed class Wallpaper : IDisposable
             case WindowMessages.SettingChange:
             case WindowMessages.SysColorChange:
                 QueueUpdate(displaysChanged: false);
+                // Folder options (hidden files, extensions), the theme or the work area may have changed.
+                _icons.QueueRefresh();
                 break;
         }
         return null;
@@ -99,7 +104,7 @@ internal sealed class Wallpaper : IDisposable
         var virtualScreen = WallpaperLayout.Union(monitors.Select(monitor => monitor.Bounds));
         foreach (DisplayMonitor monitor in monitors)
         {
-            var window = new WallpaperWindow(monitor, virtualScreen, OnMessage);
+            var window = new WallpaperWindow(monitor, virtualScreen, OnMessage, monitor.IsPrimary ? _icons : null);
             window.AppWindow.Show(activateWindow: false);
             _windows.Add(window);
         }

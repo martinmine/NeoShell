@@ -1,8 +1,8 @@
 # NeoShell
 
-A replacement for the `explorer.exe` shell on Windows 11, built with WinUI 3 on .NET 10. It shows the wallpaper,
-a Windows 11 style taskbar (with system tray, network, volume and microphone indicators) and a Start menu with
-search and power options.
+A replacement for the `explorer.exe` shell on Windows 11, built with WinUI 3 on .NET 10. It shows the wallpaper
+and desktop icons, a Windows 11 style taskbar (with system tray, network, volume and microphone indicators) and a
+Start menu with search and power options.
 
 - Design and feature spec: [docs/design.md](docs/design.md)
 - Milestones and progress: [docs/plan.md](docs/plan.md) — tick items off as they land
@@ -62,7 +62,7 @@ src/NeoShell/                 WinUI app
   Program.cs, App.xaml(.cs)   Custom Main, single instance, /exit, run-mode detection, crash fallback
   ShellSession.cs             Shell-mode duties: registration, ready event, startup apps, session end
   Logging/                    Small file logger
-  Desktop/                    WallpaperWindow (one per monitor)
+  Desktop/                    WallpaperWindow (one per monitor), desktop icons and their menus (primary monitor)
   Taskbar/                    TaskbarWindow, task list + grouping, pinned apps, thumbnail popup, clock + calendar
   Tray/                       Tray area, overflow flyout, network/volume/mic indicators, volume flyout
   StartMenu/                  StartMenuWindow, app list, search results, power menu
@@ -75,7 +75,8 @@ src/NeoShell.Interop/
   Audio/                      AudioEndpoint (volume/mute + events), CaptureMonitor (microphone in use)
   Network/                    NetworkStatus (WinRT NetworkInformation)
   Search/                     IndexSearch (ISearchQueryHelper + OleDb against Search.CollatorDSO)
-  Shell/                      AppCatalog (shell:AppsFolder), Launcher, Power, ShellRegistration, StartupApps
+  Shell/                      AppCatalog (shell:AppsFolder), DesktopFolder, ShellContextMenu, Launcher, Power,
+                              ShellRegistration, StartupApps
 tests/NeoShell.Tests/         xunit tests for logic that runs without UI
 tools/                        set-shell.ps1, restore-explorer.ps1
 docs/                         design.md, plan.md
@@ -114,7 +115,8 @@ src/NeoShell/bin/Debug/net10.0-windows10.0.26100.0/win-x64/NeoShell.exe /exit   
 ## Testing
 
 - Unit tests (xunit) cover non-UI logic: window filtering, grouping, NOTIFYICONDATA parsing, search ranking,
-  indexer query building, startup entries, settings, wallpaper style mapping, AppBar rects.
+  indexer query building, startup entries, settings, wallpaper style mapping, AppBar rects, desktop icon
+  filtering and sorting.
 - When testing the UI live, drive it through UI Automation (set `AutomationProperties.AutomationId` on interactive
   controls). Never use global keystrokes like SendKeys: they go to whichever window has focus.
 - Always stop a running NeoShell with `/exit` (or its taskbar menu), never by killing the process. A kill leaves the
@@ -122,5 +124,5 @@ src/NeoShell/bin/Debug/net10.0-windows10.0.26100.0/win-x64/NeoShell.exe /exit   
 
 ## Out of scope
 
-Desktop icons, Quick Settings, Action Center and toast notifications, Widgets, Task View, Win+X, system flyouts
+Quick Settings, Action Center and toast notifications, Widgets, Task View, Win+X, system flyouts
 (network/volume flyouts open `ms-settings:` or NeoShell's own simple flyout instead), jump lists (for now).
