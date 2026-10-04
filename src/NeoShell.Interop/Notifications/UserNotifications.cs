@@ -21,7 +21,9 @@ public static class UserNotifications
     private const uint SPI_GETMESSAGEDURATION = 0x2016;
 
     /// <summary>The notifications there are, or null when the user has denied access to them (Privacy settings).</summary>
-    public static async Task<IReadOnlyList<ToastInfo>?> ReadAsync()
+    /// <param name="known">Notifications read before, reused as they are: each property of a new one is a call into
+    /// the notification service, too slow to repeat for every notification on every poll.</param>
+    public static async Task<IReadOnlyList<ToastInfo>?> ReadAsync(IReadOnlyDictionary<uint, ToastInfo> known)
     {
         UserNotificationListener listener = UserNotificationListener.Current;
         if (listener.GetAccessStatus() == UserNotificationListenerAccessStatus.Unspecified)
@@ -32,6 +34,11 @@ public static class UserNotifications
         var toasts = new List<ToastInfo>();
         foreach (UserNotification notification in await listener.GetNotificationsAsync(NotificationKinds.Toast))
         {
+            if (known.TryGetValue(notification.Id, out ToastInfo? toast))
+            {
+                toasts.Add(toast);
+                continue;
+            }
             if (notification.AppInfo is not { } app)
                 continue;
 

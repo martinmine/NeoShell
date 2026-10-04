@@ -18,7 +18,8 @@ internal sealed class NotificationCenter : IDisposable
 
     private readonly DispatcherQueueTimer _timer;
     private readonly Dictionary<string, Task<ImageSource?>> _logos = new(StringComparer.OrdinalIgnoreCase);
-    private HashSet<uint>? _known;
+    // Null until the first reading.
+    private Dictionary<uint, ToastInfo>? _known;
     private bool _reading;
 
     public NotificationCenter()
@@ -50,7 +51,7 @@ internal sealed class NotificationCenter : IDisposable
     public void Dispose() => _timer.Stop();
 
     /// <summary>Whether Windows still has the notification, whether the notification center shows it or not.</summary>
-    public bool IsStored(uint id) => _known?.Contains(id) == true;
+    public bool IsStored(uint id) => _known?.ContainsKey(id) == true;
 
     public void Remove(IEnumerable<ToastInfo> toasts)
     {
@@ -130,23 +131,26 @@ internal sealed class NotificationCenter : IDisposable
         _reading = true;
         try
         {
-            bool doNotDisturb = Interop.Notifications.DoNotDisturb.Read() == true;
+            // Off the UI thread: both are calls into other processes, which can take a while to answer. _known isn't
+            // changed meanwhile, as only one reading runs at a time.
+            Dictionary<uint, ToastInfo> known = _known ?? [];
+            (bool doNotDisturb, IReadOnlyList<ToastInfo>? all) = await Task.Run(async () =>
+                (Interop.Notifications.DoNotDisturb.Read() == true, await UserNotifications.ReadAsync(known)));
+
             if (doNotDisturb != DoNotDisturb)
             {
                 DoNotDisturb = doNotDisturb;
                 DoNotDisturbChanged?.Invoke();
             }
 
-            if (await UserNotifications.ReadAsync() is not { } all)
+            if (all is null)
                 return;
-
-            var ids = all.Select(t => t.Id).ToHashSet();
-            if (_known is not null && ids.SetEquals(_known))
+            if (_known is not null && all.Count == _known.Count && all.All(t => _known.ContainsKey(t.Id)))
                 return;
 
             // The first reading is what was there before NeoShell started; those don't pop up.
-            List<ToastInfo> arrived = _known is null ? [] : [.. all.Where(t => !_known.Contains(t.Id)).OrderBy(t => t.Time)];
-            _known = ids;
+            List<ToastInfo> arrived = _known is null ? [] : [.. all.Where(t => !_known.ContainsKey(t.Id)).OrderBy(t => t.Time)];
+            _known = all.ToDictionary(t => t.Id);
             Toasts = [.. all.Where(t => ReadSetting(t.AppId, "Enabled") && ReadSetting(t.AppId, "ShowInActionCenter"))];
             Changed?.Invoke();
 
