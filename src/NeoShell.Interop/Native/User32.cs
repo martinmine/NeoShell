@@ -423,6 +423,43 @@ internal static unsafe partial class User32
     [LibraryImport("user32.dll")]
     public static partial uint GetMenuDefaultItem(nint menu, uint byPosition, uint flags);
 
+    public const uint MIIM_STATE = 0x001;
+    public const uint MIIM_ID = 0x002;
+    public const uint MIIM_SUBMENU = 0x004;
+    public const uint MIIM_STRING = 0x040;
+    public const uint MIIM_BITMAP = 0x080;
+    public const uint MIIM_FTYPE = 0x100;
+
+    public const uint MFT_OWNERDRAW = 0x0100;
+    public const uint MFT_SEPARATOR = 0x0800;
+    public const uint MFS_GRAYED = 0x0003;
+    public const uint MFS_CHECKED = 0x0008;
+    public const uint MFS_DEFAULT = 0x1000;
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct MENUITEMINFOW
+    {
+        public uint cbSize;
+        public uint fMask;
+        public uint fType;
+        public uint fState;
+        public uint wID;
+        public nint hSubMenu;
+        public nint hbmpChecked;
+        public nint hbmpUnchecked;
+        public nuint dwItemData;
+        public char* dwTypeData;
+        public uint cch;
+        public nint hbmpItem;
+    }
+
+    [LibraryImport("user32.dll")]
+    public static partial int GetMenuItemCount(nint menu);
+
+    [LibraryImport("user32.dll", EntryPoint = "GetMenuItemInfoW")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static partial bool GetMenuItemInfo(nint menu, uint item, [MarshalAs(UnmanagedType.Bool)] bool byPosition, MENUITEMINFOW* info);
+
     [LibraryImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     public static partial bool DestroyIcon(nint icon);

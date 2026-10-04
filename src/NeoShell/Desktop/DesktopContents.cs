@@ -22,7 +22,6 @@ public sealed record DesktopLocations(string UserDesktop, string PublicDesktop, 
 public static class DesktopContents
 {
     private const string UsersFiles = "{59031A47-3F72-44A7-89C5-5595FE6B30EE}";
-    private const string RecycleBin = "::{645FF040-5081-101B-9F08-00AA002F954E}";
 
     /// <summary>
     /// The icons of "Desktop icon settings", in Explorer's order, by CLSID, and whether each shows when the user
@@ -96,20 +95,6 @@ public static class DesktopContents
             _ => sorted,
         };
         return [.. sorted.ThenBy(entry => entry.Item.Name, NameComparer)];
-    }
-
-    public static bool IsRecycleBin(DesktopItem item) => string.Equals(item.ParsingName, RecycleBin, StringComparison.OrdinalIgnoreCase);
-
-    /// <summary>
-    /// A name for a new item that isn't taken, numbered like Explorer's: "New folder", "New folder (2)", …
-    /// </summary>
-    /// <param name="exists">Whether a file or folder of that name (with extension) exists.</param>
-    public static string NewItemName(string baseName, string extension, Func<string, bool> exists)
-    {
-        string name = baseName + extension;
-        for (int number = 2; exists(name); number++)
-            name = $"{baseName} ({number}){extension}";
-        return name;
     }
 
     private static string TypeOf(DesktopItem item) =>

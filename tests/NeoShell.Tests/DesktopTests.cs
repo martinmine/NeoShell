@@ -97,16 +97,6 @@ public sealed class DesktopTests
         Assert.Equal(["b.docx", "c.txt", "a.txt"], Names(DesktopContents.Sort(entries, DesktopSortOrder.DateModified)));
     }
 
-    [Fact]
-    public void New_items_get_the_first_free_numbered_name()
-    {
-        HashSet<string> taken = new(StringComparer.OrdinalIgnoreCase) { "New folder", "New folder (2)", "New Text Document.txt" };
-
-        Assert.Equal("New folder (3)", DesktopContents.NewItemName("New folder", "", taken.Contains));
-        Assert.Equal("New Text Document (2).txt", DesktopContents.NewItemName("New Text Document", ".txt", taken.Contains));
-        Assert.Equal("New Text Document.txt", DesktopContents.NewItemName("New Text Document", ".txt", _ => false));
-    }
-
     [Theory]
     [InlineData(32, 32)]
     [InlineData(96, 96)]

@@ -75,7 +75,7 @@ src/NeoShell.Interop/
   Audio/                      AudioEndpoint (volume/mute + events), CaptureMonitor (microphone in use)
   Network/                    NetworkStatus (WinRT NetworkInformation)
   Search/                     IndexSearch (ISearchQueryHelper + OleDb against Search.CollatorDSO)
-  Shell/                      AppCatalog (shell:AppsFolder), DesktopFolder, ShellContextMenu, Launcher, Power,
+  Shell/                      AppCatalog (shell:AppsFolder), DesktopFolder, ShellContextMenu, ShellMenu, Launcher, Power,
                               ShellRegistration, StartupApps
 tests/NeoShell.Tests/         xunit tests for logic that runs without UI
 tools/                        set-shell.ps1, restore-explorer.ps1

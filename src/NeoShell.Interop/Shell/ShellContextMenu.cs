@@ -6,9 +6,9 @@ using NeoShell.Interop.Windowing;
 namespace NeoShell.Interop.Shell;
 
 /// <summary>
-/// The shell's own context menus for desktop items and for the desktop background, as Explorer shows them (shell
-/// extensions included), or single commands from them by verb. UI thread only: menus show UI owned by
-/// <c>owner</c>, and shell extensions expect an STA.
+/// Single commands from the shell's context menus for desktop items and the desktop background, by verb; the whole
+/// menus are <see cref="ShellMenu"/>. UI thread only: commands show UI owned by <c>owner</c>, and shell extensions
+/// expect an STA.
 /// </summary>
 public static unsafe class ShellContextMenu
 {
@@ -22,45 +22,27 @@ public static unsafe class ShellContextMenu
     /// </summary>
     /// <returns>Whether the command ran; false when the items don't have the verb.</returns>
     public static bool InvokeVerb(nint owner, IReadOnlyList<DesktopItem> items, string verb) =>
-        ForItems(owner, items, menu => Invoke(menu, owner, verb));
+        CreateForItems(owner, items) is { } menu && Invoke(menu, owner, verb);
 
     /// <summary>Runs the items' default command: what a double-click does.</summary>
     public static bool InvokeDefault(nint owner, IReadOnlyList<DesktopItem> items) =>
-        ForItems(owner, items, menu => WithMenu(menu, Shell32.CMF_DEFAULTONLY, handle =>
+        CreateForItems(owner, items) is { } menu && WithMenu(menu, Shell32.CMF_DEFAULTONLY, handle =>
         {
             uint command = User32.GetMenuDefaultItem(handle, 0, 0);
-            return command != uint.MaxValue && Invoke(menu, owner, command, point: null);
-        }));
+            return command != uint.MaxValue && Invoke(menu, owner, command - FirstCommand, point: null);
+        });
 
     /// <summary>Runs a verb of the desktop background's menu: <c>paste</c> or <c>pastelink</c>.</summary>
     public static bool InvokeBackgroundVerb(nint owner, string verb) =>
-        BackgroundMenu(owner) is { } menu && Invoke(menu, owner, verb);
-
-    /// <summary>
-    /// Shows the shell's context menu for the items at a screen point (physical pixels) and runs the chosen command,
-    /// except Rename, which only the caller can do (it needs the item's view).
-    /// </summary>
-    /// <returns>True when the user chose Rename.</returns>
-    public static bool Show(nint owner, IReadOnlyList<DesktopItem> items, int x, int y) =>
-        ForItems(owner, items, menu => Track(menu, owner, x, y, Shell32.CMF_CANRENAME) == "rename");
-
-    /// <summary>Shows the shell's context menu for the desktop background and runs the chosen command.</summary>
-    public static void ShowBackground(nint owner, int x, int y)
-    {
-        if (BackgroundMenu(owner) is { } menu)
-            Track(menu, owner, x, y, Shell32.CMF_NORMAL);
-    }
-
-    /// <summary>Asks to empty the Recycle Bin (the shell confirms first).</summary>
-    public static void EmptyRecycleBin(nint owner) => Shell32.SHEmptyRecycleBin(owner, null, 0);
+        CreateForBackground(owner) is { } menu && Invoke(menu, owner, verb);
 
     /// <summary>Whether the clipboard holds files to paste.</summary>
     public static bool CanPaste() => User32.IsClipboardFormatAvailable(User32.CF_HDROP);
 
-    private static bool ForItems(nint owner, IReadOnlyList<DesktopItem> items, Func<IContextMenu, bool> use)
+    internal static IContextMenu? CreateForItems(nint owner, IReadOnlyList<DesktopItem> items)
     {
         if (items.Count == 0)
-            return false;
+            return null;
 
         IShellFolder desktop = DesktopFolder.Open();
         nint* idLists = stackalloc nint[items.Count];
@@ -70,9 +52,9 @@ public static unsafe class ShellContextMenu
         {
             Guid iid = typeof(IContextMenu).GUID;
             nint menu;
-            if (desktop.GetUIObjectOf(owner, (uint)items.Count, idLists, &iid, null, &menu) != 0)
-                return false;
-            return use(ComPointer.TakeOwnership<IContextMenu>(menu));
+            return desktop.GetUIObjectOf(owner, (uint)items.Count, idLists, &iid, null, &menu) == 0
+                ? ComPointer.TakeOwnership<IContextMenu>(menu)
+                : null;
         }
         finally
         {
@@ -81,7 +63,7 @@ public static unsafe class ShellContextMenu
         }
     }
 
-    private static IContextMenu? BackgroundMenu(nint owner)
+    internal static IContextMenu? CreateForBackground(nint owner)
     {
         IShellFolder desktop = DesktopFolder.Open();
         Guid iid = typeof(IContextMenu).GUID;
@@ -125,11 +107,11 @@ public static unsafe class ShellContextMenu
             }
         });
 
-    private static bool Invoke(IContextMenu menu, nint owner, uint command, User32.POINT? point)
+    /// <summary>Runs a command by its offset from the menu's first ID, which is passed in place of a verb string.</summary>
+    internal static bool Invoke(IContextMenu menu, nint owner, uint offset, User32.POINT? point)
     {
-        // A command is passed as its offset from the first ID, in place of a verb string.
         var info = NewInvokeInfo(owner, point);
-        info.lpVerb = info.lpVerbW = (nint)(command - FirstCommand);
+        info.lpVerb = info.lpVerbW = (nint)offset;
         return menu.InvokeCommand(&info) == 0;
     }
 
@@ -143,60 +125,4 @@ public static unsafe class ShellContextMenu
         nShow = SW_SHOWNORMAL,
         ptInvoke = point ?? default,
     };
-
-    /// <summary>Shows the menu, runs the chosen command and returns its verb (null if none was chosen).</summary>
-    private static string? Track(IContextMenu menu, nint owner, int x, int y, uint flags)
-    {
-        if (KeyboardState.IsShiftDown())
-            flags |= Shell32.CMF_EXTENDEDVERBS;
-
-        return WithMenu(menu, flags, handle =>
-        {
-            // Submenus such as Send to and Open with are filled and drawn on demand, through the owner's messages.
-            var menu2 = menu as IContextMenu2;
-            var menu3 = menu as IContextMenu3;
-            int command;
-            using (new WindowSubclass(owner, (message, wParam, lParam) => ForwardMenuMessage(menu2, menu3, message, wParam, lParam)))
-            {
-                // Without the foreground, the menu wouldn't close when the user clicks elsewhere.
-                User32.SetForegroundWindow(owner);
-                command = User32.TrackPopupMenuEx(handle, User32.TPM_RETURNCMD | User32.TPM_RIGHTBUTTON, x, y, owner, 0);
-            }
-            if (command <= 0)
-                return null;
-
-            string? verb = GetVerb(menu, (uint)command);
-            if (verb != "rename")
-                Invoke(menu, owner, (uint)command, new User32.POINT { x = x, y = y });
-            return verb;
-        });
-    }
-
-    private static nint? ForwardMenuMessage(IContextMenu2? menu2, IContextMenu3? menu3, uint message, nint wParam, nint lParam)
-    {
-        switch (message)
-        {
-            case User32.WM_INITMENUPOPUP:
-            case User32.WM_DRAWITEM:
-            case User32.WM_MEASUREITEM:
-            case User32.WM_MENUCHAR:
-                nint result = 0;
-                if (menu3 is not null)
-                    return menu3.HandleMenuMsg2(message, wParam, lParam, &result) == 0 ? result : null;
-                if (menu2 is not null && message != User32.WM_MENUCHAR)
-                    return menu2.HandleMenuMsg(message, wParam, lParam) == 0 ? 0 : null;
-                return null;
-            default:
-                return null;
-        }
-    }
-
-    private static string? GetVerb(IContextMenu menu, uint command)
-    {
-        char* verb = stackalloc char[128];
-        verb[0] = '\0';
-        return menu.GetCommandString(command - FirstCommand, Shell32.GCS_VERBW, null, verb, 128) == 0
-            ? new string(verb)
-            : null;
-    }
 }

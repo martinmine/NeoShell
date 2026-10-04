@@ -69,11 +69,9 @@ internal static unsafe partial class Shell32
     [LibraryImport("shell32.dll", EntryPoint = "SHDefExtractIconW")]
     public static partial int SHDefExtractIcon(char* iconFile, int index, uint flags, nint* largeIcon, nint* smallIcon, uint size);
 
-    [LibraryImport("shell32.dll", EntryPoint = "SHEmptyRecycleBinW", StringMarshalling = StringMarshalling.Utf16)]
-    public static partial int SHEmptyRecycleBin(nint hwnd, string? rootPath, uint flags);
-
     public const uint CMF_NORMAL = 0x0;
     public const uint CMF_DEFAULTONLY = 0x1;
+    public const uint CMF_NODEFAULT = 0x20;
     public const uint CMF_EXTENDEDVERBS = 0x100;
     public const uint CMF_CANRENAME = 0x10;
 

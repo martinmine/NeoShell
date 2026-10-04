@@ -41,15 +41,21 @@ public sealed record IconBitmap(int Width, int Height, byte[] Pixels)
     {
         try
         {
-            IconBitmap? result = Read(bitmap);
-            if (result is not null)
-                PremultiplyAlpha(result.Pixels, mask: null);
-            return result;
+            return CopyBitmap(bitmap);
         }
         finally
         {
             Gdi32.DeleteObject(bitmap);
         }
+    }
+
+    /// <summary>Copies a 32-bit HBITMAP's pixels, leaving the bitmap to its owner (a menu's item images).</summary>
+    internal static IconBitmap? CopyBitmap(nint bitmap)
+    {
+        IconBitmap? result = Read(bitmap);
+        if (result is not null)
+            PremultiplyAlpha(result.Pixels, mask: null);
+        return result;
     }
 
     /// <summary>

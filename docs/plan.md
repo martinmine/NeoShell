@@ -119,6 +119,8 @@ Tick items off as they land. The feature details are in [design.md](design.md).
 - [x] Taskbar and Start: the accent colour when "Show accent color on Start and taskbar" is on
 - [x] Taskbar backdrop setting: Acrylic, Mica or Translucent (taskbar menu)
 - [x] Start: resize by dragging a top corner; the size is saved
+- [x] Desktop menus: Explorer's full menu in one (no "Show more options"), the shell's New menu, Display settings and
+      Personalize opening classic dialogs in shell mode; no Undo (Explorer's own history)
 
 ## Later / not planned yet
 

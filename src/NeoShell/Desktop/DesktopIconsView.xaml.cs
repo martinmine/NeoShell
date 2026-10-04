@@ -26,6 +26,31 @@ internal sealed partial class DesktopIconsView : UserControl
 {
     private static readonly string[] RunnableExtensions = [".exe", ".lnk", ".bat", ".cmd", ".msi"];
 
+    /// <summary>Glyphs for the shell's standard commands, which come without an image.</summary>
+    private static readonly Dictionary<string, string> VerbGlyphs = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["open"] = "",
+        ["runas"] = "",
+        ["openas"] = "",
+        ["cut"] = "",
+        ["copy"] = "",
+        ["rename"] = "",
+        ["delete"] = "",
+        ["copyaspath"] = "",
+        ["properties"] = "",
+    };
+
+    /// <summary>
+    /// What Display settings and Personalize open instead of the Settings app, which can't start while NeoShell is
+    /// the shell (the only time the desktop is NeoShell's). Control Panel's pages for them open Settings too; these
+    /// classic dialogs are what's left: the display adapter's properties (with its modes) and the desktop icons.
+    /// </summary>
+    private static readonly Dictionary<string, string> ClassicSettings = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["Display"] = "display.dll,ShowAdapterSettings 0",
+        ["Personalize"] = "shell32.dll,Control_RunDLL desk.cpl,,0",
+    };
+
     /// <summary>Verbs that work on the files without opening a window.</summary>
     private static readonly string[] InPlaceVerbs = ["cut", "copy", "delete", "copyaspath"];
 
@@ -246,54 +271,18 @@ internal sealed partial class DesktopIconsView : UserControl
         menu.ShowAt(Root, new FlyoutShowOptions { Position = point });
     }
 
-    /// <summary>Windows 11's short menu for icons; "Show more options" opens the shell's full one.</summary>
+    /// <summary>The shell's menu for the items: everything Explorer's menu has, "Show more options" included.</summary>
     private MenuFlyout ItemMenu(IReadOnlyList<DesktopItem> items, Point point)
     {
-        DesktopItem first = items[0];
-        bool single = items.Count == 1;
-        bool runnable = single && first.Path is { } path && RunnableExtensions.Contains(Path.GetExtension(path), StringComparer.OrdinalIgnoreCase);
-
-        MenuFlyoutItem open = MenuItem("Open", "", "DesktopOpenMenuItem", () => Open(items));
-        open.FontWeight = FontWeights.SemiBold;
-
-        return Menu(
-            [
-                open,
-                runnable ? MenuItem("Run as administrator", "", "DesktopRunAsMenuItem", () => Verb(items, "runas")) : null,
-                single && !first.IsFolder && !first.IsLink && first.Path is not null
-                    ? MenuItem("Open with…", "", "DesktopOpenWithMenuItem", () => Verb(items, "openas"))
-                    : null,
-                single && DesktopContents.IsRecycleBin(first)
-                    ? MenuItem("Empty Recycle Bin", "", "DesktopEmptyRecycleBinMenuItem", () => ShellContextMenu.EmptyRecycleBin(_hwnd))
-                    : null,
-            ],
-            [
-                items.All(item => item.CanMove) ? MenuItem("Cut", "", "DesktopCutMenuItem", () => Verb(items, "cut")) : null,
-                items.All(item => item.CanCopy) ? MenuItem("Copy", "", "DesktopCopyMenuItem", () => Verb(items, "copy")) : null,
-                single && first.CanRename
-                    ? MenuItem("Rename", "", "DesktopRenameMenuItem", () => BeginRename(_icons.Find(first.ParsingName)))
-                    : null,
-                items.All(item => item.CanDelete) ? MenuItem("Delete", "", "DesktopDeleteMenuItem", () => Verb(items, "delete")) : null,
-            ],
-            [
-                items.All(item => item.Path is not null)
-                    ? MenuItem("Copy as path", "", "DesktopCopyPathMenuItem", () => Verb(items, "copyaspath"))
-                    : null,
-                items.All(item => item.HasProperties)
-                    ? MenuItem("Properties", "", "DesktopPropertiesMenuItem", () => Verb(items, "properties"))
-                    : null,
-            ],
-            [
-                MenuItem("Show more options", "", "DesktopMoreOptionsMenuItem", () => AfterMenuCloses(() =>
-                {
-                    (int x, int y) = ToScreen(point);
-                    if (ShellContextMenu.Show(_hwnd, items, x, y))
-                        BeginRename(_icons.Find(first.ParsingName));
-                })),
-            ]);
+        var menu = new MenuFlyout();
+        AddShellItems(menu, ShellMenu.ForItems(_hwnd, items), point, renameTarget: items[0]);
+        return menu;
     }
 
-    /// <summary>The desktop's own menu: Explorer's view and sort choices, paste and new items.</summary>
+    /// <summary>
+    /// The desktop's own menu as Explorer's full one: its view, sort and paste commands, then the shell's (installed
+    /// apps' commands, New, Display settings, Personalize).
+    /// </summary>
     private MenuFlyout BackgroundMenu(Point point)
     {
         var view = new MenuFlyoutSubItem { Text = "View", Icon = Glyph("") };
@@ -314,31 +303,124 @@ internal sealed partial class DesktopIconsView : UserControl
         sort.Items.Add(SortItem("Item type", DesktopSortOrder.ItemType));
         sort.Items.Add(SortItem("Date modified", DesktopSortOrder.DateModified));
 
-        var create = new MenuFlyoutSubItem { Text = "New", Icon = Glyph("") };
-        AutomationProperties.SetAutomationId(create, "DesktopNewMenuItem");
-        create.Items.Add(MenuItem("Folder", "", "DesktopNewFolderMenuItem", () => CreateNew("New folder", "", isFolder: true)));
-        create.Items.Add(MenuItem("Text Document", "", "DesktopNewTextMenuItem", () => CreateNew("New Text Document", ".txt", isFolder: false)));
-
         bool canPaste = ShellContextMenu.CanPaste();
         MenuFlyoutItem paste = MenuItem("Paste", "", "DesktopPasteMenuItem", () => Paste("paste"));
         MenuFlyoutItem pasteShortcut = MenuItem("Paste shortcut", "", "DesktopPasteShortcutMenuItem", () => Paste("pastelink"));
         paste.IsEnabled = pasteShortcut.IsEnabled = canPaste;
 
-        return Menu(
+        MenuFlyout menu = Menu(
             [view, sort, MenuItem("Refresh", "", "DesktopRefreshMenuItem", () => _ = _icons.RefreshAsync())],
-            [paste, pasteShortcut, create],
-            [
-                // Explorer's Personalize and Display settings open the Settings app, which can't run without Explorer.
-                MenuItem("Desktop icon settings", "", "DesktopIconSettingsMenuItem", () => Launcher.Launch(
-                    new PinnedApp("Desktop icon settings", Path: "rundll32.exe", Arguments: "shell32.dll,Control_RunDLL desk.cpl,,0"))),
-            ],
-            [
-                MenuItem("Show more options", "", "DesktopMoreOptionsMenuItem", () => AfterMenuCloses(() =>
-                {
-                    (int x, int y) = ToScreen(point);
-                    ShellContextMenu.ShowBackground(_hwnd, x, y);
-                })),
-            ]);
+            [paste, pasteShortcut]);
+        AddShellItems(menu, ShellMenu.ForBackground(_hwnd), point, renameTarget: null);
+        return menu;
+    }
+
+    /// <summary>
+    /// Adds the shell's menu in NeoShell's look. The shell runs the chosen command, except Rename (the inline box) and
+    /// the Settings pages (<see cref="ClassicSettings"/>).
+    /// </summary>
+    private void AddShellItems(MenuFlyout menu, ShellMenu? shellMenu, Point point, DesktopItem? renameTarget)
+    {
+        if (shellMenu is null)
+        {
+            Log.Warn("The shell gave no context menu");
+            return;
+        }
+
+        List<MenuFlyoutItemBase> items = ShellItems(shellMenu, shellMenu.Items, point, renameTarget);
+        if (menu.Items.Count > 0 && items.Count > 0)
+            menu.Items.Add(new MenuFlyoutSeparator());
+        foreach (MenuFlyoutItemBase item in items)
+            menu.Items.Add(item);
+        // The chosen command runs after the menu has closed, so the handlers are released after that.
+        menu.Closed += (_, _) => AfterMenuCloses(shellMenu.Dispose);
+    }
+
+    private List<MenuFlyoutItemBase> ShellItems(ShellMenu shellMenu, IReadOnlyList<ShellMenuItem> items, Point point, DesktopItem? renameTarget)
+    {
+        var result = new List<MenuFlyoutItemBase>();
+        foreach (ShellMenuItem item in items)
+        {
+            if (item.IsSeparator)
+            {
+                if (result.Count > 0 && result[^1] is not MenuFlyoutSeparator)
+                    result.Add(new MenuFlyoutSeparator());
+                continue;
+            }
+            if (item.Text.Length == 0)
+                continue;
+
+            MenuFlyoutItemBase element;
+            if (item.Items.Count > 0)
+            {
+                List<MenuFlyoutItemBase> children = ShellItems(shellMenu, item.Items, point, renameTarget);
+                if (children.Count == 0)
+                    continue;
+                var submenu = new MenuFlyoutSubItem { Text = item.Text, Icon = ShellIcon(item), IsEnabled = item.IsEnabled };
+                foreach (MenuFlyoutItemBase child in children)
+                    submenu.Items.Add(child);
+                element = submenu;
+            }
+            else
+            {
+                MenuFlyoutItem command = item.IsChecked ? new ToggleMenuFlyoutItem { IsChecked = true } : new MenuFlyoutItem();
+                command.Text = item.Text;
+                command.Icon = ShellIcon(item);
+                command.IsEnabled = item.IsEnabled;
+                if (item.IsDefault)
+                    command.FontWeight = FontWeights.SemiBold;
+                command.Click += (_, _) => AfterMenuCloses(() => RunShellCommand(shellMenu, item, point, renameTarget));
+                element = command;
+            }
+            AutomationProperties.SetAutomationId(element, $"DesktopShellMenuItem_{item.Verb ?? item.Text}");
+            result.Add(element);
+        }
+        if (result.Count > 0 && result[^1] is MenuFlyoutSeparator)
+            result.RemoveAt(result.Count - 1);
+        return result;
+    }
+
+    /// <summary>The handler's own image, or one of NeoShell's glyphs for the shell's standard commands.</summary>
+    private static IconElement? ShellIcon(ShellMenuItem item) =>
+        item.Icon is { } icon ? new ImageIcon { Source = AppIcons.ToImageSource(icon) }
+        : item.Verb is { } verb && VerbGlyphs.TryGetValue(verb, out string? glyph) ? Glyph(glyph)
+        : null;
+
+    private void RunShellCommand(ShellMenu shellMenu, ShellMenuItem item, Point point, DesktopItem? renameTarget)
+    {
+        string? verb = item.Verb;
+        if (renameTarget is not null && string.Equals(verb, "rename", StringComparison.OrdinalIgnoreCase))
+        {
+            BeginRename(_icons.Find(renameTarget.ParsingName));
+            return;
+        }
+        if (verb is not null && ClassicSettings.TryGetValue(verb, out string? arguments))
+        {
+            Launcher.Launch(new PinnedApp(item.Text, Path: "rundll32.exe", Arguments: arguments));
+            return;
+        }
+
+        // New's commands (a folder, ".txt"...) create an item that the user names next, as in Explorer.
+        bool creates = string.Equals(verb, "NewFolder", StringComparison.OrdinalIgnoreCase) || verb?.StartsWith('.') == true;
+        HashSet<string> before = creates ? [.. _icons.Icons.Select(icon => icon.Item.ParsingName)] : [];
+
+        (int x, int y) = ToScreen(point);
+        if (!shellMenu.Invoke(item, x, y))
+            Log.Warn($"The {verb ?? item.Text} command failed");
+        else if (creates)
+            RenameNewItem(before);
+        else if (verb is not null && InPlaceVerbs.Contains(verb, StringComparer.OrdinalIgnoreCase))
+            KeepForeground();
+    }
+
+    private async void RenameNewItem(HashSet<string> before)
+    {
+        await _icons.RefreshAsync();
+        if (_icons.Icons.FirstOrDefault(icon => !before.Contains(icon.Item.ParsingName)) is { } created)
+        {
+            Select(created);
+            BeginRename(created);
+        }
     }
 
     private RadioMenuFlyoutItem SizeItem(string text, int size)
@@ -410,32 +492,6 @@ internal sealed partial class DesktopIconsView : UserControl
     /// to the next window in the z-order, which is never the desktop: it's at the bottom.
     /// </summary>
     private void KeepForeground() => TopLevelWindows.Activate(_hwnd);
-
-    /// <summary>Creates a new folder or empty file on the user's desktop and lets the user name it, as Explorer does.</summary>
-    private async void CreateNew(string baseName, string extension, bool isFolder)
-    {
-        string folder = DesktopLocations.Current().UserDesktop;
-        string path = Path.Combine(folder, DesktopContents.NewItemName(baseName, extension, name => Path.Exists(Path.Combine(folder, name))));
-        try
-        {
-            if (isFolder)
-                Directory.CreateDirectory(path);
-            else
-                File.Create(path).Dispose();
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
-            Log.Warn($"Could not create {path}", ex);
-            return;
-        }
-
-        await _icons.RefreshAsync();
-        if (_icons.Find(path) is { } icon)
-        {
-            Select(icon);
-            BeginRename(icon);
-        }
-    }
 
     /// <summary>Edits the icon's name in a box over its label; Enter or clicking elsewhere renames, Esc cancels.</summary>
     private void BeginRename(DesktopIcon? icon)

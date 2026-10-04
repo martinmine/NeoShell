@@ -151,23 +151,29 @@ Shell mode only, like the wallpaper: alongside Explorer, Explorer's desktop has 
   `WallpaperWindow`. Double-click or Enter opens; Delete, F2, F5, Ctrl+C/X/V and Alt+Enter work as in Explorer; a
   click on the empty desktop clears the selection. Dragging from the empty desktop draws a selection rectangle (accent
   coloured) and selects every icon it touches; with Ctrl held it adds to the selection.
-- **Menus**, as in Windows 11: a short WinUI menu, and "Show more options" for the shell's full menu.
-  - Icons: Open, Run as administrator, Open with, Empty Recycle Bin, Cut, Copy, Rename, Delete, Copy as path,
-    Properties, each shown according to the items' `SFGAO_*` attributes.
-  - Desktop: View (icon size, Show desktop icons), Sort by, Refresh, Paste, Paste shortcut, New (Folder, Text
-    Document), Desktop icon settings (`desk.cpl,,0`, a classic dialog). Explorer's Personalize and Display settings
-    are left out: they open the Settings app, which can't run without Explorer.
-  - Commands run through the shell's own `IContextMenu` (`GetUIObjectOf` for icons, `CreateViewObject` for the
-    desktop) by canonical verb (`open`, `delete`, `copyaspath`, `paste`…), so they behave exactly as in Explorer:
-    Recycle Bin, confirmations, progress.
-  - The full menu is `TrackPopupMenuEx` owned by the wallpaper window, which forwards `WM_INITMENUPOPUP`,
-    `WM_DRAWITEM`, `WM_MEASUREITEM` and `WM_MENUCHAR` to `IContextMenu3` so Send to, Open with and New fill in. It
-    opens once the WinUI menu has closed (it runs its own message loop). Its Rename comes back to NeoShell: only the
-    view can edit a name.
+- **Menus**: Explorer's full menu (what its "Show more options" shows) in one WinUI menu, without that item.
+  - `ShellMenu` (Interop) builds the shell's own `IContextMenu` (`GetUIObjectOf` for icons, `CreateViewObject` for
+    the desktop, `CMF_NODEFAULT` there as Explorer does), fills the submenus filled on opening (New, Send to, Open
+    with) by sending `WM_INITMENUPOPUP` through `IContextMenu3`, and reads the `HMENU` into items: label (access
+    keys and shortcut text removed), verb, state, the item's bitmap and submenus. NeoShell shows them as
+    `MenuFlyout` items; the handler's image, else a glyph for standard verbs (cut, copy, delete...).
+  - The chosen command is invoked by its ID once the WinUI menu has closed, so it behaves exactly as in Explorer
+    (Recycle Bin, confirmations, progress, installed apps' commands). The `ShellMenu` is released after that.
+  - Icons: the shell's menu as is (Open, Open with, Send to, Give access to, Cut, Copy, Create shortcut, Delete,
+    Rename, Properties, installed apps' commands...).
+  - Desktop: what Explorer's view adds itself, View (icon size, Show desktop icons), Sort by, Refresh, Paste and
+    Paste shortcut, then the shell's menu: installed apps' commands, New (the shell's New menu: Folder, Shortcut and
+    every registered file type) and Display settings / Personalize. Explorer's Undo is left out: its undo history
+    is Explorer's own.
+  - Display settings and Personalize open the Settings app, which can't start while NeoShell is the shell (the only
+    time the desktop is NeoShell's), and Control Panel's pages for them open Settings too. They open the classic
+    dialogs left instead: the display adapter's properties (`display.dll,ShowAdapterSettings`, with List All Modes)
+    and Desktop icon settings (`desk.cpl,,0`).
+  - Rename comes back to NeoShell (only the view can edit a name); an item made from New is renamed straight away,
+    as in Explorer.
 - **Rename**: a text box in a flyout over the label, with the name selected without its extension; Enter or a click
   elsewhere renames through `IShellFolder::SetNameOf` (keeps a hidden extension, reports errors in the shell's
-  dialogs), Esc cancels. New → Folder / Text Document create the first free "New folder (2)"-style name and start
-  renaming it.
+  dialogs), Esc cancels.
 - After a file operation the desktop takes the foreground back: the shell's operation windows hand it to the next
   window in the z-order when they close, and that is never the bottom-most desktop.
 
