@@ -106,8 +106,9 @@ src/NeoShell/bin/Debug/net10.0-windows10.0.26100.0/win-x64/NeoShell.exe /exit   
 - `tools/set-shell.ps1` writes only the **per-user** `HKCU\Software\Microsoft\Windows NT\CurrentVersion\Winlogon\Shell`.
   Never write to HKLM.
 - Recovery: Ctrl+Alt+Del → Task Manager → Run new task → `explorer.exe`, then run `tools/restore-explorer.ps1`.
-- The unhandled-exception handler must log and, when running as the shell, start `explorer.exe` so the user is never
-  left on a blank screen.
+- Unhandled exceptions must be logged, and when NeoShell runs as the shell its watchdog (`NeoShell.exe /watch <pid>`)
+  must start `explorer.exe` after any abnormal exit, so the user is never left on a blank screen. An in-process
+  handler alone can't do this: WinUI fail-fasts on exceptions in UI callbacks without raising any event.
 - `tools/*.ps1` must work in Windows PowerShell 5.1 (they are run from Task Manager during recovery).
 
 ## Testing

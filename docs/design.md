@@ -50,8 +50,13 @@ All shell surfaces (taskbar, Start menu, wallpaper, flyouts) are WinUI `Window`s
     fails, or another shell exists, it runs alongside. Registering this early matters: a killed Explorer is restarted
     by Winlogon within a second or two.
   - Installs crash handlers (`AppDomain.UnhandledException`, `Application.UnhandledException`,
-    `TaskScheduler.UnobservedTaskException`): log, and in shell mode start `explorer.exe`. Unobserved task
-    exceptions only log, because they don't end the process.
+    `TaskScheduler.UnobservedTaskException`) that log. WinUI fail-fasts on an exception in a `DispatcherQueue`
+    callback without raising any of these, so UI-thread work goes through `UiThread.Post` and a logging
+    `SynchronizationContext`, which log the exception before it ends the process.
+  - **Watchdog** (shell mode): `Main` starts `NeoShell.exe /watch <pid>`, which waits for NeoShell to exit. A clean
+    exit returns 0; any other exit (crash, fail-fast, stack overflow, killed from Task Manager) makes the watchdog
+    start `explorer.exe` — unless another shell has registered or the session is ending. NeoShell is gone by then, so
+    Explorer becomes the shell rather than opening a folder window (which it does while a shell is registered).
   - Native callbacks (window procedures, subclasses, hooks) catch every exception and raise
     `NativeCallback.UnhandledException`, which the app logs: an exception escaping `[UnmanagedCallersOnly]`
     would end the process without running any handler.
@@ -62,14 +67,17 @@ All shell surfaces (taskbar, Start menu, wallpaper, flyouts) are WinUI `Window`s
 
 ### Shell mode (`ShellSession`)
 
-1. `SetShellWindow` (done in `Main`, see above; a dedicated window rather than a wallpaper window, which is
-   recreated on display changes) and `SetTaskmanWindow` on the taskbar. The registration is released last on exit,
-   so Explorer started by Switch to Explorer becomes the shell.
+1. `SetShellWindow` (done in `Main`, see above; a dedicated hidden top-level window rather than a wallpaper window,
+   which is recreated on display changes) and `SetTaskmanWindow` on the same window, which then receives
+   `WM_SYSCOMMAND SC_TASKLIST` for Ctrl+Esc. The registration is released last on exit, so Explorer started by
+   Switch to Explorer becomes the shell.
 2. Create `Shell_TrayWnd` (see Tray) and broadcast `TaskbarCreated`.
-3. Signal the shell-ready event (`ShellDesktopSwitchEvent` / `msgina: ShellReadyEvent`) so logon completes.
-4. Run startup apps (below).
-5. Register hotkeys and the low-level keyboard hook.
-6. Handle `WM_QUERYENDSESSION` / `WM_ENDSESSION` to save settings and exit cleanly.
+3. Signal the shell-ready events (`Local\ShellDesktopSwitchEvent`, `msgina: ShellReadyEvent`, whichever exist) so
+   logon completes.
+4. Run startup apps (below), queued at low priority after the tray exists.
+5. Register hotkeys and the low-level keyboard hook (see Hotkeys).
+6. Handle `WM_QUERYENDSESSION` (always allow) / `WM_ENDSESSION` on the shell window: shut down cleanly before Windows
+   ends the process. Settings are already saved on every change.
 
 ### Startup apps (shell mode only)
 
@@ -77,14 +85,18 @@ Explorer, not Windows, launches startup apps. As the shell NeoShell must do the 
 chat apps, password managers, GPU/audio/Bluetooth utilities etc. never start and the tray stays empty.
 
 - Sources, in Explorer's order:
-  1. `HKLM\...\RunOnce`, `HKCU\...\RunOnce` — delete each value before running it (as Explorer does).
+  1. `HKCU\...\RunOnce` — delete each value before running it (after, for names starting with `!`), as Explorer
+     does. `HKLM\...\RunOnce` needs an administrator to delete its values; like Explorer, NeoShell leaves it.
   2. `HKLM\...\Run`, `HKLM\...\WOW6432Node\...\Run`, `HKCU\...\Run`.
-  3. `shell:common startup` and `shell:startup` folders.
-- Respect `HKCU|HKLM\Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\{Run,Run32,StartupFolder}`:
-  a value whose first byte is odd (e.g. `0x03`) means disabled in Task Manager.
-- Parse command lines with `CommandLineToArgvW` semantics; expand environment variables; launch with `ShellExecuteEx`.
-- Run once per session; record it so a NeoShell restart, or Explorer after "Switch to Explorer", doesn't launch them
-  again (Explorer checks the volatile `HKCU\...\Explorer\SessionInfo\<id>\StartupHasBeenRun` key — verify and set it).
+  3. `shell:common startup` and `shell:startup` folders (not `desktop.ini`).
+- Respect `HKCU|HKLM\Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\{Run,Run32,StartupFolder}`,
+  in the hive of the entry: a value whose first byte is odd (e.g. `0x03`) means disabled in Task Manager.
+- Split command lines the way `CreateProcess` does (quoted program, else the shortest run of words naming an existing
+  file, with `.exe` tried), after expanding environment variables; launch with `ShellExecuteEx` (`Process.Start`
+  with `UseShellExecute`) in the program's folder.
+- Run once per session: Explorer marks it with the volatile keys `HKCU\...\Explorer\SessionInfo\<session id>\
+  StartupHasBeenRun` and `RunStuffHasBeenRun`; NeoShell checks the first and sets both, so a NeoShell restart, or
+  Explorer after Switch to Explorer, doesn't launch them again.
 - Parsing and the `StartupApproved` decision are unit tested.
 
 ### Switch to Explorer
@@ -205,10 +217,17 @@ icon on the task button.
 
 ### Hotkeys (shell mode only)
 
-- Low-level keyboard hook (`WH_KEYBOARD_LL`): Win pressed and released alone → toggle Start; swallow it so it doesn't
-  reach apps. Ctrl+Esc → Start.
+- Low-level keyboard hook (`WH_KEYBOARD_LL`): Win pressed and released alone, or Ctrl+Esc → toggle Start
+  (`StartKeyDetector`, unit tested). Keys are not swallowed: Windows has to see Win go down for the Win+ hotkeys,
+  and without Explorer nothing else reacts to Win alone. Ctrl+Esc also arrives as `SC_TASKLIST` on the taskman
+  window; keyboard toggles within 300 ms of each other count once.
 - `RegisterHotKey`: Win+D (show desktop toggle), Win+T (focus taskbar), Win+1…9 (activate/launch the Nth button),
   Win+S (Start with search focus).
+- Win+T: the taskbar is `WS_EX_NOACTIVATE`, which keeps it from ever becoming active (and so from getting the
+  keyboard). Win+T drops that style, activates the taskbar and focuses the first task button; the style comes back
+  when the taskbar loses activation.
+- Start closed because another window took the foreground (deactivation) doesn't hand the foreground back to the
+  previous app — that would take it from the window being activated, e.g. the taskbar for Win+T.
 
 ### Taskbar context menu
 

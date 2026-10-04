@@ -87,7 +87,8 @@ internal sealed partial class StartMenuWindow : Window
             if (e.WindowActivationState == WindowActivationState.Deactivated && IsOpen)
             {
                 _deactivatedAt = Environment.TickCount64;
-                Hide();
+                // Another window is taking the foreground; handing it back would take it away again.
+                Hide(restoreForeground: false);
             }
         };
         Root.AddHandler(UIElement.KeyDownEvent, new KeyEventHandler(Root_KeyDown), handledEventsToo: true);
@@ -133,10 +134,12 @@ internal sealed partial class StartMenuWindow : Window
         TopLevelWindows.Activate(_hwnd);
         Activate();
         // Focus once the window is active, so typing goes straight into the search box.
-        DispatcherQueue.TryEnqueue(() => SearchBox.Focus(FocusState.Programmatic));
+        DispatcherQueue.Post(() => SearchBox.Focus(FocusState.Programmatic));
     }
 
-    public void Hide()
+    public void Hide() => Hide(restoreForeground: true);
+
+    private void Hide(bool restoreForeground)
     {
         if (!IsOpen)
             return;
@@ -145,7 +148,7 @@ internal sealed partial class StartMenuWindow : Window
         _search?.Cancel();
         // Hand the foreground back to where the user was. Left to itself, Windows gives it to the next window in
         // z-order, which can be one of Explorer's invisible Start or search windows.
-        if (TopLevelWindows.GetForeground() == _hwnd && _previousForeground != 0 && TopLevelWindows.Exists(_previousForeground))
+        if (restoreForeground && TopLevelWindows.GetForeground() == _hwnd && _previousForeground != 0 && TopLevelWindows.Exists(_previousForeground))
             TopLevelWindows.Activate(_previousForeground);
         AppWindow.Hide();
         SearchBox.Text = "";

@@ -24,6 +24,7 @@ internal sealed class Taskbars : IDisposable
     private ElementTheme _theme = SystemTheme.Read();
     private ShellSettings _windowSettings;
     private StartMenuWindow? _startMenu;
+    private long _lastKeyboardToggle;
     private bool _updateQueued;
     private bool _recreate;
 
@@ -63,7 +64,7 @@ internal sealed class Taskbars : IDisposable
         if (RunMode == RunMode.Shell && !TrayHost.IsTrayRunning())
         {
             Tray = new NotificationArea();
-            Tray.IconBounds = icon => _windows.FirstOrDefault(w => w.Monitor.IsPrimary)?.TrayIconBounds(icon);
+            Tray.IconBounds = icon => PrimaryWindow?.TrayIconBounds(icon);
         }
         // Created up front, so it opens instantly and its app catalog is already loaded.
         _startMenu = new StartMenuWindow(this);
@@ -93,6 +94,33 @@ internal sealed class Taskbars : IDisposable
     }
 
     public void HideStartMenu() => _startMenu?.Hide();
+
+    /// <summary>
+    /// The Windows key or Ctrl+Esc. Windows may report the same press twice (the hook, and the task list request to
+    /// the shell window), so a second toggle right after the first is ignored.
+    /// </summary>
+    public void ToggleStartMenuFromKeyboard()
+    {
+        long now = Environment.TickCount64;
+        if (now - _lastKeyboardToggle < 300)
+            return;
+        _lastKeyboardToggle = now;
+
+        if (PrimaryWindow is { } window)
+            ToggleStartMenu(window);
+    }
+
+    /// <summary>Win+S: opens Start, whose search box has the focus.</summary>
+    public void OpenStartMenu()
+    {
+        if (_startMenu is { IsOpen: false } && PrimaryWindow is { } window)
+            ToggleStartMenu(window);
+    }
+
+    /// <summary>Win+T: puts the keyboard focus on the primary taskbar's buttons.</summary>
+    public void FocusTaskbar() => PrimaryWindow?.FocusTaskList();
+
+    private TaskbarWindow? PrimaryWindow => _windows.FirstOrDefault(window => window.Monitor.IsPrimary) ?? _windows.FirstOrDefault();
 
     public void SwitchToExplorer() => _switchToExplorer();
 
@@ -174,7 +202,7 @@ internal sealed class Taskbars : IDisposable
             return;
 
         _updateQueued = true;
-        _dispatcher.TryEnqueue(Update);
+        _dispatcher.Post(Update);
     }
 
     private void Update()

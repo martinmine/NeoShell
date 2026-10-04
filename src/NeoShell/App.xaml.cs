@@ -24,6 +24,7 @@ public partial class App : Application
     private readonly ShellRegistration? _shellRegistration;
     private Wallpaper? _wallpaper;
     private Taskbars? _taskbars;
+    private ShellSession? _shellSession;
     private bool _shuttingDown;
     private bool _startExplorerOnExit;
 
@@ -44,15 +45,26 @@ public partial class App : Application
         _settings.Load();
 
         uint exitMessage = WindowMessages.Register(ExitMessageName);
+#if DEBUG
+        // Lets tests check the crash fallback: an exception on the UI thread, like a real bug.
+        uint testCrashMessage = WindowMessages.Register("NeoShell_TestCrash");
+#endif
         DispatcherQueue dispatcher = DispatcherQueue.GetForCurrentThread();
         _controlWindow = new MessageWindow(ControlWindowClass, (message, _, _) =>
         {
+#if DEBUG
+            if (message == testCrashMessage)
+            {
+                dispatcher.Post(() => throw new InvalidOperationException("Test crash requested"));
+                return 0;
+            }
+#endif
             if (message != exitMessage)
                 return null;
 
             Log.Info("Exit requested");
             // Shut down after this message returns rather than destroying the window from inside its own callback.
-            dispatcher.TryEnqueue(Shutdown);
+            dispatcher.Post(Shutdown);
             return 0;
         });
 
@@ -64,6 +76,12 @@ public partial class App : Application
 
         _taskbars = new Taskbars(_runMode, _settings, Shutdown, SwitchToExplorer);
         _taskbars.Show();
+
+        if (_shellRegistration is not null)
+        {
+            _shellSession = new ShellSession(_shellRegistration, _taskbars, Shutdown);
+            _shellSession.Start();
+        }
 
         Log.Info("Started");
     }
@@ -95,7 +113,8 @@ public partial class App : Application
         _shuttingDown = true;
 
         Log.Info("Shutting down");
-        // Taskbars first: they give the reserved screen space back.
+        _shellSession?.Dispose();
+        // Taskbars next: they give the reserved screen space back.
         _taskbars?.Dispose();
         _wallpaper?.Dispose();
         // Last, so Explorer started below becomes the shell rather than opening a folder window.

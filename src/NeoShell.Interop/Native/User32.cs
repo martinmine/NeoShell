@@ -162,6 +162,51 @@ internal static unsafe partial class User32
     [return: MarshalAs(UnmanagedType.Bool)]
     public static partial bool SetShellWindow(nint hwnd);
 
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static partial bool SetTaskmanWindow(nint hwnd);
+
+    public const int SM_SHUTTINGDOWN = 0x2000;
+
+    [LibraryImport("user32.dll")]
+    public static partial int GetSystemMetrics(int index);
+
+    public const uint WM_QUERYENDSESSION = 0x0011;
+    public const uint WM_ENDSESSION = 0x0016;
+    public const uint WM_HOTKEY = 0x0312;
+    public const nint SC_TASKLIST = 0xF130;
+
+    [LibraryImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static partial bool RegisterHotKey(nint hwnd, int id, uint modifiers, uint virtualKey);
+
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static partial bool UnregisterHotKey(nint hwnd, int id);
+
+    public const int WH_KEYBOARD_LL = 13;
+    public const uint LLKHF_UP = 0x80;
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct KBDLLHOOKSTRUCT
+    {
+        public uint vkCode;
+        public uint scanCode;
+        public uint flags;
+        public uint time;
+        public nint dwExtraInfo;
+    }
+
+    [LibraryImport("user32.dll", EntryPoint = "SetWindowsHookExW", SetLastError = true)]
+    public static partial nint SetWindowsHookEx(int hookType, delegate* unmanaged<int, nint, nint, nint> callback, nint module, uint threadId);
+
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static partial bool UnhookWindowsHookEx(nint hook);
+
+    [LibraryImport("user32.dll")]
+    public static partial nint CallNextHookEx(nint hook, int code, nint wParam, nint lParam);
+
     // The Ptr variants only exist as exports on 64-bit Windows; NeoShell is x64 only.
     [LibraryImport("user32.dll", EntryPoint = "GetWindowLongPtrW")]
     public static partial nint GetWindowLongPtr(nint hwnd, int index);

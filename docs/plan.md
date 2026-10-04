@@ -81,13 +81,15 @@ Tick items off as they land. The feature details are in [design.md](design.md).
 
 ## 8. Shell mode
 
-- [ ] `SetShellWindow` / `SetTaskmanWindow`, shell-ready event — `SetShellWindow` landed with the tray (milestone 6)
-- [ ] Startup apps: RunOnce, Run (incl. WOW6432Node), Startup folders, `StartupApproved` (tests), once per session,
+- [x] `SetShellWindow` / `SetTaskmanWindow`, shell-ready event
+- [x] Startup apps: RunOnce, Run (incl. WOW6432Node), Startup folders, `StartupApproved` (tests), once per session,
       no double launch after switching to Explorer
-- [ ] Session end handling
-- [ ] Win key (low-level hook), Ctrl+Esc, Win+D, Win+T, Win+S
+- [x] Session end handling
+- [x] Win key (low-level hook), Ctrl+Esc, Win+D, Win+T, Win+S
+- [x] Crash fallback: a watchdog process starts Explorer when NeoShell ends abnormally (crash, fail-fast, kill)
 - [ ] End-to-end test on a VM/test account: sign in with NeoShell as shell, verify tray icons, startup apps,
-      power options, Switch to Explorer, crash fallback
+      power options, Switch to Explorer, crash fallback — each piece is verified in a shell-mode session started by
+      killing Explorer; a real sign-in (and the power options) needs the owner at the VM
 
 ## 9. Parity polish
 

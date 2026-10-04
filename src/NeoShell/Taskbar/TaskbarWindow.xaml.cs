@@ -27,6 +27,7 @@ internal sealed partial class TaskbarWindow : Window
 
     private readonly Taskbars _owner;
     private readonly DisplayMonitor _monitor;
+    private readonly nint _hwnd;
     private readonly AcrylicBackdrop _backdrop = new();
     private readonly FramelessWindow _frameless;
     private readonly WindowSubclass _messages;
@@ -65,9 +66,17 @@ internal sealed partial class TaskbarWindow : Window
         presenter.IsMinimizable = false;
         AppWindow.SetPresenter(presenter);
 
-        nint hwnd = Win32Interop.GetWindowFromWindowId(AppWindow.Id);
+        nint hwnd = _hwnd = Win32Interop.GetWindowFromWindowId(AppWindow.Id);
         // Out of Alt+Tab, and clicking it leaves the focus in the app the user is working in.
         WindowStyles.AddExtended(hwnd, ExtendedWindowStyles.ToolWindow | ExtendedWindowStyles.NoActivate);
+        // Win+T makes the taskbar activatable for a while (see FocusTaskList); once it's left, clicks go back to
+        // leaving the focus alone.
+        Activated += (_, e) =>
+        {
+
+            if (e.WindowActivationState == WindowActivationState.Deactivated)
+                WindowStyles.AddExtended(hwnd, ExtendedWindowStyles.NoActivate);
+        };
         _frameless = new FramelessWindow(hwnd);
         _messages = new WindowSubclass(hwnd, OnMessage);
 
@@ -161,6 +170,19 @@ internal sealed partial class TaskbarWindow : Window
     }
 
     public void UpdateClock() => Clock.Update();
+
+    /// <summary>Activates the taskbar and focuses its first task button (or Start), for the arrow keys and Enter.</summary>
+    public void FocusTaskList()
+    {
+        // A no-activate window can't become active, and only the active window gets the keyboard.
+        WindowStyles.RemoveExtended(_hwnd, ExtendedWindowStyles.NoActivate);
+        TopLevelWindows.Activate(_hwnd);
+
+        if (_tasks.Count > 0 && TaskList.ContainerFromIndex(0) is Control first)
+            first.Focus(FocusState.Keyboard);
+        else
+            StartButton.Focus(FocusState.Keyboard);
+    }
 
     /// <summary>Shows the tray icons on the taskbar, or behind the chevron, as the tray mode setting says.</summary>
     public void RefreshTray()

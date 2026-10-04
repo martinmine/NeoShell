@@ -50,7 +50,7 @@ internal sealed class Wallpaper : IDisposable
             return;
 
         _updateQueued = true;
-        _dispatcher.TryEnqueue(Update);
+        _dispatcher.Post(Update);
     }
 
     private async void Update()

@@ -9,6 +9,15 @@ internal static unsafe partial class Kernel32
     [LibraryImport("kernel32.dll", EntryPoint = "GetModuleHandleW", StringMarshalling = StringMarshalling.Utf16)]
     public static partial nint GetModuleHandle(string? moduleName);
 
+    public const uint EVENT_MODIFY_STATE = 0x0002;
+
+    [LibraryImport("kernel32.dll", EntryPoint = "OpenEventW", StringMarshalling = StringMarshalling.Utf16, SetLastError = true)]
+    public static partial nint OpenEvent(uint access, [MarshalAs(UnmanagedType.Bool)] bool inheritHandle, string name);
+
+    [LibraryImport("kernel32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static partial bool SetEvent(nint handle);
+
     [LibraryImport("kernel32.dll", SetLastError = true)]
     public static partial nint OpenProcess(uint access, [MarshalAs(UnmanagedType.Bool)] bool inheritHandle, uint processId);
 

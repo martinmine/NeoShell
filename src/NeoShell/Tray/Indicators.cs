@@ -79,7 +79,7 @@ internal sealed class Indicators : IDisposable
     private void QueueUpdate()
     {
         if (Interlocked.Exchange(ref _updateQueued, 1) == 0)
-            _dispatcher.TryEnqueue(Update);
+            _dispatcher.Post(Update);
     }
 
     private void Update()

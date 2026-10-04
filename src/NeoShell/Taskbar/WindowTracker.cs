@@ -227,7 +227,7 @@ internal sealed class WindowTracker : IDisposable
             return;
 
         _changeQueued = true;
-        _dispatcher.TryEnqueue(() =>
+        _dispatcher.Post(() =>
         {
             _changeQueued = false;
             Changed?.Invoke();
