@@ -40,9 +40,20 @@ public sealed class ShellRegistration : IDisposable
     /// Finishes taking over as the shell: becomes the task manager window (which receives Ctrl+Esc) and tells
     /// Windows the shell is up, so the sign-in screen gives way to the desktop.
     /// </summary>
-    public void Complete()
+    public unsafe void Complete()
     {
         User32.SetTaskmanWindow(_window.Handle);
+
+        // Without a shell asking for it, Windows draws minimized windows as little title bars along the bottom of
+        // the screen. Explorer sets this at every startup and never saves it, so neither do we.
+        var metrics = new User32.MINIMIZEDMETRICS { cbSize = (uint)sizeof(User32.MINIMIZEDMETRICS) };
+        if (User32.SystemParametersInfo(User32.SPI_GETMINIMIZEDMETRICS, metrics.cbSize, &metrics, 0))
+        {
+            metrics.iArrange |= User32.ARW_HIDE;
+            User32.SystemParametersInfo(User32.SPI_SETMINIMIZEDMETRICS, metrics.cbSize, &metrics, 0);
+        }
+
+
         foreach (string name in (string[])["Local\\ShellDesktopSwitchEvent", "msgina: ShellReadyEvent"])
         {
             // Which of these exist depends on how the session started; signalling a missing one is a no-op.

@@ -54,6 +54,8 @@ internal static unsafe partial class User32
     public const uint WINEVENT_OUTOFCONTEXT = 0x0000;
     public const uint WINEVENT_SKIPOWNPROCESS = 0x0002;
 
+    public const uint SPI_GETMINIMIZEDMETRICS = 0x002B;
+    public const uint SPI_SETMINIMIZEDMETRICS = 0x002C;
     public const uint SPI_SETWORKAREA = 0x002F;
     public const uint SPIF_SENDCHANGE = 0x0002;
 
@@ -171,6 +173,18 @@ internal static unsafe partial class User32
 
     [LibraryImport("user32.dll")]
     public static partial int GetSystemMetrics(int index);
+
+    public const int ARW_HIDE = 0x0008;
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct MINIMIZEDMETRICS
+    {
+        public uint cbSize;
+        public int iWidth;
+        public int iHorzGap;
+        public int iVertGap;
+        public int iArrange;
+    }
 
     public const uint WM_QUERYENDSESSION = 0x0011;
     public const uint WM_ENDSESSION = 0x0016;

@@ -372,15 +372,17 @@ internal sealed partial class TaskbarWindow : Window
         AutomationProperties.SetName(element, text.Replace('\n', ' '));
     }
 
-    private void Network_Click(object sender, RoutedEventArgs e) => Launcher.Launch(new PinnedApp("Network settings", Path: "ms-settings:network"));
+    private void Network_Click(object sender, RoutedEventArgs e) =>
+        Launcher.OpenSettings(_owner.RunMode, "Network settings", "ms-settings:network", "ncpa.cpl");
 
+    // As the shell: the Recording tab of Sound, as Control Panel has no microphone privacy page.
     private void Microphone_Click(object sender, RoutedEventArgs e) =>
-        Launcher.Launch(new PinnedApp("Microphone privacy settings", Path: "ms-settings:privacy-microphone"));
+        Launcher.OpenSettings(_owner.RunMode, "Microphone privacy settings", "ms-settings:privacy-microphone", "mmsys.cpl,,1");
 
     private void SoundSettings_Click(object sender, RoutedEventArgs e)
     {
         VolumeFlyout.Hide();
-        Launcher.Launch(new PinnedApp("Sound settings", Path: "ms-settings:sound"));
+        Launcher.OpenSettings(_owner.RunMode, "Sound settings", "ms-settings:sound", "mmsys.cpl");
     }
 
     private void VolumeFlyout_Opening(object sender, object e) => RefreshIndicators();

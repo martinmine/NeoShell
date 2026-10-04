@@ -73,7 +73,8 @@ All shell surfaces (taskbar, Start menu, wallpaper, flyouts) are WinUI `Window`s
    Switch to Explorer becomes the shell.
 2. Create `Shell_TrayWnd` (see Tray) and broadcast `TaskbarCreated`.
 3. Signal the shell-ready events (`Local\ShellDesktopSwitchEvent`, `msgina: ShellReadyEvent`, whichever exist) so
-   logon completes.
+   logon completes. Also set `ARW_HIDE` in `SPI_SETMINIMIZEDMETRICS` (not saved, as Explorer does), otherwise
+   minimized windows are drawn as small title bars along the bottom of the screen.
 4. Run startup apps (below), queued at low priority after the tray exists.
 5. Register hotkeys and the low-level keyboard hook (see Hotkeys).
 6. Handle `WM_QUERYENDSESSION` (always allow) / `WM_ENDSESSION` on the shell window: shut down cleanly before Windows
@@ -191,6 +192,7 @@ Start menu button → confirmation dialog → delete the per-user `Winlogon\Shel
   background until activated).
 - Left click: one window → activate it, or minimize if it's already foreground; several windows → show thumbnails.
   Pinned, not running → launch.
+- No tooltip: hovering shows the thumbnails instead.
 - Middle click or Shift+click: launch a new instance. Shift is read with `GetAsyncKeyState`: the taskbar never has
   focus, so its thread's key state doesn't see it.
 - Right click menu: app name (launch), Pin to taskbar / Unpin, Close window / Close all windows (`SC_CLOSE`).
@@ -204,7 +206,12 @@ Start menu button → confirmation dialog → delete the per-user `Winlogon\Shel
 ### Pinned apps
 
 - Stored in settings as a list of `{ AppUserModelId or Path, Arguments, DisplayName }`.
-- Launch through `shell:AppsFolder\<AUMID>` when there is an AUMID, otherwise `ShellExecuteEx` on the path.
+- Launch packaged apps (AUMID `<family>!<app>`) with `IApplicationActivationManager::ActivateApplication`, on a
+  background thread as it waits for the app; other apps through `shell:AppsFolder\<AUMID>` when there is an AUMID,
+  otherwise `ShellExecuteEx` on the path. Opening `shell:AppsFolder\<packaged AUMID>` needs a handler hosted by
+  Explorer and fails without it ("Class not registered").
+- UWP (CoreWindow) apps, Settings and Calculator among them, can't show in shell mode: their windows stay cloaked
+  without Explorer's view management, and activation fails. Packaged desktop apps (Notepad, Terminal) work.
 - Pinning from the Start menu and from a task button's context menu.
 
 ### Thumbnails
@@ -290,7 +297,7 @@ Task Manager, the taskbar settings toggles (alignment, combine, auto-hide, all d
 - `NetworkInformation.GetInternetConnectionProfile()` + `NetworkStatusChanged`.
 - States: Ethernet, Wi-Fi (`WlanConnectionProfileDetails`, `GetSignalBars()` 0–5), cellular, no internet access,
   disconnected. Each maps to a Segoe Fluent Icons glyph.
-- Tooltip: network name and access status. Click opens `ms-settings:network`.
+- Tooltip: network name and access status. Click opens `ms-settings:network` (shell mode: `ncpa.cpl`).
 
 ### Volume
 
@@ -298,8 +305,8 @@ Task Manager, the taskbar settings toggles (alignment, combine, auto-hide, all d
   (`AudioEndpoint`).
 - `IMMNotificationClient` to follow default-device changes.
 - Icon reflects mute and level (0 / low / medium / high glyphs). Mouse wheel changes volume in 2% steps.
-- Click opens NeoShell's own flyout: device name, slider, mute toggle, link to `ms-settings:sound`. Moving the
-  slider up unmutes, as Windows' own slider does.
+- Click opens NeoShell's own flyout: device name, slider, mute toggle, link to `ms-settings:sound` (shell mode:
+  `mmsys.cpl`). Moving the slider up unmutes, as Windows' own slider does.
 
 ### Microphone in use
 
@@ -308,7 +315,7 @@ Task Manager, the taskbar settings toggles (alignment, combine, auto-hide, all d
   its session list has been asked for once.
 - Visible while any capture session is `AudioSessionStateActive` (system sounds session excluded). Tooltip lists the
   apps (`IAudioSessionControl2.GetProcessId` → file description, else process name). Click opens
-  `ms-settings:privacy-microphone`.
+  `ms-settings:privacy-microphone` (shell mode: Sound's Recording tab, `mmsys.cpl,,1`).
 
 ### Threads and placement
 
@@ -352,7 +359,7 @@ Task Manager, the taskbar settings toggles (alignment, combine, auto-hide, all d
 - **Bottom row**:
   - User name (`GetUserNameEx(NameDisplay)`, else the account name) and picture
     (`HKLM\...\AccountPicture\Users\<SID>\Image96`, else initials).
-  - Settings button → `ms-settings:`.
+  - Settings button → `ms-settings:`; in shell mode Control Panel (`control.exe`), as Settings is a UWP app.
   - Switch to Explorer button (see lifecycle), shell mode only, behind a confirmation dialog that defaults to Cancel.
   - Power button menu:
     - Lock → `LockWorkStation`

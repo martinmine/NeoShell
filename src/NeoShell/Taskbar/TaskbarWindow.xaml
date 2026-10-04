@@ -120,7 +120,6 @@
                             Background="Transparent"
                             AutomationProperties.AutomationId="TaskButton"
                             AutomationProperties.Name="{x:Bind Title, Mode=OneWay}"
-                            ToolTipService.ToolTip="{x:Bind ToolTip, Mode=OneWay}"
                             PointerPressed="TaskItem_PointerPressed"
                             PointerEntered="TaskItem_PointerEntered"
                             PointerExited="TaskItem_PointerExited">

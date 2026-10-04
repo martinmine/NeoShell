@@ -12,7 +12,6 @@ namespace NeoShell.Taskbar;
 internal sealed class TaskButton(string key) : INotifyPropertyChanged
 {
     private string _title = "";
-    private string _toolTip = "";
     private ImageSource? _icon;
     private bool _isActive;
     private bool _isFlashing;
@@ -33,8 +32,6 @@ internal sealed class TaskButton(string key) : INotifyPropertyChanged
     public IReadOnlyList<WindowInfo> Windows { get; private set; } = [];
 
     public string Title { get => _title; private set => Set(ref _title, value); }
-
-    public string ToolTip { get => _toolTip; private set => Set(ref _toolTip, value); }
 
     public ImageSource? Icon { get => _icon; private set => Set(ref _icon, value); }
 
@@ -132,12 +129,6 @@ internal sealed class TaskButton(string key) : INotifyPropertyChanged
         // A button for one window, uncombined, is about that window; otherwise it is about the app.
         WindowInfo? single = !combined && model.Windows.Count == 1 ? model.Windows[0] : null;
         Title = single?.Title ?? App.DisplayName;
-        ToolTip = model.Windows.Count switch
-        {
-            0 => App.DisplayName,
-            1 => model.Windows[0].Title,
-            int count => $"{App.DisplayName} - {count} windows",
-        };
         Icon = single is not null ? tracker.WindowIcon(single) : tracker.AppIcon(App) ?? FirstWindowIcon(tracker);
         ShowLabel = single is not null;
         IsActive = model.Windows.Any(w => w.Handle == tracker.Foreground);

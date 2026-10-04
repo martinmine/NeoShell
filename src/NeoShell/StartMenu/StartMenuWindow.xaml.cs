@@ -51,6 +51,7 @@ internal sealed partial class StartMenuWindow : Window
     private readonly ObservableCollection<StartItem> _pinned = [];
     private readonly CollectionViewSource _allApps = new() { IsSourceGrouped = true };
     private readonly CollectionViewSource _results = new() { IsSourceGrouped = true };
+    private readonly ObservableCollection<StartGroup> _resultGroups = [];
     private List<StartItem> _apps = [];
     private List<StartItem> _resultItems = [];
     private DateTime _appsLoadedAt = DateTime.MinValue;
@@ -79,6 +80,8 @@ internal sealed partial class StartMenuWindow : Window
         _placement = new PinnedWindow(_hwnd, default, PinnedLayer.Topmost);
 
         PinnedGrid.ItemsSource = _pinned;
+        _results.Source = _resultGroups;
+        ResultsList.ItemsSource = _results.View;
         SwitchToExplorerButton.Visibility = owner.RunMode == RunMode.Shell ? Visibility.Visible : Visibility.Collapsed;
         ShowUser();
 
@@ -290,13 +293,27 @@ internal sealed partial class StartMenuWindow : Window
                 groups.Add(new StartGroup(kind, items));
         }
 
-        _resultItems = [.. groups.SelectMany(group => group)];
-        _results.Source = groups;
-        ResultsList.ItemsSource = _results.View;
+        // Replacing the whole list replays every row's entrance animation, so the apps would flash on each keystroke
+        // and again when the index answers. Groups that haven't changed stay as they are.
+        for (int i = 0; i < groups.Count; i++)
+        {
+            if (i < _resultGroups.Count && SameItems(_resultGroups[i], groups[i]))
+                continue;
+            if (i < _resultGroups.Count)
+                _resultGroups.RemoveAt(i);
+            _resultGroups.Insert(i, groups[i]);
+        }
+        while (_resultGroups.Count > groups.Count)
+            _resultGroups.RemoveAt(_resultGroups.Count - 1);
+
+        _resultItems = [.. _resultGroups.SelectMany(group => group)];
         NoResultsText.Visibility = _resultItems.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
         // Enter opens the best match.
         ResultsList.SelectedIndex = _resultItems.Count > 0 ? 0 : -1;
     }
+
+    private static bool SameItems(StartGroup a, StartGroup b) =>
+        a.Key == b.Key && a.Select(item => item.Target).SequenceEqual(b.Select(item => item.Target));
 
     private void SearchBox_KeyDown(object sender, KeyRoutedEventArgs e)
     {
@@ -396,7 +413,7 @@ internal sealed partial class StartMenuWindow : Window
     private void SettingsButton_Click(object sender, RoutedEventArgs e)
     {
         Hide();
-        Launcher.Launch(new PinnedApp("Settings", Path: "ms-settings:"));
+        Launcher.OpenSettings(_owner.RunMode, "Settings", "ms-settings:");
     }
 
     private async void SwitchToExplorerButton_Click(object sender, RoutedEventArgs e)
