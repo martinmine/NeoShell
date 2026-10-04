@@ -104,11 +104,13 @@ internal sealed class Wallpaper(SettingsStore settings) : IDisposable
         var virtualScreen = WallpaperLayout.Union(monitors.Select(monitor => monitor.Bounds));
         foreach (DisplayMonitor monitor in monitors)
         {
+            Log.Info($"Monitor {WallpaperWindow.Format(monitor.Bounds)}, work area {WallpaperWindow.Format(monitor.WorkArea)}, "
+                + $"{monitor.Dpi} DPI{(monitor.IsPrimary ? ", primary" : "")}");
             var window = new WallpaperWindow(monitor, virtualScreen, OnMessage, monitor.IsPrimary ? _icons : null);
             window.AppWindow.Show(activateWindow: false);
             _windows.Add(window);
         }
-        Log.Info($"Wallpaper windows for {monitors.Count} monitor(s), virtual screen {virtualScreen.Width}x{virtualScreen.Height}");
+        Log.Info($"Wallpaper windows for {monitors.Count} monitor(s), virtual screen {WallpaperWindow.Format(virtualScreen)}");
     }
 
     private void CloseWindows()
@@ -127,9 +129,11 @@ internal sealed class Wallpaper(SettingsStore settings) : IDisposable
         {
             // Read it all first: Windows rewrites the wallpaper file in place, so don't hold it open.
             byte[] bytes = await File.ReadAllBytesAsync(path);
+            Log.Info($"Wallpaper file read: {bytes.Length} bytes");
             var image = new BitmapImage();
             using var stream = new MemoryStream(bytes);
             await image.SetSourceAsync(stream.AsRandomAccessStream());
+            Log.Info($"Wallpaper decoded: {image.PixelWidth}x{image.PixelHeight}");
             return image;
         }
         catch (Exception ex)
