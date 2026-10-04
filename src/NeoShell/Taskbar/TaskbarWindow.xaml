@@ -187,7 +187,73 @@
                     </ItemsControl.ItemsPanel>
                 </ItemsControl>
             </StackPanel>
-            <!-- Network, volume and microphone indicators: milestone 7. -->
+            <!-- Microphone (while in use), network and volume, on the primary taskbar. -->
+            <StackPanel x:Name="IndicatorArea" Orientation="Horizontal" VerticalAlignment="Center" Visibility="Collapsed">
+                <Button
+                    x:Name="MicrophoneButton"
+                    AutomationProperties.AutomationId="MicrophoneIndicator"
+                    Width="32"
+                    Style="{StaticResource FlatButtonStyle}"
+                    Visibility="Collapsed"
+                    Click="Microphone_Click">
+                    <FontIcon Glyph="&#xE720;" FontSize="14" />
+                </Button>
+                <Button
+                    x:Name="NetworkButton"
+                    AutomationProperties.AutomationId="NetworkIndicator"
+                    Width="32"
+                    Style="{StaticResource FlatButtonStyle}"
+                    Click="Network_Click">
+                    <FontIcon x:Name="NetworkIcon" FontSize="14" />
+                </Button>
+                <Button
+                    x:Name="VolumeButton"
+                    AutomationProperties.AutomationId="VolumeIndicator"
+                    Width="32"
+                    Style="{StaticResource FlatButtonStyle}"
+                    PointerWheelChanged="Volume_PointerWheelChanged">
+                    <FontIcon x:Name="VolumeIcon" FontSize="14" />
+                    <Button.Flyout>
+                        <Flyout x:Name="VolumeFlyout" Placement="TopEdgeAlignedRight" ShouldConstrainToRootBounds="False" Opening="VolumeFlyout_Opening">
+                            <StackPanel Width="300" Spacing="8">
+                                <TextBlock x:Name="VolumeDeviceName" Style="{ThemeResource BodyStrongTextBlockStyle}" TextTrimming="CharacterEllipsis" />
+                                <Grid ColumnSpacing="8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <Button
+                                        x:Name="MuteButton"
+                                        AutomationProperties.AutomationId="MuteButton"
+                                        Width="40"
+                                        Height="40"
+                                        Padding="0"
+                                        Click="Mute_Click">
+                                        <FontIcon x:Name="MuteIcon" FontSize="16" />
+                                    </Button>
+                                    <Slider
+                                        x:Name="VolumeSlider"
+                                        Grid.Column="1"
+                                        AutomationProperties.AutomationId="VolumeSlider"
+                                        AutomationProperties.Name="Volume"
+                                        Minimum="0"
+                                        Maximum="100"
+                                        StepFrequency="1"
+                                        VerticalAlignment="Center"
+                                        ValueChanged="VolumeSlider_ValueChanged" />
+                                    <TextBlock x:Name="VolumeText" Grid.Column="2" Width="32" VerticalAlignment="Center" TextAlignment="Right" />
+                                </Grid>
+                                <HyperlinkButton
+                                    AutomationProperties.AutomationId="SoundSettingsLink"
+                                    Padding="0"
+                                    Content="Sound settings"
+                                    Click="SoundSettings_Click" />
+                            </StackPanel>
+                        </Flyout>
+                    </Button.Flyout>
+                </Button>
+            </StackPanel>
             <local:Clock x:Name="Clock" Margin="4,0" VerticalAlignment="Center" />
             <Button
                 x:Name="ShowDesktopButton"

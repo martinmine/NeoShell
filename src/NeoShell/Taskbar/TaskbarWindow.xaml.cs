@@ -5,6 +5,7 @@ using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
+using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using NeoShell.Interop.Windowing;
@@ -37,6 +38,8 @@ internal sealed partial class TaskbarWindow : Window
     private readonly DispatcherQueueTimer _hideTimer;
     private (TaskButton Button, FrameworkElement Element)? _hovered;
     private readonly NotificationArea? _tray;
+    private readonly Indicators? _indicators;
+    private bool _updatingVolumeSlider;
     private readonly DispatcherQueueTimer _trayHoverTimer;
     private TrayIcon? _trayHovered;
     private bool _trayPopupOpen;
@@ -109,6 +112,14 @@ internal sealed partial class TaskbarWindow : Window
                 _tray?.Send(icon, TrayMouseEvent.HoverStart);
             }
         });
+        _indicators = monitor.IsPrimary ? owner.Indicators : null;
+        if (_indicators is not null)
+        {
+            IndicatorArea.Visibility = Visibility.Visible;
+            _indicators.Changed += RefreshIndicators;
+            RefreshIndicators();
+        }
+
         if (_tray is not null)
         {
             TrayArea.Visibility = Visibility.Visible;
@@ -121,6 +132,8 @@ internal sealed partial class TaskbarWindow : Window
         {
             if (_tray is not null)
                 _tray.Icons.CollectionChanged -= OnTrayIconsChanged;
+            if (_indicators is not null)
+                _indicators.Changed -= RefreshIndicators;
             _trayHoverTimer.Stop();
             _hoverTimer.Stop();
             _hideTimer.Stop();
@@ -183,6 +196,76 @@ internal sealed partial class TaskbarWindow : Window
         RectInt32 taskbar = _placement.Bounds;
         return new RectInt32(
             taskbar.X + (int)(rect.X * scale), taskbar.Y + (int)(rect.Y * scale), (int)(rect.Width * scale), (int)(rect.Height * scale));
+    }
+
+    private void RefreshIndicators()
+    {
+        if (_indicators is null)
+            return;
+
+        NetworkIcon.Glyph = IndicatorDisplay.NetworkGlyph(_indicators.Network);
+        SetToolTip(NetworkButton, IndicatorDisplay.NetworkToolTip(_indicators.Network));
+
+        float volume = _indicators.Volume;
+        bool muted = _indicators.IsMuted;
+        VolumeIcon.Glyph = MuteIcon.Glyph = IndicatorDisplay.VolumeGlyph(_indicators.HasAudioDevice, volume, muted);
+        SetToolTip(VolumeButton, IndicatorDisplay.VolumeToolTip(_indicators.AudioDeviceName, volume, muted));
+        VolumeDeviceName.Text = _indicators.AudioDeviceName ?? "No audio output device";
+        VolumeText.Text = IndicatorDisplay.Percent(volume).ToString();
+        AutomationProperties.SetName(MuteButton, muted ? "Unmute" : "Mute");
+        // Moving the slider changes the volume, which comes back here; don't set it back while it's being dragged.
+        _updatingVolumeSlider = true;
+        VolumeSlider.Value = IndicatorDisplay.Percent(volume);
+        _updatingVolumeSlider = false;
+
+        IReadOnlyList<string> apps = _indicators.MicrophoneApps;
+        MicrophoneButton.Visibility = apps.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        SetToolTip(MicrophoneButton, IndicatorDisplay.MicrophoneToolTip(apps));
+    }
+
+    private static void SetToolTip(FrameworkElement element, string text)
+    {
+        ToolTipService.SetToolTip(element, text);
+        AutomationProperties.SetName(element, text.Replace('\n', ' '));
+    }
+
+    private void Network_Click(object sender, RoutedEventArgs e) => Launcher.Launch(new PinnedApp("Network settings", Path: "ms-settings:network"));
+
+    private void Microphone_Click(object sender, RoutedEventArgs e) =>
+        Launcher.Launch(new PinnedApp("Microphone privacy settings", Path: "ms-settings:privacy-microphone"));
+
+    private void SoundSettings_Click(object sender, RoutedEventArgs e)
+    {
+        VolumeFlyout.Hide();
+        Launcher.Launch(new PinnedApp("Sound settings", Path: "ms-settings:sound"));
+    }
+
+    private void VolumeFlyout_Opening(object sender, object e) => RefreshIndicators();
+
+    private void Volume_PointerWheelChanged(object sender, PointerRoutedEventArgs e)
+    {
+        if (_indicators is null)
+            return;
+
+        _indicators.Volume = IndicatorDisplay.WheelVolume(_indicators.Volume, e.GetCurrentPoint(VolumeButton).Properties.MouseWheelDelta);
+        e.Handled = true;
+    }
+
+    private void VolumeSlider_ValueChanged(object sender, RangeBaseValueChangedEventArgs e)
+    {
+        if (_indicators is null || _updatingVolumeSlider)
+            return;
+
+        _indicators.Volume = (float)(e.NewValue / 100);
+        // Turning it up means wanting to hear it, as in Windows' own volume slider.
+        if (_indicators.IsMuted && e.NewValue > 0)
+            _indicators.IsMuted = false;
+    }
+
+    private void Mute_Click(object sender, RoutedEventArgs e)
+    {
+        if (_indicators is not null)
+            _indicators.IsMuted = !_indicators.IsMuted;
     }
 
     private void OnTrayIconsChanged(object? sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e) => RefreshTray();
@@ -493,7 +576,7 @@ internal sealed partial class TaskbarWindow : Window
     private static MenuFlyoutItem MenuItem(string text, string glyph, string automationId, Action onClick)
     {
         var item = new MenuFlyoutItem { Text = text, Icon = new FontIcon { Glyph = glyph } };
-        Microsoft.UI.Xaml.Automation.AutomationProperties.SetAutomationId(item, automationId);
+        AutomationProperties.SetAutomationId(item, automationId);
         item.Click += (_, _) => onClick();
         return item;
     }

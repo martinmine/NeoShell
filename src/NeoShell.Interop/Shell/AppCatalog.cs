@@ -1,5 +1,4 @@
 using System.Runtime.InteropServices;
-using System.Runtime.InteropServices.Marshalling;
 using NeoShell.Interop.Com;
 using NeoShell.Interop.Native;
 
@@ -44,12 +43,12 @@ public static unsafe class AppCatalog
         if (folder.BindToHandler(0, &handler, &enumIid, &enumPointer) != 0)
             return entries;
 
-        IEnumShellItems items = TakeOwnership<IEnumShellItems>(enumPointer);
+        IEnumShellItems items = ComPointer.TakeOwnership<IEnumShellItems>(enumPointer);
         nint itemPointer;
         uint fetched;
         while (items.Next(1, &itemPointer, &fetched) == 0 && fetched == 1)
         {
-            IShellItem item = TakeOwnership<IShellItem>(itemPointer);
+            IShellItem item = ComPointer.TakeOwnership<IShellItem>(itemPointer);
             if (GetName(item, SIGDN_NORMALDISPLAY) is { } name && GetName(item, SIGDN_PARENTRELATIVEPARSING) is { } id)
                 entries.Add(new AppCatalogEntry(name, id, GetTargetPath(item)));
         }
@@ -64,7 +63,7 @@ public static unsafe class AppCatalog
         if (item.BindToHandler(0, &handler, &iid, &storePointer) != 0)
             return null;
 
-        IPropertyStore store = TakeOwnership<IPropertyStore>(storePointer);
+        IPropertyStore store = ComPointer.TakeOwnership<IPropertyStore>(storePointer);
         Ole32.PROPERTYKEY key = s_targetPathKey;
         Ole32.PROPVARIANT value = default;
         try
@@ -129,11 +128,4 @@ public static unsafe class AppCatalog
         }
     }
 
-    // Wraps a COM pointer we were handed and drops our own reference: the wrapper holds one now.
-    private static T TakeOwnership<T>(nint pointer)
-    {
-        T wrapper = ComInterfaceMarshaller<T>.ConvertToManaged((void*)pointer)!;
-        Marshal.Release(pointer);
-        return wrapper;
-    }
 }

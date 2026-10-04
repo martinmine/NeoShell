@@ -50,12 +50,16 @@ internal sealed class Taskbars : IDisposable
 
     public WindowTracker Tracker { get; }
 
+    /// <summary>Network, volume and microphone state for the primary taskbar's indicators.</summary>
+    public Indicators? Indicators { get; private set; }
+
     /// <summary>The system tray; only when NeoShell is the shell and no other tray is running.</summary>
     public NotificationArea? Tray { get; private set; }
 
     public void Show()
     {
         Tracker.Start();
+        Indicators = new Indicators();
         if (RunMode == RunMode.Shell && !TrayHost.IsTrayRunning())
         {
             Tray = new NotificationArea();
@@ -71,6 +75,7 @@ internal sealed class Taskbars : IDisposable
         Settings.Changed -= OnSettingsChanged;
         Tracker.Dispose();
         Tray?.Dispose();
+        Indicators?.Dispose();
         _startMenu?.Close();
         CloseWindows();
     }

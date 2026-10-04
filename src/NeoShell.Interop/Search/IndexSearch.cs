@@ -65,9 +65,7 @@ public static unsafe class IndexSearch
 
     private static string BuildSql(string query, int maxResults)
     {
-        Guid iid = typeof(ISearchManager).GUID;
-        Marshal.ThrowExceptionForHR(Ole32.CoCreateInstance(
-            CLSID_CSearchManager, 0, Ole32.CLSCTX_LOCAL_SERVER | Ole32.CLSCTX_INPROC_SERVER, iid, out ISearchManager manager));
+        var manager = Ole32.Create<ISearchManager>(CLSID_CSearchManager, Ole32.CLSCTX_LOCAL_SERVER | Ole32.CLSCTX_INPROC_SERVER);
         Marshal.ThrowExceptionForHR(manager.GetCatalog("SystemIndex", out ISearchCatalogManager catalog));
         Marshal.ThrowExceptionForHR(catalog.GetQueryHelper(out ISearchQueryHelper helper));
 

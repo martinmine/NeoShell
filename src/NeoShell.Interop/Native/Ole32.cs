@@ -32,6 +32,12 @@ internal static unsafe partial class Ole32
     public static partial int PropVariantClear(PROPVARIANT* value);
 
     [LibraryImport("ole32.dll")]
-    public static partial int CoCreateInstance(
-        in Guid clsid, nint outer, uint context, in Guid iid, [MarshalAs(UnmanagedType.Interface)] out Com.ISearchManager instance);
+    public static partial int CoCreateInstance(in Guid clsid, nint outer, uint context, in Guid iid, out nint instance);
+
+    /// <summary>Creates a COM object and returns it as <typeparamref name="T"/>, or throws.</summary>
+    public static T Create<T>(Guid clsid, uint context)
+    {
+        Marshal.ThrowExceptionForHR(CoCreateInstance(clsid, 0, context, typeof(T).GUID, out nint instance));
+        return Com.ComPointer.TakeOwnership<T>(instance);
+    }
 }

@@ -255,17 +255,30 @@ Task Manager, the taskbar settings toggles (alignment, combine, auto-hide, all d
 
 ### Volume
 
-- `IMMDeviceEnumerator` → default render endpoint → `IAudioEndpointVolume` with `IAudioEndpointVolumeCallback`.
+- `IMMDeviceEnumerator` → default render endpoint → `IAudioEndpointVolume` with `IAudioEndpointVolumeCallback`
+  (`AudioEndpoint`).
 - `IMMNotificationClient` to follow default-device changes.
 - Icon reflects mute and level (0 / low / medium / high glyphs). Mouse wheel changes volume in 2% steps.
-- Click opens NeoShell's own flyout: device name, slider, mute toggle, link to `ms-settings:sound`.
+- Click opens NeoShell's own flyout: device name, slider, mute toggle, link to `ms-settings:sound`. Moving the
+  slider up unmutes, as Windows' own slider does.
 
 ### Microphone in use
 
 - For each active capture endpoint: `IAudioSessionManager2` → `IAudioSessionNotification` for new sessions and
-  `IAudioSessionEvents.OnStateChanged` per session.
-- Visible while any capture session is `AudioSessionStateActive`. Tooltip lists the processes
-  (`IAudioSessionControl2.GetProcessId` → process name). Click opens `ms-settings:privacy-microphone`.
+  `IAudioSessionEvents.OnStateChanged` per session (`CaptureMonitor`). The manager only reports new sessions after
+  its session list has been asked for once.
+- Visible while any capture session is `AudioSessionStateActive` (system sounds session excluded). Tooltip lists the
+  apps (`IAudioSessionControl2.GetProcessId` → file description, else process name). Click opens
+  `ms-settings:privacy-microphone`.
+
+### Threads and placement
+
+- Core Audio and `NetworkInformation` call back on their own threads, and calling back into Core Audio from inside
+  its callbacks can deadlock. So callbacks only mark state stale and raise `Changed`; `Indicators` marshals one
+  update per burst to the UI thread (`DispatcherQueue.TryEnqueue`), which rebinds devices and reads fresh values.
+- The callback objects are `[GeneratedComClass]` classes; the COM interfaces are `[GeneratedComInterface]`.
+- The indicators sit on the primary taskbar, next to the tray, in both run modes (they don't depend on Explorer).
+  Glyphs and tooltips come from `IndicatorDisplay` (unit tested).
 
 ## Start menu (`StartMenu/`)
 

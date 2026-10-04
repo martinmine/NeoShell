@@ -75,9 +75,9 @@ Tick items off as they land. The feature details are in [design.md](design.md).
 
 ## 7. Indicators
 
-- [ ] Network: `NetworkInformation`, glyphs, tooltip, opens `ms-settings:network`
-- [ ] Volume: endpoint volume + callbacks, default-device changes, wheel, flyout (slider, mute)
-- [ ] Microphone: capture session monitoring, tooltip with apps, hidden when idle
+- [x] Network: `NetworkInformation`, glyphs, tooltip, opens `ms-settings:network`
+- [x] Volume: endpoint volume + callbacks, default-device changes, wheel, flyout (slider, mute)
+- [x] Microphone: capture session monitoring, tooltip with apps, hidden when idle
 
 ## 8. Shell mode
 
