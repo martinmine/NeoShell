@@ -13,18 +13,18 @@
         CornerRadius="4"
         BorderThickness="0"
         Click="ClockButton_Click">
-        <FlyoutBase.AttachedFlyout>
-            <Flyout x:Name="CalendarFlyout" Opening="CalendarFlyout_Opening">
-                <CalendarView
-                    x:Name="Calendar"
-                    AutomationProperties.AutomationId="Calendar"
-                    SelectionMode="None"
-                    IsTodayHighlighted="True" />
-            </Flyout>
-        </FlyoutBase.AttachedFlyout>
-        <StackPanel VerticalAlignment="Center">
-            <TextBlock x:Name="TimeText" HorizontalAlignment="Right" FontSize="12" />
-            <TextBlock x:Name="DateText" HorizontalAlignment="Right" FontSize="12" />
+        <StackPanel Orientation="Horizontal" Spacing="10">
+            <StackPanel VerticalAlignment="Center">
+                <TextBlock x:Name="TimeText" HorizontalAlignment="Right" FontSize="12" />
+                <TextBlock x:Name="DateText" HorizontalAlignment="Right" FontSize="12" />
+            </StackPanel>
+            <!-- Do not disturb's bell, while it's on, as Explorer shows it beside the clock. -->
+            <FontIcon
+                x:Name="DoNotDisturbIcon"
+                AutomationProperties.AutomationId="DoNotDisturbIndicator"
+                Glyph="&#xF285;"
+                FontSize="16"
+                Visibility="Collapsed" />
         </StackPanel>
     </Button>
 </UserControl>

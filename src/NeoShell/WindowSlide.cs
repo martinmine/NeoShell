@@ -24,6 +24,8 @@ internal sealed class WindowSlide(PinnedWindow placement)
         _slide = (Stopwatch.GetTimestamp(), placement.Bounds, target, duration, decelerate, done);
     }
 
+    public bool IsRunning => _slide is not null;
+
     public void Stop()
     {
         if (_slide is null)

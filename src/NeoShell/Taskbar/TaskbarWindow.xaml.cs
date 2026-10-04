@@ -188,6 +188,13 @@ internal sealed partial class TaskbarWindow : Window
             RefreshIndicators();
         }
 
+        Clock.Clicked += () => owner.ToggleClockFlyout(this);
+        if (owner.Notifications is { } notifications)
+        {
+            notifications.DoNotDisturbChanged += ShowDoNotDisturb;
+            ShowDoNotDisturb();
+        }
+
         if (_tray is not null)
         {
             TrayArea.Visibility = Visibility.Visible;
@@ -200,6 +207,8 @@ internal sealed partial class TaskbarWindow : Window
         {
             if (_tray is not null)
                 _tray.Icons.CollectionChanged -= OnTrayIconsChanged;
+            if (owner.Notifications is { } notifications)
+                notifications.DoNotDisturbChanged -= ShowDoNotDisturb;
             if (_indicators is not null)
             {
                 _indicators.Changed -= RefreshIndicators;
@@ -252,9 +261,10 @@ internal sealed partial class TaskbarWindow : Window
             && pointer.Y >= shown.Y && pointer.Y < shown.Y + shown.Height;
         bool inUse = pointerOver
             || _isActive // Win+T
-            || VisualTreeHelper.GetOpenPopupsForXamlRoot(Root.XamlRoot).Count > 0 // menus, calendar, flyouts
+            || VisualTreeHelper.GetOpenPopupsForXamlRoot(Root.XamlRoot).Count > 0 // menus and flyouts
             || _thumbnails.Button is not null
-            || _owner.IsStartMenuOpen;
+            || _owner.IsStartMenuOpen
+            || _owner.IsClockFlyoutOpen;
         _pointerAwayTicks = inUse ? 0 : _pointerAwayTicks + 1;
         if (_pointerAwayTicks >= 3)
         {
@@ -326,6 +336,8 @@ internal sealed partial class TaskbarWindow : Window
     }
 
     public void UpdateClock() => Clock.Update();
+
+    private void ShowDoNotDisturb() => Clock.ShowDoNotDisturb(_owner.Notifications?.DoNotDisturb == true);
 
     /// <summary>
     /// Makes way for a full-screen window on this monitor (the taskbar goes just below it), or with 0 returns to the
@@ -781,12 +793,18 @@ internal sealed partial class TaskbarWindow : Window
 
     private void Root_PointerPressed(object sender, PointerRoutedEventArgs e)
     {
+        bool start = false;
+        bool clock = false;
         for (var element = e.OriginalSource as DependencyObject; element is not null; element = VisualTreeHelper.GetParent(element))
         {
-            if (element == StartButton || element == SearchButton)
-                return;
+            start |= element == StartButton || element == SearchButton;
+            clock |= element == Clock;
         }
-        _owner.HideStartMenu();
+        // Each toggles its own; the taskbar doesn't take the focus, so they wouldn't close by themselves.
+        if (!start)
+            _owner.HideStartMenu();
+        if (!clock)
+            _owner.HideClockFlyout();
     }
 
     private void TaskList_ItemClick(object sender, ItemClickEventArgs e)

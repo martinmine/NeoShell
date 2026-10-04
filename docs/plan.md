@@ -159,7 +159,27 @@ Tick items off as they land. The feature details are in [design.md](design.md).
 - [x] Win+A, Win+K, Win+P, Win+Ctrl+V in shell mode through the keyboard hook (ShellHost holds the hotkeys)
 - [x] Fix: closing an open Start at exit crashed in its hide animation (the watchdog started Explorer)
 
+## 14. Notifications and calendar
+
+- [x] Calendar as Explorer's: its own acrylic panel below the notification center (two windows 12 epx apart,
+      matched to the pixel against Explorer's), sliding in from the right edge; long date heading without the year
+      and a fold button (remembered); `CalendarView` without borders or backgrounds, other months' days dimmed,
+      weeks from the regional first day; focus footer
+- [x] Notification center: notifications from `UserNotificationListener` (polled: no change event unpackaged),
+      grouped by app, "+N notifications" / See fewer, the chevron for trimmed text, "â€¦" and Clear, Clear all, "No new
+      notifications"; clicking one opens its app (the toast's own activation isn't available) and removes it
+- [x] Do not disturb (quiet hours profile, undocumented `IQuietHoursSettings`): the button, the bell beside the
+      clock, no toasts while on
+- [x] Focus sessions: Windows' own API is limited to Microsoft's apps, so NeoShell's own â€” Do not disturb for the
+      chosen time with a countdown; no badge hiding or end chime
+- [x] Toasts in shell mode (Windows shows none without Explorer): Explorer's look and place, stacking (three at
+      most), the system's display time, held under the pointer; per-app and global banner settings honoured
+- [x] Win+N in shell mode through the keyboard hook; a click elsewhere on the taskbar closes the flyout
+- [x] Clock tooltip as Explorer's (date, then day and time)
+
 ## Later / not planned yet
+
+- Notifications: toast images, buttons and inline replies (not exposed to listeners); tray balloons as toasts
 
 - Jump lists: pinned entries, Pin to / Remove from this list
 - Desktop icons: moving icons to free positions, dragging files onto the desktop and its icons

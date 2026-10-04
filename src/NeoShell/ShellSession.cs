@@ -24,7 +24,7 @@ internal sealed class ShellSession : IDisposable
     private readonly Action _endSession;
     private readonly DispatcherQueue _dispatcher = DispatcherQueue.GetForCurrentThread();
     private readonly StartKeyDetector _startKeys = new();
-    private readonly QuickSettingsKeys _quickSettingsKeys = new();
+    private readonly PanelKeys _panelKeys = new();
     private Hotkeys? _hotkeys;
     private KeyboardHook? _keyboardHook;
 
@@ -60,8 +60,8 @@ internal sealed class ShellSession : IDisposable
         }
 
         // The Windows key on its own isn't a hotkey: only a hook sees it pressed and released by itself. Keys pass
-        // through unchanged, so Windows still knows the key is down for Win+ shortcuts; only Quick Settings' own
-        // shortcuts are taken (see QuickSettingsKeys).
+        // through unchanged, so Windows still knows the key is down for Win+ shortcuts; only the panels' own
+        // shortcuts are taken (see PanelKeys).
         try
         {
             _keyboardHook = new KeyboardHook
@@ -70,12 +70,15 @@ internal sealed class ShellSession : IDisposable
                 {
                     if (_startKeys.OnKey(key, down))
                         _dispatcher.Post(_taskbars.ToggleStartMenuFromKeyboard);
-                    if (!_quickSettingsKeys.OnKey(key, down, out QuickSettingsPage? page))
+                    if (!_panelKeys.OnKey(key, down, out PanelShortcut? shortcut))
                         return false;
-                    if (page is { } shown)
+                    if (shortcut is { } pressed)
                     {
                         KeyboardHook.MaskWindowsKey();
-                        _dispatcher.Post(() => _taskbars.ShowQuickSettings(shown));
+                        if (PanelKeys.PageFor(pressed) is { } page)
+                            _dispatcher.Post(() => _taskbars.ShowQuickSettings(page));
+                        else
+                            _dispatcher.Post(_taskbars.ToggleNotificationCenter);
                     }
                     return true;
                 },

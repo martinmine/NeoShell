@@ -1,0 +1,181 @@
+using Microsoft.UI.Dispatching;
+using Microsoft.UI.Xaml.Media;
+using Microsoft.Win32;
+using NeoShell.Interop.Imaging;
+using NeoShell.Interop.Notifications;
+using NeoShell.Interop.Shell;
+using NeoShell.Logging;
+
+namespace NeoShell.Notifications;
+
+/// <summary>
+/// The notifications Windows keeps, read once a second (an unpackaged app gets no change event), and the state of Do
+/// not disturb. UI thread only.
+/// </summary>
+internal sealed class NotificationCenter : IDisposable
+{
+    private const string SettingsKey = @"Software\Microsoft\Windows\CurrentVersion\Notifications\Settings";
+
+    private readonly DispatcherQueueTimer _timer;
+    private readonly Dictionary<string, Task<ImageSource?>> _logos = new(StringComparer.OrdinalIgnoreCase);
+    private HashSet<uint>? _known;
+    private bool _reading;
+
+    public NotificationCenter()
+    {
+        _timer = DispatcherQueue.GetForCurrentThread().CreateTimer();
+        _timer.Interval = TimeSpan.FromSeconds(1);
+        _timer.Tick += (_, _) => Read();
+    }
+
+    /// <summary>The notifications the notification center shows, in no particular order.</summary>
+    public IReadOnlyList<ToastInfo> Toasts { get; private set; } = [];
+
+    public bool DoNotDisturb { get; private set; }
+
+    /// <summary>Raised when notifications come or go.</summary>
+    public event Action? Changed;
+
+    /// <summary>A new notification that should show as a toast (not while Do not disturb is on).</summary>
+    public event Action<ToastInfo>? Arrived;
+
+    public event Action? DoNotDisturbChanged;
+
+    public void Start()
+    {
+        Read();
+        _timer.Start();
+    }
+
+    public void Dispose() => _timer.Stop();
+
+    /// <summary>Whether Windows still has the notification, whether the notification center shows it or not.</summary>
+    public bool IsStored(uint id) => _known?.Contains(id) == true;
+
+    public void Remove(IEnumerable<ToastInfo> toasts)
+    {
+        foreach (ToastInfo toast in toasts.ToList())
+        {
+            try
+            {
+                UserNotifications.Remove(toast.Id);
+            }
+            catch (Exception ex)
+            {
+                Log.Warn($"Could not remove notification {toast.Id} of {toast.AppId}", ex);
+            }
+        }
+        Read();
+    }
+
+    public void SetDoNotDisturb(bool on)
+    {
+        try
+        {
+            Interop.Notifications.DoNotDisturb.Set(on);
+            DoNotDisturb = on;
+            DoNotDisturbChanged?.Invoke();
+        }
+        catch (Exception ex)
+        {
+            Log.Warn("Could not switch Do not disturb", ex);
+        }
+    }
+
+    /// <summary>
+    /// Turns off all of an app's notifications, as the toggle in Settings → System → Notifications (whose own
+    /// store is this registry key).
+    /// </summary>
+    /// <remarks>
+    /// Windows' notification platform only notices the value later (Settings tells it through a private channel), so
+    /// NeoShell hides the app's notifications itself meanwhile; Explorer's toasts still show them until then.
+    /// </remarks>
+    public void TurnOff(string appId)
+    {
+        using RegistryKey key = Registry.CurrentUser.CreateSubKey($@"{SettingsKey}\{appId}");
+        key.SetValue("Enabled", 0, RegistryValueKind.DWord);
+        Remove(Toasts.Where(t => string.Equals(t.AppId, appId, StringComparison.OrdinalIgnoreCase)));
+    }
+
+    /// <summary>The app's logo for the group header and toast, loaded once per app.</summary>
+    public Task<ImageSource?> GetLogoAsync(string appId)
+    {
+        if (!_logos.TryGetValue(appId, out Task<ImageSource?>? logo))
+            _logos[appId] = logo = LoadLogoAsync(appId);
+        return logo;
+    }
+
+    // As the taskbar's icons: a packaged app's own logo, otherwise its Start menu entry's icon. 16 effective pixels,
+    // sharp up to 200 %.
+    private static async Task<ImageSource?> LoadLogoAsync(string appId)
+    {
+        const int size = 32;
+        try
+        {
+            IconBitmap? icon = await Task.Run(() => PackagedApps.GetLogo(appId, size) ?? ShellItems.GetIcon(ShellItems.AppsFolderPath(appId), size));
+            return icon is null ? null : AppIcons.ToImageSource(icon);
+        }
+        catch (Exception ex)
+        {
+            Log.Warn($"Could not load the logo of {appId}", ex);
+            return null;
+        }
+    }
+
+    private async void Read()
+    {
+        if (_reading)
+            return;
+
+        _reading = true;
+        try
+        {
+            bool doNotDisturb = Interop.Notifications.DoNotDisturb.Read() == true;
+            if (doNotDisturb != DoNotDisturb)
+            {
+                DoNotDisturb = doNotDisturb;
+                DoNotDisturbChanged?.Invoke();
+            }
+
+            if (await UserNotifications.ReadAsync() is not { } all)
+                return;
+
+            var ids = all.Select(t => t.Id).ToHashSet();
+            if (_known is not null && ids.SetEquals(_known))
+                return;
+
+            // The first reading is what was there before NeoShell started; those don't pop up.
+            List<ToastInfo> arrived = _known is null ? [] : [.. all.Where(t => !_known.Contains(t.Id)).OrderBy(t => t.Time)];
+            _known = ids;
+            Toasts = [.. all.Where(t => ReadSetting(t.AppId, "Enabled") && ReadSetting(t.AppId, "ShowInActionCenter"))];
+            Changed?.Invoke();
+
+            if (DoNotDisturb || !ToastsEnabled())
+                return;
+            foreach (ToastInfo toast in arrived.Where(t => ReadSetting(t.AppId, "Enabled") && ReadSetting(t.AppId, "ShowBanner")))
+                Arrived?.Invoke(toast);
+        }
+        catch (Exception ex)
+        {
+            Log.Warn("Reading notifications failed", ex);
+        }
+        finally
+        {
+            _reading = false;
+        }
+    }
+
+    // Settings → System → Notifications, per app: on unless set to 0.
+    private static bool ReadSetting(string appId, string name)
+    {
+        using RegistryKey? key = Registry.CurrentUser.OpenSubKey($@"{SettingsKey}\{appId}");
+        return key?.GetValue(name) is not int value || value != 0;
+    }
+
+    // "Show notification banners" for every app (off in Settings → System → Notifications → Notifications).
+    private static bool ToastsEnabled()
+    {
+        using RegistryKey? key = Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\PushNotifications");
+        return key?.GetValue("ToastEnabled") is not int value || value != 0;
+    }
+}

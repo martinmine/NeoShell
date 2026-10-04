@@ -14,9 +14,11 @@ coding rules are in [CLAUDE.md](../CLAUDE.md).
   Nearby sharing, Cast, Project), the volume slider with its Sound output page, battery and All settings.
 - A Start menu with search (apps + Windows Search Indexer), Settings, power options (Lock, Sign out, Sleep,
   Restart, Shut down) and a button to switch back to `explorer.exe`.
+- The notification center and calendar from the clock, Do not disturb and focus sessions, and toasts while NeoShell
+  is the shell.
 
-Out of scope: the notification center and toasts, editing Quick Settings' tiles, Widgets, Task View, Win+X, pinning
-items in jump lists.
+Out of scope: editing Quick Settings' tiles, Widgets, Task View, Win+X, pinning items in jump lists, toast images,
+buttons and inline replies.
 
 ## Technical decisions
 
@@ -240,7 +242,8 @@ Shell mode only, like the wallpaper: alongside Explorer, Explorer's desktop has 
 3. Pinned and running apps.
 4. Tray area: chevron/overflow, tray icons.
 5. Indicators: microphone (when active), then network, volume and battery as one button (Quick Settings).
-6. Clock: time and short date; tooltip with full date; click opens a calendar flyout (`CalendarView`).
+6. Clock: time and short date, and Do not disturb's bell while it's on; tooltip with the full date and the day and
+   time, as Explorer's; click opens the notification center and calendar (see Notifications and calendar).
 7. Show-desktop sliver at the far right edge.
 
 ### Window tracking
@@ -377,10 +380,11 @@ progress (bar along the bottom; indeterminate, error and paused states) and over
   `TaskActivation`, unit tested), Win+S (Start with search focus).
 - Quick Settings' shortcuts — Win+A (tiles), Win+Ctrl+V (Sound output), Win+K (Cast), Win+P (Project) — can't be
   registered: Windows' own Quick Settings host (ShellHost) keeps them after Explorer has gone, and would open its
-  panel. The hook takes them instead (`QuickSettingsKeys`, unit tested): the letter is swallowed (down, repeats, up)
+  panel. The hook takes them instead (`PanelKeys`, unit tested): the letter is swallowed (down, repeats, up)
   and an unassigned key (vkE8, as AutoHotkey's menu mask key) is injected while Win is still down, so letting go of
   Win doesn't count as Win alone (which Windows sends to the shell as `SC_TASKLIST`, opening Start). Pressing the
-  shortcut of the page shown closes Quick Settings; another page's switches to it.
+  shortcut of the page shown closes Quick Settings; another page's switches to it. Win+N (the notification center
+  and calendar, toggled) is taken the same way.
 - Win+T: the taskbar is `WS_EX_NOACTIVATE`, which keeps it from ever becoming active (and so from getting the
   keyboard). Win+T drops that style, activates the taskbar and focuses the first task button; the style comes back
   when the taskbar loses activation.
@@ -408,8 +412,8 @@ Exit NeoShell (alongside Explorer only).
 - Icons are keyed by (`hWnd`, `uID`) or `guidItem` (`TrayIconStore`, unit tested): adding an existing icon or
   changing a missing one fails, as in Explorer; only flagged fields change. `NIS_HIDDEN` is honoured. Icon pixels
   are copied when they arrive, as the app may destroy its HICON. Tooltips from `szTip` (version 4 icons without
-  `NIF_SHOWTIP` get `NIN_POPUPOPEN`/`NIN_POPUPCLOSE` instead); balloon notifications are ignored (toasts are out of
-  scope).
+  `NIF_SHOWTIP` get `NIN_POPUPOPEN`/`NIN_POPUPCLOSE` instead); balloon notifications are ignored (Explorer turns
+  them into toasts; NeoShell doesn't yet).
 - After `Shell_TrayWnd` exists, broadcast `RegisterWindowMessage("TaskbarCreated")` so running apps re-add icons.
 - Remove icons whose owner window has died (`IsWindow` every 5 s and before forwarding input).
 - **Mouse forwarding** with `NOTIFYICON_VERSION_4` semantics: `wParam` = anchor point (x, y), `lParam` low word =
@@ -472,6 +476,59 @@ Exit NeoShell (alongside Explorer only).
 - The callback objects are `[GeneratedComClass]` classes; the COM interfaces are `[GeneratedComInterface]`.
 - The indicators sit on the primary taskbar, next to the tray, in both run modes (they don't depend on Explorer).
   Glyphs and tooltips come from `IndicatorDisplay` and `QuickSettingsDisplay` (unit tested).
+
+## Notifications and calendar (`Notifications/`)
+
+What the clock opens, laid out and measured as Explorer's (Windows 11 24H2/25H2): the notification center above the
+calendar, both 336 epx wide, 12 epx in from the screen's right edge; the calendar 12 epx above the taskbar, the
+notification center 12 epx above it and as tall as its notifications need, up to 8 epx from the screen's top.
+
+- **Two windows** (`ClockFlyout`, two `PanelWindow`s): each panel has its own acrylic with the desktop between
+  them, which one flyout (one popup window, one backdrop) can't do. They're frameless with Windows 11's rounded
+  corners, topmost, out of Alt+Tab, take the accent colour as Start does, and slide in from the screen's right edge
+  together (250 ms, decelerating) and out again (150 ms), as Explorer's. The calendar's window takes the foreground;
+  the flyout closes once neither window has it, on Esc, on the clock again, or on a click elsewhere on the taskbar
+  (which never takes the foreground). Their heights are measured from the content and again as it changes. Win+N
+  toggles it on the primary taskbar (shell mode).
+- **Notifications** (`NotificationCenter`, Interop `UserNotifications`): read with WinRT's
+  `UserNotificationListener`, which an unpackaged app may use (access is the Privacy setting "Let apps access your
+  notifications"), but its `NotificationChanged` event needs package identity, so they're read once a second; an
+  unchanged set of IDs changes nothing. The notification platform keeps notifications whether or not a shell runs.
+  The listener gives each one's app (AppUserModelID and name), time and texts â€” not images, buttons or launch
+  arguments, so clicking a notification opens its app as Start would and removes it, rather than delivering the
+  toast's own activation. App icons as the taskbar's (packaged logo, else the `shell:AppsFolder` item's icon).
+  Per-app settings from `HKCU\...\Notifications\Settings\<AppUserModelID>` (`Enabled`, `ShowBanner`,
+  `ShowInActionCenter`) and the global `PushNotifications\ToastEnabled` are honoured. "Turn off all notifications
+  for <app>" writes `Enabled = 0` there, Settings' own store; the platform only notices it later (Settings tells it
+  through a private channel), so NeoShell hides that app's notifications itself meanwhile.
+- **Notification center** (`NotificationPanel`): "Notifications" with Do not disturb and Clear all; groups by app,
+  the app with the newest notification first (`NotificationDisplay.Group`, unit tested). A group shows its newest
+  notification with "+N notifications"; expanded, all of them and "See fewer". Cards show the time (with the date
+  for older days), the title (2 lines) and the body (1 line, with Explorer's chevron to show all of a trimmed one),
+  and "â€¦" (turn off the app, notification settings) and Clear under the pointer; the group header has the same.
+  "No new notifications" when there are none.
+- **Do not disturb** (Interop `DoNotDisturb`): no public API; it's the notification platform's quiet hours profile,
+  switched through the undocumented `IQuietHoursSettings` (CLSID `f53321fa-â€¦`), as Explorer's bell button does:
+  `Microsoft.QuietHoursProfile.PriorityOnly` is on, `â€¦Unrestricted` off. Read with the notifications, so a change
+  made elsewhere shows within a second; the clock shows the bell while it's on, and no toasts pop up.
+- **Calendar** (`CalendarPanel`): today's long date without the year (`NotificationDisplay.DayHeading`, unit tested
+  for several cultures) and a button folding the month away (remembered in settings); a `CalendarView` restyled as
+  Explorer's (no borders or backgrounds, other months' days dimmed, today in the accent circle), starting the week
+  on Windows' regional first day rather than the display language's; the footer with the focus length (âˆ’/+: 5
+  minutes at a time to 30, then 15, between 5 and 240; remembered) and Focus.
+- **Focus** (`FocusSession`): Windows' own focus sessions (`Windows.UI.Shell.FocusSessionManager`) are a limited
+  access feature only Microsoft's apps can unlock ("Access is denied"), so NeoShell runs its own: Do not disturb for
+  the chosen time with a countdown and Stop focus in the footer, then Do not disturb as it was before (also on exit).
+  Unlike Windows', it doesn't hide taskbar badges or flashing, and there's no chime at the end.
+- **Toasts** (`ToastPopups`, shell mode only): without Explorer no toasts show at all â€” they belong to the
+  ShellExperienceHost that Explorer runs â€” though the notifications are still stored. Each notification that
+  arrives while NeoShell runs (not those already there at start, not while Do not disturb is on or the flyout is
+  open) shows as Explorer's: its own acrylic window, 364 epx wide, 16 epx from the screen's right edge and 12 above
+  the taskbar, with the app's icon and name, "â€¦" and close, the title and up to three lines of body. It slides in
+  from the edge; the newest is lowest and older ones move up, three at most. It leaves after the system's "Dismiss
+  notifications after" time (`SPI_GETMESSAGEDURATION`, 5 s by default), later while the pointer is on it. Closing
+  it only puts it away (it stays in the notification center, as in Explorer); clicking it opens the app. Alongside
+  Explorer, Explorer shows toasts.
 
 ## Quick Settings (`QuickSettings/`)
 

@@ -1,0 +1,148 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    One notification, as Explorer shows it in the notification center (its time on top) and as a toast (the app's
+    icon and name on top). Its "…" and close buttons show while the pointer is over it, always on a toast; a click
+    anywhere else opens the app.
+-->
+<UserControl
+    x:Class="NeoShell.Notifications.NotificationCard"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Grid
+        x:Name="Root"
+        Padding="12,0,4,12"
+        CornerRadius="4"
+        BorderThickness="1"
+        Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+        AutomationProperties.AutomationId="NotificationCard"
+        PointerEntered="Root_PointerEntered"
+        PointerExited="Root_PointerExited"
+        PointerCanceled="Root_PointerExited"
+        Tapped="Root_Tapped">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!-- Lighter under the pointer, as Explorer's cards; over the padding too. -->
+        <Border
+            x:Name="HoverPlate"
+            Grid.RowSpan="4"
+            Margin="-12,0,-4,-12"
+            Background="{ThemeResource SubtleFillColorSecondaryBrush}"
+            IsHitTestVisible="False"
+            Opacity="0" />
+
+        <Grid Height="40">
+            <!-- Only the "…" and close buttons are flat; "+N notifications" is an ordinary button, as in Explorer. -->
+            <Grid.Resources>
+                <ResourceDictionary>
+                    <ResourceDictionary.MergedDictionaries>
+                        <ResourceDictionary Source="ms-appx:///FlatButtons.xaml" />
+                    </ResourceDictionary.MergedDictionaries>
+
+                    <Style x:Key="CardButtonStyle" TargetType="Button" BasedOn="{StaticResource FlatButtonStyle}">
+                        <Setter Property="Width" Value="32" />
+                        <Setter Property="Height" Value="32" />
+                        <Setter Property="Margin" Value="0" />
+                    </Style>
+                </ResourceDictionary>
+            </Grid.Resources>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <StackPanel x:Name="TimeHeader" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                <TextBlock x:Name="TimeText" VerticalAlignment="Center" Style="{StaticResource CaptionTextBlockStyle}" />
+                <!-- Shows all of a notification whose text doesn't fit. -->
+                <Button
+                    x:Name="ExpandButton"
+                    AutomationProperties.AutomationId="NotificationExpandButton"
+                    AutomationProperties.Name="Expand"
+                    Style="{StaticResource CardButtonStyle}"
+                    Width="24"
+                    Height="24"
+                    Visibility="Collapsed"
+                    Click="ExpandButton_Click">
+                    <FontIcon x:Name="ExpandGlyph" Glyph="&#xE70D;" FontSize="10" />
+                </Button>
+            </StackPanel>
+            <StackPanel x:Name="AppHeader" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center" Visibility="Collapsed">
+                <Image x:Name="AppLogo" Width="16" Height="16" />
+                <TextBlock x:Name="AppNameText" VerticalAlignment="Center" Style="{StaticResource CaptionTextBlockStyle}" />
+            </StackPanel>
+            <Button
+                x:Name="MoreButton"
+                Grid.Column="1"
+                AutomationProperties.AutomationId="NotificationMoreButton"
+                AutomationProperties.Name="More options"
+                ToolTipService.ToolTip="More options"
+                Style="{StaticResource CardButtonStyle}"
+                Opacity="0"
+                Click="MoreButton_Click">
+                <FontIcon Glyph="&#xE712;" FontSize="12" />
+                <FlyoutBase.AttachedFlyout>
+                    <MenuFlyout>
+                        <MenuFlyoutItem
+                            x:Name="TurnOffItem"
+                            AutomationProperties.AutomationId="TurnOffNotificationsMenuItem"
+                            Click="TurnOff_Click">
+                            <MenuFlyoutItem.Icon>
+                                <FontIcon Glyph="&#xE7ED;" />
+                            </MenuFlyoutItem.Icon>
+                        </MenuFlyoutItem>
+                        <MenuFlyoutItem
+                            AutomationProperties.AutomationId="NotificationSettingsMenuItem"
+                            Text="Go to notification settings"
+                            Click="Settings_Click">
+                            <MenuFlyoutItem.Icon>
+                                <FontIcon Glyph="&#xE713;" />
+                            </MenuFlyoutItem.Icon>
+                        </MenuFlyoutItem>
+                    </MenuFlyout>
+                </FlyoutBase.AttachedFlyout>
+            </Button>
+            <Button
+                x:Name="CloseButton"
+                Grid.Column="2"
+                AutomationProperties.AutomationId="NotificationCloseButton"
+                AutomationProperties.Name="Clear"
+                ToolTipService.ToolTip="Clear"
+                Style="{StaticResource CardButtonStyle}"
+                Opacity="0"
+                Click="CloseButton_Click">
+                <FontIcon Glyph="&#xE711;" FontSize="12" />
+            </Button>
+        </Grid>
+
+        <TextBlock
+            x:Name="TitleText"
+            Grid.Row="1"
+            Margin="0,4,8,0"
+            MaxLines="2"
+            TextWrapping="Wrap"
+            TextTrimming="CharacterEllipsis"
+            IsTextTrimmedChanged="Text_IsTextTrimmedChanged" />
+        <TextBlock
+            x:Name="BodyText"
+            Grid.Row="2"
+            Margin="0,0,8,0"
+            MaxLines="1"
+            TextWrapping="Wrap"
+            TextTrimming="CharacterEllipsis"
+            IsTextTrimmedChanged="Text_IsTextTrimmedChanged"
+            Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+        <Button
+            x:Name="FooterButton"
+            Grid.Row="3"
+            Margin="0,12,0,0"
+            Padding="10,4"
+            AutomationProperties.AutomationId="NotificationGroupExpandButton"
+            Visibility="Collapsed"
+            Click="FooterButton_Click" />
+    </Grid>
+</UserControl>

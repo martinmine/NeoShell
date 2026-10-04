@@ -100,11 +100,11 @@ public sealed class QuickSettingsTests
     [Fact]
     public void Win_A_opens_Quick_Settings_and_its_letter_is_swallowed_down_and_up()
     {
-        var keys = new QuickSettingsKeys();
+        var keys = new PanelKeys();
 
         Assert.False(keys.OnKey(Win, true, out _));
-        Assert.True(keys.OnKey('A', true, out QuickSettingsPage? page));
-        Assert.Equal(QuickSettingsPage.Main, page);
+        Assert.True(keys.OnKey('A', true, out PanelShortcut? page));
+        Assert.Equal(PanelShortcut.QuickSettings, page);
         Assert.True(keys.OnKey('A', true, out page)); // key repeat: swallowed, not opened again
         Assert.Null(page);
         Assert.True(keys.OnKey('A', false, out _));
@@ -112,24 +112,25 @@ public sealed class QuickSettingsTests
     }
 
     [Theory]
-    [InlineData('K', false, QuickSettingsPage.Cast)]
-    [InlineData('P', false, QuickSettingsPage.Project)]
-    [InlineData('V', true, QuickSettingsPage.SoundOutput)]
-    public void Win_shortcuts_open_their_page(char key, bool control, QuickSettingsPage expected)
+    [InlineData('K', false, PanelShortcut.Cast)]
+    [InlineData('P', false, PanelShortcut.Project)]
+    [InlineData('V', true, PanelShortcut.SoundOutput)]
+    [InlineData('N', false, PanelShortcut.NotificationCenter)]
+    public void Win_shortcuts_open_their_panel(char key, bool control, PanelShortcut expected)
     {
-        var keys = new QuickSettingsKeys();
+        var keys = new PanelKeys();
         keys.OnKey(Win, true, out _);
         if (control)
             keys.OnKey(Control, true, out _);
 
-        Assert.True(keys.OnKey(key, true, out QuickSettingsPage? page));
+        Assert.True(keys.OnKey(key, true, out PanelShortcut? page));
         Assert.Equal(expected, page);
     }
 
     [Fact]
     public void Other_keys_pass_through()
     {
-        var keys = new QuickSettingsKeys();
+        var keys = new PanelKeys();
 
         Assert.False(keys.OnKey('A', true, out _));     // typing an A
         keys.OnKey('A', false, out _);

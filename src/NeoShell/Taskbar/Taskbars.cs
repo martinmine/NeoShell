@@ -4,6 +4,7 @@ using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using NeoShell.Interop.Windowing;
 using NeoShell.Logging;
+using NeoShell.Notifications;
 using NeoShell.QuickSettings;
 using NeoShell.Interop.Tray;
 using NeoShell.Settings;
@@ -28,6 +29,9 @@ internal sealed class Taskbars : IDisposable
     private Color? _accent = SystemTheme.ReadAccent();
     private ShellSettings _windowSettings;
     private StartMenuWindow? _startMenu;
+    private FocusSession? _focus;
+    private ClockFlyout? _clockFlyout;
+    private ToastPopups? _toasts;
     private long _lastKeyboardToggle;
     private bool _updateQueued;
     private bool _recreate;
@@ -66,6 +70,9 @@ internal sealed class Taskbars : IDisposable
     /// <summary>Network, volume and microphone state for the primary taskbar's indicators.</summary>
     public Indicators? Indicators { get; private set; }
 
+    /// <summary>The notifications Windows keeps, and Do not disturb.</summary>
+    public NotificationCenter? Notifications { get; private set; }
+
     /// <summary>The system tray; only when NeoShell is the shell and no other tray is running.</summary>
     public NotificationArea? Tray { get; private set; }
 
@@ -81,6 +88,20 @@ internal sealed class Taskbars : IDisposable
         }
         // Created up front, so it opens instantly and its app catalog is already loaded.
         _startMenu = new StartMenuWindow(this);
+        Notifications = new NotificationCenter();
+        _focus = new FocusSession(Notifications);
+        _clockFlyout = new ClockFlyout(Notifications, _focus, Settings, RunMode);
+        // Explorer shows toasts itself while it runs.
+        if (RunMode == RunMode.Shell)
+        {
+            _toasts = new ToastPopups(
+                Notifications,
+                RunMode,
+                () => PrimaryWindow is { } window ? (window.Monitor, window.ScreenBounds) : null,
+                () => (_theme, _accent),
+                () => IsClockFlyoutOpen);
+        }
+        Notifications.Start();
         QueueRecreate();
     }
 
@@ -91,6 +112,10 @@ internal sealed class Taskbars : IDisposable
         Tray?.Dispose();
         Indicators?.Dispose();
         _startMenu?.Close();
+        _toasts?.Dispose();
+        _clockFlyout?.Dispose();
+        _focus?.Dispose();
+        Notifications?.Dispose();
         CloseWindows();
     }
 
@@ -142,6 +167,34 @@ internal sealed class Taskbars : IDisposable
 
     /// <summary>Win+A, Win+Ctrl+V, Win+K, Win+P: Quick Settings on the primary taskbar, open on the page.</summary>
     public void ShowQuickSettings(QuickSettingsPage page) => PrimaryWindow?.ShowQuickSettings(page);
+
+    /// <summary>Opens the notification center and calendar at the right of <paramref name="taskbar"/>, or closes them.</summary>
+    public void ToggleClockFlyout(TaskbarWindow taskbar)
+    {
+        if (_clockFlyout is null)
+            return;
+
+        if (_clockFlyout.IsOpen)
+        {
+            _clockFlyout.Hide();
+        }
+        else if (!_clockFlyout.WasJustDeactivated)
+        {
+            taskbar.Reveal();
+            _clockFlyout.Show(taskbar.Monitor, taskbar.ScreenBounds, _theme, _accent);
+        }
+    }
+
+    /// <summary>Win+N: the notification center on the primary taskbar's monitor.</summary>
+    public void ToggleNotificationCenter()
+    {
+        if (PrimaryWindow is { } window)
+            ToggleClockFlyout(window);
+    }
+
+    public bool IsClockFlyoutOpen => _clockFlyout?.IsOpen == true;
+
+    public void HideClockFlyout() => _clockFlyout?.Hide();
 
     /// <summary>Win+T: puts the keyboard focus on the primary taskbar's buttons.</summary>
     public void FocusTaskbar()

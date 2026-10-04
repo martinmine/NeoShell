@@ -1,0 +1,122 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    The calendar under the notification center, as Explorer's: today's date with a button folding the month away,
+    the month (Windows' first day of the week, other months' days dimmed, today in the accent colour), and the
+    focus session bar.
+-->
+<UserControl
+    x:Class="NeoShell.Notifications.CalendarPanel"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <UserControl.Resources>
+        <Style x:Key="SmallButtonStyle" TargetType="Button" BasedOn="{StaticResource DefaultButtonStyle}">
+            <Setter Property="Width" Value="24" />
+            <Setter Property="Height" Value="24" />
+            <Setter Property="Padding" Value="0" />
+        </Style>
+    </UserControl.Resources>
+
+    <Grid x:Name="Root">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <Grid Height="51" Padding="16,0,16,0" BorderThickness="0,0,0,1" BorderBrush="{ThemeResource DividerStrokeColorDefaultBrush}">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <TextBlock
+                x:Name="DayText"
+                AutomationProperties.AutomationId="CalendarDayText"
+                VerticalAlignment="Center"
+                TextTrimming="CharacterEllipsis" />
+            <Button
+                x:Name="CollapseButton"
+                Grid.Column="1"
+                AutomationProperties.AutomationId="CalendarCollapseButton"
+                Style="{StaticResource SmallButtonStyle}"
+                Click="CollapseButton_Click">
+                <FontIcon x:Name="CollapseGlyph" FontSize="10" />
+            </Button>
+        </Grid>
+
+        <Grid x:Name="MonthArea" Grid.Row="1" Background="{ThemeResource LayerOnAcrylicFillColorDefaultBrush}">
+            <CalendarView
+                x:Name="Calendar"
+                AutomationProperties.AutomationId="Calendar"
+                Margin="0,4,0,0"
+                HorizontalAlignment="Stretch"
+                SelectionMode="None"
+                IsTodayHighlighted="True"
+                IsGroupLabelVisible="False"
+                Background="Transparent"
+                BorderThickness="0"
+                CalendarItemBorderThickness="0"
+                CalendarItemBackground="Transparent"
+                OutOfScopeBackground="Transparent"
+                OutOfScopeForeground="{ThemeResource TextFillColorTertiaryBrush}"
+                DayItemFontSize="14" />
+        </Grid>
+
+        <!-- Focus: its length and Start, or what's left of a running session and Stop. -->
+        <Grid
+            Grid.Row="2"
+            Height="50"
+            Padding="16,0,16,0"
+            ColumnSpacing="8"
+            Background="{ThemeResource LayerOnAcrylicFillColorDefaultBrush}"
+            BorderThickness="0,1,0,0"
+            BorderBrush="{ThemeResource DividerStrokeColorDefaultBrush}">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <StackPanel x:Name="FocusLength" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                <Button
+                    x:Name="LessFocusButton"
+                    AutomationProperties.AutomationId="FocusLessButton"
+                    AutomationProperties.Name="Decrease time"
+                    ToolTipService.ToolTip="Decrease time"
+                    Style="{StaticResource SmallButtonStyle}"
+                    Click="LessFocusButton_Click">
+                    <FontIcon Glyph="&#xE738;" FontSize="10" />
+                </Button>
+                <TextBlock x:Name="FocusLengthText" AutomationProperties.AutomationId="FocusLengthText" Width="64" TextAlignment="Center" VerticalAlignment="Center">
+                    <Run x:Name="FocusMinutesRun" FontWeight="SemiBold" />
+                    <Run Text="mins" />
+                </TextBlock>
+                <Button
+                    x:Name="MoreFocusButton"
+                    AutomationProperties.AutomationId="FocusMoreButton"
+                    AutomationProperties.Name="Increase time"
+                    ToolTipService.ToolTip="Increase time"
+                    Style="{StaticResource SmallButtonStyle}"
+                    Click="MoreFocusButton_Click">
+                    <FontIcon Glyph="&#xE710;" FontSize="10" />
+                </Button>
+            </StackPanel>
+            <TextBlock
+                x:Name="FocusRemainingText"
+                AutomationProperties.AutomationId="FocusRemainingText"
+                VerticalAlignment="Center"
+                FontWeight="SemiBold"
+                Visibility="Collapsed" />
+            <Button
+                x:Name="FocusButton"
+                Grid.Column="2"
+                Height="28"
+                Padding="10,0"
+                AutomationProperties.AutomationId="FocusButton"
+                Click="FocusButton_Click">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <FontIcon x:Name="FocusGlyph" Glyph="&#xF5B0;" FontSize="12" />
+                    <TextBlock x:Name="FocusButtonText" FontSize="12" Text="Focus" />
+                </StackPanel>
+            </Button>
+        </Grid>
+    </Grid>
+</UserControl>
