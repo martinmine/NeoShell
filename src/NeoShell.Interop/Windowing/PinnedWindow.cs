@@ -24,6 +24,7 @@ public sealed unsafe class PinnedWindow : IDisposable
     private readonly nint _hwnd;
     private readonly WindowSubclass _subclass;
     private PinnedLayer _layer;
+    private nint _above;
     private RectInt32 _bounds;
 
     public PinnedWindow(nint hwnd, RectInt32 bounds, PinnedLayer layer)
@@ -48,12 +49,13 @@ public sealed unsafe class PinnedWindow : IDisposable
     public PinnedLayer Layer => _layer;
 
     /// <summary>
-    /// Moves the window to another layer. <see cref="PinnedLayer.Normal"/> puts it just below
-    /// <paramref name="above"/>, so that window covers it.
+    /// Moves the window to another layer, just below <paramref name="above"/> when given, so that window covers it
+    /// (<see cref="PinnedLayer.Topmost"/> and <see cref="PinnedLayer.Normal"/>).
     /// </summary>
     public void SetLayer(PinnedLayer layer, nint above = 0)
     {
         _layer = layer;
+        _above = layer == PinnedLayer.Topmost ? above : 0;
         if (layer != PinnedLayer.Normal)
         {
             Apply();
@@ -69,7 +71,11 @@ public sealed unsafe class PinnedWindow : IDisposable
 
     public void Dispose() => _subclass.Dispose();
 
-    private nint InsertAfter => _layer == PinnedLayer.Bottom ? User32.HWND_BOTTOM : User32.HWND_TOPMOST;
+    // Below a topmost window is still in the topmost band. The window above may have gone since.
+    private nint InsertAfter =>
+        _layer == PinnedLayer.Bottom ? User32.HWND_BOTTOM
+        : _above != 0 && User32.IsWindow(_above) ? _above
+        : User32.HWND_TOPMOST;
 
     private void Apply()
     {

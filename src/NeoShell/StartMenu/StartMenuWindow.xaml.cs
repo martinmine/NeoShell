@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.Security.Principal;
 using Microsoft.UI;
 using Microsoft.UI.Windowing;
@@ -43,6 +44,8 @@ internal sealed partial class StartMenuWindow : Window
     private const int MaxFileResults = 20;
     private static readonly TimeSpan s_searchDelay = TimeSpan.FromMilliseconds(150);
     private static readonly TimeSpan s_catalogLifetime = TimeSpan.FromMinutes(2);
+    private static readonly TimeSpan s_openDuration = TimeSpan.FromMilliseconds(250);
+    private static readonly TimeSpan s_closeDuration = TimeSpan.FromMilliseconds(150);
 
     private readonly Taskbars _owner;
     private readonly nint _hwnd;
@@ -67,6 +70,8 @@ internal sealed partial class StartMenuWindow : Window
     private (uint PointerId, Point Start, StartItem Item)? _pinPressed;
     private PinDrag? _pinDrag;
     private bool _suppressPinClick;
+    private UIElement? _pressedIcon;
+    private (long Start, int From, int To, bool Opening)? _slide;
 
     public StartMenuWindow(Taskbars owner)
     {
@@ -93,6 +98,13 @@ internal sealed partial class StartMenuWindow : Window
         PinnedGrid.AddHandler(UIElement.PointerMovedEvent, new PointerEventHandler(PinnedGrid_PointerMoved), handledEventsToo: true);
         PinnedGrid.AddHandler(UIElement.PointerReleasedEvent, new PointerEventHandler(PinnedGrid_PointerReleased), handledEventsToo: true);
         PinnedGrid.AddHandler(UIElement.PointerCaptureLostEvent, new PointerEventHandler(PinnedGrid_PointerCaptureLost), handledEventsToo: true);
+        foreach (GridView grid in (GridView[])[PinnedGrid, RecentGrid])
+        {
+            grid.AddHandler(UIElement.PointerPressedEvent, new PointerEventHandler(GridItem_PointerPressed), handledEventsToo: true);
+            grid.AddHandler(UIElement.PointerReleasedEvent, new PointerEventHandler(GridItem_PointerReleased), handledEventsToo: true);
+            grid.AddHandler(UIElement.PointerCaptureLostEvent, new PointerEventHandler(GridItem_PointerReleased), handledEventsToo: true);
+        }
+        IconPress.Attach(AllAppsButton, (UIElement)AllAppsButton.Content);
         RecentGrid.ItemsSource = _recent;
         _results.Source = _resultGroups;
         ResultsList.ItemsSource = _results.View;
@@ -113,6 +125,7 @@ internal sealed partial class StartMenuWindow : Window
         owner.Icons.Loaded += RefreshIcons;
         Closed += (_, _) =>
         {
+            CompositionTarget.Rendering -= SlideFrame;
             owner.Icons.Loaded -= RefreshIcons;
             _placement.Dispose();
             _frameless.Dispose();
@@ -130,10 +143,17 @@ internal sealed partial class StartMenuWindow : Window
     /// </summary>
     public bool WasJustDeactivated => Environment.TickCount64 - _deactivatedAt < 400;
 
-    /// <summary>Opens above <paramref name="taskbar"/>: centred on the monitor, or at its left like the taskbar items.</summary>
+    /// <summary>
+    /// Opens above <paramref name="taskbar"/>: centred on the monitor, or at its left like the taskbar items. It flies
+    /// out from behind <paramref name="taskbarWindow"/>.
+    /// </summary>
     /// <param name="accent">Start's colour when Windows shows the accent colour on Start and taskbar.</param>
-    public void Show(DisplayMonitor monitor, RectInt32 taskbar, bool centered, ElementTheme theme, Color? accent)
+    public void Show(DisplayMonitor monitor, RectInt32 taskbar, nint taskbarWindow, bool centered, ElementTheme theme, Color? accent)
     {
+        // Opened again while still flying in: from where it is, as it was.
+        bool closing = _slide is { Opening: false };
+        if (closing)
+            ResetContent();
         Root.RequestedTheme = accent is { } color ? SystemTheme.ThemeOn(color) : theme;
         _backdrop.Theme = Root.RequestedTheme;
         _backdrop.Tint = accent;
@@ -143,13 +163,17 @@ internal sealed partial class StartMenuWindow : Window
 
         _anchor = (monitor, taskbar, centered);
         ShellSettings settings = _owner.Settings.Current;
-        Place(settings.StartMenuWidth, settings.StartMenuHeight);
+        RectInt32 shown = BoundsFor(settings.StartMenuWidth, settings.StartMenuHeight);
+        // Just below the taskbar in the topmost band, so the taskbar covers it while it slides up from behind.
+        _placement.SetLayer(PinnedLayer.Topmost, above: taskbarWindow);
+        _placement.Bounds = closing ? shown with { Y = _placement.Bounds.Y } : shown with { Y = taskbar.Y };
         // A left-aligned Start keeps its left edge by the Start button.
         LeftGrip.Visibility = centered ? Visibility.Visible : Visibility.Collapsed;
 
         IsOpen = true;
         _previousForeground = TopLevelWindows.GetForeground();
         AppWindow.Show();
+        Slide(shown.Y, opening: true);
         // Window.Activate alone doesn't take the foreground from the app the user was in; SetForegroundWindow does,
         // because the click on the taskbar (or the Win key) was the last input.
         TopLevelWindows.Activate(_hwnd);
@@ -160,8 +184,40 @@ internal sealed partial class StartMenuWindow : Window
 
     public void Hide() => Hide(restoreForeground: true);
 
-    private void Place(double width, double height) =>
-        _placement.Bounds = StartMenuLayout.Bounds(_anchor.Monitor.Bounds, _anchor.Taskbar, _anchor.Centered, width, height, _anchor.Monitor.Dpi / 96.0);
+    private RectInt32 BoundsFor(double width, double height) =>
+        StartMenuLayout.Bounds(_anchor.Monitor.Bounds, _anchor.Taskbar, _anchor.Centered, width, height, _anchor.Monitor.Dpi / 96.0);
+
+    private void Place(double width, double height) => _placement.Bounds = BoundsFor(width, height);
+
+    // Start flies out of the taskbar and back into it, as in Windows 11. It's the window that moves, not its content:
+    // the acrylic belongs to the window and would otherwise stand still, empty, while the content slides.
+    private void Slide(int toY, bool opening)
+    {
+        if (_slide is null)
+            CompositionTarget.Rendering += SlideFrame;
+        _slide = (Stopwatch.GetTimestamp(), _placement.Bounds.Y, toY, opening);
+    }
+
+    private void SlideFrame(object? sender, object e)
+    {
+        if (_slide is not { } slide)
+            return;
+
+        double progress = Math.Min(1, Stopwatch.GetElapsedTime(slide.Start) / (slide.Opening ? s_openDuration : s_closeDuration));
+        // Decelerating out of the taskbar, accelerating back into it.
+        double eased = slide.Opening ? 1 - Math.Pow(1 - progress, 3) : Math.Pow(progress, 3);
+        _placement.Bounds = _placement.Bounds with { Y = (int)Math.Round(slide.From + (slide.To - slide.From) * eased) };
+        if (progress < 1)
+            return;
+
+        CompositionTarget.Rendering -= SlideFrame;
+        _slide = null;
+        if (!slide.Opening)
+        {
+            AppWindow.Hide();
+            ResetContent();
+        }
+    }
 
     // The window moves under the pointer while it's resized, so the drag is followed in screen pixels.
     private void Grip_PointerPressed(object sender, PointerRoutedEventArgs e)
@@ -211,7 +267,12 @@ internal sealed partial class StartMenuWindow : Window
         // z-order, which can be one of Explorer's invisible Start or search windows.
         if (restoreForeground && TopLevelWindows.GetForeground() == _hwnd && _previousForeground != 0 && TopLevelWindows.Exists(_previousForeground))
             TopLevelWindows.Activate(_previousForeground);
-        AppWindow.Hide();
+        Slide(_anchor.Taskbar.Y, opening: false);
+    }
+
+    // What Start shows when it opens next; changed once it's out of sight.
+    private void ResetContent()
+    {
         SearchBox.Text = "";
         ShowView(HomeView);
         HomeView.ChangeView(null, 0, null, disableAnimation: true);
@@ -532,6 +593,33 @@ internal sealed partial class StartMenuWindow : Window
             : MenuItem("Pin to taskbar", "StartPinTaskbarMenuItem", () => _owner.Pin(app)));
     }
 
+    // Pinned and recent apps' icons shrink while pressed.
+    private void GridItem_PointerPressed(object sender, PointerRoutedEventArgs e)
+    {
+        if (!e.GetCurrentPoint(null).Properties.IsLeftButtonPressed)
+            return;
+
+        for (var element = e.OriginalSource as DependencyObject; element is not null && !ReferenceEquals(element, sender); element = VisualTreeHelper.GetParent(element))
+        {
+            if (element is GridViewItem item && ItemIcon(item) is { } icon)
+            {
+                _pressedIcon = icon;
+                IconPress.Scale(icon, IconPress.Pressed);
+                return;
+            }
+        }
+    }
+
+    private void GridItem_PointerReleased(object sender, PointerRoutedEventArgs e)
+    {
+        if (_pressedIcon is not null)
+            IconPress.Scale(_pressedIcon, 1);
+        _pressedIcon = null;
+    }
+
+    private static UIElement? ItemIcon(DependencyObject container) =>
+        (container as ContentControl)?.ContentTemplateRoot is FrameworkElement root ? root.FindName("ItemIcon") as UIElement : null;
+
     // Reordering is done by hand rather than with the grid's own drag and drop, which keeps the dropped icon hidden
     // until its drag operation has wound down: it vanishes and comes back. Here the icon follows the pointer, the
     // icons in between shift a slot to make room (GridReorder), and the drop is a move that shows no change.
@@ -613,6 +701,8 @@ internal sealed partial class StartMenuWindow : Window
             container.TranslationTransition = new Vector3Transition { Duration = TimeSpan.FromMilliseconds(150) };
         containers[index].TranslationTransition = null;
         Canvas.SetZIndex(containers[index], 1);
+        if (ItemIcon(containers[index]) is { } icon)
+            IconPress.Scale(icon, IconPress.Dragged);
         _pinDrag = new PinDrag(containers, slots, index) { Target = index };
         return true;
     }
@@ -627,6 +717,8 @@ internal sealed partial class StartMenuWindow : Window
             container.Translation = default;
         }
         Canvas.SetZIndex(drag.Containers[drag.Index], 0);
+        if (ItemIcon(drag.Containers[drag.Index]) is { } icon)
+            IconPress.Scale(icon, 1);
         if (drop && drag.Target != drag.Index)
         {
             // The icons are already drawn where they belong, so the move shows no change.

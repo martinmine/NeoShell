@@ -179,7 +179,8 @@
                                 Opacity="0.4"
                                 Visibility="{x:Bind FlashVisibility, Mode=OneWay}" />
                             <StackPanel Orientation="Horizontal" Spacing="8" Padding="8,0" HorizontalAlignment="Center" VerticalAlignment="Center">
-                                <Grid Width="24" Height="24">
+                                <!-- Shrinks while pressed and grows while dragged (IconPress). -->
+                                <Grid x:Name="TaskIcon" Width="24" Height="24">
                                     <Image Source="{x:Bind Icon, Mode=OneWay}" />
                                     <!-- The app's overlay badge, over the icon's bottom-right corner. -->
                                     <Image

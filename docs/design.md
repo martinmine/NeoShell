@@ -265,6 +265,8 @@ Shell mode only, like the wallpaper: alongside Explorer, Explorer's desktop has 
 - Middle click or Shift+click: launch a new instance. Shift is read with `GetAsyncKeyState`: the taskbar never has
   focus, so its thread's key state doesn't see it.
 - Right click menu: app name (launch), Pin to taskbar / Unpin, Close window / Close all windows (`SC_CLOSE`).
+- Pressed, the icon shrinks to 0.8 (only the icon, as in Explorer); dragged, it grows to 1.2 and loses its plate and
+  pill (`IconPress`, a `ScaleTransition` on the icon). The Start and Search buttons' icons shrink too.
 - Drag to reorder (by hand, `TaskReorder`: the button slides along the row and its neighbours make way). The order
   is persisted for pinned apps and kept for the session for the others (`TaskOrder`, unit tested): buttons keep the
   order last shown, a new window goes next to its app's others and a newly started app at the end. Shared by the
@@ -406,6 +408,11 @@ Exit NeoShell (alongside Explorer only).
 - Activation: `Window.Activate` alone doesn't take the foreground from the app the user was in, so Start calls
   `SetForegroundWindow` (allowed: the click or key was the last input). On closing it hands the foreground back to
   that app; otherwise Windows picks the next window in z-order, which can be Explorer's invisible Start/search host.
+- Flies out of the taskbar (250 ms, decelerating) and back into it on closing (150 ms, accelerating), as in Windows 11.
+  The window itself moves, frame by frame (`CompositionTarget.Rendering`): the acrylic belongs to the window, so
+  sliding the content would leave an empty acrylic panel standing still. It sits just below the taskbar that opened it
+  in the topmost band (`PinnedWindow.SetLayer(Topmost, above)`), so the taskbar covers it on the way. What it shows is
+  reset (search, All apps, scroll) once it's out of sight; opened again while closing, it turns back from where it is.
 - Toggling: pressing the Start button deactivates Start before the button's click arrives, so a click within
   400 ms of a deactivation doesn't reopen it.
 - Resizable by dragging a top corner (`ResizeGrip`, with the resize pointer): the bottom stays above the taskbar, a
@@ -414,7 +421,8 @@ Exit NeoShell (alongside Explorer only).
   monitor above the taskbar (`StartMenuLayout`, tests).
 - Home is one scrolling page, as in Windows 11, below the search box:
   - **Pinned** grid (persisted in settings). Drag to reorder by hand (`GridReorder`, unit tested): the icon follows
-    the pointer and the icons between its old and new place shift one slot. The grid's own drag and drop keeps the
+    the pointer and the icons between its old and new place shift one slot. Pinned and recent icons shrink while
+    pressed and a dragged one grows, as on the taskbar. The grid's own drag and drop keeps the
     dropped icon hidden until the drag operation winds down, and its item transitions animate the move as a removal
     and an addition, so both are off. Pinned and Recent are updated in place when Start opens, not refilled (which
     would replay every icon's entrance). The first time the catalog loads, Explorer's Start pins

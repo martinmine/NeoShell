@@ -106,7 +106,7 @@ internal sealed class Taskbars : IDisposable
         else if (!_startMenu.WasJustDeactivated)
         {
             taskbar.Reveal();
-            _startMenu.Show(taskbar.Monitor, taskbar.ScreenBounds, Settings.Current.TaskbarAlignment == TaskbarAlignment.Center, _theme, _accent);
+            _startMenu.Show(taskbar.Monitor, taskbar.ScreenBounds, taskbar.Handle, Settings.Current.TaskbarAlignment == TaskbarAlignment.Center, _theme, _accent);
         }
     }
 

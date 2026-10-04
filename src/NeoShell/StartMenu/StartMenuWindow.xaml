@@ -55,7 +55,7 @@
                         <Grid.ContextFlyout>
                             <MenuFlyout Opening="ItemMenu_Opening" />
                         </Grid.ContextFlyout>
-                        <Image Width="32" Height="32" Source="{x:Bind Icon, Mode=OneWay}" />
+                        <Image x:Name="ItemIcon" Width="32" Height="32" Source="{x:Bind Icon, Mode=OneWay}" />
                         <StackPanel Grid.Column="1" VerticalAlignment="Center">
                             <TextBlock Text="{x:Bind Title}" FontSize="12" TextTrimming="CharacterEllipsis" />
                             <TextBlock
@@ -184,7 +184,7 @@
                                 <StackPanel.ContextFlyout>
                                     <MenuFlyout Opening="ItemMenu_Opening" />
                                 </StackPanel.ContextFlyout>
-                                <Image Width="32" Height="32" Source="{x:Bind Icon, Mode=OneWay}" />
+                                <Image x:Name="ItemIcon" Width="32" Height="32" Source="{x:Bind Icon, Mode=OneWay}" />
                                 <TextBlock
                                     Text="{x:Bind Title}"
                                     FontSize="12"

@@ -132,6 +132,8 @@ internal sealed partial class TaskbarWindow : Window
         _placement = new PinnedWindow(hwnd, bounds, PinnedLayer.Topmost);
 
         TaskList.ItemsSource = _tasks;
+        IconPress.Attach(StartButton, (UIElement)StartButton.Content);
+        IconPress.Attach(SearchButton, (UIElement)SearchButton.Content);
         // Handled events too: the button under the pointer takes the press for its click.
         TaskList.AddHandler(UIElement.PointerPressedEvent, new PointerEventHandler(TaskList_PointerPressed), handledEventsToo: true);
         TaskList.AddHandler(UIElement.PointerMovedEvent, new PointerEventHandler(TaskList_PointerMoved), handledEventsToo: true);
@@ -214,6 +216,8 @@ internal sealed partial class TaskbarWindow : Window
     }
 
     public DisplayMonitor Monitor => _monitor;
+
+    public nint Handle => _hwnd;
 
     /// <summary>Where the taskbar is on screen when shown (an auto-hidden one may be slid away), in pixels.</summary>
     public RectInt32 ScreenBounds => _shownBounds;
@@ -848,6 +852,7 @@ internal sealed partial class TaskbarWindow : Window
             if (element is ListViewItem { Content: TaskButton button })
             {
                 _pressed = (e.Pointer.PointerId, e.GetCurrentPoint(TaskList).Position.X, button);
+                ScaleIcon(button, IconPress.Pressed);
                 return;
             }
         }
@@ -878,6 +883,8 @@ internal sealed partial class TaskbarWindow : Window
 
     private void TaskList_PointerReleased(object sender, PointerRoutedEventArgs e)
     {
+        if (_pressed is { } pressed)
+            ScaleIcon(pressed.Button, 1);
         _pressed = null;
         if (_drag is null)
             return;
@@ -891,6 +898,8 @@ internal sealed partial class TaskbarWindow : Window
 
     private void TaskList_PointerCaptureLost(object sender, PointerRoutedEventArgs e)
     {
+        if (_pressed is { } pressed)
+            ScaleIcon(pressed.Button, 1);
         _pressed = null;
         if (_drag is not null)
             EndDrag(drop: false);
@@ -916,6 +925,8 @@ internal sealed partial class TaskbarWindow : Window
         _hoverTimer.Stop();
         _thumbnails.Hide();
         button.IsHovered = false;
+        button.IsDragged = true;
+        ScaleIcon(button, IconPress.Dragged);
         _hovered = null;
         // The dragged button follows the pointer straight away and passes over the others, which slide aside.
         foreach (UIElement container in containers)
@@ -930,6 +941,9 @@ internal sealed partial class TaskbarWindow : Window
     {
         TaskDrag drag = _drag!;
         _drag = null;
+        TaskButton dragged = _tasks[drag.Index];
+        dragged.IsDragged = false;
+        ScaleIcon(dragged, 1);
         foreach (UIElement container in drag.Containers)
         {
             container.TranslationTransition = null;
@@ -946,6 +960,15 @@ internal sealed partial class TaskbarWindow : Window
         }
         if (drag.RefreshPending)
             RefreshTasks();
+    }
+
+    private void ScaleIcon(TaskButton button, float scale)
+    {
+        if (TaskList.ContainerFromItem(button) is ContentControl { ContentTemplateRoot: FrameworkElement root }
+            && root.FindName("TaskIcon") is UIElement icon)
+        {
+            IconPress.Scale(icon, scale);
+        }
     }
 
     private sealed class TaskDrag(List<UIElement> containers, List<(double Left, double Width)> slots, int index)

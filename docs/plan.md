@@ -128,6 +128,8 @@ Tick items off as they land. The feature details are in [design.md](design.md).
 - [x] Moving icons doesn't make them vanish and reappear: the taskbar animates its own changes (no item transitions),
       running apps keep their dragged place for the session, Start's pinned grid is reordered by hand and Pinned and
       Recent are updated in place
+- [x] Animations: Start flies out of the taskbar and back; icons shrink while pressed (taskbar, Start and Search
+      buttons, Start's pinned and recent apps) and grow while dragged
 
 ## Later / not planned yet
 

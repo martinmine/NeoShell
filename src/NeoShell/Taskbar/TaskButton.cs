@@ -16,6 +16,7 @@ internal sealed class TaskButton(string key) : INotifyPropertyChanged
     private bool _isActive;
     private bool _isFlashing;
     private bool _isHovered;
+    private bool _isDragged;
     private bool _showLabel;
     private TaskProgress? _progress;
     private ImageSource? _overlay;
@@ -67,6 +68,21 @@ internal sealed class TaskButton(string key) : INotifyPropertyChanged
         }
     }
 
+    /// <summary>Set by the taskbar while the button is dragged: just the icon, as in Windows 11.</summary>
+    public bool IsDragged
+    {
+        get => _isDragged;
+        set
+        {
+            if (Set(ref _isDragged, value))
+            {
+                Raise(nameof(ActiveVisibility));
+                Raise(nameof(RunningVisibility));
+                Raise(nameof(StackVisibility));
+            }
+        }
+    }
+
     public bool ShowLabel
     {
         get => _showLabel;
@@ -84,12 +100,12 @@ internal sealed class TaskButton(string key) : INotifyPropertyChanged
 
     public Visibility LabelVisibility => ShowLabel ? Visibility.Visible : Visibility.Collapsed;
 
-    public Visibility ActiveVisibility => IsActive ? Visibility.Visible : Visibility.Collapsed;
+    public Visibility ActiveVisibility => IsActive && !IsDragged ? Visibility.Visible : Visibility.Collapsed;
 
-    public Visibility RunningVisibility => !IsActive && Windows.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+    public Visibility RunningVisibility => !IsActive && !IsDragged && Windows.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
 
     /// <summary>Several windows: the plate shows the edge of a second card behind it, as in Windows 11.</summary>
-    public Visibility StackVisibility => Windows.Count > 1 ? Visibility.Visible : Visibility.Collapsed;
+    public Visibility StackVisibility => Windows.Count > 1 && !IsDragged ? Visibility.Visible : Visibility.Collapsed;
 
     public Visibility HoverVisibility => IsHovered ? Visibility.Visible : Visibility.Collapsed;
 
