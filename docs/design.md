@@ -197,6 +197,9 @@ Shell mode only, like the wallpaper: alongside Explorer, Explorer's desktop has 
 - Acrylic backdrop (`AcrylicBackdrop`: a `DesktopAcrylicController` whose configuration keeps `IsInputActive` true),
   light/dark following the system theme (`HKCU\...\Themes\Personalize\SystemUsesLightTheme`), re-read on every
   `WM_SETTINGCHANGE`.
+- "Show accent color on Start and taskbar" (`Personalize\ColorPrevalence`): the acrylic of the taskbar and Start is
+  tinted with the second darker shade of `HKCU\...\Explorer\Accent\AccentPalette`, as Explorer does, and their
+  text is light or dark by that colour's brightness. Re-read on `WM_SETTINGCHANGE` with the theme.
 - Flyouts and menus set `ShouldConstrainToRootBounds="False"`: the window is only as tall as the taskbar.
 - Show desktop minimizes every minimizable window of other processes (`SW_SHOWMINNOACTIVE`) and the next click
   restores those still minimized; Explorer's own toggle isn't available as the shell.

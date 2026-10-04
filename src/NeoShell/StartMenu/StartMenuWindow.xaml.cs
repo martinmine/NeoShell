@@ -17,6 +17,7 @@ using NeoShell.Logging;
 using NeoShell.Settings;
 using NeoShell.Taskbar;
 using Windows.Graphics;
+using Windows.UI;
 using Windows.System;
 
 namespace NeoShell.StartMenu;
@@ -121,10 +122,12 @@ internal sealed partial class StartMenuWindow : Window
     public bool WasJustDeactivated => Environment.TickCount64 - _deactivatedAt < 400;
 
     /// <summary>Opens above <paramref name="taskbar"/>: centred on the monitor, or at its left like the taskbar items.</summary>
-    public void Show(DisplayMonitor monitor, RectInt32 taskbar, bool centered, ElementTheme theme)
+    /// <param name="accent">Start's colour when Windows shows the accent colour on Start and taskbar.</param>
+    public void Show(DisplayMonitor monitor, RectInt32 taskbar, bool centered, ElementTheme theme, Color? accent)
     {
-        Root.RequestedTheme = theme;
-        _backdrop.Theme = theme;
+        Root.RequestedTheme = accent is { } color ? SystemTheme.ThemeOn(color) : theme;
+        _backdrop.Theme = Root.RequestedTheme;
+        _backdrop.Tint = accent;
         ShowPinned();
         ShowRecent();
         LoadAppsIfStale();

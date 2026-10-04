@@ -17,6 +17,7 @@ using NeoShell.Settings;
 using NeoShell.Tray;
 using Windows.Foundation;
 using Windows.Graphics;
+using Windows.UI;
 using AppBar = NeoShell.Interop.Windowing.AppBar;
 
 namespace NeoShell.Taskbar;
@@ -61,16 +62,17 @@ internal sealed partial class TaskbarWindow : Window
     private int _slideStep;
     private bool _hidden;
     private bool _isActive;
+    private ElementTheme _theme;
     private int _pointerAwayTicks;
 
-    public TaskbarWindow(Taskbars owner, DisplayMonitor monitor, ShellSettings settings, ElementTheme theme)
+    public TaskbarWindow(Taskbars owner, DisplayMonitor monitor, ShellSettings settings, ElementTheme theme, Color? accent)
     {
         _owner = owner;
         _monitor = monitor;
         InitializeComponent();
 
         SystemBackdrop = _backdrop;
-        SetTheme(theme);
+        SetTheme(theme, accent);
         AppsPanel.HorizontalAlignment =
             settings.TaskbarAlignment == TaskbarAlignment.Left ? HorizontalAlignment.Left : HorizontalAlignment.Center;
         SearchButton.Visibility = settings.ShowSearchButton ? Visibility.Visible : Visibility.Collapsed;
@@ -278,10 +280,13 @@ internal sealed partial class TaskbarWindow : Window
             TopLevelWindows.Activate(TaskActivation.NextWindow([.. button.Windows.Select(w => w.Handle)], _owner.Tracker.Foreground));
     }
 
-    public void SetTheme(ElementTheme theme)
+    /// <param name="accent">The taskbar's colour when Windows shows the accent colour on it.</param>
+    public void SetTheme(ElementTheme theme, Color? accent)
     {
-        Root.RequestedTheme = theme;
-        _backdrop.Theme = theme;
+        _theme = theme;
+        Root.RequestedTheme = accent is { } color ? SystemTheme.ThemeOn(color) : theme;
+        _backdrop.Theme = Root.RequestedTheme;
+        _backdrop.Tint = accent;
     }
 
     public void UpdateClock() => Clock.Update();
@@ -679,7 +684,7 @@ internal sealed partial class TaskbarWindow : Window
 
     private void ShowThumbnails(TaskButton button, FrameworkElement element)
     {
-        _thumbnails.Show(button, BoundsOnScreen(element), _monitor, Root.ActualTheme);
+        _thumbnails.Show(button, BoundsOnScreen(element), _monitor, _theme);
     }
 
     private void TaskMenu_Opening(object sender, object e)

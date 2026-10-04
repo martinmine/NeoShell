@@ -116,6 +116,7 @@ Tick items off as they land. The feature details are in [design.md](design.md).
 ## 11. Requested features
 
 - [x] Desktop: drag a selection rectangle over the icons (Ctrl adds to the selection)
+- [x] Taskbar and Start: the accent colour when "Show accent color on Start and taskbar" is on
 
 ## Later / not planned yet
 

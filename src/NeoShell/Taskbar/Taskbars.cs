@@ -9,6 +9,7 @@ using NeoShell.Settings;
 using NeoShell.Tray;
 using NeoShell.StartMenu;
 using Windows.Graphics;
+using Windows.UI;
 
 namespace NeoShell.Taskbar;
 
@@ -23,6 +24,7 @@ internal sealed class Taskbars : IDisposable
     private readonly ShowDesktop _showDesktop = new();
     private readonly List<TaskbarWindow> _windows = [];
     private ElementTheme _theme = SystemTheme.Read();
+    private Color? _accent = SystemTheme.ReadAccent();
     private ShellSettings _windowSettings;
     private StartMenuWindow? _startMenu;
     private long _lastKeyboardToggle;
@@ -98,7 +100,7 @@ internal sealed class Taskbars : IDisposable
         else if (!_startMenu.WasJustDeactivated)
         {
             taskbar.Reveal();
-            _startMenu.Show(taskbar.Monitor, taskbar.ScreenBounds, Settings.Current.TaskbarAlignment == TaskbarAlignment.Center, _theme);
+            _startMenu.Show(taskbar.Monitor, taskbar.ScreenBounds, Settings.Current.TaskbarAlignment == TaskbarAlignment.Center, _theme, _accent);
         }
     }
 
@@ -171,7 +173,7 @@ internal sealed class Taskbars : IDisposable
             case WindowMessages.DisplayChange:
                 QueueRecreate();
                 break;
-            case WindowMessages.SettingChange: // theme, regional formats
+            case WindowMessages.SettingChange: // theme, accent colour, regional formats
             case WindowMessages.TimeChange:
                 QueueUpdate();
                 break;
@@ -260,6 +262,7 @@ internal sealed class Taskbars : IDisposable
             CultureInfo.CurrentCulture.ClearCachedData();
             TimeZoneInfo.ClearCachedData();
             _theme = SystemTheme.Read();
+            _accent = SystemTheme.ReadAccent();
 
             if (_recreate)
             {
@@ -270,7 +273,7 @@ internal sealed class Taskbars : IDisposable
 
             foreach (TaskbarWindow window in _windows)
             {
-                window.SetTheme(_theme);
+                window.SetTheme(_theme, _accent);
                 window.UpdateClock();
             }
         }
@@ -289,7 +292,7 @@ internal sealed class Taskbars : IDisposable
             TaskbarLayout.MonitorsWithTaskbar(DisplayMonitor.GetAll(), _windowSettings.ShowOnAllDisplays);
         foreach (DisplayMonitor monitor in monitors)
         {
-            var window = new TaskbarWindow(this, monitor, _windowSettings, _theme);
+            var window = new TaskbarWindow(this, monitor, _windowSettings, _theme, _accent);
             window.RefreshTasks();
             window.AppWindow.Show(activateWindow: false);
             _windows.Add(window);
