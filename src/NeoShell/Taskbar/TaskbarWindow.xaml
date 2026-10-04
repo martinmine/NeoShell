@@ -14,6 +14,22 @@
                     <ResourceDictionary Source="ms-appx:///FlatButtons.xaml" />
                 </ResourceDictionary.MergedDictionaries>
 
+                <!-- A jump list's category heading in a task button's menu: text only, not a command. -->
+                <Style x:Key="JumpListHeaderStyle" TargetType="MenuFlyoutItem">
+                    <Setter Property="IsEnabled" Value="False" />
+                    <Setter Property="Template">
+                        <Setter.Value>
+                            <ControlTemplate TargetType="MenuFlyoutItem">
+                                <TextBlock
+                                    Margin="12,8,12,4"
+                                    Style="{ThemeResource CaptionTextBlockStyle}"
+                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                    Text="{TemplateBinding Text}" />
+                            </ControlTemplate>
+                        </Setter.Value>
+                    </Setter>
+                </Style>
+
                 <!-- A tray icon: every mouse action goes to the icon's app. -->
                 <DataTemplate x:Key="TrayIconTemplate" x:DataType="tray:TrayIcon">
                     <Grid

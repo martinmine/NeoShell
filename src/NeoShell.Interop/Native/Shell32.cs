@@ -50,6 +50,9 @@ internal static unsafe partial class Shell32
     [LibraryImport("shell32.dll")]
     public static partial uint ILGetSize(nint idList);
 
+    [LibraryImport("shell32.dll")]
+    public static partial int SHGetIDListFromObject([MarshalAs(UnmanagedType.Interface)] Com.IShellItem item, out nint idList);
+
     public const uint SIID_LINK = 29;
     public const uint SHGSI_ICONLOCATION = 0x0;
 
@@ -105,6 +108,7 @@ internal static unsafe partial class Shell32
         public User32.POINT ptInvoke;
     }
 
+    public const uint SEE_MASK_IDLIST = 0x0000_0004;
     public const uint SEE_MASK_NOASYNC = 0x0000_0100;
     public const uint SEE_MASK_FLAG_NO_UI = 0x0000_0400;
     public const uint SEE_MASK_FLAG_LOG_USAGE = 0x0400_0000;

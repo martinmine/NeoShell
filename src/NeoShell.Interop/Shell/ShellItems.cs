@@ -12,8 +12,8 @@ namespace NeoShell.Interop.Shell;
 public static unsafe class ShellItems
 {
     private const uint SIGDN_NORMALDISPLAY = 0;
-    private const uint SIIGBF_BIGGERSIZEOK = 0x01;
-    private const uint SIIGBF_ICONONLY = 0x04;
+    internal const uint SIIGBF_BIGGERSIZEOK = 0x01;
+    internal const uint SIIGBF_ICONONLY = 0x04;
     private static readonly Guid BHID_PropertyStore = new("0384e1a4-1523-439c-a4c8-ab911052f586");
 
     // PKEY_Link_TargetParsingPath
@@ -33,11 +33,11 @@ public static unsafe class ShellItems
     public static string AppsFolderPath(string appUserModelId) => @"shell:AppsFolder\" + appUserModelId;
 
     /// <summary>The name Explorer shows for the item, or null if it doesn't exist.</summary>
-    public static string? GetDisplayName(string parsingName)
-    {
-        if (Create(parsingName) is not { } item)
-            return null;
+    public static string? GetDisplayName(string parsingName) =>
+        Create(parsingName) is { } item ? GetDisplayName(item) : null;
 
+    internal static string? GetDisplayName(IShellItem item)
+    {
         char* name;
         if (item.GetDisplayName(SIGDN_NORMALDISPLAY, &name) != 0)
             return null;
@@ -61,6 +61,24 @@ public static unsafe class ShellItems
         return factory.GetImage(new User32.SIZE { cx = size, cy = size }, SIIGBF_ICONONLY | SIIGBF_BIGGERSIZEOK, out nint bitmap) == 0
             ? IconBitmap.FromBitmap(bitmap)
             : null;
+    }
+
+    /// <summary>The item's absolute ID list as bytes, or null.</summary>
+    internal static byte[]? GetIDList(IShellItem item)
+    {
+        if (Shell32.SHGetIDListFromObject(item, out nint idList) != 0 || idList == 0)
+            return null;
+
+        try
+        {
+            byte[] bytes = new byte[Shell32.ILGetSize(idList)];
+            Marshal.Copy(idList, bytes, 0, bytes.Length);
+            return bytes;
+        }
+        finally
+        {
+            Marshal.FreeCoTaskMem(idList);
+        }
     }
 
     internal static IShellItem? Create(string parsingName)

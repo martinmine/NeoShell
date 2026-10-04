@@ -125,4 +125,4 @@ src/NeoShell/bin/Debug/net10.0-windows10.0.26100.0/win-x64/NeoShell.exe /exit   
 ## Out of scope
 
 Quick Settings, Action Center and toast notifications, Widgets, Task View, Win+X, system flyouts
-(network/volume flyouts open `ms-settings:` or NeoShell's own simple flyout instead), jump lists (for now).
+(network/volume flyouts open `ms-settings:` or NeoShell's own simple flyout instead), pinning items in jump lists.

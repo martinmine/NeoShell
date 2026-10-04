@@ -130,8 +130,10 @@ Tick items off as they land. The feature details are in [design.md](design.md).
       Recent are updated in place
 - [x] Animations: Start flies out of the taskbar and back; icons shrink while pressed (taskbar, Start and Search
       buttons, Start's pinned and recent apps) and grow while dragged
+- [x] Jump lists in the task button's menu: the app's categories, Recent/Frequent and Tasks, with icons (file format,
+      AppID hash and implicit AppIDs tested); no pinned entries
 
 ## Later / not planned yet
 
-- Jump lists
+- Jump lists: pinned entries, Pin to / Remove from this list
 - Desktop icons: moving icons to free positions, dragging files onto the desktop and its icons

@@ -14,6 +14,7 @@ using Microsoft.UI.Input;
 using Microsoft.UI.Composition;
 using Microsoft.UI.Xaml.Hosting;
 using System.Numerics;
+using NeoShell.Interop.Shell;
 using NeoShell.Interop.Tray;
 using NeoShell.Logging;
 using NeoShell.Settings;
@@ -823,19 +824,78 @@ internal sealed partial class TaskbarWindow : Window
 
         _thumbnails.Hide();
         menu.Items.Clear();
-        menu.Items.Add(MenuItem(button.App.DisplayName, "î¢§", "TaskLaunchMenuItem", () => Launcher.Launch(button.App)));
+        AddJumpList(menu, button.App);
+        menu.Items.Add(MenuItem(button.App.DisplayName, "", "TaskLaunchMenuItem", () => Launcher.Launch(button.App)));
         menu.Items.Add(button.Pinned is { } pinned
-            ? MenuItem("Unpin from taskbar", "îº", "TaskUnpinMenuItem", () => _owner.Unpin(pinned))
-            : MenuItem("Pin to taskbar", "îœ˜", "TaskPinMenuItem", () => _owner.Pin(button.App)));
+            ? MenuItem("Unpin from taskbar", "", "TaskUnpinMenuItem", () => _owner.Unpin(pinned))
+            : MenuItem("Pin to taskbar", "", "TaskPinMenuItem", () => _owner.Pin(button.App)));
         if (button.Windows.Count > 0)
         {
             IReadOnlyList<WindowInfo> windows = button.Windows;
             menu.Items.Add(new MenuFlyoutSeparator());
-            menu.Items.Add(MenuItem(windows.Count == 1 ? "Close window" : "Close all windows", "îœ‘", "TaskCloseMenuItem", () =>
+            menu.Items.Add(MenuItem(windows.Count == 1 ? "Close window" : "Close all windows", "", "TaskCloseMenuItem", () =>
             {
                 foreach (WindowInfo window in windows)
                     TopLevelWindows.Close(window.Handle);
             }));
+        }
+    }
+
+    // The app's jump list above the button's own items, as in Windows: its categories (Recent, the app's own), then
+    // its tasks. Read each time the menu opens: apps change them whenever they like.
+    private void AddJumpList(MenuFlyout menu, PinnedApp app)
+    {
+        string? appId = app.AppUserModelId ?? (app.Path is { } path ? JumpLists.ImplicitAppId(path) : null);
+        if (appId is null)
+            return;
+
+        IReadOnlyList<JumpListCategory> categories;
+        try
+        {
+            categories = JumpLists.Load(appId);
+        }
+        catch (Exception ex)
+        {
+            Log.Warn($"Could not read the jump list of {appId}", ex);
+            return;
+        }
+
+        var headerStyle = (Style)Root.Resources["JumpListHeaderStyle"];
+        int iconSize = (int)Math.Round(16 * Root.XamlRoot.RasterizationScale);
+        foreach (JumpListCategory category in categories)
+        {
+            var header = new MenuFlyoutItem { Text = category.Title, Style = headerStyle };
+            AutomationProperties.SetAutomationId(header, "JumpListHeader");
+            menu.Items.Add(header);
+            foreach (JumpListItem item in category.Items)
+            {
+                if (item.Kind == JumpListItemKind.Separator)
+                {
+                    menu.Items.Add(new MenuFlyoutSeparator());
+                    continue;
+                }
+
+                var icon = new ImageIcon();
+                var entry = new MenuFlyoutItem { Text = item.Title, Icon = icon };
+                AutomationProperties.SetAutomationId(entry, "JumpListItem");
+                entry.Click += (_, _) => OpenJumpListItem(item);
+                menu.Items.Add(entry);
+                AppIcons.Load(() => JumpLists.GetIcon(item, iconSize), source => icon.Source = source);
+            }
+        }
+        if (categories.Count > 0)
+            menu.Items.Add(new MenuFlyoutSeparator());
+    }
+
+    private void OpenJumpListItem(JumpListItem item)
+    {
+        try
+        {
+            JumpLists.Open(item, _hwnd);
+        }
+        catch (Exception ex)
+        {
+            Log.Warn($"Could not open the jump list item {item.Title}", ex);
         }
     }
 

@@ -12,7 +12,7 @@ coding rules are in [CLAUDE.md](../CLAUDE.md).
 - A Start menu with search (apps + Windows Search Indexer), Settings, power options (Lock, Sign out, Sleep,
   Restart, Shut down) and a button to switch back to `explorer.exe`.
 
-Out of scope: Quick Settings, Action Center/toasts, Widgets, Task View, Win+X, jump lists (for now).
+Out of scope: Quick Settings, Action Center/toasts, Widgets, Task View, Win+X, pinning items in jump lists.
 
 ## Technical decisions
 
@@ -264,7 +264,8 @@ Shell mode only, like the wallpaper: alongside Explorer, Explorer's desktop has 
 - No tooltip: hovering shows the thumbnails instead.
 - Middle click or Shift+click: launch a new instance. Shift is read with `GetAsyncKeyState`: the taskbar never has
   focus, so its thread's key state doesn't see it.
-- Right click menu: app name (launch), Pin to taskbar / Unpin, Close window / Close all windows (`SC_CLOSE`).
+- Right click menu: the app's jump list (below), then app name (launch), Pin to taskbar / Unpin, Close window / Close
+  all windows (`SC_CLOSE`).
 - Pressed, the icon shrinks to 0.8 (only the icon, as in Explorer); dragged, it grows to 1.2 and loses its plate and
   pill (`IconPress`, a `ScaleTransition` on the icon). The Start and Search buttons' icons shrink too.
 - Drag to reorder (by hand, `TaskReorder`: the button slides along the row and its neighbours make way). The order
@@ -287,6 +288,33 @@ Shell mode only, like the wallpaper: alongside Explorer, Explorer's desktop has 
 - UWP (CoreWindow) apps, Settings and Calculator among them, can't show in shell mode: their windows stay cloaked
   without Explorer's view management, and activation fails. Packaged desktop apps (Notepad, Terminal) work.
 - Pinning from the Start menu and from a task button's context menu.
+
+### Jump lists
+
+The app's jump list heads the button's menu, read each time it opens (`JumpLists`, Interop): the app's own
+categories and Recent or Frequent, in the app's order, then its Tasks. Headings are text-only menu items; entries
+have their icons (loaded in the background) and open on click.
+
+- **AppID**: the button's AppUserModelID, or for an app without one the implicit AppID Windows gives it: its path
+  starting with a known folder's GUID where it can (`{1AC14E77-…}\notepad.exe`), as in `shell:AppsFolder` (tested).
+- **The app's list** (`ICustomDestinationList`) can't be read back through any API. Windows keeps it in
+  `%APPDATA%\Microsoft\Windows\Recent\CustomDestinations\<name>.customDestinations-ms`, where the name is a CRC-64 of the
+  AppID in capitals as UTF-16 (polynomial 0x92C64265D32139A4, reflected, starting from all ones; hex without leading
+  zeros; tested against Windows' own file names). `CustomDestinations` (tested) reads it: version 2, the category
+  count; per category its kind (custom with a title, known with Frequent 1 / Recent 2, or tasks), the entries and a
+  0xBABFFBAB footer. An entry is a CLSID and the object's persisted data, in practice a shell link; a link's data
+  carries no length, so it's measured from its structure ([MS-SHLLINK]) and then loaded into the shell's own
+  `ShellLink` with `IPersistStream::Load` (from `SHCreateMemStream`).
+- An entry's title is the link's `System.Title`, else its description, resolved with `SHLoadIndirectString` when it's
+  a resource reference (`@shell32.dll,-21817`); `System.AppUserModel.IsDestListSeparator` links are separators.
+- **Known categories** come from `IApplicationDocumentLists` (Recent or Frequent, at most 10, as Explorer). An app
+  without a list of its own gets Recent.
+- **Opening**: a link through its own `IContextMenu` default command, which keeps its arguments, working directory and
+  a packaged app's identity, as Explorer does; a recent file with `ShellExecuteEx` on its ID list (the default verb,
+  which may not be the app the list belongs to).
+- Icons: a link's icon location (`SHDefExtractIcon`), else its target's icon; `ms-appx:` icons of packaged apps
+  aren't read, so those entries show the target's.
+- Pinned entries (kept in `AutomaticDestinations`) aren't shown, and entries can't be pinned or removed.
 
 ### Thumbnails
 
