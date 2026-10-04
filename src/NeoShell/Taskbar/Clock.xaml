@@ -11,17 +11,17 @@
         Height="40"
         Padding="8,0"
         CornerRadius="4"
-        BorderThickness="0">
-        <Button.Flyout>
-            <!-- Unconstrained: the taskbar window is only as tall as the taskbar. -->
-            <Flyout Placement="TopEdgeAlignedRight" ShouldConstrainToRootBounds="False" Opening="CalendarFlyout_Opening">
+        BorderThickness="0"
+        Click="ClockButton_Click">
+        <FlyoutBase.AttachedFlyout>
+            <Flyout x:Name="CalendarFlyout" Opening="CalendarFlyout_Opening">
                 <CalendarView
                     x:Name="Calendar"
                     AutomationProperties.AutomationId="Calendar"
                     SelectionMode="None"
                     IsTodayHighlighted="True" />
             </Flyout>
-        </Button.Flyout>
+        </FlyoutBase.AttachedFlyout>
         <StackPanel VerticalAlignment="Center">
             <TextBlock x:Name="TimeText" HorizontalAlignment="Right" FontSize="12" />
             <TextBlock x:Name="DateText" HorizontalAlignment="Right" FontSize="12" />

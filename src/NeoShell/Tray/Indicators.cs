@@ -100,6 +100,38 @@ internal sealed class Indicators : IDisposable
         }
     }
 
+    /// <summary>The spatial sound formats the default output offers (Off first) and the one in use; none when unknown.</summary>
+    public (IReadOnlyList<SpatialFormat> Formats, string Current) SpatialFormats()
+    {
+        if (_audio is null)
+            return ([], "");
+
+        try
+        {
+            return SpatialSound.ForDefaultOutput();
+        }
+        catch (Exception ex)
+        {
+            Log.Warn("Could not read the spatial sound formats", ex);
+            return ([], "");
+        }
+    }
+
+    public async Task SetSpatialFormat(SpatialFormat format)
+    {
+        try
+        {
+            if (await SpatialSound.SetAsync(format))
+                Log.Info($"Spatial sound: {format.Name}");
+            else
+                Log.Warn($"Windows refused spatial sound {format.Name}");
+        }
+        catch (Exception ex)
+        {
+            Log.Warn($"Could not set spatial sound {format.Name}", ex);
+        }
+    }
+
     /// <summary>The apps playing on the default output, for the mixer: read fresh each time.</summary>
     public IReadOnlyList<AudioApp> MixerApps() => _mixer?.Apps() ?? [];
 

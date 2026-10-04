@@ -210,7 +210,22 @@ Shell mode only, like the wallpaper: alongside Explorer, Explorer's desktop has 
 - "Show accent color on Start and taskbar" (`Personalize\ColorPrevalence`): the acrylic of the taskbar and Start is
   tinted with the second darker shade of `HKCU\...\Explorer\Accent\AccentPalette`, as Explorer does, and their
   text is light or dark by that colour's brightness. Re-read on `WM_SETTINGCHANGE` with the theme.
-- Flyouts and menus set `ShouldConstrainToRootBounds="False"`: the window is only as tall as the taskbar.
+- Flyouts and menus (`TaskbarFlyouts`) open as in Windows 11: above the taskbar with a 12 epx gap, sliding up from
+  behind it. A task button's menu (the jump list) is centred on the button, the taskbar's menu above the pointer, the
+  overflow above the chevron, the volume flyout and the calendar at the right of the screen, 12 epx from its edge.
+  Each is opened by hand (`ShowAt` with a position on the taskbar's top edge; the 12 epx gap is the presenter's
+  bottom margin): context menus by handling `ContextRequested` (a `ContextFlyout` would be opened by WinUI itself, at
+  the pointer, before any handler runs), button flyouts as attached flyouts opened on `Click`. WinUI's Top placement
+  puts the flyout's edge, not its middle, at the point given, and the width is only known once it's open, so a
+  centred flyout opens hidden and is shown again, moved by half its width (kept 12 epx from the screen's edges).
+- They're unconstrained (`ShouldConstrainToRootBounds="False"`, the window is only as tall as the taskbar), so each
+  popup is a window of its own (`PopupWindows`, class `Microsoft.UI.Content.PopupWindowSiteBridge`), owned by the
+  taskbar and so always in front of it, and its acrylic belongs to that window. To come out from behind the taskbar
+  anyway, WinUI's own open animation is off and the popup window itself slides up from the taskbar's edge (200 ms,
+  frame by frame) under a window region that cuts off what's still below the edge. When `Opened` comes, the window
+  may not exist yet or be in place: WinUI keeps a flyout's window between openings, so it's remembered per flyout;
+  on the first opening it's the taskbar's popup window no other flyout has. It's hidden (an empty region) at once,
+  and slides once it's shown where the flyout belongs.
 - Show desktop minimizes every minimizable window of other processes (`SW_SHOWMINNOACTIVE`) and the next click
   restores those still minimized; Explorer's own toggle isn't available as the shell.
 
@@ -322,6 +337,9 @@ have their icons (loaded in the background) and open on click.
   popup's HWND, `DwmUpdateThumbnailProperties` to place each one over a XAML placeholder), title and close button.
   It closes 400 ms after the pointer leaves both the button and the popup; once open, it follows the pointer along
   the taskbar.
+- The popup slides up out of the taskbar (200 ms) and back into it on closing, and slides sideways to the next button
+  (`WindowSlide`, as Start): it's the window that moves, since DWM draws the thumbnails into the window. It sits
+  just below the taskbar in the topmost band (`PinnedWindow.SetLayer(Topmost, above)`), so the taskbar covers it.
 - Hovering a thumbnail could later add aero peek; not planned.
 
 ### Progress, overlay badges
@@ -407,16 +425,28 @@ Exit NeoShell (alongside Explorer only).
   (`AudioEndpoint`).
 - `IMMNotificationClient` to follow default-device changes.
 - Icon reflects mute and level (0 / low / medium / high glyphs). Mouse wheel changes volume in 2% steps.
-- Click opens NeoShell's own flyout: the output device, slider, mute toggle, volume mixer, link to `ms-settings:sound`
-  (shell mode: `mmsys.cpl`). Moving a slider up unmutes, as Windows' own sliders do.
-- **Output device**: the device's name is a button opening the list of enabled outputs (`AudioDevices`, the default
-  selected); choosing one makes it the default for all three roles (console, multimedia, communications), as the
-  Sound control panel does. There's no public API for that: it's the undocumented `IPolicyConfig::SetDefaultEndpoint`
-  (`PolicyConfigClient`), unchanged since Windows 7 and what volume tools use. The volume then follows the new device.
+- Click opens NeoShell's own flyout, laid out as Quick Settings' volume: a mute button, the slider, and a button
+  (speaker with sliders, chevron) to the **Sound output** page, which slides in from the right; its back button
+  slides the volume back in. Moving a slider up unmutes, as Windows' own sliders do. Letting go of the slider (or
+  each keyboard step) plays the default beep as a system sound (`PlaySound` with `SND_SYSTEM`, so it goes to the
+  System Sounds session), as Windows does to let the new volume be heard.
+- The Sound output page, as Windows': header with back button and the Win+Ctrl+V shortcut (registered in shell mode
+  to open this page), Output device, Spatial sound, Volume mixer with a settings button, and More volume settings
+  (`ms-settings:sound`; shell mode `mmsys.cpl`) at the bottom. Read only while it's shown.
+- **Output device**: the enabled outputs (`AudioDevices`, the default selected); choosing one makes it the default
+  for all three roles (console, multimedia, communications), as the Sound control panel does. There's no public API
+  for that: it's the undocumented `IPolicyConfig::SetDefaultEndpoint` (`PolicyConfigClient`), unchanged since
+  Windows 7 and what volume tools use. The volume then follows the new device.
+- **Spatial sound** (`SpatialSound`, WinRT `SpatialAudioDeviceConfiguration` for the default output): Off (the empty
+  GUID) and Windows Sonic for Headphones when supported, set with `SetDefaultSpatialAudioFormatAsync`. Dolby Atmos
+  and DTS report themselves supported but need their apps and licences, which Windows' page checks; they aren't
+  offered. Hidden when the output has no spatial sound.
 - **Volume mixer** (`AudioMixer`): the default output's audio sessions that haven't expired (`IAudioSessionManager2`),
-  one row per app as Windows' mixer groups them (packaged app, else executable; the system sounds), each with icon,
-  name, slider and mute (`ISimpleAudioVolume` on all its sessions; the slider shows the loudest). Names: the
-  session's display name (resource references resolved), else the packaged app's or the executable's description.
+  one row per app as Windows' mixer groups them (packaged app, else executable; the system sounds, whose session
+  answers `GetProcessId` with the success code `AUDCLNT_S_NO_SINGLE_PROCESS`), each an icon that mutes it and a
+  slider (`ISimpleAudioVolume` on all its sessions; the slider shows the loudest); the name is the icon's tooltip.
+  Names: the session's display name (resource references resolved), else the packaged app's or the executable's
+  description.
   New sessions, state changes and volume changes made elsewhere (`IAudioSessionEvents`) refresh the rows in place;
   NeoShell's own changes carry an event context GUID and aren't reported back. Read only while the flyout is open.
 - Right-click menu on the icon, as Explorer's: Open volume mixer (`ms-settings:apps-volume`; shell mode the classic
@@ -449,7 +479,7 @@ Exit NeoShell (alongside Explorer only).
   `SetForegroundWindow` (allowed: the click or key was the last input). On closing it hands the foreground back to
   that app; otherwise Windows picks the next window in z-order, which can be Explorer's invisible Start/search host.
 - Flies out of the taskbar (250 ms, decelerating) and back into it on closing (150 ms, accelerating), as in Windows 11.
-  The window itself moves, frame by frame (`CompositionTarget.Rendering`): the acrylic belongs to the window, so
+  The window itself moves, frame by frame (`WindowSlide`, on `CompositionTarget.Rendering`): the acrylic belongs to the window, so
   sliding the content would leave an empty acrylic panel standing still. It sits just below the taskbar that opened it
   in the topmost band (`PinnedWindow.SetLayer(Topmost, above)`), so the taskbar covers it on the way. What it shows is
   reset (search, All apps, scroll) once it's out of sight; opened again while closing, it turns back from where it is.

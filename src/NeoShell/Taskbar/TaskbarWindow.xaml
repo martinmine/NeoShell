@@ -7,7 +7,7 @@
     xmlns:tray="using:NeoShell.Tray">
 
     <!-- Transparent, not null: the background must take right-clicks for the context menu. -->
-    <Grid x:Name="Root" Background="Transparent">
+    <Grid x:Name="Root" Background="Transparent" ContextRequested="Root_ContextRequested">
         <Grid.Resources>
             <ResourceDictionary>
                 <ResourceDictionary.MergedDictionaries>
@@ -28,6 +28,17 @@
                             </ControlTemplate>
                         </Setter.Value>
                     </Setter>
+                </Style>
+
+                <!-- A key in a keyboard shortcut. -->
+                <Style x:Key="KeyCapStyle" TargetType="Border">
+                    <Setter Property="MinWidth" Value="20" />
+                    <Setter Property="Height" Value="20" />
+                    <Setter Property="Padding" Value="4,0" />
+                    <Setter Property="CornerRadius" Value="4" />
+                    <Setter Property="BorderThickness" Value="1" />
+                    <Setter Property="BorderBrush" Value="{ThemeResource ControlStrokeColorDefaultBrush}" />
+                    <Setter Property="Background" Value="{ThemeResource ControlFillColorDefaultBrush}" />
                 </Style>
 
                 <!-- A tray icon: every mouse action goes to the icon's app. -->
@@ -149,10 +160,12 @@
                             AutomationProperties.Name="{x:Bind Title, Mode=OneWay}"
                             PointerPressed="TaskItem_PointerPressed"
                             PointerEntered="TaskItem_PointerEntered"
-                            PointerExited="TaskItem_PointerExited">
-                            <Grid.ContextFlyout>
-                                <MenuFlyout ShouldConstrainToRootBounds="False" Opening="TaskMenu_Opening" />
-                            </Grid.ContextFlyout>
+                            PointerExited="TaskItem_PointerExited"
+                            ContextRequested="TaskItem_ContextRequested">
+                            <!-- Not a ContextFlyout: WinUI would open that at the pointer itself (TaskItem_ContextRequested). -->
+                            <FlyoutBase.AttachedFlyout>
+                                <MenuFlyout Opening="TaskMenu_Opening" />
+                            </FlyoutBase.AttachedFlyout>
                             <!-- Plates as in Explorer: 40x40 behind the active app, lighter while hovered; with several
                                  windows, the edge of a second card shows on the right. -->
                             <Grid Margin="2,4" ColumnSpacing="2" Visibility="{x:Bind ActiveVisibility, Mode=OneWay}">
@@ -249,10 +262,11 @@
                     AutomationProperties.Name="Show hidden icons"
                     ToolTipService.ToolTip="Show hidden icons"
                     Width="32"
-                    Style="{StaticResource FlatButtonStyle}">
+                    Style="{StaticResource FlatButtonStyle}"
+                    Click="OverflowButton_Click">
                     <FontIcon Glyph="&#xE70E;" FontSize="12" />
-                    <Button.Flyout>
-                        <Flyout x:Name="OverflowFlyout" Placement="Top" ShouldConstrainToRootBounds="False">
+                    <FlyoutBase.AttachedFlyout>
+                        <Flyout x:Name="OverflowFlyout">
                             <ItemsControl x:Name="OverflowIcons" ItemTemplate="{StaticResource TrayIconTemplate}" MaxWidth="140">
                                 <ItemsControl.ItemsPanel>
                                     <ItemsPanelTemplate>
@@ -261,7 +275,7 @@
                                 </ItemsControl.ItemsPanel>
                             </ItemsControl>
                         </Flyout>
-                    </Button.Flyout>
+                    </FlyoutBase.AttachedFlyout>
                 </Button>
                 <ItemsControl x:Name="TrayIcons" ItemTemplate="{StaticResource TrayIconTemplate}">
                     <ItemsControl.ItemsPanel>
@@ -295,11 +309,13 @@
                     AutomationProperties.AutomationId="VolumeIndicator"
                     Width="32"
                     Style="{StaticResource FlatButtonStyle}"
+                    Click="VolumeButton_Click"
+                    ContextRequested="VolumeButton_ContextRequested"
                     PointerWheelChanged="Volume_PointerWheelChanged">
-                    <FontIcon x:Name="VolumeIcon" FontSize="16" />
-                    <!-- Explorer's menu on the speaker icon. -->
-                    <Button.ContextFlyout>
-                        <MenuFlyout ShouldConstrainToRootBounds="False">
+                    <!-- Explorer's menu on the speaker icon, attached to the icon: the button's is the volume flyout. -->
+                    <FontIcon x:Name="VolumeIcon" FontSize="16">
+                        <FlyoutBase.AttachedFlyout>
+                            <MenuFlyout x:Name="VolumeMenu">
                             <MenuFlyoutItem
                                 AutomationProperties.AutomationId="VolumeMixerMenuItem"
                                 Text="Open volume mixer"
@@ -308,48 +324,20 @@
                                 AutomationProperties.AutomationId="SoundSettingsMenuItem"
                                 Text="Sound settings"
                                 Click="SoundSettings_Click" />
-                        </MenuFlyout>
-                    </Button.ContextFlyout>
-                    <Button.Flyout>
-                        <Flyout
-                            x:Name="VolumeFlyout"
-                            Placement="TopEdgeAlignedRight"
-                            ShouldConstrainToRootBounds="False"
-                            Opening="VolumeFlyout_Opening"
-                            Closed="VolumeFlyout_Closed">
-                            <StackPanel Width="320" Spacing="8">
-                                <!-- The output Windows plays through; opens the list of outputs to choose another. -->
-                                <Button
-                                    x:Name="OutputButton"
-                                    AutomationProperties.AutomationId="OutputDeviceButton"
-                                    HorizontalAlignment="Stretch"
-                                    HorizontalContentAlignment="Stretch"
-                                    Click="OutputButton_Click">
-                                    <Grid ColumnSpacing="8">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="Auto" />
-                                            <ColumnDefinition />
-                                            <ColumnDefinition Width="Auto" />
-                                        </Grid.ColumnDefinitions>
-                                        <FontIcon Glyph="&#xE7F5;" FontSize="16" />
-                                        <TextBlock
-                                            x:Name="VolumeDeviceName"
-                                            Grid.Column="1"
-                                            Style="{ThemeResource BodyStrongTextBlockStyle}"
-                                            TextTrimming="CharacterEllipsis"
-                                            TextWrapping="NoWrap" />
-                                        <FontIcon x:Name="OutputChevron" Grid.Column="2" Glyph="&#xE70D;" FontSize="12" />
-                                    </Grid>
-                                </Button>
-                                <ListView
-                                    x:Name="OutputDevices"
-                                    AutomationProperties.AutomationId="OutputDeviceList"
-                                    AutomationProperties.Name="Sound output"
-                                    MaxHeight="200"
-                                    SelectionMode="Single"
-                                    Visibility="Collapsed"
-                                    SelectionChanged="OutputDevices_SelectionChanged" />
-                                <Grid ColumnSpacing="8">
+                            </MenuFlyout>
+                        </FlyoutBase.AttachedFlyout>
+                    </FontIcon>
+                    <!-- As Quick Settings' volume: the slider, and behind its button the Sound output page. -->
+                    <FlyoutBase.AttachedFlyout>
+                        <Flyout x:Name="VolumeFlyout" Opening="VolumeFlyout_Opening" Closed="VolumeFlyout_Closed">
+                            <Flyout.FlyoutPresenterStyle>
+                                <Style TargetType="FlyoutPresenter" BasedOn="{StaticResource DefaultFlyoutPresenterStyle}">
+                                    <Setter Property="Padding" Value="0" />
+                                    <Setter Property="MaxWidth" Value="400" />
+                                </Style>
+                            </Flyout.FlyoutPresenterStyle>
+                            <Grid Width="360">
+                                <Grid x:Name="VolumePage" Padding="12,16" ColumnSpacing="4">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="Auto" />
                                         <ColumnDefinition />
@@ -358,15 +346,14 @@
                                     <Button
                                         x:Name="MuteButton"
                                         AutomationProperties.AutomationId="MuteButton"
-                                        Width="40"
-                                        Height="40"
-                                        Padding="0"
+                                        Style="{StaticResource FlatButtonStyle}"
                                         Click="Mute_Click">
                                         <FontIcon x:Name="MuteIcon" FontSize="16" />
                                     </Button>
                                     <Slider
                                         x:Name="VolumeSlider"
                                         Grid.Column="1"
+                                        Margin="4,0"
                                         AutomationProperties.AutomationId="VolumeSlider"
                                         AutomationProperties.Name="Volume"
                                         Minimum="0"
@@ -374,85 +361,178 @@
                                         StepFrequency="1"
                                         VerticalAlignment="Center"
                                         ValueChanged="VolumeSlider_ValueChanged" />
-                                    <TextBlock x:Name="VolumeText" Grid.Column="2" Width="32" VerticalAlignment="Center" TextAlignment="Right" />
+                                    <Button
+                                        x:Name="SoundOutputButton"
+                                        Grid.Column="2"
+                                        AutomationProperties.AutomationId="SoundOutputButton"
+                                        AutomationProperties.Name="Select a sound output"
+                                        ToolTipService.ToolTip="Select a sound output"
+                                        Style="{StaticResource FlatButtonStyle}"
+                                        Width="Auto"
+                                        Padding="8,0"
+                                        Click="SoundOutputButton_Click">
+                                        <StackPanel Orientation="Horizontal" Spacing="6">
+                                            <FontIcon Glyph="&#xF4C3;" FontSize="16" />
+                                            <FontIcon Glyph="&#xE76C;" FontSize="10" />
+                                        </StackPanel>
+                                    </Button>
                                 </Grid>
-                                <!-- Each app playing sound, as in the Volume Mixer: a click on the icon mutes it. -->
-                                <StackPanel x:Name="MixerSection" Visibility="Collapsed">
-                                    <TextBlock
-                                        Margin="0,8,0,4"
-                                        Style="{ThemeResource CaptionTextBlockStyle}"
-                                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                        Text="Volume mixer" />
-                                    <ScrollViewer MaxHeight="280" VerticalScrollBarVisibility="Auto">
-                                        <ItemsControl
-                                            x:Name="MixerList"
-                                            AutomationProperties.AutomationId="VolumeMixer"
-                                            AutomationProperties.Name="Volume mixer">
-                                            <ItemsControl.ItemTemplate>
-                                                <DataTemplate x:DataType="tray:MixerApp">
-                                                    <Grid ColumnSpacing="8" AutomationProperties.Name="{x:Bind Name, Mode=OneWay}">
-                                                        <Grid.ColumnDefinitions>
-                                                            <ColumnDefinition Width="Auto" />
-                                                            <ColumnDefinition />
-                                                            <ColumnDefinition Width="Auto" />
-                                                        </Grid.ColumnDefinitions>
-                                                        <Button
-                                                            Width="40"
-                                                            Height="40"
-                                                            Padding="0"
-                                                            VerticalAlignment="Bottom"
-                                                            Background="Transparent"
-                                                            BorderThickness="0"
-                                                            AutomationProperties.AutomationId="MixerMuteButton"
-                                                            AutomationProperties.Name="{x:Bind MuteName, Mode=OneWay}"
-                                                            Click="MixerMute_Click">
-                                                            <Grid Width="24" Height="24">
-                                                                <Image Source="{x:Bind Icon, Mode=OneWay}" Visibility="{x:Bind IconVisibility, Mode=OneWay}" />
-                                                                <FontIcon Glyph="&#xE7F5;" FontSize="16" Visibility="{x:Bind GlyphVisibility, Mode=OneWay}" />
-                                                                <!-- Muted: a crossed-out speaker over the icon's corner. -->
-                                                                <Border
-                                                                    Margin="0,0,-4,-4"
-                                                                    Padding="1"
-                                                                    HorizontalAlignment="Right"
-                                                                    VerticalAlignment="Bottom"
-                                                                    CornerRadius="4"
-                                                                    Background="{ThemeResource SolidBackgroundFillColorBaseBrush}"
-                                                                    Visibility="{x:Bind MutedVisibility, Mode=OneWay}">
-                                                                    <FontIcon Glyph="&#xE74F;" FontSize="10" />
-                                                                </Border>
-                                                            </Grid>
-                                                        </Button>
-                                                        <StackPanel Grid.Column="1">
-                                                            <TextBlock FontSize="12" TextTrimming="CharacterEllipsis" Text="{x:Bind Name, Mode=OneWay}" />
+
+                                <Grid x:Name="SoundOutputPage" Visibility="Collapsed">
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+                                    <StackPanel Padding="8,8,12,4" Orientation="Horizontal" Spacing="8">
+                                        <Button
+                                            AutomationProperties.AutomationId="SoundOutputBackButton"
+                                            AutomationProperties.Name="Back"
+                                            Style="{StaticResource FlatButtonStyle}"
+                                            Width="32"
+                                            Height="32"
+                                            Click="SoundOutputBack_Click">
+                                            <FontIcon Glyph="&#xE72B;" FontSize="14" />
+                                        </Button>
+                                        <TextBlock VerticalAlignment="Center" Text="Sound output" />
+                                        <!-- The shortcut that opens this page: Win+Ctrl+V. -->
+                                        <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                                            <Border Style="{StaticResource KeyCapStyle}">
+                                                <!-- The Windows key's logo: four squares, as on the Start button. -->
+                                                <Grid Width="9" Height="9" ColumnSpacing="1" RowSpacing="1" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                    <Grid.RowDefinitions>
+                                                        <RowDefinition />
+                                                        <RowDefinition />
+                                                    </Grid.RowDefinitions>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition />
+                                                        <ColumnDefinition />
+                                                    </Grid.ColumnDefinitions>
+                                                    <Rectangle Grid.Row="0" Grid.Column="0" Fill="{ThemeResource TextFillColorPrimaryBrush}" />
+                                                    <Rectangle Grid.Row="0" Grid.Column="1" Fill="{ThemeResource TextFillColorPrimaryBrush}" />
+                                                    <Rectangle Grid.Row="1" Grid.Column="0" Fill="{ThemeResource TextFillColorPrimaryBrush}" />
+                                                    <Rectangle Grid.Row="1" Grid.Column="1" Fill="{ThemeResource TextFillColorPrimaryBrush}" />
+                                                </Grid>
+                                            </Border>
+                                            <Border Style="{StaticResource KeyCapStyle}">
+                                                <TextBlock FontSize="10" Text="CTRL" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                            </Border>
+                                            <Border Style="{StaticResource KeyCapStyle}">
+                                                <TextBlock FontSize="10" Text="V" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                            </Border>
+                                        </StackPanel>
+                                    </StackPanel>
+                                    <ScrollViewer Grid.Row="1" MaxHeight="440" Padding="12,0,12,8" VerticalScrollBarVisibility="Auto">
+                                        <StackPanel>
+                                            <TextBlock Margin="4,8,0,8" Style="{ThemeResource BodyStrongTextBlockStyle}" Text="Output device" />
+                                            <ListView
+                                                x:Name="OutputDevices"
+                                                AutomationProperties.AutomationId="OutputDeviceList"
+                                                AutomationProperties.Name="Output device"
+                                                SelectionMode="Single"
+                                                SelectionChanged="OutputDevices_SelectionChanged" />
+                                            <StackPanel x:Name="SpatialSection">
+                                                <Rectangle Height="1" Margin="0,8" Fill="{ThemeResource DividerStrokeColorDefaultBrush}" />
+                                                <TextBlock Margin="4,8,0,8" Style="{ThemeResource BodyStrongTextBlockStyle}" Text="Spatial sound" />
+                                                <ListView
+                                                    x:Name="SpatialFormats"
+                                                    AutomationProperties.AutomationId="SpatialSoundList"
+                                                    AutomationProperties.Name="Spatial sound"
+                                                    SelectionMode="Single"
+                                                    SelectionChanged="SpatialFormats_SelectionChanged" />
+                                            </StackPanel>
+                                            <Rectangle Height="1" Margin="0,8" Fill="{ThemeResource DividerStrokeColorDefaultBrush}" />
+                                            <Grid Margin="4,4,0,4">
+                                                <TextBlock VerticalAlignment="Center" Style="{ThemeResource BodyStrongTextBlockStyle}" Text="Volume mixer" />
+                                                <Button
+                                                    HorizontalAlignment="Right"
+                                                    AutomationProperties.AutomationId="VolumeMixerSettingsButton"
+                                                    AutomationProperties.Name="Volume mixer settings"
+                                                    ToolTipService.ToolTip="Volume mixer settings"
+                                                    Style="{StaticResource FlatButtonStyle}"
+                                                    Width="32"
+                                                    Height="32"
+                                                    Click="OpenVolumeMixer_Click">
+                                                    <FontIcon Glyph="&#xE713;" FontSize="14" />
+                                                </Button>
+                                            </Grid>
+                                            <!-- Each app playing sound: its icon mutes it, the slider sets its volume. -->
+                                            <ItemsControl
+                                                x:Name="MixerList"
+                                                AutomationProperties.AutomationId="VolumeMixer"
+                                                AutomationProperties.Name="Volume mixer">
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate x:DataType="tray:MixerApp">
+                                                        <Grid ColumnSpacing="4" AutomationProperties.Name="{x:Bind Name, Mode=OneWay}">
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="Auto" />
+                                                                <ColumnDefinition />
+                                                            </Grid.ColumnDefinitions>
+                                                            <Button
+                                                                Width="40"
+                                                                Height="40"
+                                                                Padding="0"
+                                                                Background="Transparent"
+                                                                BorderThickness="0"
+                                                                AutomationProperties.AutomationId="MixerMuteButton"
+                                                                AutomationProperties.Name="{x:Bind MuteName, Mode=OneWay}"
+                                                                ToolTipService.ToolTip="{x:Bind Name, Mode=OneWay}"
+                                                                Click="MixerMute_Click">
+                                                                <Grid Width="20" Height="20">
+                                                                    <Image Source="{x:Bind Icon, Mode=OneWay}" Visibility="{x:Bind IconVisibility, Mode=OneWay}" />
+                                                                    <FontIcon Glyph="&#xE7F5;" FontSize="16" Visibility="{x:Bind GlyphVisibility, Mode=OneWay}" />
+                                                                    <!-- Muted: a crossed-out speaker over the icon's corner. -->
+                                                                    <Border
+                                                                        Margin="0,0,-5,-5"
+                                                                        Padding="1"
+                                                                        HorizontalAlignment="Right"
+                                                                        VerticalAlignment="Bottom"
+                                                                        CornerRadius="4"
+                                                                        Background="{ThemeResource SolidBackgroundFillColorBaseBrush}"
+                                                                        Visibility="{x:Bind MutedVisibility, Mode=OneWay}">
+                                                                        <FontIcon Glyph="&#xE74F;" FontSize="9" />
+                                                                    </Border>
+                                                                </Grid>
+                                                            </Button>
                                                             <Slider
+                                                                Grid.Column="1"
+                                                                Margin="4,0"
+                                                                VerticalAlignment="Center"
                                                                 AutomationProperties.AutomationId="MixerSlider"
                                                                 AutomationProperties.Name="{x:Bind Name, Mode=OneWay}"
                                                                 Minimum="0"
                                                                 Maximum="100"
                                                                 StepFrequency="1"
                                                                 Value="{x:Bind Volume, Mode=TwoWay}" />
-                                                        </StackPanel>
-                                                        <TextBlock
-                                                            Grid.Column="2"
-                                                            Width="32"
-                                                            Margin="0,16,0,0"
-                                                            VerticalAlignment="Center"
-                                                            TextAlignment="Right"
-                                                            Text="{x:Bind VolumePercent, Mode=OneWay}" />
-                                                    </Grid>
-                                                </DataTemplate>
-                                            </ItemsControl.ItemTemplate>
-                                        </ItemsControl>
+                                                        </Grid>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                            <TextBlock
+                                                x:Name="NoMixerAppsText"
+                                                Margin="4,4,0,8"
+                                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                                Text="No apps are playing sound" />
+                                        </StackPanel>
                                     </ScrollViewer>
-                                </StackPanel>
-                                <HyperlinkButton
-                                    AutomationProperties.AutomationId="SoundSettingsLink"
-                                    Padding="0"
-                                    Content="Sound settings"
-                                    Click="SoundSettings_Click" />
-                            </StackPanel>
+                                    <Border
+                                        Grid.Row="2"
+                                        Padding="8,6"
+                                        Background="{ThemeResource LayerOnAcrylicFillColorDefaultBrush}"
+                                        BorderBrush="{ThemeResource DividerStrokeColorDefaultBrush}"
+                                        BorderThickness="0,1,0,0">
+                                        <Button
+                                            AutomationProperties.AutomationId="MoreVolumeSettingsButton"
+                                            Padding="8,6"
+                                            Background="Transparent"
+                                            BorderThickness="0"
+                                            Content="More volume settings"
+                                            Click="SoundSettings_Click" />
+                                    </Border>
+                                </Grid>
+                            </Grid>
                         </Flyout>
-                    </Button.Flyout>
+                    </FlyoutBase.AttachedFlyout>
                 </Button>
             </StackPanel>
             <local:Clock x:Name="Clock" Margin="4,0" VerticalAlignment="Center" />
@@ -470,9 +550,9 @@
                 Click="ShowDesktopButton_Click" />
         </StackPanel>
 
-        <Grid.ContextFlyout>
-            <!-- Unconstrained: the window is only as tall as the taskbar. -->
-            <MenuFlyout x:Name="TaskbarMenu" ShouldConstrainToRootBounds="False" Opening="TaskbarMenu_Opening">
+        <FlyoutBase.AttachedFlyout>
+            <!-- Opened above the taskbar by Root_ContextRequested (TaskbarFlyouts). -->
+            <MenuFlyout x:Name="TaskbarMenu" Opening="TaskbarMenu_Opening">
                 <!-- No icons: next to the toggles' check column, an icon column pushes every label far right. -->
                 <MenuFlyoutItem
                     AutomationProperties.AutomationId="TaskManagerMenuItem"
@@ -558,6 +638,6 @@
                     Text="Exit NeoShell"
                     Click="Exit_Click" />
             </MenuFlyout>
-        </Grid.ContextFlyout>
+        </FlyoutBase.AttachedFlyout>
     </Grid>
 </Window>

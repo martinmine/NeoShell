@@ -30,8 +30,12 @@ internal sealed class ThumbnailPopup : Window
     private readonly List<DwmThumbnail> _thumbnails = [];
     private readonly FramelessWindow _frameless;
     private readonly PinnedWindow _placement;
+    private readonly WindowSlide _slide;
+    private bool _visible;
+    private int _taskbarTop;
 
-    public ThumbnailPopup(WindowTracker tracker)
+    /// <param name="taskbar">The taskbar the popup belongs to; it slides out from behind it.</param>
+    public ThumbnailPopup(WindowTracker tracker, nint taskbar)
     {
         _tracker = tracker;
         _root.Children.Add(_cells);
@@ -49,9 +53,12 @@ internal sealed class ThumbnailPopup : Window
         WindowStyles.AddExtended(_hwnd, ExtendedWindowStyles.ToolWindow | ExtendedWindowStyles.NoActivate);
         _frameless = new FramelessWindow(_hwnd, roundedCorners: true);
         _placement = new PinnedWindow(_hwnd, default, PinnedLayer.Topmost);
+        _placement.SetLayer(PinnedLayer.Topmost, above: taskbar);
+        _slide = new WindowSlide(_placement);
 
         Closed += (_, _) =>
         {
+            _slide.Stop();
             ClearCells();
             _placement.Dispose();
             _frameless.Dispose();
@@ -82,15 +89,35 @@ internal sealed class ThumbnailPopup : Window
         int height = (int)Math.Ceiling((2 * Padding + HeaderHeight + PreviewHeight) * scale);
         int x = Math.Clamp(anchor.X + anchor.Width / 2 - width / 2, monitor.WorkArea.X, monitor.WorkArea.X + monitor.WorkArea.Width - width);
         int y = anchor.Y - height - (int)(8 * scale);
-        _placement.Bounds = new RectInt32(x, y, width, height);
-        AppWindow.Show(activateWindow: false);
+        var bounds = new RectInt32(x, y, width, height);
+        // Out of the taskbar, as in Windows 11; once open, it follows the pointer along the taskbar.
+        _taskbarTop = anchor.Y;
+        if (!_visible)
+        {
+            _visible = true;
+            _placement.Bounds = bounds with { Y = _taskbarTop };
+            AppWindow.Show(activateWindow: false);
+            _slide.To(bounds, TimeSpan.FromMilliseconds(200), decelerate: true);
+        }
+        else
+        {
+            _slide.To(bounds, TimeSpan.FromMilliseconds(150), decelerate: true);
+        }
     }
 
+    /// <summary>Slides back into the taskbar; showing again on the way turns it round.</summary>
     public void Hide()
     {
         Button = null;
-        AppWindow.Hide();
-        ClearCells();
+        if (!_visible)
+            return;
+
+        _slide.To(_placement.Bounds with { Y = _taskbarTop }, TimeSpan.FromMilliseconds(120), decelerate: false, () =>
+        {
+            _visible = false;
+            AppWindow.Hide();
+            ClearCells();
+        });
     }
 
     private Grid CreateCell(WindowInfo window, double width)

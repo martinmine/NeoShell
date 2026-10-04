@@ -112,7 +112,8 @@ public sealed unsafe class AudioMixer : IDisposable
         foreach (IAudioSessionControl2 session in _sessions)
         {
             if (session.GetState(out int state) != 0 || state == CoreAudio.AudioSessionStateExpired
-                || session.GetProcessId(out uint processId) != 0
+                // The system sounds' session answers AUDCLNT_S_NO_SINGLE_PROCESS, a success code.
+                || session.GetProcessId(out uint processId) < 0
                 || (object)session is not ISimpleAudioVolume volume)
             {
                 continue;

@@ -1,4 +1,5 @@
 using Microsoft.UI.Dispatching;
+using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 
 namespace NeoShell.Taskbar;
@@ -30,6 +31,8 @@ public sealed partial class Clock : UserControl
         _timer.Interval = TimeSpan.FromSeconds(60 - now.Second) - TimeSpan.FromMilliseconds(now.Millisecond - 50);
         _timer.Start();
     }
+
+    private void ClockButton_Click(object sender, RoutedEventArgs e) => TaskbarFlyouts.ShowAtRight(CalendarFlyout, ClockButton);
 
     private void CalendarFlyout_Opening(object sender, object e) => Calendar.SetDisplayDate(DateTimeOffset.Now);
 }

@@ -134,6 +134,11 @@ Tick items off as they land. The feature details are in [design.md](design.md).
       AppID hash and implicit AppIDs tested); no pinned entries
 - [x] Volume flyout: choose the output device (`IPolicyConfig`), volume mixer per app; the speaker's menu (Open
       volume mixer, Sound settings) — switching outputs only checked with the VM's single device
+- [x] Flyouts and menus above the taskbar with Windows 11's gap, sliding up from behind it; jump lists centred on
+      their button, volume and calendar at the screen's right edge
+- [x] Thumbnails slide out of the taskbar, along it and back
+- [x] Volume flyout as Quick Settings: slider row, Sound output page (output device, spatial sound, mixer, More volume
+      settings, Win+Ctrl+V), the default beep on letting go of the slider — Win+Ctrl+V not pressed live
 
 ## Later / not planned yet
 

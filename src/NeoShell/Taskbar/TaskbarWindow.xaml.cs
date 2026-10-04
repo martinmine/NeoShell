@@ -56,6 +56,7 @@ internal sealed partial class TaskbarWindow : Window
     private readonly Indicators? _indicators;
     private bool _updatingVolumeSlider;
     private bool _volumeFlyoutOpen;
+    private bool _volumeSliderPressed;
     private bool _updatingOutputs;
     private IReadOnlyList<AudioDevice> _outputs = [];
     private readonly ObservableCollection<MixerApp> _mixerApps = [];
@@ -150,7 +151,7 @@ internal sealed partial class TaskbarWindow : Window
         Root.SizeChanged += (_, _) => RefreshTasks();
         RightPanel.SizeChanged += (_, _) => RefreshTasks();
 
-        _thumbnails = new ThumbnailPopup(owner.Tracker);
+        _thumbnails = new ThumbnailPopup(owner.Tracker, hwnd);
         _thumbnails.Root.PointerEntered += (_, _) => _hideTimer!.Stop();
         _thumbnails.Root.PointerExited += (_, _) => _hideTimer!.Start();
         DispatcherQueue dispatcher = DispatcherQueue.GetForCurrentThread();
@@ -187,6 +188,10 @@ internal sealed partial class TaskbarWindow : Window
         {
             IndicatorArea.Visibility = Visibility.Visible;
             MixerList.ItemsSource = _mixerApps;
+            // Handled events too: the slider handles the pointer itself.
+            VolumeSlider.AddHandler(UIElement.PointerPressedEvent, new PointerEventHandler(VolumeSlider_PointerPressed), handledEventsToo: true);
+            VolumeSlider.AddHandler(UIElement.PointerReleasedEvent, new PointerEventHandler(VolumeSlider_PointerReleased), handledEventsToo: true);
+            VolumeSlider.AddHandler(UIElement.PointerCaptureLostEvent, new PointerEventHandler(VolumeSlider_PointerReleased), handledEventsToo: true);
             _indicators.Changed += RefreshIndicators;
             owner.Icons.Loaded += RefreshMixerIcons;
             RefreshIndicators();
@@ -403,9 +408,6 @@ internal sealed partial class TaskbarWindow : Window
         bool muted = _indicators.IsMuted;
         VolumeIcon.Glyph = MuteIcon.Glyph = IndicatorDisplay.VolumeGlyph(_indicators.HasAudioDevice, volume, muted);
         SetToolTip(VolumeButton, IndicatorDisplay.VolumeToolTip(_indicators.AudioDeviceName, volume, muted));
-        VolumeDeviceName.Text = _indicators.AudioDeviceName ?? "No audio output device";
-        AutomationProperties.SetName(OutputButton, $"Sound output: {VolumeDeviceName.Text}");
-        VolumeText.Text = IndicatorDisplay.Percent(volume).ToString();
         AutomationProperties.SetName(MuteButton, muted ? "Unmute" : "Mute");
         // Moving the slider changes the volume, which comes back here; don't set it back while it's being dragged.
         _updatingVolumeSlider = true;
@@ -416,12 +418,65 @@ internal sealed partial class TaskbarWindow : Window
         MicrophoneButton.Visibility = apps.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
         SetToolTip(MicrophoneButton, IndicatorDisplay.MicrophoneToolTip(apps));
 
-        // The outputs and the mixer are only read while someone looks at them.
-        if (_volumeFlyoutOpen)
+        // The Sound output page is only read while someone looks at it.
+        if (_volumeFlyoutOpen && SoundOutputPage.Visibility == Visibility.Visible)
         {
             RefreshOutputs();
+            RefreshSpatialSound();
             RefreshMixer();
         }
+    }
+
+    private void VolumeButton_Click(object sender, RoutedEventArgs e) => ShowVolumeFlyout(soundOutput: false);
+
+    /// <summary>Win+Ctrl+V: the volume flyout's Sound output page, as in Windows.</summary>
+    public void OpenSoundOutput()
+    {
+        if (_indicators is not null)
+            ShowVolumeFlyout(soundOutput: true);
+    }
+
+    private void ShowVolumeFlyout(bool soundOutput)
+    {
+        ShowVolumePage(soundOutput, animate: false);
+        TaskbarFlyouts.ShowAtRight(VolumeFlyout, VolumeButton);
+    }
+
+    private void VolumeButton_ContextRequested(UIElement sender, ContextRequestedEventArgs e)
+    {
+        e.Handled = true;
+        TaskbarFlyouts.ShowCentered(VolumeMenu, VolumeButton);
+    }
+
+    private void SoundOutputButton_Click(object sender, RoutedEventArgs e) => ShowVolumePage(soundOutput: true, animate: true);
+
+    private void SoundOutputBack_Click(object sender, RoutedEventArgs e) => ShowVolumePage(soundOutput: false, animate: true);
+
+    // Pages slide in from the side they lie on, as Quick Settings' pages do.
+    private void ShowVolumePage(bool soundOutput, bool animate)
+    {
+        FrameworkElement page = soundOutput ? SoundOutputPage : VolumePage;
+        VolumePage.Visibility = soundOutput ? Visibility.Collapsed : Visibility.Visible;
+        SoundOutputPage.Visibility = soundOutput ? Visibility.Visible : Visibility.Collapsed;
+        if (soundOutput)
+            RefreshIndicators();
+        if (!animate)
+            return;
+
+        Compositor compositor = ElementCompositionPreview.GetElementVisual(page).Compositor;
+        CompositionEasingFunction easing = compositor.CreateCubicBezierEasingFunction(new(0.1f, 0.9f), new(0.2f, 1f));
+        Vector3KeyFrameAnimation slide = compositor.CreateVector3KeyFrameAnimation();
+        slide.InsertKeyFrame(0, new Vector3(soundOutput ? 60 : -60, 0, 0));
+        slide.InsertKeyFrame(1, Vector3.Zero, easing);
+        slide.Target = nameof(UIElement.Translation);
+        slide.Duration = TimeSpan.FromMilliseconds(250);
+        ScalarKeyFrameAnimation fade = compositor.CreateScalarKeyFrameAnimation();
+        fade.InsertKeyFrame(0, 0);
+        fade.InsertKeyFrame(1, 1, easing);
+        fade.Target = nameof(UIElement.Opacity);
+        fade.Duration = TimeSpan.FromMilliseconds(250);
+        page.StartAnimation(slide);
+        page.StartAnimation(fade);
     }
 
     private void RefreshOutputs()
@@ -436,8 +491,7 @@ internal sealed partial class TaskbarWindow : Window
         OutputDevices.Items.Clear();
         foreach (AudioDevice device in outputs)
         {
-            var item = new ListViewItem { Content = device.Name, Tag = device };
-            AutomationProperties.SetAutomationId(item, "OutputDevice");
+            ListViewItem item = SoundOutputItem("\uE7F5", device.Name, device, "OutputDevice");
             OutputDevices.Items.Add(item);
             if (device.IsDefault)
                 OutputDevices.SelectedItem = item;
@@ -445,21 +499,47 @@ internal sealed partial class TaskbarWindow : Window
         _updatingOutputs = false;
     }
 
-    private void OutputButton_Click(object sender, RoutedEventArgs e) => ShowOutputs(OutputDevices.Visibility != Visibility.Visible);
-
-    private void ShowOutputs(bool show)
-    {
-        OutputDevices.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
-        OutputChevron.Glyph = show ? "\uE70E" : "\uE70D"; // chevron up, down
-    }
-
     private void OutputDevices_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        if (_updatingOutputs || OutputDevices.SelectedItem is not ListViewItem { Tag: AudioDevice { IsDefault: false } device })
+        if (!_updatingOutputs && OutputDevices.SelectedItem is ListViewItem { Tag: AudioDevice { IsDefault: false } device })
+            _indicators?.SetOutputDevice(device);
+    }
+
+    private void RefreshSpatialSound()
+    {
+        (IReadOnlyList<SpatialFormat> formats, string current) = _indicators!.SpatialFormats();
+        SpatialSection.Visibility = formats.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        _updatingOutputs = true;
+        SpatialFormats.Items.Clear();
+        foreach (SpatialFormat format in formats)
+        {
+            ListViewItem item = SoundOutputItem(null, format.Name, format, "SpatialFormat");
+            SpatialFormats.Items.Add(item);
+            if (string.Equals(format.Subtype, current, StringComparison.OrdinalIgnoreCase))
+                SpatialFormats.SelectedItem = item;
+        }
+        _updatingOutputs = false;
+    }
+
+    private async void SpatialFormats_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_updatingOutputs || _indicators is null || SpatialFormats.SelectedItem is not ListViewItem { Tag: SpatialFormat format })
             return;
 
-        _indicators?.SetOutputDevice(device);
-        ShowOutputs(false);
+        await _indicators.SetSpatialFormat(format);
+        RefreshSpatialSound();
+    }
+
+    private static ListViewItem SoundOutputItem(string? glyph, string text, object tag, string automationId)
+    {
+        var content = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 12 };
+        if (glyph is not null)
+            content.Children.Add(new FontIcon { Glyph = glyph, FontSize = 16 });
+        content.Children.Add(new TextBlock { Text = text, VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis });
+        var item = new ListViewItem { Content = content, Tag = tag, MinHeight = 40 };
+        AutomationProperties.SetAutomationId(item, automationId);
+        AutomationProperties.SetName(item, text);
+        return item;
     }
 
     // Updated in place, so a slider being dragged isn't replaced under the pointer.
@@ -488,7 +568,7 @@ internal sealed partial class TaskbarWindow : Window
             string name = Indicators.AppName(apps[i]);
             _mixerApps[i].Update(apps[i], name, MixerIcon(apps[i], name));
         }
-        MixerSection.Visibility = _mixerApps.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        NoMixerAppsText.Visibility = _mixerApps.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private ImageSource? MixerIcon(AudioApp app, string name) =>
@@ -498,7 +578,7 @@ internal sealed partial class TaskbarWindow : Window
 
     private void RefreshMixerIcons()
     {
-        if (_volumeFlyoutOpen)
+        if (_volumeFlyoutOpen && SoundOutputPage.Visibility == Visibility.Visible)
             RefreshMixer();
     }
 
@@ -528,15 +608,17 @@ internal sealed partial class TaskbarWindow : Window
     }
 
     // As the shell, the classic mixer: Settings can't start without Explorer.
-    private void OpenVolumeMixer_Click(object sender, RoutedEventArgs e) =>
+    private void OpenVolumeMixer_Click(object sender, RoutedEventArgs e)
+    {
+        VolumeFlyout.Hide();
         Launcher.Launch(_owner.RunMode == RunMode.Shell
             ? new PinnedApp("Volume mixer", Path: "sndvol.exe")
             : new PinnedApp("Volume mixer", Path: "ms-settings:apps-volume"));
+    }
 
     private void VolumeFlyout_Opening(object sender, object e)
     {
         _volumeFlyoutOpen = true;
-        ShowOutputs(false);
         RefreshIndicators();
     }
 
@@ -560,6 +642,21 @@ internal sealed partial class TaskbarWindow : Window
         // Turning it up means wanting to hear it, as in Windows' own volume slider.
         if (_indicators.IsMuted && e.NewValue > 0)
             _indicators.IsMuted = false;
+        // Changed with the keyboard: each step is let go of at once.
+        if (!_volumeSliderPressed && ReferenceEquals(FocusManager.GetFocusedElement(VolumeSlider.XamlRoot), VolumeSlider))
+            AudioDevices.PlayVolumeFeedback();
+    }
+
+    // Windows plays a sound when the slider is let go, so the new volume can be heard.
+    private void VolumeSlider_PointerPressed(object sender, PointerRoutedEventArgs e) => _volumeSliderPressed = true;
+
+    private void VolumeSlider_PointerReleased(object sender, PointerRoutedEventArgs e)
+    {
+        if (!_volumeSliderPressed)
+            return;
+
+        _volumeSliderPressed = false;
+        AudioDevices.PlayVolumeFeedback();
     }
 
     private void Mute_Click(object sender, RoutedEventArgs e)
@@ -931,6 +1028,16 @@ internal sealed partial class TaskbarWindow : Window
         _thumbnails.Show(button, BoundsOnScreen(element), _monitor, _theme);
     }
 
+    // Centred above the button rather than at the pointer, as Explorer shows a jump list.
+    private void TaskItem_ContextRequested(UIElement sender, ContextRequestedEventArgs e)
+    {
+        if (sender is FrameworkElement element && FlyoutBase.GetAttachedFlyout(element) is { } menu)
+        {
+            e.Handled = true;
+            TaskbarFlyouts.ShowCentered(menu, element);
+        }
+    }
+
     private void TaskMenu_Opening(object sender, object e)
     {
         var menu = (MenuFlyout)sender;
@@ -1154,6 +1261,16 @@ internal sealed partial class TaskbarWindow : Window
         public int Target { get; set; }
         public bool RefreshPending { get; set; }
     }
+
+    // Above the taskbar at the pointer, rather than over the taskbar.
+    private void Root_ContextRequested(UIElement sender, ContextRequestedEventArgs e)
+    {
+        e.Handled = true;
+        double x = e.TryGetPosition(Root, out Point point) ? point.X : Root.ActualWidth / 2;
+        TaskbarFlyouts.ShowAt(TaskbarMenu, Root, x);
+    }
+
+    private void OverflowButton_Click(object sender, RoutedEventArgs e) => TaskbarFlyouts.ShowCentered(OverflowFlyout, OverflowButton);
 
     private void TaskbarMenu_Opening(object sender, object e)
     {

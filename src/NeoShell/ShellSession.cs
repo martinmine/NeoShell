@@ -15,6 +15,7 @@ internal sealed class ShellSession : IDisposable
     private const int ShowDesktopHotkey = 1;
     private const int FocusTaskbarHotkey = 2;
     private const int SearchHotkey = 3;
+    private const int SoundOutputHotkey = 4;
     // Win+1…9 use these IDs plus 0…8.
     private const int FirstTaskHotkey = 11;
 
@@ -51,6 +52,8 @@ internal sealed class ShellSession : IDisposable
             if (!_hotkeys.Register(id, WinKey, key))
                 Log.Warn($"{name} is taken by another app");
         }
+        if (!_hotkeys.Register(SoundOutputHotkey, WinKey | HotkeyModifiers.Control, 'V'))
+            Log.Warn("Win+Ctrl+V is taken by another app");
         for (int n = 1; n <= 9; n++)
         {
             if (!_hotkeys.Register(FirstTaskHotkey + n - 1, WinKey, (uint)('0' + n)))
@@ -108,6 +111,9 @@ internal sealed class ShellSession : IDisposable
                 break;
             case SearchHotkey:
                 _taskbars.OpenStartMenu();
+                break;
+            case SoundOutputHotkey:
+                _taskbars.OpenSoundOutput();
                 break;
         }
     }

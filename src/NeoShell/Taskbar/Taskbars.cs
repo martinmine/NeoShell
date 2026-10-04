@@ -139,6 +139,13 @@ internal sealed class Taskbars : IDisposable
             ToggleStartMenu(window);
     }
 
+    /// <summary>Win+Ctrl+V: the volume flyout's Sound output page on the primary taskbar.</summary>
+    public void OpenSoundOutput()
+    {
+        PrimaryWindow?.Reveal();
+        PrimaryWindow?.OpenSoundOutput();
+    }
+
     /// <summary>Win+T: puts the keyboard focus on the primary taskbar's buttons.</summary>
     public void FocusTaskbar()
     {

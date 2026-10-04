@@ -1,6 +1,5 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
-using System.Diagnostics;
 using System.Security.Principal;
 using Microsoft.UI;
 using Microsoft.UI.Windowing;
@@ -71,7 +70,8 @@ internal sealed partial class StartMenuWindow : Window
     private PinDrag? _pinDrag;
     private bool _suppressPinClick;
     private UIElement? _pressedIcon;
-    private (long Start, int From, int To, bool Opening)? _slide;
+    private readonly WindowSlide _slide;
+    private bool _closing;
 
     public StartMenuWindow(Taskbars owner)
     {
@@ -91,6 +91,7 @@ internal sealed partial class StartMenuWindow : Window
         WindowStyles.AddExtended(_hwnd, ExtendedWindowStyles.ToolWindow);
         _frameless = new FramelessWindow(_hwnd, roundedCorners: true);
         _placement = new PinnedWindow(_hwnd, default, PinnedLayer.Topmost);
+        _slide = new WindowSlide(_placement);
 
         PinnedGrid.ItemsSource = _pinned;
         // Handled events too: the item under the pointer takes the press for its click.
@@ -125,7 +126,7 @@ internal sealed partial class StartMenuWindow : Window
         owner.Icons.Loaded += RefreshIcons;
         Closed += (_, _) =>
         {
-            CompositionTarget.Rendering -= SlideFrame;
+            _slide.Stop();
             owner.Icons.Loaded -= RefreshIcons;
             _placement.Dispose();
             _frameless.Dispose();
@@ -151,7 +152,8 @@ internal sealed partial class StartMenuWindow : Window
     public void Show(DisplayMonitor monitor, RectInt32 taskbar, nint taskbarWindow, bool centered, ElementTheme theme, Color? accent)
     {
         // Opened again while still flying in: from where it is, as it was.
-        bool closing = _slide is { Opening: false };
+        bool closing = _closing;
+        _closing = false;
         if (closing)
             ResetContent();
         Root.RequestedTheme = accent is { } color ? SystemTheme.ThemeOn(color) : theme;
@@ -173,7 +175,8 @@ internal sealed partial class StartMenuWindow : Window
         IsOpen = true;
         _previousForeground = TopLevelWindows.GetForeground();
         AppWindow.Show();
-        Slide(shown.Y, opening: true);
+        // Out of the taskbar, decelerating, as in Windows 11.
+        _slide.To(shown, s_openDuration, decelerate: true);
         // Window.Activate alone doesn't take the foreground from the app the user was in; SetForegroundWindow does,
         // because the click on the taskbar (or the Win key) was the last input.
         TopLevelWindows.Activate(_hwnd);
@@ -188,36 +191,6 @@ internal sealed partial class StartMenuWindow : Window
         StartMenuLayout.Bounds(_anchor.Monitor.Bounds, _anchor.Taskbar, _anchor.Centered, width, height, _anchor.Monitor.Dpi / 96.0);
 
     private void Place(double width, double height) => _placement.Bounds = BoundsFor(width, height);
-
-    // Start flies out of the taskbar and back into it, as in Windows 11. It's the window that moves, not its content:
-    // the acrylic belongs to the window and would otherwise stand still, empty, while the content slides.
-    private void Slide(int toY, bool opening)
-    {
-        if (_slide is null)
-            CompositionTarget.Rendering += SlideFrame;
-        _slide = (Stopwatch.GetTimestamp(), _placement.Bounds.Y, toY, opening);
-    }
-
-    private void SlideFrame(object? sender, object e)
-    {
-        if (_slide is not { } slide)
-            return;
-
-        double progress = Math.Min(1, Stopwatch.GetElapsedTime(slide.Start) / (slide.Opening ? s_openDuration : s_closeDuration));
-        // Decelerating out of the taskbar, accelerating back into it.
-        double eased = slide.Opening ? 1 - Math.Pow(1 - progress, 3) : Math.Pow(progress, 3);
-        _placement.Bounds = _placement.Bounds with { Y = (int)Math.Round(slide.From + (slide.To - slide.From) * eased) };
-        if (progress < 1)
-            return;
-
-        CompositionTarget.Rendering -= SlideFrame;
-        _slide = null;
-        if (!slide.Opening)
-        {
-            AppWindow.Hide();
-            ResetContent();
-        }
-    }
 
     // The window moves under the pointer while it's resized, so the drag is followed in screen pixels.
     private void Grip_PointerPressed(object sender, PointerRoutedEventArgs e)
@@ -267,7 +240,14 @@ internal sealed partial class StartMenuWindow : Window
         // z-order, which can be one of Explorer's invisible Start or search windows.
         if (restoreForeground && TopLevelWindows.GetForeground() == _hwnd && _previousForeground != 0 && TopLevelWindows.Exists(_previousForeground))
             TopLevelWindows.Activate(_previousForeground);
-        Slide(_anchor.Taskbar.Y, opening: false);
+        // Back into the taskbar, accelerating; what it showed is reset once it's out of sight.
+        _closing = true;
+        _slide.To(_placement.Bounds with { Y = _anchor.Taskbar.Y }, s_closeDuration, decelerate: false, () =>
+        {
+            _closing = false;
+            AppWindow.Hide();
+            ResetContent();
+        });
     }
 
     // What Start shows when it opens next; changed once it's out of sight.

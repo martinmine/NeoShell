@@ -244,6 +244,9 @@ internal static unsafe partial class User32
     public static partial bool SetWindowPos(nint hwnd, nint insertAfter, int x, int y, int width, int height, uint flags);
 
     [LibraryImport("user32.dll")]
+    public static partial int SetWindowRgn(nint hwnd, nint region, [MarshalAs(UnmanagedType.Bool)] bool redraw);
+
+    [LibraryImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     public static partial bool EnumWindows(delegate* unmanaged<nint, nint, int> callback, nint data);
 

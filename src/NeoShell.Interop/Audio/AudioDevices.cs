@@ -43,6 +43,14 @@ public static class AudioDevices
             Marshal.ThrowExceptionForHR(policy.SetDefaultEndpoint(deviceId, role));
     }
 
+    /// <summary>
+    /// The sound Windows plays when a volume slider is let go, to hear the new level: the default beep, on the
+    /// default output. Played as a system sound, as Windows does, so it goes to the System Sounds session (and
+    /// its volume) rather than giving NeoShell a place in the mixer.
+    /// </summary>
+    public static void PlayVolumeFeedback() =>
+        Winmm.PlaySound("SystemDefault", 0, Winmm.SND_ALIAS | Winmm.SND_ASYNC | Winmm.SND_NODEFAULT | Winmm.SND_SYSTEM);
+
     private static string? Id(IMMDevice device)
     {
         if (device.GetId(out nint id) != 0)
