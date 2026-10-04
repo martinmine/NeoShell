@@ -102,7 +102,7 @@ public sealed record WindowInfo(
         }
     }
 
-    private static unsafe (string? Path, string? PackageAppId) ReadProcess(int processId)
+    internal static unsafe (string? Path, string? PackageAppId) ReadProcess(int processId)
     {
         nint process = Kernel32.OpenProcess(Kernel32.PROCESS_QUERY_LIMITED_INFORMATION, false, (uint)processId);
         if (process == 0)

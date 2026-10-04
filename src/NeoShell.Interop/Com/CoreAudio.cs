@@ -15,6 +15,8 @@ internal enum ERole { Console = 0, Multimedia = 1, Communications = 2 }
 internal static class CoreAudio
 {
     public static readonly Guid CLSID_MMDeviceEnumerator = new("bcde0395-e52f-467c-8e3d-c4579291692e");
+    public static readonly Guid CLSID_PolicyConfigClient = new("870af99c-171d-4f9e-af0d-e63df40c2bc9");
+    public const int AudioSessionStateExpired = 2;
     public const uint DEVICE_STATE_ACTIVE = 0x1;
     public const uint CLSCTX_ALL = 0x17;
     public const int AudioSessionStateActive = 1;
@@ -30,7 +32,7 @@ internal partial interface IMMDeviceEnumerator
 {
     [PreserveSig] int EnumAudioEndpoints(EDataFlow dataFlow, uint stateMask, out IMMDeviceCollection devices);
     [PreserveSig] int GetDefaultAudioEndpoint(EDataFlow dataFlow, ERole role, out IMMDevice device);
-    [PreserveSig] int GetDevice();
+    [PreserveSig] int GetDevice([MarshalAs(UnmanagedType.LPWStr)] string id, out IMMDevice device);
     [PreserveSig] int RegisterEndpointNotificationCallback(IMMNotificationClient client);
     [PreserveSig] int UnregisterEndpointNotificationCallback(IMMNotificationClient client);
 }
@@ -49,7 +51,8 @@ internal partial interface IMMDevice
 {
     [PreserveSig] int Activate(in Guid iid, uint context, nint activationParams, out nint instance);
     [PreserveSig] int OpenPropertyStore(uint access, out IPropertyStore properties);
-    [PreserveSig] int GetId();
+    /// <summary>The endpoint's ID string, to be freed with <c>CoTaskMemFree</c>.</summary>
+    [PreserveSig] int GetId(out nint id);
     [PreserveSig] int GetState();
 }
 
@@ -115,7 +118,8 @@ internal partial interface IAudioSessionEnumerator
 internal partial interface IAudioSessionControl2
 {
     [PreserveSig] int GetState(out int state);
-    [PreserveSig] int GetDisplayName();
+    /// <summary>The name the app gave the session (often none), to be freed with <c>CoTaskMemFree</c>.</summary>
+    [PreserveSig] int GetDisplayName(out nint name);
     [PreserveSig] int SetDisplayName();
     [PreserveSig] int GetIconPath();
     [PreserveSig] int SetIconPath();
@@ -128,6 +132,37 @@ internal partial interface IAudioSessionControl2
     [PreserveSig] int GetProcessId(out uint processId);
     /// <summary>S_OK for the system sounds session, S_FALSE otherwise.</summary>
     [PreserveSig] int IsSystemSoundsSession();
+}
+
+[GeneratedComInterface]
+[Guid("87ce5498-68d6-44e5-9215-6da47ef883d8")]
+internal unsafe partial interface ISimpleAudioVolume
+{
+    [PreserveSig] int SetMasterVolume(float level, Guid* eventContext);
+    [PreserveSig] int GetMasterVolume(out float level);
+    [PreserveSig] int SetMute(int mute, Guid* eventContext);
+    [PreserveSig] int GetMute(out int mute);
+}
+
+/// <summary>
+/// The undocumented interface the Sound control panel sets the default device with (there's no public API for it);
+/// the same since Windows 7, and what volume tools use.
+/// </summary>
+[GeneratedComInterface]
+[Guid("f8679f50-850a-41cf-9c72-430f290290c8")]
+internal partial interface IPolicyConfig
+{
+    [PreserveSig] int GetMixFormat();
+    [PreserveSig] int GetDeviceFormat();
+    [PreserveSig] int ResetDeviceFormat();
+    [PreserveSig] int SetDeviceFormat();
+    [PreserveSig] int GetProcessingPeriod();
+    [PreserveSig] int SetProcessingPeriod();
+    [PreserveSig] int GetShareMode();
+    [PreserveSig] int SetShareMode();
+    [PreserveSig] int GetPropertyValue();
+    [PreserveSig] int SetPropertyValue();
+    [PreserveSig] int SetDefaultEndpoint([MarshalAs(UnmanagedType.LPWStr)] string deviceId, ERole role);
 }
 
 [GeneratedComInterface]

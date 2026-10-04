@@ -2,6 +2,7 @@ using System.Diagnostics;
 using Microsoft.UI.Dispatching;
 using NeoShell.Interop.Audio;
 using NeoShell.Interop.Network;
+using NeoShell.Interop.Shell;
 using NeoShell.Logging;
 
 namespace NeoShell.Tray;
@@ -16,6 +17,7 @@ internal sealed class Indicators : IDisposable
     private readonly NetworkStatus _network = new();
     private readonly AudioEndpoint? _audio;
     private readonly CaptureMonitor? _capture;
+    private readonly AudioMixer? _mixer;
     private int _updateQueued;
 
     public Indicators()
@@ -27,6 +29,8 @@ internal sealed class Indicators : IDisposable
             _audio.Changed += QueueUpdate;
             _capture = new CaptureMonitor();
             _capture.Changed += QueueUpdate;
+            _mixer = new AudioMixer();
+            _mixer.Changed += QueueUpdate;
         }
         catch (Exception ex)
         {
@@ -65,6 +69,40 @@ internal sealed class Indicators : IDisposable
         }
     }
 
+    /// <summary>The sound outputs, to choose the default from; empty when they can't be read.</summary>
+    public IReadOnlyList<AudioDevice> OutputDevices()
+    {
+        if (_audio is null)
+            return [];
+
+        try
+        {
+            return AudioDevices.Outputs();
+        }
+        catch (Exception ex)
+        {
+            Log.Warn("Could not list the sound outputs", ex);
+            return [];
+        }
+    }
+
+    /// <summary>Makes Windows play through another output; the volume follows it (<see cref="Changed"/>).</summary>
+    public void SetOutputDevice(AudioDevice device)
+    {
+        try
+        {
+            AudioDevices.SetDefault(device.Id);
+            Log.Info($"Sound output: {device.Name}");
+        }
+        catch (Exception ex)
+        {
+            Log.Warn($"Could not make {device.Name} the sound output", ex);
+        }
+    }
+
+    /// <summary>The apps playing on the default output, for the mixer: read fresh each time.</summary>
+    public IReadOnlyList<AudioApp> MixerApps() => _mixer?.Apps() ?? [];
+
     /// <summary>Names of the apps recording from a microphone; empty while none is.</summary>
     public IReadOnlyList<string> MicrophoneApps { get; private set; } = [];
 
@@ -73,6 +111,31 @@ internal sealed class Indicators : IDisposable
         _network.Dispose();
         _audio?.Dispose();
         _capture?.Dispose();
+        _mixer?.Dispose();
+    }
+
+    /// <summary>The name the mixer shows: the session's own, else the app's, else the executable's description.</summary>
+    public static string AppName(AudioApp app)
+    {
+        if (app.Name is { } name)
+            return name;
+        if (app.IsSystemSounds)
+            return "System sounds";
+        if (app.PackageAppId is { } appId && ShellItems.GetDisplayName(ShellItems.AppsFolderPath(appId)) is { } packaged)
+            return packaged;
+        if (app.ProcessPath is not { } path)
+            return "Unknown app";
+
+        try
+        {
+            string? description = FileVersionInfo.GetVersionInfo(path).FileDescription;
+            if (!string.IsNullOrWhiteSpace(description))
+                return description;
+        }
+        catch (FileNotFoundException)
+        {
+        }
+        return Path.GetFileNameWithoutExtension(path);
     }
 
     // Called from Windows' threads.

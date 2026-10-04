@@ -132,6 +132,8 @@ Tick items off as they land. The feature details are in [design.md](design.md).
       buttons, Start's pinned and recent apps) and grow while dragged
 - [x] Jump lists in the task button's menu: the app's categories, Recent/Frequent and Tasks, with icons (file format,
       AppID hash and implicit AppIDs tested); no pinned entries
+- [x] Volume flyout: choose the output device (`IPolicyConfig`), volume mixer per app; the speaker's menu (Open
+      volume mixer, Sound settings) — switching outputs only checked with the VM's single device
 
 ## Later / not planned yet
 

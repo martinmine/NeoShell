@@ -47,13 +47,20 @@ internal sealed partial class VolumeNotifications(Action onChange) : IAudioEndpo
     }
 }
 
+/// <param name="ownChanges">
+/// With volume changes: the event context NeoShell's own changes carry, which aren't passed on (whoever made them
+/// already knows); without, volume changes aren't passed on at all.
+/// </param>
 [GeneratedComClass]
-internal sealed partial class SessionNotifications(Action onChange) : IAudioSessionNotification, IAudioSessionEvents
+internal sealed unsafe partial class SessionNotifications(Action onChange, Guid? ownChanges = null) : IAudioSessionNotification, IAudioSessionEvents
 {
     public int OnSessionCreated(IAudioSessionControl2 session) => Raise();
     public int OnDisplayNameChanged(nint newDisplayName, nint eventContext) => 0;
     public int OnIconPathChanged(nint newIconPath, nint eventContext) => 0;
-    public int OnSimpleVolumeChanged(float newVolume, int newMute, nint eventContext) => 0;
+
+    public int OnSimpleVolumeChanged(float newVolume, int newMute, nint eventContext) =>
+        ownChanges is { } own && (eventContext == 0 || *(Guid*)eventContext != own) ? Raise() : 0;
+
     public int OnChannelVolumeChanged(uint channelCount, nint newChannelVolumes, uint changedChannel, nint eventContext) => 0;
     public int OnGroupingParamChanged(nint newGroupingParam, nint eventContext) => 0;
     public int OnStateChanged(int newState) => Raise();

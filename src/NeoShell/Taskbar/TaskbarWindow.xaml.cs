@@ -14,6 +14,7 @@ using Microsoft.UI.Input;
 using Microsoft.UI.Composition;
 using Microsoft.UI.Xaml.Hosting;
 using System.Numerics;
+using NeoShell.Interop.Audio;
 using NeoShell.Interop.Shell;
 using NeoShell.Interop.Tray;
 using NeoShell.Logging;
@@ -54,6 +55,10 @@ internal sealed partial class TaskbarWindow : Window
     private readonly NotificationArea? _tray;
     private readonly Indicators? _indicators;
     private bool _updatingVolumeSlider;
+    private bool _volumeFlyoutOpen;
+    private bool _updatingOutputs;
+    private IReadOnlyList<AudioDevice> _outputs = [];
+    private readonly ObservableCollection<MixerApp> _mixerApps = [];
     private readonly DispatcherQueueTimer _trayHoverTimer;
     private TrayIcon? _trayHovered;
     private bool _trayPopupOpen;
@@ -181,7 +186,9 @@ internal sealed partial class TaskbarWindow : Window
         if (_indicators is not null)
         {
             IndicatorArea.Visibility = Visibility.Visible;
+            MixerList.ItemsSource = _mixerApps;
             _indicators.Changed += RefreshIndicators;
+            owner.Icons.Loaded += RefreshMixerIcons;
             RefreshIndicators();
         }
 
@@ -198,7 +205,10 @@ internal sealed partial class TaskbarWindow : Window
             if (_tray is not null)
                 _tray.Icons.CollectionChanged -= OnTrayIconsChanged;
             if (_indicators is not null)
+            {
                 _indicators.Changed -= RefreshIndicators;
+                owner.Icons.Loaded -= RefreshMixerIcons;
+            }
             _autoHideTimer?.Stop();
             _slideTimer.Stop();
             _trayHoverTimer.Stop();
@@ -394,6 +404,7 @@ internal sealed partial class TaskbarWindow : Window
         VolumeIcon.Glyph = MuteIcon.Glyph = IndicatorDisplay.VolumeGlyph(_indicators.HasAudioDevice, volume, muted);
         SetToolTip(VolumeButton, IndicatorDisplay.VolumeToolTip(_indicators.AudioDeviceName, volume, muted));
         VolumeDeviceName.Text = _indicators.AudioDeviceName ?? "No audio output device";
+        AutomationProperties.SetName(OutputButton, $"Sound output: {VolumeDeviceName.Text}");
         VolumeText.Text = IndicatorDisplay.Percent(volume).ToString();
         AutomationProperties.SetName(MuteButton, muted ? "Unmute" : "Mute");
         // Moving the slider changes the volume, which comes back here; don't set it back while it's being dragged.
@@ -404,6 +415,97 @@ internal sealed partial class TaskbarWindow : Window
         IReadOnlyList<string> apps = _indicators.MicrophoneApps;
         MicrophoneButton.Visibility = apps.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
         SetToolTip(MicrophoneButton, IndicatorDisplay.MicrophoneToolTip(apps));
+
+        // The outputs and the mixer are only read while someone looks at them.
+        if (_volumeFlyoutOpen)
+        {
+            RefreshOutputs();
+            RefreshMixer();
+        }
+    }
+
+    private void RefreshOutputs()
+    {
+        IReadOnlyList<AudioDevice> outputs = _indicators!.OutputDevices();
+        if (outputs.SequenceEqual(_outputs))
+            return;
+
+        // Filling the list selects items; that isn't the user choosing an output.
+        _outputs = outputs;
+        _updatingOutputs = true;
+        OutputDevices.Items.Clear();
+        foreach (AudioDevice device in outputs)
+        {
+            var item = new ListViewItem { Content = device.Name, Tag = device };
+            AutomationProperties.SetAutomationId(item, "OutputDevice");
+            OutputDevices.Items.Add(item);
+            if (device.IsDefault)
+                OutputDevices.SelectedItem = item;
+        }
+        _updatingOutputs = false;
+    }
+
+    private void OutputButton_Click(object sender, RoutedEventArgs e) => ShowOutputs(OutputDevices.Visibility != Visibility.Visible);
+
+    private void ShowOutputs(bool show)
+    {
+        OutputDevices.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
+        OutputChevron.Glyph = show ? "\uE70E" : "\uE70D"; // chevron up, down
+    }
+
+    private void OutputDevices_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_updatingOutputs || OutputDevices.SelectedItem is not ListViewItem { Tag: AudioDevice { IsDefault: false } device })
+            return;
+
+        _indicators?.SetOutputDevice(device);
+        ShowOutputs(false);
+    }
+
+    // Updated in place, so a slider being dragged isn't replaced under the pointer.
+    private void RefreshMixer()
+    {
+        IReadOnlyList<AudioApp> apps = _indicators!.MixerApps();
+        var keys = apps.Select(app => app.Key).ToHashSet();
+        for (int i = _mixerApps.Count - 1; i >= 0; i--)
+        {
+            if (!keys.Contains(_mixerApps[i].Key))
+                _mixerApps.RemoveAt(i);
+        }
+        for (int i = 0; i < apps.Count; i++)
+        {
+            int existing = -1;
+            for (int j = i; j < _mixerApps.Count && existing < 0; j++)
+            {
+                if (_mixerApps[j].Key == apps[i].Key)
+                    existing = j;
+            }
+            if (existing < 0)
+                _mixerApps.Insert(i, new MixerApp(apps[i].Key));
+            else if (existing != i)
+                _mixerApps.Move(existing, i);
+
+            string name = Indicators.AppName(apps[i]);
+            _mixerApps[i].Update(apps[i], name, MixerIcon(apps[i], name));
+        }
+        MixerSection.Visibility = _mixerApps.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private ImageSource? MixerIcon(AudioApp app, string name) =>
+        app.PackageAppId is { } appId ? _owner.Icons.Get(new PinnedApp(name, AppUserModelId: appId))
+        : app.ProcessPath is { } path ? _owner.Icons.Get(new PinnedApp(name, Path: path))
+        : null;
+
+    private void RefreshMixerIcons()
+    {
+        if (_volumeFlyoutOpen)
+            RefreshMixer();
+    }
+
+    private void MixerMute_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement { DataContext: MixerApp app })
+            app.IsMuted = !app.IsMuted;
     }
 
     private static void SetToolTip(FrameworkElement element, string text)
@@ -425,7 +527,20 @@ internal sealed partial class TaskbarWindow : Window
         Launcher.OpenSettings(_owner.RunMode, "Sound settings", "ms-settings:sound", "mmsys.cpl");
     }
 
-    private void VolumeFlyout_Opening(object sender, object e) => RefreshIndicators();
+    // As the shell, the classic mixer: Settings can't start without Explorer.
+    private void OpenVolumeMixer_Click(object sender, RoutedEventArgs e) =>
+        Launcher.Launch(_owner.RunMode == RunMode.Shell
+            ? new PinnedApp("Volume mixer", Path: "sndvol.exe")
+            : new PinnedApp("Volume mixer", Path: "ms-settings:apps-volume"));
+
+    private void VolumeFlyout_Opening(object sender, object e)
+    {
+        _volumeFlyoutOpen = true;
+        ShowOutputs(false);
+        RefreshIndicators();
+    }
+
+    private void VolumeFlyout_Closed(object sender, object e) => _volumeFlyoutOpen = false;
 
     private void Volume_PointerWheelChanged(object sender, PointerRoutedEventArgs e)
     {

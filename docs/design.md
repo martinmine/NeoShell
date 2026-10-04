@@ -407,8 +407,20 @@ Exit NeoShell (alongside Explorer only).
   (`AudioEndpoint`).
 - `IMMNotificationClient` to follow default-device changes.
 - Icon reflects mute and level (0 / low / medium / high glyphs). Mouse wheel changes volume in 2% steps.
-- Click opens NeoShell's own flyout: device name, slider, mute toggle, link to `ms-settings:sound` (shell mode:
-  `mmsys.cpl`). Moving the slider up unmutes, as Windows' own slider does.
+- Click opens NeoShell's own flyout: the output device, slider, mute toggle, volume mixer, link to `ms-settings:sound`
+  (shell mode: `mmsys.cpl`). Moving a slider up unmutes, as Windows' own sliders do.
+- **Output device**: the device's name is a button opening the list of enabled outputs (`AudioDevices`, the default
+  selected); choosing one makes it the default for all three roles (console, multimedia, communications), as the
+  Sound control panel does. There's no public API for that: it's the undocumented `IPolicyConfig::SetDefaultEndpoint`
+  (`PolicyConfigClient`), unchanged since Windows 7 and what volume tools use. The volume then follows the new device.
+- **Volume mixer** (`AudioMixer`): the default output's audio sessions that haven't expired (`IAudioSessionManager2`),
+  one row per app as Windows' mixer groups them (packaged app, else executable; the system sounds), each with icon,
+  name, slider and mute (`ISimpleAudioVolume` on all its sessions; the slider shows the loudest). Names: the
+  session's display name (resource references resolved), else the packaged app's or the executable's description.
+  New sessions, state changes and volume changes made elsewhere (`IAudioSessionEvents`) refresh the rows in place;
+  NeoShell's own changes carry an event context GUID and aren't reported back. Read only while the flyout is open.
+- Right-click menu on the icon, as Explorer's: Open volume mixer (`ms-settings:apps-volume`; shell mode the classic
+  `sndvol.exe`) and Sound settings.
 
 ### Microphone in use
 
