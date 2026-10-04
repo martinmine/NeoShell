@@ -41,6 +41,9 @@ internal static unsafe partial class Gdi32
     public static partial int GetDIBits(nint hdc, nint bitmap, uint start, uint lines, void* bits, BITMAPINFOHEADER* info, uint usage);
 
     [LibraryImport("gdi32.dll")]
+    public static partial nint CreateRectRgn(int left, int top, int right, int bottom);
+
+    [LibraryImport("gdi32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     public static partial bool DeleteObject(nint gdiObject);
 }

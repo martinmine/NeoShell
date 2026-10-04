@@ -35,6 +35,7 @@ public sealed class SettingsStoreTests : IDisposable
             ShowOnAllDisplays = false,
             ShowSearchButton = false,
             TrayMode = TrayMode.ShowAll,
+            TaskbarBackdrop = Backdrop.Translucent,
             PinnedTaskbarApps = [new PinnedApp("Notepad", AppUserModelId: "Microsoft.WindowsNotepad_8wekyb3d8bbwe!App")],
             PinnedStartApps = [new PinnedApp("Tool", Path: @"C:\Tools\tool.exe", Arguments: "--fast")],
         };

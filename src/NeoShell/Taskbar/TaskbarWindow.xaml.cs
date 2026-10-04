@@ -32,7 +32,7 @@ internal sealed partial class TaskbarWindow : Window
     private readonly Taskbars _owner;
     private readonly DisplayMonitor _monitor;
     private readonly nint _hwnd;
-    private readonly AcrylicBackdrop _backdrop = new();
+    private ShellBackdrop _backdrop;
     private readonly FramelessWindow _frameless;
     private readonly WindowSubclass _messages;
     private readonly PinnedWindow _placement;
@@ -63,6 +63,7 @@ internal sealed partial class TaskbarWindow : Window
     private bool _hidden;
     private bool _isActive;
     private ElementTheme _theme;
+    private Color? _accent;
     private int _pointerAwayTicks;
 
     public TaskbarWindow(Taskbars owner, DisplayMonitor monitor, ShellSettings settings, ElementTheme theme, Color? accent)
@@ -71,7 +72,7 @@ internal sealed partial class TaskbarWindow : Window
         _monitor = monitor;
         InitializeComponent();
 
-        SystemBackdrop = _backdrop;
+        _backdrop = new ShellBackdrop(settings.TaskbarBackdrop);
         SetTheme(theme, accent);
         AppsPanel.HorizontalAlignment =
             settings.TaskbarAlignment == TaskbarAlignment.Left ? HorizontalAlignment.Left : HorizontalAlignment.Center;
@@ -98,6 +99,8 @@ internal sealed partial class TaskbarWindow : Window
                 WindowStyles.AddExtended(hwnd, ExtendedWindowStyles.NoActivate);
         };
         _frameless = new FramelessWindow(hwnd);
+        SystemBackdrop = _backdrop;
+        WindowTransparency.SetSeeThrough(hwnd, _backdrop.Kind == Backdrop.Translucent);
         _messages = new WindowSubclass(hwnd, OnMessage);
 
         _autoHide = settings.AutoHide;
@@ -284,9 +287,20 @@ internal sealed partial class TaskbarWindow : Window
     public void SetTheme(ElementTheme theme, Color? accent)
     {
         _theme = theme;
+        _accent = accent;
         Root.RequestedTheme = accent is { } color ? SystemTheme.ThemeOn(color) : theme;
         _backdrop.Theme = Root.RequestedTheme;
         _backdrop.Tint = accent;
+    }
+
+    public void SetBackdrop(Backdrop kind)
+    {
+        if (kind == _backdrop.Kind)
+            return;
+
+        SystemBackdrop = _backdrop = new ShellBackdrop(kind);
+        WindowTransparency.SetSeeThrough(_hwnd, kind == Backdrop.Translucent);
+        SetTheme(_theme, _accent);
     }
 
     public void UpdateClock() => Clock.Update();
@@ -848,6 +862,9 @@ internal sealed partial class TaskbarWindow : Window
         AllDisplaysItem.IsChecked = settings.ShowOnAllDisplays;
         ShowAllTrayIconsItem.Visibility = _tray is not null ? Visibility.Visible : Visibility.Collapsed;
         ShowAllTrayIconsItem.IsChecked = settings.TrayMode == TrayMode.ShowAll;
+        BackdropAcrylicItem.IsChecked = settings.TaskbarBackdrop == Backdrop.Acrylic;
+        BackdropMicaItem.IsChecked = settings.TaskbarBackdrop == Backdrop.Mica;
+        BackdropTranslucentItem.IsChecked = settings.TaskbarBackdrop == Backdrop.Translucent;
     }
 
     private void TaskManager_Click(object sender, RoutedEventArgs e) => _owner.OpenTaskManager();
@@ -867,6 +884,14 @@ internal sealed partial class TaskbarWindow : Window
             CombineButtons = ReferenceEquals(sender, CombineNeverItem) ? CombineButtons.Never
                 : ReferenceEquals(sender, CombineWhenFullItem) ? CombineButtons.WhenFull
                 : CombineButtons.Always,
+        });
+
+    private void Backdrop_Click(object sender, RoutedEventArgs e) =>
+        _owner.Settings.Update(_owner.Settings.Current with
+        {
+            TaskbarBackdrop = ReferenceEquals(sender, BackdropMicaItem) ? Backdrop.Mica
+                : ReferenceEquals(sender, BackdropTranslucentItem) ? Backdrop.Translucent
+                : Backdrop.Acrylic,
         });
 
     private void AutoHide_Click(object sender, RoutedEventArgs e) =>

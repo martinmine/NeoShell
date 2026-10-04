@@ -199,15 +199,21 @@ internal sealed class Taskbars : IDisposable
 
     private void OnSettingsChanged()
     {
-        // Where the taskbars go and how they're laid out needs new windows; the rest is just their buttons.
+        // Where the taskbars go and how they're laid out needs new windows; the backdrop and buttons change in place.
         ShellSettings current = Settings.Current;
         if (current.TaskbarAlignment != _windowSettings.TaskbarAlignment
             || current.ShowOnAllDisplays != _windowSettings.ShowOnAllDisplays
             || current.AutoHide != _windowSettings.AutoHide
             || current.ShowSearchButton != _windowSettings.ShowSearchButton)
+        {
             QueueRecreate();
+        }
         else
+        {
+            foreach (TaskbarWindow window in _windows)
+                window.SetBackdrop(current.TaskbarBackdrop);
             RefreshTasks();
+        }
     }
 
     private void RefreshTasks()

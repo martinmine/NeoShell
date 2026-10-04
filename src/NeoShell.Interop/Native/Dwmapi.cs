@@ -11,6 +11,9 @@ internal static unsafe partial class Dwmapi
     public const int DWMWCP_DONOTROUND = 1;
     public const uint DWMWA_COLOR_NONE = 0xFFFFFFFE;
 
+    public const uint DWM_BB_ENABLE = 0x01;
+    public const uint DWM_BB_BLURREGION = 0x02;
+
     public const uint DWM_TNP_RECTDESTINATION = 0x01;
     public const uint DWM_TNP_VISIBLE = 0x08;
     public const uint DWM_TNP_SOURCECLIENTAREAONLY = 0x10;
@@ -25,6 +28,18 @@ internal static unsafe partial class Dwmapi
         public int fVisible;
         public int fSourceClientAreaOnly;
     }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct DWM_BLURBEHIND
+    {
+        public uint dwFlags;
+        public int fEnable;
+        public nint hRgnBlur;
+        public int fTransitionOnMaximized;
+    }
+
+    [LibraryImport("dwmapi.dll")]
+    public static partial int DwmEnableBlurBehindWindow(nint hwnd, DWM_BLURBEHIND* blurBehind);
 
     [LibraryImport("dwmapi.dll")]
     public static partial int DwmSetWindowAttribute(nint hwnd, uint attribute, void* value, uint size);

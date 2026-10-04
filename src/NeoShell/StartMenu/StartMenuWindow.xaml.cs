@@ -47,7 +47,7 @@ internal sealed partial class StartMenuWindow : Window
 
     private readonly Taskbars _owner;
     private readonly nint _hwnd;
-    private readonly AcrylicBackdrop _backdrop = new();
+    private readonly ShellBackdrop _backdrop = new(Backdrop.Acrylic);
     private readonly FramelessWindow _frameless;
     private readonly PinnedWindow _placement;
     private readonly ObservableCollection<StartItem> _pinned = [];

@@ -6,6 +6,8 @@ public enum CombineButtons { Always, WhenFull, Never }
 
 public enum TrayMode { ShowAll, Overflow }
 
+public enum Backdrop { Acrylic, Mica, Translucent }
+
 public enum DesktopSortOrder { Name, Size, ItemType, DateModified }
 
 /// <summary>A pinned app: launched through its AppUserModelID when it has one, otherwise through its path.</summary>
@@ -24,6 +26,7 @@ public sealed record ShellSettings
     public bool ShowOnAllDisplays { get; set; } = true;
     public bool ShowSearchButton { get; set; } = true;
     public TrayMode TrayMode { get; set; } = TrayMode.Overflow;
+    public Backdrop TaskbarBackdrop { get; set; } = Backdrop.Acrylic;
     public IReadOnlyList<PinnedApp> PinnedTaskbarApps { get; set; } = [];
     public IReadOnlyList<PinnedApp> PinnedStartApps { get; set; } = [];
     /// <summary>Whether Explorer's Start pins have been added to <see cref="PinnedStartApps"/>; done once.</summary>

@@ -378,6 +378,26 @@
                         Text="Never"
                         Click="Combine_Click" />
                 </MenuFlyoutSubItem>
+                <MenuFlyoutSubItem AutomationProperties.AutomationId="BackdropMenuItem" Text="Taskbar backdrop">
+                    <RadioMenuFlyoutItem
+                        x:Name="BackdropAcrylicItem"
+                        AutomationProperties.AutomationId="BackdropAcrylicMenuItem"
+                        GroupName="Backdrop"
+                        Text="Acrylic"
+                        Click="Backdrop_Click" />
+                    <RadioMenuFlyoutItem
+                        x:Name="BackdropMicaItem"
+                        AutomationProperties.AutomationId="BackdropMicaMenuItem"
+                        GroupName="Backdrop"
+                        Text="Mica"
+                        Click="Backdrop_Click" />
+                    <RadioMenuFlyoutItem
+                        x:Name="BackdropTranslucentItem"
+                        AutomationProperties.AutomationId="BackdropTranslucentMenuItem"
+                        GroupName="Backdrop"
+                        Text="Translucent"
+                        Click="Backdrop_Click" />
+                </MenuFlyoutSubItem>
                 <ToggleMenuFlyoutItem
                     x:Name="AutoHideItem"
                     AutomationProperties.AutomationId="AutoHideMenuItem"

@@ -5,6 +5,7 @@ using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
 using NeoShell.Interop.Windowing;
+using NeoShell.Settings;
 using Windows.Foundation;
 using Windows.Graphics;
 
@@ -23,7 +24,7 @@ internal sealed class ThumbnailPopup : Window
 
     private readonly nint _hwnd;
     private readonly WindowTracker _tracker;
-    private readonly AcrylicBackdrop _backdrop = new();
+    private readonly ShellBackdrop _backdrop = new(Backdrop.Acrylic);
     private readonly Grid _root = new() { Padding = new Thickness(Padding) };
     private readonly StackPanel _cells = new() { Orientation = Orientation.Horizontal, Spacing = Gap };
     private readonly List<DwmThumbnail> _thumbnails = [];

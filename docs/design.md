@@ -20,7 +20,7 @@ Out of scope: Quick Settings, Action Center/toasts, Widgets, Task View, Win+X, j
 |---|---|---|
 | UI | WinUI 3, unpackaged, self-contained Windows App SDK | A shell starts before anything can install a runtime; MSIX gets in the way of being the shell |
 | Target | `net10.0-windows10.0.26100.0`, min. Windows 11 (10.0.22000) | The Windows TFM gives WinRT projections (e.g. `NetworkInformation`) without packages |
-| Look | Windows 11 Fluent, `DesktopAcrylicController` with a `SystemBackdropConfiguration` whose `IsInputActive` stays `true` | Keeps the acrylic on windows that rarely have focus |
+| Look | Windows 11 Fluent, `DesktopAcrylicController` (or `MicaController`) with a `SystemBackdropConfiguration` whose `IsInputActive` stays `true` | Keeps the acrylic on windows that rarely have focus |
 | Interop | Hand-written `[LibraryImport]` and `[GeneratedComInterface]` in `NeoShell.Interop` | BCL only, trim/AOT friendly, readable |
 | Win32 messages | Message-only windows (`MessageWindow`) and `SetWindowSubclass` (`WindowSubclass`) on WinUI HWNDs | WinUI doesn't expose a WndProc |
 | Search | `ISearchQueryHelper` builds SQL; `System.Data.OleDb` runs it against `Search.CollatorDSO` | The supported way to query the indexer |
@@ -194,8 +194,12 @@ Shell mode only, like the wallpaper: alongside Explorer, Explorer's desktop has 
   2 pixels show; the pointer entering them slides it back. It hides again after ~0.75 s with the pointer off it,
   unless a menu or flyout is open, the thumbnails or Start are open, or it has the keyboard (Win+T). Start, Win+T and
   Win+1…9 reveal it first.
-- Acrylic backdrop (`AcrylicBackdrop`: a `DesktopAcrylicController` whose configuration keeps `IsInputActive` true),
-  light/dark following the system theme (`HKCU\...\Themes\Personalize\SystemUsesLightTheme`), re-read on every
+- Backdrop by setting (`ShellBackdrop`), chosen in the taskbar menu: Acrylic (default) or Mica — a
+  `DesktopAcrylicController` or `MicaController` whose configuration keeps `IsInputActive` true — or Translucent: a
+  see-through colour brush in the window's system backdrop slot, with DWM blur-behind on an empty region so the
+  window's alpha shows the desktop instead of black. Mica falls back to Acrylic where unsupported. Start and the
+  thumbnails stay Acrylic.
+- Light/dark following the system theme (`HKCU\...\Themes\Personalize\SystemUsesLightTheme`), re-read on every
   `WM_SETTINGCHANGE`.
 - "Show accent color on Start and taskbar" (`Personalize\ColorPrevalence`): the acrylic of the taskbar and Start is
   tinted with the second darker shade of `HKCU\...\Explorer\Accent\AccentPalette`, as Explorer does, and their
@@ -313,7 +317,7 @@ progress (bar along the bottom; indeterminate, error and paused states) and over
 
 ### Taskbar context menu
 
-Task Manager, the taskbar settings toggles (alignment, search button, combine, auto-hide, all displays, tray mode),
+Task Manager, the taskbar settings toggles (alignment, search button, combine, backdrop, auto-hide, all displays, tray mode),
 Exit NeoShell (alongside Explorer only).
 
 ## System tray (`Tray/`)
@@ -447,6 +451,7 @@ AutoHide             bool
 ShowOnAllDisplays    bool
 ShowSearchButton     bool
 TrayMode             ShowAll | Overflow
+TaskbarBackdrop      Acrylic | Mica | Translucent
 PinnedTaskbarApps    list
 PinnedStartApps      list
 ExplorerStartPinsImported  bool
