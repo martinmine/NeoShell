@@ -5,6 +5,7 @@ using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Input;
+using Microsoft.UI.Xaml.Media;
 using NeoShell.Interop.Shell;
 using NeoShell.Interop.Windowing;
 using NeoShell.Logging;
@@ -31,6 +32,8 @@ internal sealed partial class DesktopIconsView : UserControl
     private readonly DesktopIcons _icons;
     private readonly nint _hwnd;
     private readonly DisplayMonitor _monitor;
+    private MarqueeDrag? _marquee;
+    private bool _dragged;
 
     /// <param name="hwnd">The wallpaper window: owner of the shell's menus and dialogs.</param>
     public DesktopIconsView(DesktopIcons icons, nint hwnd, DisplayMonitor monitor)
@@ -49,6 +52,11 @@ internal sealed partial class DesktopIconsView : UserControl
             _ = icons.RefreshAsync();
         };
         Unloaded += (_, _) => icons.Refreshed -= Apply;
+        // Handled events too: the grid's scroll viewer takes presses on the empty space between and around icons.
+        Root.AddHandler(PointerPressedEvent, new PointerEventHandler(Root_PointerPressed), handledEventsToo: true);
+        Root.AddHandler(PointerMovedEvent, new PointerEventHandler(Root_PointerMoved), handledEventsToo: true);
+        Root.AddHandler(PointerReleasedEvent, new PointerEventHandler(Root_PointerReleased), handledEventsToo: true);
+        Root.AddHandler(PointerCaptureLostEvent, new PointerEventHandler(Root_PointerReleased), handledEventsToo: true);
     }
 
     private IReadOnlyList<DesktopItem> Selection => [.. IconGrid.SelectedItems.Cast<DesktopIcon>().Select(icon => icon.Item)];
@@ -83,9 +91,89 @@ internal sealed partial class DesktopIconsView : UserControl
     private void Root_Tapped(object sender, TappedRoutedEventArgs e)
     {
         // A click on the desktop itself clears the selection, as in Explorer.
-        if (IconAt(e.OriginalSource) is null)
+        if (!_dragged && IconAt(e.OriginalSource) is null)
             IconGrid.SelectedItems.Clear();
     }
+
+    /// <summary>A press on the empty desktop starts a selection rectangle; with Ctrl it adds to the selection.</summary>
+    private void Root_PointerPressed(object sender, PointerRoutedEventArgs e)
+    {
+        PointerPoint point = e.GetCurrentPoint(Root);
+        if (!point.Properties.IsLeftButtonPressed || IconAt(e.OriginalSource) is not null || IsOnScrollBar(e.OriginalSource))
+            return;
+
+        _dragged = false;
+        HashSet<DesktopIcon> kept = IsDown(VirtualKey.Control) ? [.. IconGrid.SelectedItems.Cast<DesktopIcon>()] : [];
+        if (Root.CapturePointer(e.Pointer))
+            _marquee = new MarqueeDrag(e.Pointer.PointerId, point.Position, kept);
+    }
+
+    private void Root_PointerMoved(object sender, PointerRoutedEventArgs e)
+    {
+        if (_marquee is not { } marquee || e.Pointer.PointerId != marquee.PointerId)
+            return;
+
+        // A small wobble while clicking isn't a drag.
+        const double threshold = 4;
+        Point position = e.GetCurrentPoint(Root).Position;
+        if (!_dragged && Math.Abs(position.X - marquee.Start.X) < threshold && Math.Abs(position.Y - marquee.Start.Y) < threshold)
+            return;
+
+        _dragged = true;
+        var rect = new Rect(marquee.Start, position);
+        Canvas.SetLeft(Marquee, rect.X);
+        Canvas.SetTop(Marquee, rect.Y);
+        Marquee.Width = rect.Width;
+        Marquee.Height = rect.Height;
+        Marquee.Visibility = Visibility.Visible;
+
+        foreach (DesktopIcon icon in _icons.Icons)
+        {
+            bool select = marquee.Kept.Contains(icon) || Intersects(icon, rect);
+            if (select != IconGrid.SelectedItems.Contains(icon))
+            {
+                if (select)
+                    IconGrid.SelectedItems.Add(icon);
+                else
+                    IconGrid.SelectedItems.Remove(icon);
+            }
+        }
+    }
+
+    private void Root_PointerReleased(object sender, PointerRoutedEventArgs e)
+    {
+        if (_marquee is not { } marquee || e.Pointer.PointerId != marquee.PointerId)
+            return;
+
+        _marquee = null;
+        Marquee.Visibility = Visibility.Collapsed;
+        Root.ReleasePointerCapture(e.Pointer);
+        // So the keys (Enter, Delete, Ctrl+C) act on what was just selected.
+        if (_dragged)
+            IconGrid.Focus(FocusState.Pointer);
+    }
+
+    private bool Intersects(DesktopIcon icon, Rect rect)
+    {
+        if (IconGrid.ContainerFromItem(icon) is not FrameworkElement container)
+            return false;
+
+        Rect bounds = container.TransformToVisual(Root).TransformBounds(new Rect(0, 0, container.ActualWidth, container.ActualHeight));
+        bounds.Intersect(rect);
+        return !bounds.IsEmpty;
+    }
+
+    private static bool IsOnScrollBar(object source)
+    {
+        for (var element = source as DependencyObject; element is not null; element = VisualTreeHelper.GetParent(element))
+        {
+            if (element is ScrollBar)
+                return true;
+        }
+        return false;
+    }
+
+    private sealed record MarqueeDrag(uint PointerId, Point Start, HashSet<DesktopIcon> Kept);
 
     private void IconGrid_DoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
     {

@@ -27,6 +27,10 @@
 
     <!-- Transparent rather than null so the empty desktop gets clicks and right-clicks. -->
     <Grid x:Name="Root" Background="Transparent" ContextRequested="Root_ContextRequested" Tapped="Root_Tapped">
+        <Grid.Resources>
+            <SolidColorBrush x:Key="MarqueeFillBrush" Color="{ThemeResource SystemAccentColor}" Opacity="0.3" />
+            <SolidColorBrush x:Key="MarqueeStrokeBrush" Color="{ThemeResource SystemAccentColorLight1}" />
+        </Grid.Resources>
         <GridView
             x:Name="IconGrid"
             AutomationProperties.AutomationId="DesktopIcons"
@@ -98,5 +102,15 @@
                 </DataTemplate>
             </GridView.ItemTemplate>
         </GridView>
+
+        <!-- Explorer's selection rectangle, drawn while dragging over the empty desktop. -->
+        <Canvas IsHitTestVisible="False">
+            <Rectangle
+                x:Name="Marquee"
+                Fill="{StaticResource MarqueeFillBrush}"
+                Stroke="{StaticResource MarqueeStrokeBrush}"
+                StrokeThickness="1"
+                Visibility="Collapsed" />
+        </Canvas>
     </Grid>
 </UserControl>

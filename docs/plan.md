@@ -113,6 +113,10 @@ Tick items off as they land. The feature details are in [design.md](design.md).
 - [x] Icon menu and desktop menu (View, Sort by, Refresh, Paste, New, Desktop icon settings), "Show more options"
       with the shell's full menu — Empty Recycle Bin not invoked live (it deletes for good)
 
+## 11. Requested features
+
+- [x] Desktop: drag a selection rectangle over the icons (Ctrl adds to the selection)
+
 ## Later / not planned yet
 
 - Jump lists

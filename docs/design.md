@@ -149,7 +149,8 @@ Shell mode only, like the wallpaper: alongside Explorer, Explorer's desktop has 
   `ObservableCollection` in place (remove, move, insert), so the selection and loaded images survive.
 - **View** (`DesktopIconsView`): a `GridView` (extended selection, vertical `ItemsWrapGrid`) in the primary monitor's
   `WallpaperWindow`. Double-click or Enter opens; Delete, F2, F5, Ctrl+C/X/V and Alt+Enter work as in Explorer; a
-  click on the empty desktop clears the selection.
+  click on the empty desktop clears the selection. Dragging from the empty desktop draws a selection rectangle (accent
+  coloured) and selects every icon it touches; with Ctrl held it adds to the selection.
 - **Menus**, as in Windows 11: a short WinUI menu, and "Show more options" for the shell's full menu.
   - Icons: Open, Run as administrator, Open with, Empty Recycle Bin, Cut, Copy, Rename, Delete, Copy as path,
     Properties, each shown according to the items' `SFGAO_*` attributes.
