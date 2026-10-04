@@ -315,6 +315,11 @@ Shell mode only, like the wallpaper: alongside Explorer, Explorer's desktop has 
 - UWP (CoreWindow) apps, Settings and Calculator among them, can't show in shell mode: their windows stay cloaked
   without Explorer's view management, and activation fails. Packaged desktop apps (Notepad, Terminal) work.
 - Pinning from the Start menu and from a task button's context menu.
+- The first time Start's catalog loads, Explorer's taskbar pins are added once (`ExplorerTaskbarPinsImported`),
+  matched to catalog apps as Start's are. The shortcuts in `User Pinned\TaskBar` have no order and packaged apps
+  have none, so they're read from `HKCU\…\Explorer\Taskband\Favorites`: a version byte, then per pin a 32-bit
+  length, the ID list and a separator byte (0xFF after the last). Each ID list is resolved with
+  `SHCreateItemFromIDList` to its AppUserModelID and shortcut target.
 
 ### Jump lists
 
@@ -712,6 +717,7 @@ TaskbarBackdrop      Acrylic | Mica | Translucent | Transparent
 PinnedTaskbarApps    list
 PinnedStartApps      list
 ExplorerStartPinsImported  bool
+ExplorerTaskbarPinsImported  bool
 StartMenuWidth       double (epx)
 StartMenuHeight      double (epx)
 DesktopSortOrder     Name | Size | ItemType | DateModified

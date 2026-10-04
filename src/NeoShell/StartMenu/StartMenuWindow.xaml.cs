@@ -314,34 +314,41 @@ internal sealed partial class StartMenuWindow : Window
         }
     }
 
-    // Start begins with the pins the user made in Explorer's Start, once; after that NeoShell's pins are its own.
+    // Start and the taskbar begin with the pins the user made in Explorer, once; after that NeoShell's pins are its
+    // own. Start does it for both, as matching a pin to an app needs Start's catalog.
     private async void ImportExplorerPins()
     {
         _importingPins = true;
-        IReadOnlyList<PinnedApp> imported = [];
-        try
-        {
-            IReadOnlyList<ExplorerStartPin> pins = await Task.Run(StartLayout.ReadPinned);
-            imported = StartCatalog.FromExplorerPins(_apps.Select(item => item.Target), pins);
-            Log.Info($"Imported {imported.Count} of {pins.Count} pins from Explorer's Start");
-        }
-        catch (Exception ex)
-        {
-            Log.Warn("Could not read Explorer's Start pins", ex);
-        }
-        finally
-        {
-            _importingPins = false;
-        }
+        ShellSettings before = _owner.Settings.Current;
+        IReadOnlyList<PinnedApp> start = before.ExplorerStartPinsImported ? [] : await ImportPins("Start", StartLayout.ReadPinned);
+        IReadOnlyList<PinnedApp> taskbar = before.ExplorerTaskbarPinsImported ? [] : await ImportPins("taskbar", TaskbarFavorites.ReadPinned);
+        _importingPins = false;
 
-        // Pins made in NeoShell, before or while importing, stay first.
         ShellSettings settings = _owner.Settings.Current;
         _owner.Settings.Update(settings with
         {
-            PinnedStartApps = [.. settings.PinnedStartApps, .. imported.Where(app => !settings.PinnedStartApps.Any(p => TaskGrouping.SameApp(p, app)))],
+            PinnedStartApps = StartCatalog.AddImported(settings.PinnedStartApps, start),
+            PinnedTaskbarApps = StartCatalog.AddImported(settings.PinnedTaskbarApps, taskbar),
             ExplorerStartPinsImported = true,
+            ExplorerTaskbarPinsImported = true,
         });
         ShowPinned();
+    }
+
+    private async Task<IReadOnlyList<PinnedApp>> ImportPins(string place, Func<IReadOnlyList<ExplorerPin>> read)
+    {
+        try
+        {
+            IReadOnlyList<ExplorerPin> pins = await Task.Run(read);
+            IReadOnlyList<PinnedApp> imported = StartCatalog.FromExplorerPins(_apps.Select(item => item.Target), pins);
+            Log.Info($"Imported {imported.Count} of {pins.Count} pins from Explorer's {place}");
+            return imported;
+        }
+        catch (Exception ex)
+        {
+            Log.Warn($"Could not read Explorer's {place} pins", ex);
+            return [];
+        }
     }
 
     // The catalog changes only when apps are installed or removed; reloading every few minutes, in the background,
@@ -369,7 +376,7 @@ internal sealed partial class StartMenuWindow : Window
             _appsLoadedAt = DateTime.UtcNow;
             Log.Info($"App catalog: {_apps.Count} apps");
             ShowRecent();
-            if (!_owner.Settings.Current.ExplorerStartPinsImported && !_importingPins)
+            if (_owner.Settings.Current is not { ExplorerStartPinsImported: true, ExplorerTaskbarPinsImported: true } && !_importingPins)
                 ImportExplorerPins();
         }
         catch (Exception ex)

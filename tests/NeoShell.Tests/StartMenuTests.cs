@@ -157,7 +157,7 @@ public sealed class StartMenuTests
     [Fact]
     public void Explorer_pins_become_catalog_apps_and_removed_apps_are_dropped()
     {
-        ExplorerStartPin[] pins =
+        ExplorerPin[] pins =
         [
             new(null, @"c:\tools\vs code\code.exe"),
             new("Removed_8wekyb3d8bbwe!App", null),
@@ -166,6 +166,37 @@ public sealed class StartMenuTests
         ];
 
         Assert.Equal([s_code, s_notepad], StartCatalog.FromExplorerPins(s_catalog, pins));
+    }
+
+    [Fact]
+    public void Taskbar_favorites_give_each_pins_id_list_in_order()
+    {
+        byte[] first = [0x04, 0x00, 0x00, 0x00]; // an ID list of one empty item: cb 4, then the terminator
+        byte[] second = [0x06, 0x00, 0xAA, 0xBB, 0x00, 0x00];
+        byte[] favorites = [0x00, .. Entry(first), 0x00, .. Entry(second), 0xFF];
+
+        Assert.Equal([first, second], TaskbarFavorites.Parse(favorites));
+    }
+
+    [Fact]
+    public void Taskbar_favorites_stop_at_a_truncated_or_empty_value()
+    {
+        byte[] idList = [0x04, 0x00, 0x00, 0x00];
+
+        Assert.Equal([idList], TaskbarFavorites.Parse([0x00, .. Entry(idList), 0x00, 0x10, 0x00, 0x00, 0x00, 0x01]));
+        Assert.Empty(TaskbarFavorites.Parse([0x00]));
+        Assert.Empty(TaskbarFavorites.Parse([]));
+    }
+
+    private static byte[] Entry(byte[] idList) => [.. BitConverter.GetBytes(idList.Length), .. idList];
+
+    [Fact]
+    public void Imported_pins_follow_neoshells_own_and_skip_apps_already_pinned()
+    {
+        var code = s_code with { DisplayName = "Code" };
+
+        Assert.Equal([s_charmap, s_code, s_notepad], StartCatalog.AddImported([s_charmap, s_code], [code, s_notepad]));
+        Assert.Equal([s_notepad], StartCatalog.AddImported([], [s_notepad]));
     }
 
     [Fact]

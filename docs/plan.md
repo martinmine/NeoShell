@@ -47,6 +47,7 @@ Tick items off as they land. The feature details are in [design.md](design.md).
 - [x] Task buttons: indicators, click/middle-click/Shift+click, flashing
 - [x] Context menu: launch, pin/unpin, close window(s)
 - [x] Pinned apps (settings), drag to reorder (pinned apps keep their order; running apps fall back in line)
+- [x] Explorer's taskbar pins imported once (`Taskband\Favorites`; tests for parsing)
 - [x] Combine modes: always / when full / never
 - [x] DWM thumbnail popup with close buttons
 - [x] Centre / left alignment

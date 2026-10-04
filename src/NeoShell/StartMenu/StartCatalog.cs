@@ -1,6 +1,7 @@
 using NeoShell.Interop.Search;
 using NeoShell.Interop.Shell;
 using NeoShell.Settings;
+using NeoShell.Taskbar;
 
 namespace NeoShell.StartMenu;
 
@@ -35,9 +36,13 @@ public static class StartCatalog
         (appUserModelId is null ? null : apps.FirstOrDefault(app => string.Equals(app.AppUserModelId, appUserModelId, StringComparison.OrdinalIgnoreCase)))
         ?? (path is null ? null : apps.FirstOrDefault(app => string.Equals(app.Path, path, StringComparison.OrdinalIgnoreCase)));
 
-    /// <summary>Explorer's Start pins as catalog apps, in Explorer's order. Pins of apps since removed are dropped.</summary>
-    public static IReadOnlyList<PinnedApp> FromExplorerPins(IEnumerable<PinnedApp> apps, IEnumerable<ExplorerStartPin> pins) =>
+    /// <summary>Explorer's pins as catalog apps, in Explorer's order. Pins of apps since removed are dropped.</summary>
+    public static IReadOnlyList<PinnedApp> FromExplorerPins(IEnumerable<PinnedApp> apps, IEnumerable<ExplorerPin> pins) =>
         [.. pins.Select(pin => Find(apps, pin.AppUserModelId, pin.TargetPath)).OfType<PinnedApp>().Distinct()];
+
+    /// <summary>Imported pins after the ones made in NeoShell, which stay first; apps already pinned aren't added again.</summary>
+    public static IReadOnlyList<PinnedApp> AddImported(IReadOnlyList<PinnedApp> pinned, IEnumerable<PinnedApp> imported) =>
+        [.. pinned, .. imported.Where(app => !pinned.Any(p => TaskGrouping.SameApp(p, app)))];
 
     /// <summary>
     /// The catalog apps started most recently, newest first. An app can be recorded both by its AppUserModelID and
