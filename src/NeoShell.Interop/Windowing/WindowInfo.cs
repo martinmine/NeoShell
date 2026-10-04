@@ -6,12 +6,14 @@ using NeoShell.Interop.Native;
 namespace NeoShell.Interop.Windowing;
 
 /// <summary>A snapshot of what the taskbar needs to know about a top-level window.</summary>
+/// <param name="ClassName">The window class, e.g. <c>Notepad</c>.</param>
 /// <param name="IsAppWindow"><c>WS_EX_APPWINDOW</c>: asks for a taskbar button even if owned.</param>
 /// <param name="AppUserModelId">The window's or its packaged process's AppUserModelID, or null.</param>
 /// <param name="ProcessPath">Full path of the process's executable, or null if it can't be read.</param>
 public sealed record WindowInfo(
     nint Handle,
     string Title,
+    string ClassName,
     bool IsVisible,
     bool IsCloaked,
     bool IsAppWindow,
@@ -36,10 +38,12 @@ public sealed record WindowInfo(
         int cloaked = 0;
         Dwmapi.DwmGetWindowAttribute(hwnd, Dwmapi.DWMWA_CLOAKED, &cloaked, sizeof(int));
         (string? path, string? packageAppId) = ReadProcess(processId);
+        char* className = stackalloc char[256];
 
         return new WindowInfo(
             hwnd,
             ReadTitle(hwnd),
+            new string(className, 0, User32.GetClassName(hwnd, className, 256)),
             User32.IsWindowVisible(hwnd),
             cloaked != 0,
             (exStyle & User32.WS_EX_APPWINDOW) != 0,

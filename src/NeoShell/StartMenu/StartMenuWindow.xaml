@@ -43,7 +43,7 @@
                 <!-- A recent app: as Windows shows them, a bigger icon and when it was last started. -->
                 <DataTemplate x:Key="RecentItemTemplate" x:DataType="local:StartItem">
                     <Grid
-                        Padding="4,8"
+                        Padding="12,0"
                         ColumnSpacing="12"
                         Background="Transparent"
                         AutomationProperties.AutomationId="RecentApp"
@@ -135,10 +135,13 @@
                 IsHitTestVisible="False" />
         </Grid>
 
-        <!-- Home, as in Windows 11: pinned apps, then recent apps, on one scrolling page. -->
-        <ScrollViewer x:Name="HomeView" Grid.Row="1" Padding="40,0,40,16">
+        <!--
+            Home, as in Windows 11: pinned apps, then recent apps, on one scrolling page. Pinned apps start 8 further left
+            than the rest, as in Explorer, so that's the padding; more would clip them.
+        -->
+        <ScrollViewer x:Name="HomeView" Grid.Row="1" Padding="32,0,24,16">
             <StackPanel>
-                <Grid Margin="24,20,8,12">
+                <Grid Margin="32,20,24,12">
                     <TextBlock Text="Pinned" Style="{ThemeResource BodyStrongTextBlockStyle}" VerticalAlignment="Center" />
                     <Button
                         x:Name="AllAppsButton"
@@ -174,10 +177,10 @@
                     <GridView.ItemTemplate>
                         <DataTemplate x:DataType="local:StartItem">
                             <StackPanel
-                                Width="92"
+                                Width="96"
                                 Height="84"
                                 Padding="4,12,4,4"
-                                Spacing="8"
+                                Spacing="4"
                                 Background="Transparent"
                                 AutomationProperties.AutomationId="PinnedApp"
                                 AutomationProperties.Name="{x:Bind Title}">
@@ -198,14 +201,19 @@
                 </GridView>
                 <TextBlock
                     x:Name="NoPinnedText"
-                    Margin="24,8,0,8"
+                    Margin="32,8,0,8"
                     Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                     Text="Pin apps from All apps to keep them here." />
 
                 <StackPanel x:Name="RecentSection" Visibility="Collapsed">
-                    <TextBlock Margin="24,24,0,8" Text="Recent" Style="{ThemeResource BodyStrongTextBlockStyle}" />
+                    <TextBlock Margin="32,28,0,15" Text="Recent" Style="{ThemeResource BodyStrongTextBlockStyle}" />
+                    <!--
+                        Laid out as Explorer's: three columns 256 wide with 20 between the items, icons in line with the
+                        heading. The last column's gap may hang off the right edge.
+                    -->
                     <GridView
                         x:Name="RecentGrid"
+                        Margin="20,0,-20,0"
                         AutomationProperties.AutomationId="RecentApps"
                         AutomationProperties.Name="Recent"
                         ItemTemplate="{StaticResource RecentItemTemplate}"
@@ -216,13 +224,14 @@
                         ScrollViewer.VerticalScrollBarVisibility="Disabled">
                         <GridView.ItemContainerStyle>
                             <Style TargetType="GridViewItem" BasedOn="{StaticResource DefaultGridViewItemStyle}">
-                                <Setter Property="Margin" Value="0" />
+                                <Setter Property="Margin" Value="0,0,20,0" />
                                 <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                                <Setter Property="VerticalContentAlignment" Value="Stretch" />
                             </Style>
                         </GridView.ItemContainerStyle>
                         <GridView.ItemsPanel>
                             <ItemsPanelTemplate>
-                                <ItemsWrapGrid Orientation="Horizontal" MaximumRowsOrColumns="3" ItemWidth="248" />
+                                <ItemsWrapGrid Orientation="Horizontal" MaximumRowsOrColumns="3" ItemWidth="256" ItemHeight="56" />
                             </ItemsPanelTemplate>
                         </GridView.ItemsPanel>
                     </GridView>

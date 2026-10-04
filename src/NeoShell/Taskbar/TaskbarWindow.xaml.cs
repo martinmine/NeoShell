@@ -307,10 +307,12 @@ internal sealed partial class TaskbarWindow : Window
         Root.RequestedTheme = accent is { } color ? SystemTheme.ThemeOn(color) : theme;
         _backdrop.Theme = Root.RequestedTheme;
         _backdrop.Tint = accent;
-        // Quick Settings takes the taskbar's colour, as Windows' does; its popup window gets a backdrop of its own,
-        // acrylic whatever the taskbar's, as Windows' always is.
+        // Quick Settings and the hidden tray icons take the taskbar's colour, as Windows' do; their popup windows get a
+        // backdrop of their own, acrylic whatever the taskbar's, as Windows' always is.
         QuickSettings.RequestedTheme = Root.RequestedTheme;
         QuickSettingsFlyout.SystemBackdrop = new ShellBackdrop(Backdrop.Acrylic) { Theme = Root.RequestedTheme, Tint = accent };
+        OverflowIcons.RequestedTheme = Root.RequestedTheme;
+        OverflowFlyout.SystemBackdrop = new ShellBackdrop(Backdrop.Acrylic) { Theme = Root.RequestedTheme, Tint = accent };
     }
 
     public void SetBackdrop(Backdrop kind)

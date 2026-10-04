@@ -217,8 +217,8 @@ Shell mode only, like the wallpaper: alongside Explorer, Explorer's desktop has 
 - Flyouts and menus (`TaskbarFlyouts`) open as in Windows 11: above the taskbar with a 12 epx gap, sliding up from
   behind it. A task button's menu (the jump list) is centred on the button, the taskbar's menu above the pointer, the
   overflow above the chevron, the volume flyout and the calendar at the right of the screen, 12 epx from its edge.
-  Each is opened by hand (`ShowAt` with a position on the taskbar's top edge; the 12 epx gap is the presenter's
-  bottom margin): context menus by handling `ContextRequested` (a `ContextFlyout` would be opened by WinUI itself, at
+  Each is opened by hand (`ShowAt` with a position 12 epx above the taskbar's top edge; not a presenter margin, which
+  WinUI leaves out when it places the popup): context menus by handling `ContextRequested` (a `ContextFlyout` would be opened by WinUI itself, at
   the pointer, before any handler runs), button flyouts as attached flyouts opened on `Click`. WinUI's Top placement
   puts the flyout's edge, not its middle, at the point given, and the width is only known once it's open, so a
   centred flyout opens hidden and is shown again, moved by half its width (kept 12 epx from the screen's edges).

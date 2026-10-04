@@ -31,10 +31,9 @@
                     </Setter>
                 </Style>
 
-                <!-- A tray icon: every mouse action goes to the icon's app. -->
+                <!-- A tray icon: every mouse action goes to the icon's app. Its width is the container's. -->
                 <DataTemplate x:Key="TrayIconTemplate" x:DataType="tray:TrayIcon">
                     <Grid
-                        Width="32"
                         Height="40"
                         Background="Transparent"
                         AutomationProperties.AutomationId="TrayIcon"
@@ -257,10 +256,20 @@
                     <FontIcon Glyph="&#xE70E;" FontSize="12" />
                     <FlyoutBase.AttachedFlyout>
                         <Flyout x:Name="OverflowFlyout">
-                            <ItemsControl x:Name="OverflowIcons" ItemTemplate="{StaticResource TrayIconTemplate}" MaxWidth="140">
+                            <Flyout.FlyoutPresenterStyle>
+                                <Style TargetType="FlyoutPresenter" BasedOn="{StaticResource DefaultFlyoutPresenterStyle}">
+                                    <!-- The flyout's own backdrop shows through (SetTheme). -->
+                                    <Setter Property="Background" Value="Transparent" />
+                                    <!-- As Explorer's: 40 by 40 icons, 4 from the edge counting the border. -->
+                                    <Setter Property="Padding" Value="3" />
+                                    <Setter Property="MinWidth" Value="0" />
+                                    <Setter Property="MinHeight" Value="0" />
+                                </Style>
+                            </Flyout.FlyoutPresenterStyle>
+                            <ItemsControl x:Name="OverflowIcons" ItemTemplate="{StaticResource TrayIconTemplate}">
                                 <ItemsControl.ItemsPanel>
                                     <ItemsPanelTemplate>
-                                        <ItemsWrapGrid Orientation="Horizontal" MaximumRowsOrColumns="5" />
+                                        <ItemsWrapGrid Orientation="Horizontal" MaximumRowsOrColumns="5" ItemWidth="40" ItemHeight="40" />
                                     </ItemsPanelTemplate>
                                 </ItemsControl.ItemsPanel>
                             </ItemsControl>
@@ -268,6 +277,11 @@
                     </FlyoutBase.AttachedFlyout>
                 </Button>
                 <ItemsControl x:Name="TrayIcons" ItemTemplate="{StaticResource TrayIconTemplate}">
+                    <ItemsControl.ItemContainerStyle>
+                        <Style TargetType="ContentPresenter">
+                            <Setter Property="Width" Value="32" />
+                        </Style>
+                    </ItemsControl.ItemContainerStyle>
                     <ItemsControl.ItemsPanel>
                         <ItemsPanelTemplate>
                             <StackPanel Orientation="Horizontal" />
@@ -295,7 +309,7 @@
                     AutomationProperties.AutomationId="QuickSettingsButton"
                     AutomationProperties.Name="Quick Settings"
                     Width="Auto"
-                    Padding="10,0"
+                    Padding="4,0"
                     Style="{StaticResource FlatButtonStyle}"
                     Click="QuickSettingsButton_Click"
                     ContextRequested="QuickSettingsButton_ContextRequested"
@@ -368,7 +382,8 @@
                     </FlyoutBase.AttachedFlyout>
                 </Button>
             </StackPanel>
-            <local:Clock x:Name="Clock" Margin="4,0" VerticalAlignment="Center" />
+            <!-- Right against the indicators and Show desktop, as on the Windows 11 taskbar. -->
+            <local:Clock x:Name="Clock" VerticalAlignment="Center" />
             <Button
                 x:Name="ShowDesktopButton"
                 AutomationProperties.AutomationId="ShowDesktopButton"

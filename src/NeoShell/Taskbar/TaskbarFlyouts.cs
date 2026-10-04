@@ -66,8 +66,8 @@ internal static class TaskbarFlyouts
     private static void Show(FlyoutBase flyout, FrameworkElement target, double x, FlyoutPlacementMode placement)
     {
         Prepare(flyout);
-        // From the taskbar's top edge, whatever the target's height.
-        flyout.ShowAt(target, new FlyoutShowOptions { Position = new Point(x, -Top(target)), Placement = placement });
+        // The gap above the taskbar's top edge, whatever the target's height.
+        flyout.ShowAt(target, new FlyoutShowOptions { Position = new Point(x, Above(target)), Placement = placement });
     }
 
     private static void Prepare(FlyoutBase flyout)
@@ -77,26 +77,8 @@ internal static class TaskbarFlyouts
 
         flyout.ShouldConstrainToRootBounds = false;
         flyout.AreOpenCloseAnimationsEnabled = false;
-        // The gap is the presenter's margin, so the window ends on the taskbar's edge.
-        Thickness margin = new(0, 0, 0, Gap);
-        switch (flyout)
-        {
-            case MenuFlyout menu:
-                menu.MenuFlyoutPresenterStyle = PresenterStyle(typeof(MenuFlyoutPresenter), "DefaultMenuFlyoutPresenterStyle", menu.MenuFlyoutPresenterStyle, margin);
-                break;
-            case Flyout content:
-                content.FlyoutPresenterStyle = PresenterStyle(typeof(FlyoutPresenter), "DefaultFlyoutPresenterStyle", content.FlyoutPresenterStyle, margin);
-                break;
-        }
         flyout.Opened += (_, _) => SlideIn(flyout);
         flyout.Closed += (_, _) => s_centred.Remove(flyout);
-    }
-
-    private static Style PresenterStyle(Type type, string defaultKey, Style? existing, Thickness margin)
-    {
-        var style = new Style(type) { BasedOn = existing ?? (Style)Application.Current.Resources[defaultKey] };
-        style.Setters.Add(new Setter(FrameworkElement.MarginProperty, margin));
-        return style;
     }
 
     private static void SlideIn(FlyoutBase flyout)
@@ -116,10 +98,14 @@ internal static class TaskbarFlyouts
             Point centre = presenter.TransformToVisual(Taskbar(target)).TransformPoint(new Point(presenter.ActualWidth / 2, presenter.ActualHeight / 2));
             var anchor = new PointInt32(taskbarBounds.X + (int)(centre.X * scale), taskbarBounds.Y + (int)(centre.Y * scale));
 
-            // Hidden until it slides. Its window is known from an earlier opening, or turns up in the next frames.
-            nint window = s_windows.TryGetValue(flyout, out nint known) && PopupWindows.Exists(known) ? known : 0;
+            // Hidden until it slides. Its window is known from an earlier opening, is already there, or turns up in the
+            // next frames.
+            nint window = s_windows.TryGetValue(flyout, out nint known) && PopupWindows.Exists(known) ? known : NewWindow(taskbarWindow);
             if (window != 0)
+            {
+                s_windows[flyout] = window;
                 Hide(window);
+            }
             // Another flyout's slide that's cut short shows its window where it is.
             if (s_slide is { Window: not 0 } previous && previous.Window != window && previous.Flyout != flyout)
                 PopupWindows.Place(previous.Window, PopupWindows.GetBounds(previous.Window).Y, null);
@@ -134,6 +120,9 @@ internal static class TaskbarFlyouts
             return;
         }
     }
+
+    // On a flyout's first opening, its window: the taskbar's popup window no other flyout has.
+    private static nint NewWindow(nint taskbarWindow) => PopupWindows.OwnedBy(taskbarWindow).FirstOrDefault(w => !s_windows.ContainsValue(w));
 
     private static void Hide(nint window) => PopupWindows.Place(window, PopupWindows.GetBounds(window).Y, visibleBottom: int.MinValue);
 
@@ -150,6 +139,8 @@ internal static class TaskbarFlyouts
         public nint Window { get; set; }
         public long Since { get; set; } = Stopwatch.GetTimestamp();
         public int? To { get; set; }
+        /// <summary>Where the window was last seen in place, before it's known to stay there.</summary>
+        public int? SeenAt { get; set; }
         /// <summary>Only find and hide the window: the flyout is opening again elsewhere.</summary>
         public bool HideOnly { get; set; }
     }
@@ -163,8 +154,7 @@ internal static class TaskbarFlyouts
         {
             if (slide.Window == 0)
             {
-                // The first opening: the taskbar's popup window no other flyout has.
-                nint window = PopupWindows.OwnedBy(slide.Owner).FirstOrDefault(w => !s_windows.ContainsValue(w));
+                nint window = NewWindow(slide.Owner);
                 if (window != 0)
                 {
                     slide.Window = s_windows[slide.Flyout] = window;
@@ -182,6 +172,13 @@ internal static class TaskbarFlyouts
             if (slide.Window != 0 && PopupWindows.IsShown(slide.Window)
                 && slide.Anchor.Y >= bounds.Y && slide.Anchor.Y < bounds.Y + bounds.Height)
             {
+                // Only once it stays put: on a menu's first opening WinUI places the window for a size the menu doesn't
+                // keep, then again a frame later.
+                if (slide.SeenAt != bounds.Y)
+                {
+                    slide.SeenAt = bounds.Y;
+                    return;
+                }
                 slide.To = bounds.Y;
                 slide.Since = Stopwatch.GetTimestamp();
                 PopupWindows.Place(slide.Window, slide.Edge, slide.Edge);
@@ -224,7 +221,7 @@ internal static class TaskbarFlyouts
         if (Math.Abs(wanted - left) < 1)
             return false;
 
-        flyout.ShowAt(target, new FlyoutShowOptions { Position = new Point(wanted - targetLeft, -Top(target)), Placement = FlyoutPlacementMode.Top });
+        flyout.ShowAt(target, new FlyoutShowOptions { Position = new Point(wanted - targetLeft, Above(target)), Placement = FlyoutPlacementMode.Top });
         return true;
     }
 
@@ -234,6 +231,10 @@ internal static class TaskbarFlyouts
         (MenuFlyoutPresenter p, MenuFlyout m) => m.Items.Count > 0 && p.Items.Contains(m.Items[0]),
         _ => false,
     };
+
+    // Where a flyout's bottom goes, in the target's coordinates: the gap above the taskbar. WinUI places a flyout by
+    // its presenter's size, leaving a margin out, so the gap can't be the presenter's margin.
+    private static double Above(FrameworkElement target) => -Top(target) - Gap;
 
     // How far below the taskbar's top edge the element starts.
     private static double Top(FrameworkElement element) => element.TransformToVisual(Taskbar(element)).TransformPoint(default).Y;

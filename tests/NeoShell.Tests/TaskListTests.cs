@@ -13,8 +13,9 @@ public sealed class TaskListTests
 
     private static WindowInfo Window(
         nint handle, string? path = Notepad, string? appId = null, bool visible = true, bool cloaked = false,
-        bool appWindow = false, bool toolWindow = false, bool noActivate = false, nint owner = 0, int process = 1) =>
-        new(handle, $"Window {handle}", visible, cloaked, appWindow, toolWindow, noActivate, owner, process, appId, path);
+        bool appWindow = false, bool toolWindow = false, bool noActivate = false, nint owner = 0, int process = 1,
+        string className = "Notepad") =>
+        new(handle, $"Window {handle}", className, visible, cloaked, appWindow, toolWindow, noActivate, owner, process, appId, path);
 
     [Fact]
     public void Ordinary_top_level_window_gets_a_button()
@@ -47,6 +48,12 @@ public sealed class TaskListTests
     {
         Assert.False(TaskFilter.GetsButton(Window(1, appWindow: true, visible: false), OwnProcess));
         Assert.False(TaskFilter.GetsButton(Window(1, appWindow: true, cloaked: true), OwnProcess));
+    }
+
+    [Fact]
+    public void Shell_surfaces_like_explorers_start_get_no_button()
+    {
+        Assert.False(TaskFilter.GetsButton(Window(1, className: "Windows.UI.Core.CoreWindow"), OwnProcess));
     }
 
     [Fact]
