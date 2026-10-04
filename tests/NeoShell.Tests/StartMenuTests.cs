@@ -128,4 +128,91 @@ public sealed class StartMenuTests
         Assert.Equal("AND SCOPE='file:' AND System.FileExtension <> '.lnk'", IndexSearch.WhereRestrictions);
         Assert.StartsWith("System.ItemNameDisplay,System.ItemPathDisplay,", IndexSearch.SelectColumns);
     }
+
+    private static readonly PinnedApp s_notepad = new("Notepad", "Microsoft.WindowsNotepad_8wekyb3d8bbwe!App");
+    private static readonly PinnedApp s_code = new("Visual Studio Code", "Microsoft.VisualStudioCode", @"C:\Tools\VS Code\Code.exe");
+    private static readonly PinnedApp s_charmap = new("Character Map", Path: Path.Combine(Environment.SystemDirectory, "charmap.exe"));
+    private static readonly PinnedApp[] s_catalog = [s_notepad, s_code, s_charmap];
+
+    [Fact]
+    public void Explorer_layout_lists_packaged_apps_and_shortcuts_in_order()
+    {
+        const string json = """
+            {"pinnedList":[
+              {"packagedAppId":"Microsoft.WindowsNotepad_8wekyb3d8bbwe!App"},
+              {"desktopAppLink":"%APPDATA%\\Microsoft\\Windows\\Start Menu\\Programs\\File Explorer.lnk"},
+              {"secondaryTile":{}}
+            ]}
+            """;
+
+        Assert.Equal(
+            [
+                ("Microsoft.WindowsNotepad_8wekyb3d8bbwe!App", null),
+                (null, Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), @"Microsoft\Windows\Start Menu\Programs\File Explorer.lnk")),
+            ],
+            StartLayout.Parse(json));
+        Assert.Empty(StartLayout.Parse("{}"));
+    }
+
+    [Fact]
+    public void Explorer_pins_become_catalog_apps_and_removed_apps_are_dropped()
+    {
+        ExplorerStartPin[] pins =
+        [
+            new(null, @"c:\tools\vs code\code.exe"),
+            new("Removed_8wekyb3d8bbwe!App", null),
+            new("Microsoft.WindowsNotepad_8wekyb3d8bbwe!App", null),
+            new("Microsoft.VisualStudioCode", @"C:\Tools\VS Code\Code.exe"),
+        ];
+
+        Assert.Equal([s_code, s_notepad], StartCatalog.FromExplorerPins(s_catalog, pins));
+    }
+
+    [Fact]
+    public void UserAssist_names_are_rot13()
+    {
+        Assert.Equal("Microsoft.Windows.Explorer", UserAssist.Rot13("Zvpebfbsg.Jvaqbjf.Rkcybere"));
+        Assert.Equal(@"{1AC14E77-02E7-4E5D-B744-2EB1AE5198B7}\charmap.exe", UserAssist.Rot13(@"{1NP14R77-02R7-4R5Q-O744-2RO1NR5198O7}\puneznc.rkr"));
+    }
+
+    [Fact]
+    public void UserAssist_value_gives_the_last_start_and_never_started_apps_are_skipped()
+    {
+        var lastRun = new DateTime(2026, 10, 4, 8, 42, 29, DateTimeKind.Utc);
+        byte[] data = new byte[72];
+        BitConverter.GetBytes(lastRun.ToFileTimeUtc()).CopyTo(data, 60);
+
+        Assert.Equal(new AppUsage("MSEdge", lastRun), UserAssist.Parse("ZFRqtr", data));
+        Assert.Null(UserAssist.Parse("ZFRqtr", new byte[72]));
+        Assert.Null(UserAssist.Parse("ZFRqtr", new byte[16]));
+    }
+
+    [Fact]
+    public void Recent_apps_are_newest_first_listed_once_and_only_from_the_catalog()
+    {
+        var now = new DateTime(2026, 10, 4, 12, 0, 0, DateTimeKind.Utc);
+        AppUsage[] usage =
+        [
+            new("Microsoft.WindowsNotepad_8wekyb3d8bbwe!App", now.AddHours(-3)),
+            new(@"{1AC14E77-02E7-4E5D-B744-2EB1AE5198B7}\charmap.exe", now.AddHours(-1)),
+            new(@"D:\setup.exe", now),
+            new("Microsoft.VisualStudioCode", now.AddHours(-2)),
+            new(@"C:\Tools\VS Code\Code.exe", now.AddMinutes(-90)),
+        ];
+
+        Assert.Equal(
+            [(s_charmap, now.AddHours(-1)), (s_code, now.AddMinutes(-90))],
+            StartCatalog.Recent(s_catalog, usage, 2));
+    }
+
+    [Fact]
+    public void Last_run_is_minutes_or_hours_ago_then_the_date()
+    {
+        var now = new DateTime(2026, 10, 4, 12, 0, 0, DateTimeKind.Local);
+
+        Assert.Equal("Just now", StartCatalog.LastRunText(now.AddSeconds(-20), now));
+        Assert.Equal("30m ago", StartCatalog.LastRunText(now.AddMinutes(-30), now));
+        Assert.Equal("5h ago", StartCatalog.LastRunText(now.AddHours(-5).AddMinutes(-10), now));
+        Assert.Equal(now.AddDays(-2).ToString("M"), StartCatalog.LastRunText(now.AddDays(-2), now));
+    }
 }

@@ -106,4 +106,32 @@ internal static unsafe partial class Shell32
         public nint lpTitleW;
         public User32.POINT ptInvoke;
     }
+
+    public const uint SEE_MASK_NOASYNC = 0x0000_0100;
+    public const uint SEE_MASK_FLAG_NO_UI = 0x0000_0400;
+    public const uint SEE_MASK_FLAG_LOG_USAGE = 0x0400_0000;
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct SHELLEXECUTEINFOW
+    {
+        public uint cbSize;
+        public uint fMask;
+        public nint hwnd;
+        public char* lpVerb;
+        public char* lpFile;
+        public char* lpParameters;
+        public char* lpDirectory;
+        public int nShow;
+        public nint hInstApp;
+        public nint lpIDList;
+        public char* lpClass;
+        public nint hkeyClass;
+        public uint dwHotKey;
+        public nint hIconOrMonitor;
+        public nint hProcess;
+    }
+
+    [LibraryImport("shell32.dll", EntryPoint = "ShellExecuteExW", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static partial bool ShellExecuteEx(SHELLEXECUTEINFOW* info);
 }

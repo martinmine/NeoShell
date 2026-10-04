@@ -40,9 +40,72 @@
                     </Grid>
                 </DataTemplate>
 
+                <!-- A recent app: as Windows shows them, a bigger icon and when it was last started. -->
+                <DataTemplate x:Key="RecentItemTemplate" x:DataType="local:StartItem">
+                    <Grid
+                        Padding="4,8"
+                        ColumnSpacing="12"
+                        Background="Transparent"
+                        AutomationProperties.AutomationId="RecentApp"
+                        AutomationProperties.Name="{x:Bind Title}">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition />
+                        </Grid.ColumnDefinitions>
+                        <Grid.ContextFlyout>
+                            <MenuFlyout Opening="ItemMenu_Opening" />
+                        </Grid.ContextFlyout>
+                        <Image Width="32" Height="32" Source="{x:Bind Icon, Mode=OneWay}" />
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                            <TextBlock Text="{x:Bind Title}" FontSize="12" TextTrimming="CharacterEllipsis" />
+                            <TextBlock
+                                Text="{x:Bind Subtitle}"
+                                FontSize="12"
+                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                TextTrimming="CharacterEllipsis" />
+                        </StackPanel>
+                    </Grid>
+                </DataTemplate>
+
+                <!-- A row in All: icon and name only. -->
+                <DataTemplate x:Key="AppItemTemplate" x:DataType="local:StartItem">
+                    <Grid
+                        Padding="4,2"
+                        ColumnSpacing="12"
+                        Background="Transparent"
+                        AutomationProperties.AutomationId="StartListItem"
+                        AutomationProperties.Name="{x:Bind Title}">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition />
+                        </Grid.ColumnDefinitions>
+                        <Grid.ContextFlyout>
+                            <MenuFlyout Opening="ItemMenu_Opening" />
+                        </Grid.ContextFlyout>
+                        <Image Width="24" Height="24" Source="{x:Bind Icon, Mode=OneWay}" />
+                        <TextBlock Grid.Column="1" VerticalAlignment="Center" Text="{x:Bind Title}" TextTrimming="CharacterEllipsis" />
+                    </Grid>
+                </DataTemplate>
+
                 <DataTemplate x:Key="GroupHeaderTemplate" x:DataType="local:StartGroup">
                     <TextBlock Text="{x:Bind Key}" Style="{ThemeResource BodyStrongTextBlockStyle}" />
                 </DataTemplate>
+
+                <!-- Group headers without the default's divider line and tall row. -->
+                <Style x:Key="GroupHeaderContainerStyle" TargetType="ListViewHeaderItem">
+                    <Setter Property="Padding" Value="16,12,16,4" />
+                    <Setter Property="MinHeight" Value="0" />
+                    <Setter Property="Template">
+                        <Setter.Value>
+                            <ControlTemplate TargetType="ListViewHeaderItem">
+                                <ContentPresenter
+                                    Margin="{TemplateBinding Padding}"
+                                    Content="{TemplateBinding Content}"
+                                    ContentTemplate="{TemplateBinding ContentTemplate}" />
+                            </ControlTemplate>
+                        </Setter.Value>
+                    </Setter>
+                </Style>
             </ResourceDictionary>
         </Grid.Resources>
 
@@ -52,26 +115,30 @@
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <TextBox
-            x:Name="SearchBox"
-            AutomationProperties.AutomationId="StartSearchBox"
-            AutomationProperties.Name="Search"
-            Margin="32,32,32,12"
-            Height="36"
-            CornerRadius="18"
-            Padding="16,8,12,0"
-            PlaceholderText="Search for apps and documents"
-            TextChanged="SearchBox_TextChanged"
-            KeyDown="SearchBox_KeyDown" />
+        <Grid Margin="32,16,32,8">
+            <TextBox
+                x:Name="SearchBox"
+                AutomationProperties.AutomationId="StartSearchBox"
+                AutomationProperties.Name="Search"
+                Height="32"
+                CornerRadius="16"
+                Padding="42,6,12,0"
+                PlaceholderText="Search for apps and documents"
+                TextChanged="SearchBox_TextChanged"
+                KeyDown="SearchBox_KeyDown" />
+            <FontIcon
+                Margin="16,0,0,0"
+                HorizontalAlignment="Left"
+                VerticalAlignment="Center"
+                Glyph="&#xE721;"
+                FontSize="14"
+                IsHitTestVisible="False" />
+        </Grid>
 
-        <Grid Grid.Row="1" Margin="24,0,24,8">
-            <!-- Home: pinned apps. -->
-            <Grid x:Name="HomeView">
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition />
-                </Grid.RowDefinitions>
-                <Grid Margin="8,8,8,12">
+        <!-- Home, as in Windows 11: pinned apps, then recent apps, on one scrolling page. -->
+        <ScrollViewer x:Name="HomeView" Grid.Row="1" Padding="40,0,40,16">
+            <StackPanel>
+                <Grid Margin="24,20,8,12">
                     <TextBlock Text="Pinned" Style="{ThemeResource BodyStrongTextBlockStyle}" VerticalAlignment="Center" />
                     <Button
                         x:Name="AllAppsButton"
@@ -87,7 +154,6 @@
                 </Grid>
                 <GridView
                     x:Name="PinnedGrid"
-                    Grid.Row="1"
                     AutomationProperties.AutomationId="PinnedApps"
                     AutomationProperties.Name="Pinned"
                     SelectionMode="None"
@@ -96,14 +162,21 @@
                     CanDragItems="True"
                     CanReorderItems="True"
                     AllowDrop="True"
-                    DragItemsCompleted="PinnedGrid_DragItemsCompleted">
+                    DragItemsCompleted="PinnedGrid_DragItemsCompleted"
+                    ScrollViewer.VerticalScrollMode="Disabled"
+                    ScrollViewer.VerticalScrollBarVisibility="Disabled">
+                    <GridView.ItemContainerStyle>
+                        <Style TargetType="GridViewItem" BasedOn="{StaticResource DefaultGridViewItemStyle}">
+                            <Setter Property="Margin" Value="0" />
+                        </Style>
+                    </GridView.ItemContainerStyle>
                     <GridView.ItemTemplate>
                         <DataTemplate x:DataType="local:StartItem">
                             <StackPanel
                                 Width="92"
                                 Height="84"
-                                Padding="4,10,4,4"
-                                Spacing="6"
+                                Padding="4,12,4,4"
+                                Spacing="8"
                                 Background="Transparent"
                                 AutomationProperties.AutomationId="PinnedApp"
                                 AutomationProperties.Name="{x:Bind Title}">
@@ -124,78 +197,101 @@
                 </GridView>
                 <TextBlock
                     x:Name="NoPinnedText"
-                    Grid.Row="1"
-                    HorizontalAlignment="Center"
-                    VerticalAlignment="Center"
+                    Margin="24,8,0,8"
                     Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                     Text="Pin apps from All apps to keep them here." />
+
+                <StackPanel x:Name="RecentSection" Visibility="Collapsed">
+                    <TextBlock Margin="24,24,0,8" Text="Recent" Style="{ThemeResource BodyStrongTextBlockStyle}" />
+                    <GridView
+                        x:Name="RecentGrid"
+                        AutomationProperties.AutomationId="RecentApps"
+                        AutomationProperties.Name="Recent"
+                        ItemTemplate="{StaticResource RecentItemTemplate}"
+                        SelectionMode="None"
+                        IsItemClickEnabled="True"
+                        ItemClick="Item_Click"
+                        ScrollViewer.VerticalScrollMode="Disabled"
+                        ScrollViewer.VerticalScrollBarVisibility="Disabled">
+                        <GridView.ItemContainerStyle>
+                            <Style TargetType="GridViewItem" BasedOn="{StaticResource DefaultGridViewItemStyle}">
+                                <Setter Property="Margin" Value="0" />
+                                <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                            </Style>
+                        </GridView.ItemContainerStyle>
+                        <GridView.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <ItemsWrapGrid Orientation="Horizontal" MaximumRowsOrColumns="3" ItemWidth="248" />
+                            </ItemsPanelTemplate>
+                        </GridView.ItemsPanel>
+                    </GridView>
+                </StackPanel>
+
+            </StackPanel>
+        </ScrollViewer>
+
+        <!-- All apps, alphabetical. -->
+        <Grid x:Name="AllAppsView" Grid.Row="1" Margin="40,0,40,8" Visibility="Collapsed">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition />
+            </Grid.RowDefinitions>
+            <Grid Margin="24,20,8,12">
+                <TextBlock Text="All apps" Style="{ThemeResource BodyStrongTextBlockStyle}" VerticalAlignment="Center" />
+                <Button
+                    x:Name="BackButton"
+                    AutomationProperties.AutomationId="StartBackButton"
+                    HorizontalAlignment="Right"
+                    Padding="10,4"
+                    Click="BackButton_Click">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <FontIcon Glyph="&#xE76B;" FontSize="10" />
+                        <TextBlock Text="Back" FontSize="12" />
+                    </StackPanel>
+                </Button>
             </Grid>
+            <ListView
+                x:Name="AllAppsList"
+                Grid.Row="1"
+                AutomationProperties.AutomationId="AllAppsList"
+                AutomationProperties.Name="All apps"
+                ItemTemplate="{StaticResource AppItemTemplate}"
+                SelectionMode="None"
+                IsItemClickEnabled="True"
+                ItemClick="Item_Click">
+                <ListView.GroupStyle>
+                    <GroupStyle HeaderTemplate="{StaticResource GroupHeaderTemplate}" HeaderContainerStyle="{StaticResource GroupHeaderContainerStyle}" />
+                </ListView.GroupStyle>
+            </ListView>
+        </Grid>
 
-            <!-- All apps, alphabetical. -->
-            <Grid x:Name="AllAppsView" Visibility="Collapsed">
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition />
-                </Grid.RowDefinitions>
-                <Grid Margin="8,8,8,12">
-                    <TextBlock Text="All apps" Style="{ThemeResource BodyStrongTextBlockStyle}" VerticalAlignment="Center" />
-                    <Button
-                        x:Name="BackButton"
-                        AutomationProperties.AutomationId="StartBackButton"
-                        HorizontalAlignment="Right"
-                        Padding="10,4"
-                        Click="BackButton_Click">
-                        <StackPanel Orientation="Horizontal" Spacing="8">
-                            <FontIcon Glyph="&#xE76B;" FontSize="10" />
-                            <TextBlock Text="Back" FontSize="12" />
-                        </StackPanel>
-                    </Button>
-                </Grid>
-                <ListView
-                    x:Name="AllAppsList"
-                    Grid.Row="1"
-                    AutomationProperties.AutomationId="AllAppsList"
-                    AutomationProperties.Name="All apps"
-
-                    ItemTemplate="{StaticResource ListItemTemplate}"
-                    SelectionMode="None"
-                    IsItemClickEnabled="True"
-                    ItemClick="Item_Click">
-                    <ListView.GroupStyle>
-                        <GroupStyle HeaderTemplate="{StaticResource GroupHeaderTemplate}" />
-                    </ListView.GroupStyle>
-                </ListView>
-            </Grid>
-
-            <!-- Search results: apps first, then files grouped by kind. -->
-            <Grid x:Name="SearchView" Visibility="Collapsed">
-                <ListView
-                    x:Name="ResultsList"
-                    AutomationProperties.AutomationId="SearchResults"
-                    AutomationProperties.Name="Search results"
-
-                    ItemTemplate="{StaticResource ListItemTemplate}"
-                    SelectionMode="Single"
-                    IsItemClickEnabled="True"
-                    ItemClick="Item_Click">
-                    <ListView.GroupStyle>
-                        <GroupStyle HeaderTemplate="{StaticResource GroupHeaderTemplate}" />
-                    </ListView.GroupStyle>
-                </ListView>
-                <TextBlock
-                    x:Name="NoResultsText"
-                    HorizontalAlignment="Center"
-                    VerticalAlignment="Center"
-                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                    Text="No results"
-                    Visibility="Collapsed" />
-            </Grid>
+        <!-- Search results: apps first, then files grouped by kind. -->
+        <Grid x:Name="SearchView" Grid.Row="1" Margin="40,8,40,8" Visibility="Collapsed">
+            <ListView
+                x:Name="ResultsList"
+                AutomationProperties.AutomationId="SearchResults"
+                AutomationProperties.Name="Search results"
+                ItemTemplate="{StaticResource ListItemTemplate}"
+                SelectionMode="Single"
+                IsItemClickEnabled="True"
+                ItemClick="Item_Click">
+                <ListView.GroupStyle>
+                    <GroupStyle HeaderTemplate="{StaticResource GroupHeaderTemplate}" HeaderContainerStyle="{StaticResource GroupHeaderContainerStyle}" />
+                </ListView.GroupStyle>
+            </ListView>
+            <TextBlock
+                x:Name="NoResultsText"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center"
+                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                Text="No results"
+                Visibility="Collapsed" />
         </Grid>
 
         <!-- User, Switch to Explorer, Settings, Power. -->
         <Grid
             Grid.Row="2"
-            Padding="48,12"
+            Padding="64,12,48,12"
             Background="{ThemeResource LayerFillColorDefaultBrush}"
             BorderBrush="{ThemeResource DividerStrokeColorDefaultBrush}"
             BorderThickness="0,1,0,0">

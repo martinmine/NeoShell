@@ -34,6 +34,7 @@ internal static unsafe partial class User32
     public const uint WS_EX_APPWINDOW = 0x0004_0000;
     public const uint WS_EX_NOACTIVATE = 0x0800_0000;
 
+    public const int SW_SHOWNORMAL = 1;
     public const int SW_MINIMIZE = 6;
     public const int SW_RESTORE = 9;
     public const int SW_SHOWMINNOACTIVE = 7;

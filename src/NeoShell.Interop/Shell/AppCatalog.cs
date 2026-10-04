@@ -20,14 +20,6 @@ public static unsafe class AppCatalog
     private const uint SIGDN_NORMALDISPLAY = 0;
     private const uint SIGDN_PARENTRELATIVEPARSING = 0x8001_8001;
     private static readonly Guid BHID_EnumItems = new("94f60519-2850-4924-aa5a-d15e84868039");
-    private static readonly Guid BHID_PropertyStore = new("0384e1a4-1523-439c-a4c8-ab911052f586");
-
-    // PKEY_Link_TargetParsingPath
-    private static readonly Ole32.PROPERTYKEY s_targetPathKey = new()
-    {
-        fmtid = new Guid("B9B4B3FC-2B51-4A42-B5D8-324146AFCF25"),
-        pid = 2,
-    };
 
     /// <summary>Lists every installed app, Win32 and packaged. Slow-ish: call it off the UI thread.</summary>
     public static IReadOnlyList<AppCatalogEntry> Load()
@@ -50,32 +42,9 @@ public static unsafe class AppCatalog
         {
             IShellItem item = ComPointer.TakeOwnership<IShellItem>(itemPointer);
             if (GetName(item, SIGDN_NORMALDISPLAY) is { } name && GetName(item, SIGDN_PARENTRELATIVEPARSING) is { } id)
-                entries.Add(new AppCatalogEntry(name, id, GetTargetPath(item)));
+                entries.Add(new AppCatalogEntry(name, id, ShellItems.GetString(item, ShellItems.LinkTargetPathKey)));
         }
         return entries;
-    }
-
-    private static string? GetTargetPath(IShellItem item)
-    {
-        Guid handler = BHID_PropertyStore;
-        Guid iid = typeof(IPropertyStore).GUID;
-        nint storePointer;
-        if (item.BindToHandler(0, &handler, &iid, &storePointer) != 0)
-            return null;
-
-        IPropertyStore store = ComPointer.TakeOwnership<IPropertyStore>(storePointer);
-        Ole32.PROPERTYKEY key = s_targetPathKey;
-        Ole32.PROPVARIANT value = default;
-        try
-        {
-            return store.GetValue(&key, &value) == 0 && value.vt == Ole32.VT_LPWSTR && value.pointer != 0
-                ? new string((char*)value.pointer)
-                : null;
-        }
-        finally
-        {
-            Ole32.PropVariantClear(&value);
-        }
     }
 
     /// <summary>

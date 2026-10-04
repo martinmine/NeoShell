@@ -25,5 +25,7 @@ public sealed record ShellSettings
     public TrayMode TrayMode { get; set; } = TrayMode.Overflow;
     public IReadOnlyList<PinnedApp> PinnedTaskbarApps { get; set; } = [];
     public IReadOnlyList<PinnedApp> PinnedStartApps { get; set; } = [];
+    /// <summary>Whether Explorer's Start pins have been added to <see cref="PinnedStartApps"/>; done once.</summary>
+    public bool ExplorerStartPinsImported { get; set; }
     public DesktopSortOrder DesktopSortOrder { get; set; } = DesktopSortOrder.Name;
 }

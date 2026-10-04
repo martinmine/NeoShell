@@ -56,6 +56,10 @@ Tick items off as they land. The feature details are in [design.md](design.md).
 - [x] Popup window, anchoring, hide on deactivate/Esc
 - [x] App catalog from `shell:AppsFolder` with icons
 - [x] Pinned grid + All apps list; pin to Start / taskbar
+- [x] Home page like Windows 11: Pinned, Recent; All apps behind its button
+- [x] Explorer's Start pins imported once (`Export-StartLayout`'s COM object; tests for parsing and matching)
+- [x] Recent apps from UserAssist; NeoShell's launches logged there (`SEE_MASK_FLAG_LOG_USAGE`) - packaged apps
+      started by NeoShell aren't recorded (the activation manager doesn't log)
 - [x] App search ranking (tests)
 - [x] Indexer search via `ISearchQueryHelper` + `System.Data.OleDb` (query building tests), debounce + cancellation
 - [x] Keyboard navigation (type-to-search, arrows, Enter) — not driven live: that needs global keystrokes

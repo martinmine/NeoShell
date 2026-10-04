@@ -384,8 +384,20 @@ Task Manager, the taskbar settings toggles (alignment, combine, auto-hide, all d
   that app; otherwise Windows picks the next window in z-order, which can be Explorer's invisible Start/search host.
 - Toggling: pressing the Start button deactivates Start before the button's click arrives, so a click within
   400 ms of a deactivation doesn't reopen it.
-- **Pinned** grid (persisted in settings, drag to reorder) and an **All apps** alphabetical list with letter
-  headers ("#" first). Context menu: Open, Pin to/Unpin from Start, Pin to/Unpin from taskbar.
+- Home is one scrolling page, as in Windows 11 (832 by 860 epx at most), below the search box:
+  - **Pinned** grid (persisted in settings, drag to reorder). The first time the catalog loads, Explorer's Start pins
+    are added once (`ExplorerStartPinsImported`). Start keeps them encrypted in `start2.bin`, so they're read through
+    `StartTileData.dll`'s `IStartLayoutCmdlet::ExportStartLayout` (the object behind `Export-StartLayout`), which
+    writes `{"pinnedList":[{"packagedAppId":…},{"desktopAppLink":"%APPDATA%\…\x.lnk"}]}`. A shortcut is matched to
+    the catalog by its `System.AppUserModel.ID`, else its `System.Link.TargetParsingPath`.
+  - **Recent**: the six catalog apps started most recently, three columns, with "30m ago" / "5h ago" / the date.
+    Read from UserAssist (`HKCU\…\Explorer\UserAssist\{CEBFF5CD-…}\Count`: ROT13 value names, AUMIDs or
+    known-folder paths, last run as a FILETIME at offset 60) each time Start opens. `Launcher` starts non-packaged
+    apps with `ShellExecuteEx` + `SEE_MASK_FLAG_LOG_USAGE` so NeoShell's launches are recorded too; packaged apps
+    started through the activation manager are not.
+  - An **All apps** button opens the alphabetical list with letter headers ("#" first) in place of the page, with a
+    Back button (unlike Windows 11, which puts All on the same page).
+  - Context menu on every app: Open, Pin to/Unpin from Start, Pin to/Unpin from taskbar.
 - **App catalog** (`AppCatalog`): enumerate `shell:AppsFolder` (`SHCreateItemFromParsingName` → `BHID_EnumItems`),
   reading display name and parent-relative parsing name — an AUMID, or a path such as `{KnownFolder}\app.exe` that
   is resolved with `SHGetKnownFolderPath` — and, for shortcuts, `System.Link.TargetParsingPath`. Shortcuts may give
@@ -429,6 +441,7 @@ ShowOnAllDisplays    bool
 TrayMode             ShowAll | Overflow
 PinnedTaskbarApps    list
 PinnedStartApps      list
+ExplorerStartPinsImported  bool
 DesktopSortOrder     Name | Size | ItemType | DateModified
 ```
 

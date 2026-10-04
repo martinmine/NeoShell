@@ -14,6 +14,21 @@ public static unsafe class ShellItems
     private const uint SIGDN_NORMALDISPLAY = 0;
     private const uint SIIGBF_BIGGERSIZEOK = 0x01;
     private const uint SIIGBF_ICONONLY = 0x04;
+    private static readonly Guid BHID_PropertyStore = new("0384e1a4-1523-439c-a4c8-ab911052f586");
+
+    // PKEY_Link_TargetParsingPath
+    internal static readonly Ole32.PROPERTYKEY LinkTargetPathKey = new()
+    {
+        fmtid = new Guid("B9B4B3FC-2B51-4A42-B5D8-324146AFCF25"),
+        pid = 2,
+    };
+
+    // PKEY_AppUserModel_ID
+    internal static readonly Ole32.PROPERTYKEY AppUserModelIdKey = new()
+    {
+        fmtid = new Guid("9F4C2855-9F79-4B39-A8D0-E1D42DE1D5F3"),
+        pid = 5,
+    };
 
     public static string AppsFolderPath(string appUserModelId) => @"shell:AppsFolder\" + appUserModelId;
 
@@ -48,9 +63,32 @@ public static unsafe class ShellItems
             : null;
     }
 
-    private static IShellItem? Create(string parsingName)
+    internal static IShellItem? Create(string parsingName)
     {
         Guid iid = typeof(IShellItem).GUID;
         return Shell32.SHCreateItemFromParsingName(parsingName, 0, iid, out IShellItem item) == 0 ? item : null;
+    }
+
+    /// <summary>A string property of the item, such as a shortcut's target; null if it has none.</summary>
+    internal static string? GetString(IShellItem item, Ole32.PROPERTYKEY key)
+    {
+        Guid handler = BHID_PropertyStore;
+        Guid iid = typeof(IPropertyStore).GUID;
+        nint storePointer;
+        if (item.BindToHandler(0, &handler, &iid, &storePointer) != 0)
+            return null;
+
+        IPropertyStore store = ComPointer.TakeOwnership<IPropertyStore>(storePointer);
+        Ole32.PROPVARIANT value = default;
+        try
+        {
+            return store.GetValue(&key, &value) == 0 && value.vt == Ole32.VT_LPWSTR && value.pointer != 0
+                ? new string((char*)value.pointer)
+                : null;
+        }
+        finally
+        {
+            Ole32.PropVariantClear(&value);
+        }
     }
 }

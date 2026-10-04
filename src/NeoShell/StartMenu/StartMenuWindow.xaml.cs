@@ -28,16 +28,17 @@ internal sealed class StartGroup(string key, IEnumerable<StartItem> items) : Lis
 }
 
 /// <summary>
-/// The Start menu: pinned apps, All apps, search over apps and the Windows Search index, and the user, Settings,
+/// The Start menu: pinned and recent apps, All apps, search over apps and the Windows Search index, and the user, Settings,
 /// Switch to Explorer and power buttons. Created once and shown above whichever taskbar opened it.
 /// </summary>
 internal sealed partial class StartMenuWindow : Window
 {
     // Effective pixels.
-    private const double MenuWidth = 640;
-    private const double MenuHeight = 720;
+    private const double MenuWidth = 832;
+    private const double MenuHeight = 860;
     private const double Gap = 12;
 
+    private const int MaxRecentApps = 6;
     private const int MaxAppResults = 8;
     private const int MaxFileResults = 20;
     private static readonly TimeSpan s_searchDelay = TimeSpan.FromMilliseconds(150);
@@ -49,6 +50,7 @@ internal sealed partial class StartMenuWindow : Window
     private readonly FramelessWindow _frameless;
     private readonly PinnedWindow _placement;
     private readonly ObservableCollection<StartItem> _pinned = [];
+    private readonly ObservableCollection<StartItem> _recent = [];
     private readonly CollectionViewSource _allApps = new() { IsSourceGrouped = true };
     private readonly CollectionViewSource _results = new() { IsSourceGrouped = true };
     private readonly ObservableCollection<StartGroup> _resultGroups = [];
@@ -58,6 +60,7 @@ internal sealed partial class StartMenuWindow : Window
     private nint _previousForeground;
     private long _deactivatedAt;
     private bool _loadingApps;
+    private bool _importingPins;
     private CancellationTokenSource? _search;
 
     public StartMenuWindow(Taskbars owner)
@@ -80,6 +83,7 @@ internal sealed partial class StartMenuWindow : Window
         _placement = new PinnedWindow(_hwnd, default, PinnedLayer.Topmost);
 
         PinnedGrid.ItemsSource = _pinned;
+        RecentGrid.ItemsSource = _recent;
         _results.Source = _resultGroups;
         ResultsList.ItemsSource = _results.View;
         SwitchToExplorerButton.Visibility = owner.RunMode == RunMode.Shell ? Visibility.Visible : Visibility.Collapsed;
@@ -109,6 +113,8 @@ internal sealed partial class StartMenuWindow : Window
 
     public bool IsOpen { get; private set; }
 
+    private IReadOnlyList<PinnedApp> PinnedStartApps => _owner.Settings.Current.PinnedStartApps;
+
     /// <summary>
     /// Pressing the Start button deactivates Start before the button's click arrives; that click must not reopen it.
     /// </summary>
@@ -120,6 +126,7 @@ internal sealed partial class StartMenuWindow : Window
         Root.RequestedTheme = theme;
         _backdrop.Theme = theme;
         ShowPinned();
+        ShowRecent();
         LoadAppsIfStale();
 
         double scale = monitor.Dpi / 96.0;
@@ -156,6 +163,7 @@ internal sealed partial class StartMenuWindow : Window
         AppWindow.Hide();
         SearchBox.Text = "";
         ShowView(HomeView);
+        HomeView.ChangeView(null, 0, null, disableAnimation: true);
     }
 
     private void ShowView(FrameworkElement view)
@@ -168,9 +176,56 @@ internal sealed partial class StartMenuWindow : Window
     private void ShowPinned()
     {
         _pinned.Clear();
-        foreach (PinnedApp app in _owner.Settings.Current.PinnedStartApps)
+        foreach (PinnedApp app in PinnedStartApps)
             _pinned.Add(new StartItem(app, "App", isApp: true, _owner.Icons));
         NoPinnedText.Visibility = _pinned.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    // Windows records each start, by Explorer or by NeoShell, in UserAssist; reading it is quick enough for each open.
+    private void ShowRecent()
+    {
+        _recent.Clear();
+        try
+        {
+            DateTime now = DateTime.Now;
+            foreach ((PinnedApp app, DateTime lastRun) in StartCatalog.Recent(_apps.Select(item => item.Target), UserAssist.Load(), MaxRecentApps))
+                _recent.Add(new StartItem(app, StartCatalog.LastRunText(lastRun, now), isApp: true, _owner.Icons));
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.SecurityException)
+        {
+            Log.Warn("Could not read recent apps", ex);
+        }
+        RecentSection.Visibility = _recent.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    // Start begins with the pins the user made in Explorer's Start, once; after that NeoShell's pins are its own.
+    private async void ImportExplorerPins()
+    {
+        _importingPins = true;
+        IReadOnlyList<PinnedApp> imported = [];
+        try
+        {
+            IReadOnlyList<ExplorerStartPin> pins = await Task.Run(StartLayout.ReadPinned);
+            imported = StartCatalog.FromExplorerPins(_apps.Select(item => item.Target), pins);
+            Log.Info($"Imported {imported.Count} of {pins.Count} pins from Explorer's Start");
+        }
+        catch (Exception ex)
+        {
+            Log.Warn("Could not read Explorer's Start pins", ex);
+        }
+        finally
+        {
+            _importingPins = false;
+        }
+
+        // Pins made in NeoShell, before or while importing, stay first.
+        ShellSettings settings = _owner.Settings.Current;
+        _owner.Settings.Update(settings with
+        {
+            PinnedStartApps = [.. settings.PinnedStartApps, .. imported.Where(app => !settings.PinnedStartApps.Any(p => TaskGrouping.SameApp(p, app)))],
+            ExplorerStartPinsImported = true,
+        });
+        ShowPinned();
     }
 
     // The catalog changes only when apps are installed or removed; reloading every few minutes, in the background,
@@ -197,6 +252,9 @@ internal sealed partial class StartMenuWindow : Window
             AllAppsList.ItemsSource = _allApps.View;
             _appsLoadedAt = DateTime.UtcNow;
             Log.Info($"App catalog: {_apps.Count} apps");
+            ShowRecent();
+            if (!_owner.Settings.Current.ExplorerStartPinsImported && !_importingPins)
+                ImportExplorerPins();
         }
         catch (Exception ex)
         {
@@ -210,7 +268,7 @@ internal sealed partial class StartMenuWindow : Window
 
     private void RefreshIcons()
     {
-        foreach (StartItem item in _pinned.Concat(_apps).Concat(_resultItems))
+        foreach (StartItem item in _pinned.Concat(_recent).Concat(_apps).Concat(_resultItems))
             item.RefreshIcon();
     }
 
@@ -390,12 +448,12 @@ internal sealed partial class StartMenuWindow : Window
             return;
 
         PinnedApp app = item.Target;
-        bool onStart = _owner.Settings.Current.PinnedStartApps.Any(p => TaskGrouping.SameApp(p, app));
+        bool onStart = PinnedStartApps.Any(p => TaskGrouping.SameApp(p, app));
         bool onTaskbar = _owner.Settings.Current.PinnedTaskbarApps.Any(p => TaskGrouping.SameApp(p, app));
         menu.Items.Add(new MenuFlyoutSeparator());
         menu.Items.Add(onStart
-            ? MenuItem("Unpin from Start", "StartUnpinMenuItem", () => SetPinnedStartApps([.. _owner.Settings.Current.PinnedStartApps.Where(p => !TaskGrouping.SameApp(p, app))]))
-            : MenuItem("Pin to Start", "StartPinMenuItem", () => SetPinnedStartApps([.. _owner.Settings.Current.PinnedStartApps, app])));
+            ? MenuItem("Unpin from Start", "StartUnpinMenuItem", () => SetPinnedStartApps([.. PinnedStartApps.Where(p => !TaskGrouping.SameApp(p, app))]))
+            : MenuItem("Pin to Start", "StartPinMenuItem", () => SetPinnedStartApps([.. PinnedStartApps, app])));
         menu.Items.Add(onTaskbar
             ? MenuItem("Unpin from taskbar", "StartUnpinTaskbarMenuItem", () => _owner.Unpin(app))
             : MenuItem("Pin to taskbar", "StartPinTaskbarMenuItem", () => _owner.Pin(app)));

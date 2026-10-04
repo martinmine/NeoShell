@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using NeoShell.Interop.Shell;
 using NeoShell.Logging;
 using NeoShell.Settings;
@@ -31,18 +30,14 @@ internal static class Launcher
             return;
         }
 
-        var startInfo = app.AppUserModelId is { } appId
-            ? new ProcessStartInfo(ShellItems.AppsFolderPath(appId))
-            : new ProcessStartInfo(app.Path ?? "") { Arguments = app.Arguments ?? "" };
-        startInfo.UseShellExecute = true;
-
+        string file = app.AppUserModelId is { } appId ? ShellItems.AppsFolderPath(appId) : app.Path ?? "";
         try
         {
-            Process.Start(startInfo);
+            ShellLaunch.Open(file, app.AppUserModelId is null ? app.Arguments : null);
         }
         catch (Exception ex)
         {
-            Log.Warn($"Could not start {app.DisplayName} ({startInfo.FileName})", ex);
+            Log.Warn($"Could not start {app.DisplayName} ({file})", ex);
         }
     }
 
