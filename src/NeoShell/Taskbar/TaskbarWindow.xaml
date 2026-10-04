@@ -399,7 +399,7 @@
         </StackPanel>
 
         <FlyoutBase.AttachedFlyout>
-            <!-- Opened above the taskbar by Root_ContextRequested (TaskbarFlyouts). -->
+            <!-- Opened at the pointer by Root_ContextRequested (TaskbarFlyouts). -->
             <MenuFlyout x:Name="TaskbarMenu" Opening="TaskbarMenu_Opening">
                 <!-- No icons: next to the toggles' check column, an icon column pushes every label far right. -->
                 <MenuFlyoutItem

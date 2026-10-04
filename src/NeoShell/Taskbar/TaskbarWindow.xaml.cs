@@ -1112,12 +1112,12 @@ internal sealed partial class TaskbarWindow : Window
         public bool RefreshPending { get; set; }
     }
 
-    // Above the taskbar at the pointer, rather than over the taskbar.
+    // From the keyboard, at the middle of the taskbar's top edge.
     private void Root_ContextRequested(UIElement sender, ContextRequestedEventArgs e)
     {
         e.Handled = true;
-        double x = e.TryGetPosition(Root, out Point point) ? point.X : Root.ActualWidth / 2;
-        TaskbarFlyouts.ShowAt(TaskbarMenu, Root, x);
+        Point point = e.TryGetPosition(Root, out Point pointer) ? pointer : new Point(Root.ActualWidth / 2, 0);
+        TaskbarFlyouts.ShowAtPointer(TaskbarMenu, Root, point);
     }
 
     private void OverflowButton_Click(object sender, RoutedEventArgs e) => TaskbarFlyouts.ShowCentered(OverflowFlyout, OverflowButton);

@@ -217,13 +217,17 @@ Shell mode only, like the wallpaper: alongside Explorer, Explorer's desktop has 
   tinted with the second darker shade of `HKCU\...\Explorer\Accent\AccentPalette`, as Explorer does, and their
   text is light or dark by that colour's brightness. Re-read on `WM_SETTINGCHANGE` with the theme.
 - Flyouts and menus (`TaskbarFlyouts`) open as in Windows 11: above the taskbar with a 12 epx gap, sliding up from
-  behind it. A task button's menu (the jump list) is centred on the button, the taskbar's menu above the pointer, the
-  overflow above the chevron, the volume flyout and the calendar at the right of the screen, 12 epx from its edge.
+  behind it. A task button's menu (the jump list) is centred on the button, the overflow above the chevron, the
+  volume flyout and the calendar at the right of the screen, 12 epx from its edge.
   Each is opened by hand (`ShowAt` with a position 12 epx above the taskbar's top edge; not a presenter margin, which
   WinUI leaves out when it places the popup): context menus by handling `ContextRequested` (a `ContextFlyout` would be opened by WinUI itself, at
   the pointer, before any handler runs), button flyouts as attached flyouts opened on `Click`. WinUI's Top placement
   puts the flyout's edge, not its middle, at the point given, and the width is only known once it's open, so a
   centred flyout opens hidden and is shown again, moved by half its width (kept 12 epx from the screen's edges).
+- The taskbar's own menu is the exception, as in Explorer: its bottom-left corner is at the pointer, over the taskbar,
+  and it opens with WinUI's own animation instead of sliding. WinUI keeps popup windows inside the work area, which
+  leaves out the taskbar, so the menu opens at the taskbar's top edge and its popup windows (its submenus' too) are
+  subclassed to go the rest of the way down whenever WinUI places them (`PopupWindows.Offset`).
 - They're unconstrained (`ShouldConstrainToRootBounds="False"`, the window is only as tall as the taskbar), so each
   popup is a window of its own (`PopupWindows`, class `Microsoft.UI.Content.PopupWindowSiteBridge`), owned by the
   taskbar and so always in front of it, and its acrylic belongs to that window. To come out from behind the taskbar

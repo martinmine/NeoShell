@@ -11,7 +11,8 @@ using Windows.Graphics;
 namespace NeoShell.Taskbar;
 
 /// <summary>
-/// The taskbar's menus and flyouts as Windows 11 shows them: above the taskbar with a gap, sliding up from behind it.
+/// The taskbar's menus and flyouts as Windows 11 shows them: above the taskbar with a gap, sliding up from behind it;
+/// the taskbar's own menu at the pointer.
 /// </summary>
 /// <remarks>
 /// Unconstrained, a flyout is a window of its own (<see cref="PopupWindows"/>), owned by the taskbar and so always in
@@ -32,6 +33,12 @@ internal static class TaskbarFlyouts
     // Each flyout's popup window, which WinUI keeps between openings.
     private static readonly Dictionary<FlyoutBase, nint> s_windows = [];
     private static Slide? s_slide;
+    private static readonly HashSet<FlyoutBase> s_atPointer = [];
+    // The windows of menus at the pointer and their submenus, which no other flyout has.
+    private static readonly HashSet<nint> s_pointerWindows = [];
+    private static nint s_pointerOwner;
+    // How far below where WinUI places the open menu at the pointer its windows go, in pixels.
+    private static int s_pointerOffset;
 
     /// <summary>Opens the flyout centred above <paramref name="target"/>, as Explorer opens a jump list.</summary>
     /// <remarks>
@@ -45,13 +52,43 @@ internal static class TaskbarFlyouts
     }
 
     /// <summary>
-    /// Opens the flyout above the taskbar with its left edge at <paramref name="x"/> (effective pixels in
-    /// <paramref name="target"/>), as a context menu at the pointer.
+    /// Opens the menu over the taskbar with its bottom-left corner at <paramref name="position"/> (in
+    /// <paramref name="target"/>), as Explorer opens the taskbar's own menu. It doesn't slide, and can't open any other way.
     /// </summary>
-    public static void ShowAt(FlyoutBase flyout, FrameworkElement target, double x)
+    /// <remarks>
+    /// WinUI keeps popup windows inside the monitor's work area, which leaves out the taskbar; so the menu opens at the
+    /// taskbar's top edge, and its windows (its submenus' too) are moved down by the rest whenever WinUI places them.
+    /// </remarks>
+    public static void ShowAtPointer(FlyoutBase flyout, FrameworkElement target, Point position)
     {
-        s_centredOn.Remove(flyout);
-        Show(flyout, target, x, FlyoutPlacementMode.Top);
+        if (s_atPointer.Add(flyout))
+        {
+            flyout.ShouldConstrainToRootBounds = false;
+            flyout.Opened += (_, _) =>
+            {
+                // Opened again while open when it's moved.
+                CompositionTarget.Rendering -= OffsetFrame;
+                CompositionTarget.Rendering += OffsetFrame;
+            };
+            flyout.Closed += (_, _) => CompositionTarget.Rendering -= OffsetFrame;
+        }
+
+        double edge = -Top(target);
+        XamlRoot root = target.XamlRoot;
+        s_pointerOwner = Win32Interop.GetWindowFromWindowId(root.ContentIslandEnvironment.AppWindowId);
+        s_pointerOffset = (int)Math.Round(Math.Max(0, position.Y - edge) * root.RasterizationScale);
+        flyout.ShowAt(target, new FlyoutShowOptions { Position = new Point(position.X, edge), Placement = FlyoutPlacementMode.TopEdgeAlignedLeft });
+    }
+
+    // Each of the menu's windows as it turns up: WinUI creates them as the menu and its submenus first open. While it's
+    // open, no other flyout of the taskbar is.
+    private static void OffsetFrame(object? sender, object e)
+    {
+        foreach (nint window in PopupWindows.OwnedBy(s_pointerOwner))
+        {
+            if (PopupWindows.IsShown(window) && !s_windows.ContainsValue(window) && s_pointerWindows.Add(window))
+                PopupWindows.Offset(window, () => s_pointerOffset);
+        }
     }
 
     /// <summary>Opens the flyout at the right of the screen, the gap away from its edge, as Quick Settings and the calendar.</summary>
@@ -122,7 +159,8 @@ internal static class TaskbarFlyouts
     }
 
     // On a flyout's first opening, its window: the taskbar's popup window no other flyout has.
-    private static nint NewWindow(nint taskbarWindow) => PopupWindows.OwnedBy(taskbarWindow).FirstOrDefault(w => !s_windows.ContainsValue(w));
+    private static nint NewWindow(nint taskbarWindow) =>
+        PopupWindows.OwnedBy(taskbarWindow).FirstOrDefault(w => !s_windows.ContainsValue(w) && !s_pointerWindows.Contains(w));
 
     private static void Hide(nint window) => PopupWindows.Place(window, PopupWindows.GetBounds(window).Y, visibleBottom: int.MinValue);
 
