@@ -209,7 +209,8 @@ Shell mode only, like the wallpaper: alongside Explorer, Explorer's desktop has 
 - Backdrop by setting (`ShellBackdrop`), chosen in the taskbar menu: Acrylic (default) or Mica — a
   `DesktopAcrylicController` or `MicaController` whose configuration keeps `IsInputActive` true — or Translucent: a
   see-through colour brush in the window's system backdrop slot, with DWM blur-behind on an empty region so the
-  window's alpha shows the desktop instead of black. Mica falls back to Acrylic where unsupported. Start and the
+  window's alpha shows the desktop instead of black — or Transparent: the same, with a fully clear brush that ignores
+  the accent colour. Mica falls back to Acrylic where unsupported. Start and the
   thumbnails stay Acrylic.
 - Light/dark following the system theme (`HKCU\...\Themes\Personalize\SystemUsesLightTheme`), re-read on every
   `WM_SETTINGCHANGE`.
@@ -707,7 +708,7 @@ AutoHide             bool
 ShowOnAllDisplays    bool
 ShowSearchButton     bool
 TrayMode             ShowAll | Overflow
-TaskbarBackdrop      Acrylic | Mica | Translucent
+TaskbarBackdrop      Acrylic | Mica | Translucent | Transparent
 PinnedTaskbarApps    list
 PinnedStartApps      list
 ExplorerStartPinsImported  bool

@@ -108,7 +108,7 @@ internal sealed partial class TaskbarWindow : Window
         _frameless = new FramelessWindow(hwnd);
         Peek.Exclude(hwnd);
         SystemBackdrop = _backdrop;
-        WindowTransparency.SetSeeThrough(hwnd, _backdrop.Kind == Backdrop.Translucent);
+        WindowTransparency.SetSeeThrough(hwnd, _backdrop.Kind is Backdrop.Translucent or Backdrop.Transparent);
         _messages = new WindowSubclass(hwnd, OnMessage);
 
         _autoHide = settings.AutoHide;
@@ -333,7 +333,7 @@ internal sealed partial class TaskbarWindow : Window
             return;
 
         SystemBackdrop = _backdrop = new ShellBackdrop(kind);
-        WindowTransparency.SetSeeThrough(_hwnd, kind == Backdrop.Translucent);
+        WindowTransparency.SetSeeThrough(_hwnd, kind is Backdrop.Translucent or Backdrop.Transparent);
         SetTheme(_theme, _accent);
     }
 
@@ -1154,6 +1154,7 @@ internal sealed partial class TaskbarWindow : Window
         BackdropAcrylicItem.IsChecked = settings.TaskbarBackdrop == Backdrop.Acrylic;
         BackdropMicaItem.IsChecked = settings.TaskbarBackdrop == Backdrop.Mica;
         BackdropTranslucentItem.IsChecked = settings.TaskbarBackdrop == Backdrop.Translucent;
+        BackdropTransparentItem.IsChecked = settings.TaskbarBackdrop == Backdrop.Transparent;
     }
 
     private void TaskManager_Click(object sender, RoutedEventArgs e) => _owner.OpenTaskManager();
@@ -1180,6 +1181,7 @@ internal sealed partial class TaskbarWindow : Window
         {
             TaskbarBackdrop = ReferenceEquals(sender, BackdropMicaItem) ? Backdrop.Mica
                 : ReferenceEquals(sender, BackdropTranslucentItem) ? Backdrop.Translucent
+                : ReferenceEquals(sender, BackdropTransparentItem) ? Backdrop.Transparent
                 : Backdrop.Acrylic,
         });
 

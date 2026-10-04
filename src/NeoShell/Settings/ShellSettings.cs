@@ -6,7 +6,7 @@ public enum CombineButtons { Always, WhenFull, Never }
 
 public enum TrayMode { ShowAll, Overflow }
 
-public enum Backdrop { Acrylic, Mica, Translucent }
+public enum Backdrop { Acrylic, Mica, Translucent, Transparent }
 
 public enum DesktopSortOrder { Name, Size, ItemType, DateModified }
 

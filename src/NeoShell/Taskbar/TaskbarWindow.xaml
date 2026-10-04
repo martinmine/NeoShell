@@ -464,6 +464,12 @@
                         GroupName="Backdrop"
                         Text="Translucent"
                         Click="Backdrop_Click" />
+                    <RadioMenuFlyoutItem
+                        x:Name="BackdropTransparentItem"
+                        AutomationProperties.AutomationId="BackdropTransparentMenuItem"
+                        GroupName="Backdrop"
+                        Text="Transparent"
+                        Click="Backdrop_Click" />
                 </MenuFlyoutSubItem>
                 <ToggleMenuFlyoutItem
                     x:Name="AutoHideItem"

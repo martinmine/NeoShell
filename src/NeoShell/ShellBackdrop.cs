@@ -10,7 +10,8 @@ namespace NeoShell;
 /// <summary>
 /// The backdrop of NeoShell's surfaces. Acrylic and Mica stay on while the window is inactive: WinUI's own
 /// <c>DesktopAcrylicBackdrop</c> and <c>MicaBackdrop</c> turn into a solid colour then, and shell surfaces like the
-/// taskbar are inactive nearly all the time. Translucent is a plain see-through colour, without blur.
+/// taskbar are inactive nearly all the time. Translucent is a plain see-through colour, without blur; Transparent
+/// shows the desktop as it is.
 /// </summary>
 internal sealed class ShellBackdrop(Backdrop kind) : SystemBackdrop
 {
@@ -59,6 +60,7 @@ internal sealed class ShellBackdrop(Backdrop kind) : SystemBackdrop
                 _mica.SetSystemBackdropConfiguration(_configuration);
                 break;
             case Backdrop.Translucent:
+            case Backdrop.Transparent:
                 // The system backdrop slot takes a brush from the system compositor, not WinUI's.
                 s_compositor ??= new Windows.UI.Composition.Compositor();
                 _brush = s_compositor.CreateColorBrush();
@@ -119,7 +121,8 @@ internal sealed class ShellBackdrop(Backdrop kind) : SystemBackdrop
         else if (_brush is not null)
         {
             // Just enough of a shade to keep the icons and clock apart from a busy wallpaper.
-            _brush.Color = _tint is { } tint ? Color.FromArgb(0x80, tint.R, tint.G, tint.B)
+            _brush.Color = Kind == Backdrop.Transparent ? Color.FromArgb(0, 0, 0, 0)
+                : _tint is { } tint ? Color.FromArgb(0x80, tint.R, tint.G, tint.B)
                 : _configuration.Theme == SystemBackdropTheme.Light ? Color.FromArgb(0x30, 0xFF, 0xFF, 0xFF)
                 : Color.FromArgb(0x30, 0x00, 0x00, 0x00);
         }
