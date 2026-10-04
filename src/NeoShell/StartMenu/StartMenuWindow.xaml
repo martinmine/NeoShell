@@ -159,12 +159,13 @@
                     SelectionMode="None"
                     IsItemClickEnabled="True"
                     ItemClick="Item_Click"
-                    CanDragItems="True"
-                    CanReorderItems="True"
-                    AllowDrop="True"
-                    DragItemsCompleted="PinnedGrid_DragItemsCompleted"
                     ScrollViewer.VerticalScrollMode="Disabled"
                     ScrollViewer.VerticalScrollBarVisibility="Disabled">
+                    <!-- Dragged by hand (see PinnedGrid_PointerPressed), without item transitions: the move at the drop
+                         would be animated as a removal and an addition, and the icon vanish and come back. -->
+                    <GridView.ItemContainerTransitions>
+                        <TransitionCollection />
+                    </GridView.ItemContainerTransitions>
                     <GridView.ItemContainerStyle>
                         <Style TargetType="GridViewItem" BasedOn="{StaticResource DefaultGridViewItemStyle}">
                             <Setter Property="Margin" Value="0" />

@@ -248,8 +248,12 @@ Shell mode only, like the wallpaper: alongside Explorer, Explorer's desktop has 
 
 ### Task buttons
 
-- A `ListView` of `TaskButton` view models (built by `TaskListBuilder`, unit tested, and synced in place by key);
-  `ListView` gives drag-to-reorder.
+- A `ListView` of `TaskButton` view models (built by `TaskListBuilder`, unit tested, and synced in place by key).
+- The list's own item transitions are off: WinUI turns a collection move into a removal and an insertion, so a moved
+  button would vanish and fade back in. The taskbar animates changes itself with composition animations on the
+  containers (explicit start values): buttons that stay slide from where they were, new ones grow in (scale and
+  fade). A refresh during an animation lets it run on; a drag first finishes running ones at their end values
+  (stopping one would leave a half-faded button).
 - Sized as Explorer's: 44×48 buttons with a 40×40 plate behind the 24 px icon, shown when hovered or active.
 - Packaged apps' icons come from their package's `targetsize-24_altform-unplated` image, as in Explorer; the shell's
   24 px icon is scaled from a bigger image and comes out a pixel off.
@@ -261,7 +265,10 @@ Shell mode only, like the wallpaper: alongside Explorer, Explorer's desktop has 
 - Middle click or Shift+click: launch a new instance. Shift is read with `GetAsyncKeyState`: the taskbar never has
   focus, so its thread's key state doesn't see it.
 - Right click menu: app name (launch), Pin to taskbar / Unpin, Close window / Close all windows (`SC_CLOSE`).
-- Drag to reorder; order is persisted for pinned apps.
+- Drag to reorder (by hand, `TaskReorder`: the button slides along the row and its neighbours make way). The order
+  is persisted for pinned apps and kept for the session for the others (`TaskOrder`, unit tested): buttons keep the
+  order last shown, a new window goes next to its app's others and a newly started app at the end. Shared by the
+  taskbars and kept when they're recreated.
 - Combine setting: always combine, combine when full, never combine (labels shown). "When full" compares the labeled
   buttons' width with the space left beside the right-hand panel (on both sides when centred); the list is capped at
   that width so it never covers the clock.
@@ -406,7 +413,11 @@ Exit NeoShell (alongside Explorer only).
   (as the monitor allowed it) is saved on release. 832 by 860 epx by default, at least 480 by 400, at most the
   monitor above the taskbar (`StartMenuLayout`, tests).
 - Home is one scrolling page, as in Windows 11, below the search box:
-  - **Pinned** grid (persisted in settings, drag to reorder). The first time the catalog loads, Explorer's Start pins
+  - **Pinned** grid (persisted in settings). Drag to reorder by hand (`GridReorder`, unit tested): the icon follows
+    the pointer and the icons between its old and new place shift one slot. The grid's own drag and drop keeps the
+    dropped icon hidden until the drag operation winds down, and its item transitions animate the move as a removal
+    and an addition, so both are off. Pinned and Recent are updated in place when Start opens, not refilled (which
+    would replay every icon's entrance). The first time the catalog loads, Explorer's Start pins
     are added once (`ExplorerStartPinsImported`). Start keeps them encrypted in `start2.bin`, so they're read through
     `StartTileData.dll`'s `IStartLayoutCmdlet::ExportStartLayout` (the object behind `Export-StartLayout`), which
     writes `{"pinnedList":[{"packagedAppId":…},{"desktopAppLink":"%APPDATA%\…\x.lnk"}]}`. A shortcut is matched to

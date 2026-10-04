@@ -56,6 +56,12 @@ internal sealed class Taskbars : IDisposable
 
     public WindowTracker Tracker { get; }
 
+    /// <summary>
+    /// Button keys in the order last shown, shared by the taskbars and kept when they're recreated (see
+    /// <see cref="Taskbar.TaskOrder"/>).
+    /// </summary>
+    public IReadOnlyList<string> TaskOrder { get; set; } = [];
+
     /// <summary>Network, volume and microphone state for the primary taskbar's indicators.</summary>
     public Indicators? Indicators { get; private set; }
 

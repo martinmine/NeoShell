@@ -11,6 +11,9 @@ using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Animation;
 using NeoShell.Interop.Windowing;
 using Microsoft.UI.Input;
+using Microsoft.UI.Composition;
+using Microsoft.UI.Xaml.Hosting;
+using System.Numerics;
 using NeoShell.Interop.Tray;
 using NeoShell.Logging;
 using NeoShell.Settings;
@@ -44,6 +47,8 @@ internal sealed partial class TaskbarWindow : Window
     private (TaskButton Button, FrameworkElement Element)? _hovered;
     private (uint PointerId, double X, TaskButton Button)? _pressed;
     private TaskDrag? _drag;
+    private readonly List<(UIElement Container, string Property, long Started)> _layoutAnimations = [];
+    private static readonly TimeSpan s_layoutAnimationDuration = TimeSpan.FromMilliseconds(250);
     private bool _suppressClick;
     private readonly NotificationArea? _tray;
     private readonly Indicators? _indicators;
@@ -562,31 +567,136 @@ internal sealed partial class TaskbarWindow : Window
         TaskList.MaxWidth = Math.Max(0, available);
         IReadOnlyList<TaskButtonModel> uncombined = TaskListBuilder.Build(settings.PinnedTaskbarApps, windows, combine: false);
         bool combine = TaskListBuilder.ShouldCombine(settings.CombineButtons, uncombined, available);
-        IReadOnlyList<TaskButtonModel> models = combine
-            ? TaskListBuilder.Build(settings.PinnedTaskbarApps, windows, combine: true)
-            : uncombined;
+        IReadOnlyList<TaskButtonModel> models = TaskOrder.Arrange(
+            combine ? TaskListBuilder.Build(settings.PinnedTaskbarApps, windows, combine: true) : uncombined,
+            _owner.TaskOrder);
+        _owner.TaskOrder = [.. models.Select(model => model.Key)];
 
-        // Update in place, so buttons keep their state and the list doesn't flicker. Gone buttons are removed first:
-        // otherwise every button after one would be moved up a place, and the list animates each move as a new item.
+        // Where each button is now, to slide it from there to its new place.
+        bool animate = TaskList.IsLoaded;
+        Dictionary<TaskButton, double> before = animate ? ButtonPositions() : [];
+
+        // Update in place, so buttons keep their state and the list doesn't flicker.
         var keys = models.Select(model => model.Key).ToHashSet();
         for (int i = _tasks.Count - 1; i >= 0; i--)
         {
             if (!keys.Contains(_tasks[i].Key))
                 _tasks.RemoveAt(i);
         }
+        var added = new List<TaskButton>();
         for (int i = 0; i < models.Count; i++)
         {
             int existing = IndexOf(models[i].Key, i);
             if (existing < 0)
+            {
                 _tasks.Insert(i, new TaskButton(models[i].Key));
+                added.Add(_tasks[i]);
+            }
             else if (existing != i)
+            {
                 _tasks.Move(existing, i);
+            }
             _tasks[i].Update(models[i], _owner.Tracker, combine);
         }
+        if (animate)
+            AnimateLayoutChange(before, added);
 
         // The previews show windows that may have closed or opened.
         if (_thumbnails.Button is { } shown && !_tasks.Contains(shown))
             _thumbnails.Hide();
+    }
+
+    // The list's own item transitions show a moved button as removed and added again: it vanishes and reappears.
+    // They're off (see the XAML), and changes are animated here instead: buttons that stay slide from where they
+    // were, new ones grow in. Composition animations with explicit start values: an implicit transition starts from
+    // whatever was last drawn, and the drag's Translation rules out a RenderTransform.
+    private Dictionary<TaskButton, double> ButtonPositions()
+    {
+        var positions = new Dictionary<TaskButton, double>();
+        foreach (TaskButton button in _tasks)
+        {
+            if (TaskList.ContainerFromItem(button) is UIElement container)
+                positions[button] = container.TransformToVisual(Root).TransformPoint(default).X;
+        }
+        return positions;
+    }
+
+    private void AnimateLayoutChange(Dictionary<TaskButton, double> before, List<TaskButton> added)
+    {
+        // Running animations carry on; a button that moves again gets a new one in their place.
+        long now = Environment.TickCount64;
+        _layoutAnimations.RemoveAll(running => now - running.Started > s_layoutAnimationDuration.TotalMilliseconds);
+        TaskList.UpdateLayout();
+
+        Compositor compositor = ElementCompositionPreview.GetElementVisual(Root).Compositor;
+        CompositionEasingFunction easing = compositor.CreateCubicBezierEasingFunction(new(0.1f, 0.9f), new(0.2f, 1f));
+        foreach (TaskButton button in _tasks)
+        {
+            if (TaskList.ContainerFromItem(button) is not FrameworkElement container)
+                continue;
+
+            if (added.Contains(button))
+            {
+                container.CenterPoint = new Vector3((float)container.ActualWidth / 2, (float)container.ActualHeight / 2, 0);
+                Vector3KeyFrameAnimation grow = compositor.CreateVector3KeyFrameAnimation();
+                grow.InsertKeyFrame(0, new Vector3(0.5f, 0.5f, 1));
+                grow.InsertKeyFrame(1, Vector3.One, easing);
+                Start(container, grow, nameof(UIElement.Scale));
+                ScalarKeyFrameAnimation fade = compositor.CreateScalarKeyFrameAnimation();
+                fade.InsertKeyFrame(0, 0);
+                fade.InsertKeyFrame(1, 1, easing);
+                Start(container, fade, nameof(UIElement.Opacity));
+            }
+            else if (before.TryGetValue(button, out double was))
+            {
+                double moved = was - container.TransformToVisual(Root).TransformPoint(default).X;
+                if (Math.Abs(moved) < 0.5)
+                    continue;
+
+                Vector3KeyFrameAnimation slide = compositor.CreateVector3KeyFrameAnimation();
+                slide.InsertKeyFrame(0, new Vector3((float)moved, 0, 0));
+                slide.InsertKeyFrame(1, Vector3.Zero, easing);
+                Start(container, slide, nameof(UIElement.Translation));
+            }
+        }
+
+        void Start(UIElement container, KeyFrameAnimation animation, string property)
+        {
+            animation.Target = property;
+            animation.Duration = s_layoutAnimationDuration;
+            container.StartAnimation(animation);
+            _layoutAnimations.Add((container, property, Environment.TickCount64));
+        }
+    }
+
+    // A drag measures the buttons where they belong. Stopping a composition animation would leave the value where it
+    // had got to (a half-faded button), so running ones are finished instead: a last frame at their end value.
+    private void FinishLayoutAnimations()
+    {
+        if (_layoutAnimations.Count == 0)
+            return;
+
+        Compositor compositor = ElementCompositionPreview.GetElementVisual(Root).Compositor;
+        foreach ((UIElement container, string property, _) in _layoutAnimations)
+        {
+            KeyFrameAnimation end;
+            if (property == nameof(UIElement.Opacity))
+            {
+                ScalarKeyFrameAnimation opacity = compositor.CreateScalarKeyFrameAnimation();
+                opacity.InsertKeyFrame(1, 1);
+                end = opacity;
+            }
+            else
+            {
+                Vector3KeyFrameAnimation vector = compositor.CreateVector3KeyFrameAnimation();
+                vector.InsertKeyFrame(1, property == nameof(UIElement.Scale) ? Vector3.One : Vector3.Zero);
+                end = vector;
+            }
+            end.Target = property;
+            end.Duration = TimeSpan.FromMilliseconds(1);
+            container.StartAnimation(end);
+        }
+        _layoutAnimations.Clear();
     }
 
     private double AvailableTaskWidth()
@@ -709,15 +819,15 @@ internal sealed partial class TaskbarWindow : Window
 
         _thumbnails.Hide();
         menu.Items.Clear();
-        menu.Items.Add(MenuItem(button.App.DisplayName, "", "TaskLaunchMenuItem", () => Launcher.Launch(button.App)));
+        menu.Items.Add(MenuItem(button.App.DisplayName, "î¢§", "TaskLaunchMenuItem", () => Launcher.Launch(button.App)));
         menu.Items.Add(button.Pinned is { } pinned
-            ? MenuItem("Unpin from taskbar", "", "TaskUnpinMenuItem", () => _owner.Unpin(pinned))
-            : MenuItem("Pin to taskbar", "", "TaskPinMenuItem", () => _owner.Pin(button.App)));
+            ? MenuItem("Unpin from taskbar", "îº", "TaskUnpinMenuItem", () => _owner.Unpin(pinned))
+            : MenuItem("Pin to taskbar", "îœ˜", "TaskPinMenuItem", () => _owner.Pin(button.App)));
         if (button.Windows.Count > 0)
         {
             IReadOnlyList<WindowInfo> windows = button.Windows;
             menu.Items.Add(new MenuFlyoutSeparator());
-            menu.Items.Add(MenuItem(windows.Count == 1 ? "Close window" : "Close all windows", "", "TaskCloseMenuItem", () =>
+            menu.Items.Add(MenuItem(windows.Count == 1 ? "Close window" : "Close all windows", "îœ‘", "TaskCloseMenuItem", () =>
             {
                 foreach (WindowInfo window in windows)
                     TopLevelWindows.Close(window.Handle);
@@ -761,7 +871,7 @@ internal sealed partial class TaskbarWindow : Window
         for (int i = 0; i < drag.Containers.Count; i++)
         {
             double x = i == drag.Index ? offset : TaskReorder.MakeWayOffset(drag.Slots, drag.Index, drag.Target, i);
-            drag.Containers[i].Translation = new System.Numerics.Vector3((float)x, 0, 0);
+            drag.Containers[i].Translation = new Vector3((float)x, 0, 0);
         }
         e.Handled = true;
     }
@@ -788,6 +898,8 @@ internal sealed partial class TaskbarWindow : Window
 
     private bool StartDrag(TaskButton button, Pointer pointer)
     {
+        // Measured where they belong, not where an animation is drawing them.
+        FinishLayoutAnimations();
         int index = _tasks.IndexOf(button);
         var containers = new List<UIElement>();
         var slots = new List<(double Left, double Width)>();
@@ -826,14 +938,10 @@ internal sealed partial class TaskbarWindow : Window
         Canvas.SetZIndex(drag.Containers[drag.Index], 0);
         if (drop && drag.Target != drag.Index)
         {
-            // The buttons are already where they belong. The list would animate the move as a removal and an
-            // addition, so the buttons vanish and come back.
-            TransitionCollection transitions = TaskList.ItemContainerTransitions;
-            TaskList.ItemContainerTransitions = [];
+            // The buttons are already drawn where they belong, so the move shows no change.
             _tasks.Move(drag.Index, drag.Target);
-            TaskList.UpdateLayout();
-            TaskList.ItemContainerTransitions = transitions;
-            // Only pinned apps keep their place; running apps fall back in line on the next refresh.
+            _owner.TaskOrder = [.. _tasks.Select(t => t.Key)];
+            // Pinned apps keep their order for good; running ones for the session (TaskOrder).
             _owner.SetPinnedOrder([.. _tasks.Select(t => t.Pinned).OfType<PinnedApp>().DistinctBy(TaskGrouping.Key)]);
         }
         if (drag.RefreshPending)

@@ -123,6 +123,12 @@ Tick items off as they land. The feature details are in [design.md](design.md).
       Personalize opening classic dialogs in shell mode; no Undo (Explorer's own history)
 - [x] `tools/start-shell.ps1`: replace the running Explorer shell with NeoShell for this session
 
+## 12. Requested features (2)
+
+- [x] Moving icons doesn't make them vanish and reappear: the taskbar animates its own changes (no item transitions),
+      running apps keep their dragged place for the session, Start's pinned grid is reordered by hand and Pinned and
+      Recent are updated in place
+
 ## Later / not planned yet
 
 - Jump lists

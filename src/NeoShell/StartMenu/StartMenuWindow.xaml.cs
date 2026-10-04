@@ -8,6 +8,8 @@ using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Data;
 using Microsoft.UI.Xaml.Input;
+using Microsoft.UI.Xaml.Media;
+using Microsoft.UI.Xaml.Media.Animation;
 using Microsoft.UI.Xaml.Media.Imaging;
 using Microsoft.Win32;
 using NeoShell.Interop.Search;
@@ -16,6 +18,8 @@ using NeoShell.Interop.Windowing;
 using NeoShell.Logging;
 using NeoShell.Settings;
 using NeoShell.Taskbar;
+using System.Numerics;
+using Windows.Foundation;
 using Windows.Graphics;
 using Windows.UI;
 using Windows.System;
@@ -60,6 +64,9 @@ internal sealed partial class StartMenuWindow : Window
     private CancellationTokenSource? _search;
     private (DisplayMonitor Monitor, RectInt32 Taskbar, bool Centered) _anchor;
     private ResizeDrag? _resize;
+    private (uint PointerId, Point Start, StartItem Item)? _pinPressed;
+    private PinDrag? _pinDrag;
+    private bool _suppressPinClick;
 
     public StartMenuWindow(Taskbars owner)
     {
@@ -81,6 +88,11 @@ internal sealed partial class StartMenuWindow : Window
         _placement = new PinnedWindow(_hwnd, default, PinnedLayer.Topmost);
 
         PinnedGrid.ItemsSource = _pinned;
+        // Handled events too: the item under the pointer takes the press for its click.
+        PinnedGrid.AddHandler(UIElement.PointerPressedEvent, new PointerEventHandler(PinnedGrid_PointerPressed), handledEventsToo: true);
+        PinnedGrid.AddHandler(UIElement.PointerMovedEvent, new PointerEventHandler(PinnedGrid_PointerMoved), handledEventsToo: true);
+        PinnedGrid.AddHandler(UIElement.PointerReleasedEvent, new PointerEventHandler(PinnedGrid_PointerReleased), handledEventsToo: true);
+        PinnedGrid.AddHandler(UIElement.PointerCaptureLostEvent, new PointerEventHandler(PinnedGrid_PointerCaptureLost), handledEventsToo: true);
         RecentGrid.ItemsSource = _recent;
         _results.Source = _resultGroups;
         ResultsList.ItemsSource = _results.View;
@@ -214,27 +226,49 @@ internal sealed partial class StartMenuWindow : Window
 
     private void ShowPinned()
     {
-        _pinned.Clear();
-        foreach (PinnedApp app in PinnedStartApps)
-            _pinned.Add(new StartItem(app, "App", isApp: true, _owner.Icons));
+        Sync(_pinned, [.. PinnedStartApps.Select(app => new StartItem(app, "App", isApp: true, _owner.Icons))]);
         NoPinnedText.Visibility = _pinned.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
     }
 
     // Windows records each start, by Explorer or by NeoShell, in UserAssist; reading it is quick enough for each open.
     private void ShowRecent()
     {
-        _recent.Clear();
         try
         {
             DateTime now = DateTime.Now;
-            foreach ((PinnedApp app, DateTime lastRun) in StartCatalog.Recent(_apps.Select(item => item.Target), UserAssist.Load(), MaxRecentApps))
-                _recent.Add(new StartItem(app, StartCatalog.LastRunText(lastRun, now), isApp: true, _owner.Icons));
+            Sync(_recent, [.. StartCatalog.Recent(_apps.Select(item => item.Target), UserAssist.Load(), MaxRecentApps)
+                .Select(recent => new StartItem(recent.App, StartCatalog.LastRunText(recent.LastRun, now), isApp: true, _owner.Icons))]);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.SecurityException)
         {
             Log.Warn("Could not read recent apps", ex);
+            _recent.Clear();
         }
         RecentSection.Visibility = _recent.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    // Refilling a grid replays every item's entrance animation: all the icons vanish and come back, which after a
+    // drag looks like the move went wrong. Items that are still there stay.
+    private static void Sync(ObservableCollection<StartItem> items, IReadOnlyList<StartItem> wanted)
+    {
+        static bool Same(StartItem a, StartItem b) => a.Target == b.Target && a.Subtitle == b.Subtitle;
+
+        for (int i = items.Count - 1; i >= 0; i--)
+        {
+            if (!wanted.Any(item => Same(item, items[i])))
+                items.RemoveAt(i);
+        }
+        for (int i = 0; i < wanted.Count; i++)
+        {
+            if (i < items.Count && Same(items[i], wanted[i]))
+                continue;
+
+            int existing = items.Skip(i).ToList().FindIndex(item => Same(item, wanted[i]));
+            if (existing >= 0)
+                items.Move(i + existing, i);
+            else
+                items.Insert(i, wanted[i]);
+        }
     }
 
     // Start begins with the pins the user made in Explorer's Start, once; after that NeoShell's pins are its own.
@@ -461,7 +495,7 @@ internal sealed partial class StartMenuWindow : Window
 
     private void Item_Click(object sender, ItemClickEventArgs e)
     {
-        if (e.ClickedItem is StartItem item)
+        if (e.ClickedItem is StartItem item && !(ReferenceEquals(sender, PinnedGrid) && _suppressPinClick))
             Open(item);
     }
 
@@ -498,8 +532,116 @@ internal sealed partial class StartMenuWindow : Window
             : MenuItem("Pin to taskbar", "StartPinTaskbarMenuItem", () => _owner.Pin(app)));
     }
 
-    private void PinnedGrid_DragItemsCompleted(ListViewBase sender, DragItemsCompletedEventArgs args) =>
-        SetPinnedStartApps([.. _pinned.Select(item => item.Target)]);
+    // Reordering is done by hand rather than with the grid's own drag and drop, which keeps the dropped icon hidden
+    // until its drag operation has wound down: it vanishes and comes back. Here the icon follows the pointer, the
+    // icons in between shift a slot to make room (GridReorder), and the drop is a move that shows no change.
+    private void PinnedGrid_PointerPressed(object sender, PointerRoutedEventArgs e)
+    {
+        _suppressPinClick = false;
+        if (_pinDrag is not null || !e.GetCurrentPoint(PinnedGrid).Properties.IsLeftButtonPressed)
+            return;
+
+        for (var element = e.OriginalSource as DependencyObject; element is not null && element != PinnedGrid; element = VisualTreeHelper.GetParent(element))
+        {
+            if (element is GridViewItem { Content: StartItem item })
+            {
+                _pinPressed = (e.Pointer.PointerId, e.GetCurrentPoint(PinnedGrid).Position, item);
+                return;
+            }
+        }
+    }
+
+    private void PinnedGrid_PointerMoved(object sender, PointerRoutedEventArgs e)
+    {
+        if (_pinPressed is not { } pressed || pressed.PointerId != e.Pointer.PointerId)
+            return;
+
+        Point position = e.GetCurrentPoint(PinnedGrid).Position;
+        double dx = position.X - pressed.Start.X;
+        double dy = position.Y - pressed.Start.Y;
+        if (_pinDrag is null && (Math.Sqrt(dx * dx + dy * dy) < GridReorder.Threshold || !StartPinDrag(pressed.Item, e.Pointer)))
+            return;
+
+        PinDrag drag = _pinDrag!;
+        (double X, double Y) slot = drag.Slots[drag.Index];
+        drag.Target = GridReorder.TargetIndex(drag.Slots, (slot.X + dx, slot.Y + dy));
+        for (int i = 0; i < drag.Containers.Count; i++)
+        {
+            (double x, double y) = i == drag.Index ? (dx, dy) : GridReorder.MakeWayOffset(drag.Slots, drag.Index, drag.Target, i);
+            drag.Containers[i].Translation = new Vector3((float)x, (float)y, 0);
+        }
+        e.Handled = true;
+    }
+
+    private void PinnedGrid_PointerReleased(object sender, PointerRoutedEventArgs e)
+    {
+        _pinPressed = null;
+        if (_pinDrag is null)
+            return;
+
+        // The grid would otherwise take the release as a click on the app.
+        _suppressPinClick = true;
+        EndPinDrag(drop: true);
+        PinnedGrid.ReleasePointerCapture(e.Pointer);
+        e.Handled = true;
+    }
+
+    private void PinnedGrid_PointerCaptureLost(object sender, PointerRoutedEventArgs e)
+    {
+        _pinPressed = null;
+        if (_pinDrag is not null)
+            EndPinDrag(drop: false);
+    }
+
+    private bool StartPinDrag(StartItem item, Pointer pointer)
+    {
+        int index = _pinned.IndexOf(item);
+        var containers = new List<UIElement>();
+        var slots = new List<(double X, double Y)>();
+        for (int i = 0; i < _pinned.Count; i++)
+        {
+            if (PinnedGrid.ContainerFromIndex(i) is not UIElement container)
+                return false;
+            containers.Add(container);
+            Point corner = container.TransformToVisual(PinnedGrid).TransformPoint(default);
+            slots.Add((corner.X, corner.Y));
+        }
+        if (index < 0 || !PinnedGrid.CapturePointer(pointer))
+            return false;
+
+        foreach (UIElement container in containers)
+            container.TranslationTransition = new Vector3Transition { Duration = TimeSpan.FromMilliseconds(150) };
+        containers[index].TranslationTransition = null;
+        Canvas.SetZIndex(containers[index], 1);
+        _pinDrag = new PinDrag(containers, slots, index) { Target = index };
+        return true;
+    }
+
+    private void EndPinDrag(bool drop)
+    {
+        PinDrag drag = _pinDrag!;
+        _pinDrag = null;
+        foreach (UIElement container in drag.Containers)
+        {
+            container.TranslationTransition = null;
+            container.Translation = default;
+        }
+        Canvas.SetZIndex(drag.Containers[drag.Index], 0);
+        if (drop && drag.Target != drag.Index)
+        {
+            // The icons are already drawn where they belong, so the move shows no change.
+            _pinned.Move(drag.Index, drag.Target);
+            _owner.Settings.Update(_owner.Settings.Current with { PinnedStartApps = [.. _pinned.Select(item => item.Target)] });
+        }
+    }
+
+    private sealed class PinDrag(List<UIElement> containers, List<(double X, double Y)> slots, int index)
+    {
+        public List<UIElement> Containers { get; } = containers;
+        public List<(double X, double Y)> Slots { get; } = slots;
+        public int Index { get; } = index;
+        public int Target { get; set; }
+    }
 
     private void SetPinnedStartApps(IReadOnlyList<PinnedApp> apps)
     {
