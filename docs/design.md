@@ -351,7 +351,11 @@ have their icons (loaded in the background) and open on click.
 - The popup slides up out of the taskbar (200 ms) and back into it on closing, and slides sideways to the next button
   (`WindowSlide`, as Start): it's the window that moves, since DWM draws the thumbnails into the window. It sits
   just below the taskbar in the topmost band (`PinnedWindow.SetLayer(Topmost, above)`), so the taskbar covers it.
-- Hovering a thumbnail could later add aero peek; not planned.
+- Peek: hovering a thumbnail for 400 ms shows only its window (`DwmpActivateLivePreview`, dwmapi ordinal 113: the
+  undocumented call Explorer's taskbar makes, as there is no public one); moving to the next thumbnail moves the peek
+  straight away, and it ends when the pointer leaves the thumbnails, on a click (after switching) or when the popup
+  closes. DWM ignores a second peek while one is on, so moving it ends the first, which crossfades. The taskbar,
+  popup and wallpaper windows set `DWMWA_EXCLUDED_FROM_PEEK` to stay visible, as Explorer's do.
 
 ### Progress, overlay badges
 

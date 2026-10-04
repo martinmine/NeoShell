@@ -137,6 +137,7 @@ Tick items off as they land. The feature details are in [design.md](design.md).
 - [x] Flyouts and menus above the taskbar with Windows 11's gap, sliding up from behind it; jump lists centred on
       their button, volume and calendar at the screen's right edge
 - [x] Thumbnails slide out of the taskbar, along it and back
+- [x] Peek: hovering a thumbnail shows only its window, moving to the next one moves the peek
 - [x] Volume flyout as Quick Settings: slider row, Sound output page (output device, spatial sound, mixer, More volume
       settings, Win+Ctrl+V), the default beep on letting go of the slider — Win+Ctrl+V not pressed live
 

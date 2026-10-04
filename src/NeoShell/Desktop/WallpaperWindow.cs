@@ -46,6 +46,7 @@ internal sealed class WallpaperWindow : Window
         nint hwnd = Win32Interop.GetWindowFromWindowId(AppWindow.Id);
         WindowStyles.AddExtended(hwnd, ExtendedWindowStyles.ToolWindow);
         _frameless = new FramelessWindow(hwnd);
+        Peek.Exclude(hwnd);
         _messages = new WindowSubclass(hwnd, onMessage);
         _placement = new PinnedWindow(hwnd, monitor.Bounds, PinnedLayer.Bottom);
 

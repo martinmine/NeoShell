@@ -106,6 +106,7 @@ internal sealed partial class TaskbarWindow : Window
                 WindowStyles.AddExtended(hwnd, ExtendedWindowStyles.NoActivate);
         };
         _frameless = new FramelessWindow(hwnd);
+        Peek.Exclude(hwnd);
         SystemBackdrop = _backdrop;
         WindowTransparency.SetSeeThrough(hwnd, _backdrop.Kind == Backdrop.Translucent);
         _messages = new WindowSubclass(hwnd, OnMessage);

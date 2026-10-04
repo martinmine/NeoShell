@@ -1,4 +1,5 @@
 using Microsoft.UI;
+using Microsoft.UI.Dispatching;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
@@ -12,7 +13,10 @@ using Windows.UI;
 
 namespace NeoShell.Taskbar;
 
-/// <summary>Live previews of a button's windows above the taskbar: click one to switch to it, or close it.</summary>
+/// <summary>
+/// Live previews of a button's windows above the taskbar: hover one to peek at its window, click it to switch to it,
+/// or close it.
+/// </summary>
 internal sealed class ThumbnailPopup : Window
 {
     // Effective pixels.
@@ -22,8 +26,13 @@ internal sealed class ThumbnailPopup : Window
     private const double PreviewHeight = 124;
     private const double Padding = 8;
     private const double Gap = 8;
+    private static readonly TimeSpan PeekDelay = TimeSpan.FromMilliseconds(400);
+    // Moving from one preview to the next leaves the first before entering the second; the peek waits this long
+    // before ending so it moves across instead of flashing every window back in between.
+    private static readonly TimeSpan PeekEndDelay = TimeSpan.FromMilliseconds(100);
 
     private readonly nint _hwnd;
+    private readonly nint _taskbar;
     private readonly WindowTracker _tracker;
     private readonly ShellBackdrop _backdrop = new(Backdrop.Acrylic);
     private readonly Grid _root = new() { Padding = new Thickness(Padding) };
@@ -32,6 +41,9 @@ internal sealed class ThumbnailPopup : Window
     private readonly FramelessWindow _frameless;
     private readonly PinnedWindow _placement;
     private readonly WindowSlide _slide;
+    private readonly DispatcherQueueTimer _peekTimer;
+    private nint _peekTarget;
+    private bool _peeking;
     private bool _visible;
     private int _taskbarTop;
 
@@ -39,6 +51,7 @@ internal sealed class ThumbnailPopup : Window
     public ThumbnailPopup(WindowTracker tracker, nint taskbar)
     {
         _tracker = tracker;
+        _taskbar = taskbar;
         _root.Children.Add(_cells);
         Content = _root;
         SystemBackdrop = _backdrop;
@@ -52,13 +65,18 @@ internal sealed class ThumbnailPopup : Window
 
         _hwnd = Win32Interop.GetWindowFromWindowId(AppWindow.Id);
         WindowStyles.AddExtended(_hwnd, ExtendedWindowStyles.ToolWindow | ExtendedWindowStyles.NoActivate);
+        Peek.Exclude(_hwnd);
         _frameless = new FramelessWindow(_hwnd, roundedCorners: true);
         _placement = new PinnedWindow(_hwnd, default, PinnedLayer.Topmost);
         _placement.SetLayer(PinnedLayer.Topmost, above: taskbar);
         _slide = new WindowSlide(_placement);
+        _peekTimer = DispatcherQueue.CreateTimer();
+        _peekTimer.IsRepeating = false;
+        _peekTimer.Tick += (_, _) => UpdatePeek();
 
         Closed += (_, _) =>
         {
+            EndPeek();
             _slide.Stop();
             ClearCells();
             _placement.Dispose();
@@ -75,6 +93,7 @@ internal sealed class ThumbnailPopup : Window
     public void Show(TaskButton button, RectInt32 anchor, DisplayMonitor monitor, ElementTheme theme)
     {
         Button = button;
+        EndPeek();
         _root.RequestedTheme = theme;
         _backdrop.Theme = theme;
         ClearCells();
@@ -110,6 +129,7 @@ internal sealed class ThumbnailPopup : Window
     public void Hide()
     {
         Button = null;
+        EndPeek();
         if (!_visible)
             return;
 
@@ -143,12 +163,21 @@ internal sealed class ThumbnailPopup : Window
         };
         AutomationProperties.SetName(cell, window.Title);
         AutomationProperties.SetAutomationId(cell, "ThumbnailCell");
-        cell.PointerEntered += (_, _) => cell.Background = hover;
-        cell.PointerExited += (_, _) => cell.Background = idle;
+        cell.PointerEntered += (_, _) =>
+        {
+            cell.Background = hover;
+            PeekAt(window.Handle);
+        };
+        cell.PointerExited += (_, _) =>
+        {
+            cell.Background = idle;
+            PeekAt(0);
+        };
         cell.PointerPressed += (_, _) => cell.Background = pressed;
         cell.PointerReleased += (_, _) => cell.Background = hover;
         cell.Tapped += (_, _) =>
         {
+            // Brought to the front first, so ending the peek doesn't show the old front window in between.
             TopLevelWindows.Activate(window.Handle);
             Hide();
         };
@@ -178,7 +207,12 @@ internal sealed class ThumbnailPopup : Window
         };
         AutomationProperties.SetName(close, "Close " + window.Title);
         AutomationProperties.SetAutomationId(close, "ThumbnailCloseButton");
-        close.Click += (_, _) => TopLevelWindows.Close(window.Handle);
+        close.Click += (_, _) =>
+        {
+            if (_peekTarget == window.Handle)
+                EndPeek();
+            TopLevelWindows.Close(window.Handle);
+        };
         Grid.SetColumn(close, 2);
         header.Children.Add(close);
         cell.Children.Add(header);
@@ -215,6 +249,44 @@ internal sealed class ThumbnailPopup : Window
             (int)(origin.Y * scale + (areaHeight - height) / 2),
             (int)width,
             (int)height));
+    }
+
+    /// <summary>Peeks at <paramref name="window"/> after a pause, or straight away if already peeking; 0 ends it.</summary>
+    private void PeekAt(nint window)
+    {
+        _peekTarget = window;
+        _peekTimer.Stop();
+        if (_peeking && window != 0)
+            UpdatePeek();
+        else if (_peeking || window != 0)
+        {
+            _peekTimer.Interval = _peeking ? PeekEndDelay : PeekDelay;
+            _peekTimer.Start();
+        }
+    }
+
+    private void UpdatePeek()
+    {
+        if (_peekTarget == 0)
+        {
+            EndPeek();
+            return;
+        }
+        // DWM ignores a peek at another window while one is on; ending it first crossfades from one to the other.
+        if (_peeking)
+            Peek.End(_taskbar);
+        _peeking = true;
+        Peek.Show(_peekTarget, _taskbar);
+    }
+
+    private void EndPeek()
+    {
+        _peekTarget = 0;
+        _peekTimer.Stop();
+        if (!_peeking)
+            return;
+        _peeking = false;
+        Peek.End(_taskbar);
     }
 
     private void ClearCells()
