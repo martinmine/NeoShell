@@ -231,4 +231,35 @@ public sealed class TrayTests
         Assert.Equal((nint)2, Assert.Single(store.Icons).Window);
         Assert.False(store.RemoveDeadOwners(_ => true));
     }
+
+    [Fact]
+    public void Taskbar_list_progress_state_names_the_window()
+    {
+        TaskbarListCall call = TaskbarListCall.Parse(0x441, 42, (nint)TaskbarProgressState.Error)!;
+
+        Assert.Equal(new TaskbarListCall(TaskbarListCallKind.ProgressState, 42, (int)TaskbarProgressState.Error), call);
+    }
+
+    [Theory]
+    [InlineData(0, 0)]
+    [InlineData(0x7FFF, 0x7FFF / (double)0xFFFE)]
+    [InlineData(0xFFFE, 1)]
+    [InlineData(0xFFFF, 1)] // past the end
+    public void Taskbar_list_progress_value_is_a_fraction(long value, double expected)
+    {
+        TaskbarListCall call = TaskbarListCall.Parse(0x440, 42, (nint)value)!;
+
+        Assert.Equal(TaskbarListCallKind.ProgressValue, call.Kind);
+        Assert.Equal(expected, call.Value, 6);
+    }
+
+    [Fact]
+    public void Taskbar_list_overlay_carries_the_icon_and_full_screen_swaps_its_arguments()
+    {
+        Assert.Equal(new TaskbarListCall(TaskbarListCallKind.OverlayIcon, 42, 0x1234), TaskbarListCall.Parse(0x44F, 42, 0x1234));
+        // MarkFullscreenWindow sends the flag in wParam and the window in lParam.
+        Assert.Equal(new TaskbarListCall(TaskbarListCallKind.FullScreen, 42, 1), TaskbarListCall.Parse(0x43C, 1, 42));
+        Assert.Equal(new TaskbarListCall(TaskbarListCallKind.FullScreen, 42, 0), TaskbarListCall.Parse(0x43C, 0, 42));
+        Assert.Null(TaskbarListCall.Parse(0x455, 42, 7));
+    }
 }

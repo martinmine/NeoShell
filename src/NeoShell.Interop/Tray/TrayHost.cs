@@ -20,6 +20,7 @@ public sealed unsafe class TrayHost : IDisposable
     private readonly Func<NotifyIconRectRequest, RectInt32?> _onRectRequest;
     private readonly MessageWindow _trayWindow;
     private readonly MessageWindow _notifyWindow;
+    private readonly MessageWindow _taskbandWindow;
 
     /// <param name="onCommand">Applies an icon command; returns whether it succeeded, which the caller sees.</param>
     /// <param name="onRectRequest">The icon's place on screen, or null if it isn't known.</param>
@@ -29,6 +30,9 @@ public sealed unsafe class TrayHost : IDisposable
         _onRectRequest = onRectRequest;
         _trayWindow = new MessageWindow("Shell_TrayWnd", OnMessage, parent: 0, User32.WS_POPUP, User32.WS_EX_TOOLWINDOW);
         _notifyWindow = new MessageWindow("TrayNotifyWnd", (_, _, _) => null, _trayWindow.Handle, User32.WS_CHILD, 0);
+        // Apps' ITaskbarList3 (progress, overlay icons) finds the task band through this property of Shell_TrayWnd.
+        _taskbandWindow = new MessageWindow("MSTaskSwWClass", OnTaskbandMessage, _trayWindow.Handle, User32.WS_CHILD, 0);
+        User32.SetProp(_trayWindow.Handle, "TaskbandHWND", _taskbandWindow.Handle);
 
         // Apps already running re-add their icons when told the taskbar was created.
         User32.SendNotifyMessage(User32.HWND_BROADCAST, User32.RegisterWindowMessage("TaskbarCreated"), 0, 0);
@@ -47,8 +51,25 @@ public sealed unsafe class TrayHost : IDisposable
 
     public void Dispose()
     {
+        User32.RemoveProp(_trayWindow.Handle, "TaskbandHWND");
+        _taskbandWindow.Dispose();
         _notifyWindow.Dispose();
         _trayWindow.Dispose();
+    }
+
+    /// <summary>
+    /// An app called <c>ITaskbarList3</c>. Raised on the UI thread while the app waits: an overlay icon's HICON has to
+    /// be copied in the handler, as the app may destroy it afterwards.
+    /// </summary>
+    public event Action<TaskbarListCall>? TaskbarListCalled;
+
+    private nint? OnTaskbandMessage(uint message, nint wParam, nint lParam)
+    {
+        if (TaskbarListCall.Parse(message, wParam, lParam) is not { } call)
+            return null;
+
+        TaskbarListCalled?.Invoke(call);
+        return 0;
     }
 
     private nint? OnMessage(uint message, nint wParam, nint lParam)

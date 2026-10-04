@@ -1,12 +1,17 @@
 using System.Diagnostics;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml.Media;
+using NeoShell.Interop.Imaging;
 using NeoShell.Interop.Shell;
+using NeoShell.Interop.Tray;
 using NeoShell.Interop.Windowing;
 using NeoShell.Logging;
 using NeoShell.Settings;
 
 namespace NeoShell.Taskbar;
+
+/// <param name="Value">0 to 1.</param>
+public sealed record TaskProgress(TaskbarProgressState State, double Value);
 
 /// <summary>
 /// The windows that have taskbar buttons, in the order they appeared, plus which one is active, which are flashing,
@@ -17,21 +22,37 @@ internal sealed class WindowTracker : IDisposable
     private readonly DispatcherQueue _dispatcher = DispatcherQueue.GetForCurrentThread();
     private readonly int _ownProcess = Environment.ProcessId;
     private readonly AppIcons _appIcons;
+    private readonly bool _announceButtons;
     private readonly List<WindowInfo> _windows = [];
     private readonly HashSet<nint> _flashing = [];
     private readonly Dictionary<nint, ImageSource?> _windowIcons = [];
     private readonly Dictionary<string, string> _appNames = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<nint, TaskProgress> _progress = [];
+    private readonly Dictionary<nint, ImageSource> _overlays = [];
+    private readonly HashSet<nint> _markedFullScreen = [];
     private ShellHook? _shellHook;
     private WindowEvents? _windowEvents;
     private bool _changeQueued;
+    private bool _foregroundChangeQueued;
 
-    public WindowTracker(AppIcons appIcons)
+    /// <param name="announceButtons">
+    /// Tell each window when its button exists (<c>TaskbarButtonCreated</c>), as the shell's taskbar does; apps wait
+    /// for it before showing progress or badges. Alongside Explorer, Explorer already does.
+    /// </param>
+    public WindowTracker(AppIcons appIcons, bool announceButtons)
     {
         _appIcons = appIcons;
+        _announceButtons = announceButtons;
         _appIcons.Loaded += QueueChanged;
     }
 
     public event Action? Changed;
+
+    /// <summary>
+    /// The foreground window changed, moved, resized, or was marked full screen: whether a full-screen app is in front
+    /// may have changed. Separate from <see cref="Changed"/>, as dragging a window raises it many times a second.
+    /// </summary>
+    public event Action? ForegroundChanged;
 
     public IReadOnlyList<WindowInfo> Windows => _windows;
 
@@ -67,6 +88,53 @@ internal sealed class WindowTracker : IDisposable
     }
 
     public bool IsFlashing(nint hwnd) => _flashing.Contains(hwnd);
+
+    /// <summary>The progress the window's app reports through ITaskbarList3, or null for none.</summary>
+    public TaskProgress? Progress(nint hwnd) => _progress.GetValueOrDefault(hwnd);
+
+    /// <summary>The overlay badge the window's app set through ITaskbarList3, or null.</summary>
+    public ImageSource? Overlay(nint hwnd) => _overlays.GetValueOrDefault(hwnd);
+
+    /// <summary>Whether the window's app called ITaskbarList2::MarkFullscreenWindow for it.</summary>
+    public bool IsMarkedFullScreen(nint hwnd) => _markedFullScreen.Contains(hwnd);
+
+    /// <summary>
+    /// Applies an app's ITaskbarList3 call. Called while the app waits, so an overlay icon is copied right away.
+    /// </summary>
+    public void Apply(TaskbarListCall call)
+    {
+        nint hwnd = call.Window;
+        switch (call.Kind)
+        {
+            case TaskbarListCallKind.ProgressState when (TaskbarProgressState)(int)call.Value == TaskbarProgressState.None:
+                _progress.Remove(hwnd);
+                break;
+            case TaskbarListCallKind.ProgressState:
+                _progress[hwnd] = (_progress.GetValueOrDefault(hwnd) ?? new TaskProgress(TaskbarProgressState.Normal, 0))
+                    with { State = (TaskbarProgressState)(int)call.Value };
+                break;
+            case TaskbarListCallKind.ProgressValue:
+                // Setting a value without a state shows normal progress, as in Explorer.
+                _progress[hwnd] = (_progress.GetValueOrDefault(hwnd) ?? new TaskProgress(TaskbarProgressState.Normal, 0))
+                    with { Value = call.Value };
+                break;
+            case TaskbarListCallKind.OverlayIcon:
+                IconBitmap? pixels = call.Value != 0 ? IconBitmap.FromIcon((nint)call.Value) : null;
+                if (pixels is null)
+                    _overlays.Remove(hwnd);
+                else
+                    _overlays[hwnd] = AppIcons.ToImageSource(pixels);
+                break;
+            case TaskbarListCallKind.FullScreen:
+                if (call.Value != 0)
+                    _markedFullScreen.Add(hwnd);
+                else
+                    _markedFullScreen.Remove(hwnd);
+                QueueForegroundChanged();
+                break;
+        }
+        QueueChanged();
+    }
 
     /// <summary>The window's own icon, or its app's while that's all there is.</summary>
     public ImageSource? WindowIcon(WindowInfo window)
@@ -166,6 +234,11 @@ internal sealed class WindowTracker : IDisposable
             case WindowEvent.MinimizeStart:
             case WindowEvent.MinimizeEnd:
                 QueueChanged();
+                QueueForegroundChanged();
+                break;
+            case WindowEvent.LocationChanged:
+                if (hwnd == Foreground)
+                    QueueForegroundChanged();
                 break;
             default: // shown, hidden, cloaked, uncloaked
                 // Tooltips and menus show and hide all the time; only windows that are or could be buttons matter.
@@ -192,9 +265,15 @@ internal sealed class WindowTracker : IDisposable
         else if (index >= 0)
             Remove(hwnd);
         else if (getsButton)
+        {
             _windows.Add(window);
+            if (_announceButtons)
+                TopLevelWindows.NotifyButtonCreated(hwnd);
+        }
         else
+        {
             return;
+        }
         QueueChanged();
     }
 
@@ -207,6 +286,9 @@ internal sealed class WindowTracker : IDisposable
         _windows.RemoveAt(index);
         _flashing.Remove(hwnd);
         _windowIcons.Remove(hwnd);
+        _progress.Remove(hwnd);
+        _overlays.Remove(hwnd);
+        _markedFullScreen.Remove(hwnd);
         QueueChanged();
     }
 
@@ -215,6 +297,20 @@ internal sealed class WindowTracker : IDisposable
         Foreground = hwnd;
         _flashing.Remove(hwnd);
         QueueChanged();
+        QueueForegroundChanged();
+    }
+
+    private void QueueForegroundChanged()
+    {
+        if (_foregroundChangeQueued)
+            return;
+
+        _foregroundChangeQueued = true;
+        _dispatcher.Post(() =>
+        {
+            _foregroundChangeQueued = false;
+            ForegroundChanged?.Invoke();
+        });
     }
 
     private bool IsTracked(nint hwnd) => IndexOf(hwnd) >= 0;

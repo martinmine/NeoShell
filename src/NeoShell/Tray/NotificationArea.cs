@@ -33,6 +33,13 @@ internal sealed class NotificationArea : IDisposable
         Log.Info("Tray started");
     }
 
+    /// <summary>Apps' ITaskbarList3 calls (progress, overlay icons), which reach the shell through the tray window.</summary>
+    public event Action<TaskbarListCall>? TaskbarListCalled
+    {
+        add => _host.TaskbarListCalled += value;
+        remove => _host.TaskbarListCalled -= value;
+    }
+
     /// <summary>The icons that aren't hidden, in the order they were added.</summary>
     public ObservableCollection<TrayIcon> Icons { get; } = [];
 

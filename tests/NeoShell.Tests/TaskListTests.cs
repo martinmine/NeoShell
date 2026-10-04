@@ -142,4 +142,20 @@ public sealed class TaskListTests
 
         Assert.Equal(expected, TaskListBuilder.ShouldCombine(mode, uncombined, available));
     }
+
+    [Theory]
+    [InlineData(0, 1)] // none of them in front: the first
+    [InlineData(1, 2)]
+    [InlineData(2, 3)]
+    [InlineData(3, 1)] // the last in front: around to the first
+    public void Win_number_goes_through_a_buttons_windows(int foreground, int expected)
+    {
+        Assert.Equal((nint)expected, TaskActivation.NextWindow([1, 2, 3], foreground));
+    }
+
+    [Fact]
+    public void Win_number_on_a_button_without_windows_activates_nothing()
+    {
+        Assert.Equal(0, TaskActivation.NextWindow([], 5));
+    }
 }

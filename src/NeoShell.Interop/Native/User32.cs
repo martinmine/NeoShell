@@ -22,6 +22,7 @@ internal static unsafe partial class User32
     public const uint SWP_FRAMECHANGED = 0x0020;
 
     public static readonly nint HWND_TOPMOST = -1;
+    public static readonly nint HWND_NOTOPMOST = -2;
     public static readonly nint HWND_BOTTOM = 1;
     public static readonly nint HWND_MESSAGE = -3;
 
@@ -244,6 +245,10 @@ internal static unsafe partial class User32
 
     [LibraryImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
+    public static partial bool IsZoomed(nint hwnd);
+
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
     public static partial bool ShowWindowAsync(nint hwnd, int command);
 
     [LibraryImport("user32.dll", EntryPoint = "SystemParametersInfoW", SetLastError = true)]
@@ -264,6 +269,18 @@ internal static unsafe partial class User32
 
     [LibraryImport("user32.dll")]
     public static partial nint GetForegroundWindow();
+
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static partial bool GetWindowRect(nint hwnd, out RECT rect);
+
+    public const uint MONITOR_DEFAULTTONULL = 0;
+
+    [LibraryImport("user32.dll")]
+    public static partial nint MonitorFromWindow(nint hwnd, uint flags);
+
+    [LibraryImport("user32.dll", EntryPoint = "GetClassNameW")]
+    public static partial int GetClassName(nint hwnd, char* name, int maxCount);
 
     [LibraryImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
@@ -335,6 +352,13 @@ internal static unsafe partial class User32
 
     [LibraryImport("user32.dll")]
     public static partial uint GetDoubleClickTime();
+
+    [LibraryImport("user32.dll", EntryPoint = "SetPropW", StringMarshalling = StringMarshalling.Utf16)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static partial bool SetProp(nint hwnd, string name, nint data);
+
+    [LibraryImport("user32.dll", EntryPoint = "RemovePropW", StringMarshalling = StringMarshalling.Utf16)]
+    public static partial nint RemoveProp(nint hwnd, string name);
 
     [StructLayout(LayoutKind.Sequential)]
     public struct POINT

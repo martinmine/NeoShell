@@ -60,4 +60,23 @@ public sealed class TaskbarLayoutTests
 
         Assert.Equal(new RectInt32(0, 984, 1920, 48), docked.ToRectInt32());
     }
+
+    [Fact]
+    public void Auto_hidden_taskbar_leaves_a_sliver_at_the_bottom_of_the_screen()
+    {
+        RectInt32 shown = TaskbarLayout.Bounds(new RectInt32(0, 0, 1920, 1080), 96);
+
+        Assert.Equal(new RectInt32(0, 1078, 1920, 48), TaskbarLayout.HiddenBounds(shown));
+    }
+
+    [Theory]
+    [InlineData(0, 0, 1920, 1080, true)] // borderless full screen
+    [InlineData(-8, -8, 1936, 1096, true)] // overhanging the edges
+    [InlineData(0, 0, 1920, 1032, false)] // stops at the taskbar
+    [InlineData(100, 100, 800, 600, false)]
+    [InlineData(1920, 0, 1920, 1080, false)] // full screen on the next monitor
+    public void Full_screen_means_covering_the_whole_monitor(int x, int y, int width, int height, bool expected)
+    {
+        Assert.Equal(expected, TaskbarLayout.IsFullScreen(new RectInt32(x, y, width, height), new RectInt32(0, 0, 1920, 1080)));
+    }
 }

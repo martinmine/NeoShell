@@ -87,17 +87,16 @@ Tick items off as they land. The feature details are in [design.md](design.md).
 - [x] Session end handling
 - [x] Win key (low-level hook), Ctrl+Esc, Win+D, Win+T, Win+S
 - [x] Crash fallback: a watchdog process starts Explorer when NeoShell ends abnormally (crash, fail-fast, kill)
-- [ ] End-to-end test on a VM/test account: sign in with NeoShell as shell, verify tray icons, startup apps,
-      power options, Switch to Explorer, crash fallback — each piece is verified in a shell-mode session started by
-      killing Explorer; a real sign-in (and the power options) needs the owner at the VM
+- [x] End-to-end test on a VM/test account: sign in with NeoShell as shell, verify tray icons, startup apps,
+      power options, Switch to Explorer, crash fallback (done by the owner; defects noted for later)
 
 ## 9. Parity polish
 
-- [ ] Win+1…9
-- [ ] Full-screen app handling (`ABN_FULLSCREENAPP`)
-- [ ] Auto-hide
-- [ ] Show on all displays setting
-- [ ] Progress bars and overlay badges (`ITaskbarList3` messages)
+- [x] Win+1…9
+- [x] Full-screen app handling: a window covering its monitor, or marked with `MarkFullscreenWindow`
+- [x] Auto-hide
+- [x] Show on all displays setting (since milestone 3; only one monitor on the VM to test with)
+- [x] Progress bars and overlay badges (`ITaskbarList3` messages)
 
 ## Later / not planned yet
 

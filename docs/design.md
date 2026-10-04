@@ -135,8 +135,15 @@ Start menu button → confirmation dialog → delete the per-user `Winlogon\Shel
     belongs with `Shell_TrayWnd` (Tray).
 - Rect calculation (unit tested) from monitor bounds and DPI.
 - Recreated on `WM_DISPLAYCHANGE`, on `WM_DPICHANGED` to a DPI other than the monitor's, and on settings changes.
-- `ABN_FULLSCREENAPP`: drop topmost / hide while a full-screen app is active on that monitor.
-- Auto-hide (setting): `ABM_SETAUTOHIDEBAREX`, slide out when the cursor reaches the edge.
+- Full-screen apps: while the foreground window covers its monitor (or the app marked it with
+  `ITaskbarList2::MarkFullscreenWindow`), that monitor's taskbar leaves the topmost band and sits just below it.
+  Maximized windows, minimized ones, NeoShell's own and the desktop (shell window, `Progman`, `WorkerW`) don't
+  count. Re-checked on foreground changes, minimize/restore and the foreground window moving (`EVENT_OBJECT_LOCATIONCHANGE`).
+  Explorer would send `ABN_FULLSCREENAPP`; NeoShell is the one deciding, alongside Explorer too.
+- Auto-hide (setting): no screen space is reserved (no AppBar, no work area change). The taskbar slides down until
+  2 pixels show; the pointer entering them slides it back. It hides again after ~0.75 s with the pointer off it,
+  unless a menu or flyout is open, the thumbnails or Start are open, or it has the keyboard (Win+T). Start, Win+T and
+  Win+1…9 reveal it first.
 - Acrylic backdrop (`AcrylicBackdrop`: a `DesktopAcrylicController` whose configuration keeps `IsInputActive` true),
   light/dark following the system theme (`HKCU\...\Themes\Personalize\SystemUsesLightTheme`), re-read on every
   `WM_SETTINGCHANGE`.
@@ -208,12 +215,24 @@ Start menu button → confirmation dialog → delete the per-user `Winlogon\Shel
   the taskbar.
 - Hovering a thumbnail could later add aero peek; not planned.
 
-### Progress, overlay badges (last milestone)
+### Progress, overlay badges
 
-Apps call `ITaskbarList3`, which is implemented in `explorerframe.dll` inside the app process and talks to the
-taskbar window over messages (`TaskbarButtonCreated` registered message and `WM_USER`-range messages to the window
-owning `Shell_TrayWnd`/the task band). Implement as RetroBar/ManagedShell do: show a progress bar and overlay
-icon on the task button.
+Apps call `ITaskbarList3`, which is implemented in `explorerframe.dll` inside the app process: it finds the task
+band through the `TaskbandHWND` window property on `Shell_TrayWnd` and sends it messages (`HrInit` fails with
+`E_NOTIMPL` without it). So in shell mode `TrayHost` creates an `MSTaskSwWClass` child of `Shell_TrayWnd` and sets
+that property; alongside Explorer these calls go to Explorer. Messages (`TaskbarListCall`, unit tested):
+
+| Message | Call | wParam | lParam |
+|---|---|---|---|
+| `WM_USER+65` | `SetProgressState` | window | `TBPF_*` |
+| `WM_USER+64` | `SetProgressValue` | window | 0…0xFFFE (scaled by the caller) |
+| `WM_USER+79` | `SetOverlayIcon` | window | `HICON`, 0 removes |
+| `WM_USER+60` | `MarkFullscreenWindow` | flag | window |
+| `WM_USER+85` | overlay description | window | atom (ignored) |
+
+Apps only start once told their button exists: the `TaskbarButtonCreated` registered message, sent with
+`SendNotifyMessage` when a window is added to the task list (shell mode). The task button shows the first window's
+progress (bar along the bottom; indeterminate, error and paused states) and overlay icon (bottom-right of the icon).
 
 ### Hotkeys (shell mode only)
 
@@ -221,8 +240,9 @@ icon on the task button.
   (`StartKeyDetector`, unit tested). Keys are not swallowed: Windows has to see Win go down for the Win+ hotkeys,
   and without Explorer nothing else reacts to Win alone. Ctrl+Esc also arrives as `SC_TASKLIST` on the taskman
   window; keyboard toggles within 300 ms of each other count once.
-- `RegisterHotKey`: Win+D (show desktop toggle), Win+T (focus taskbar), Win+1…9 (activate/launch the Nth button),
-  Win+S (Start with search focus).
+- `RegisterHotKey`: Win+D (show desktop toggle), Win+T (focus taskbar), Win+1…9 (the Nth button of the primary
+  taskbar: no window → launch, one window → as a click, several → the one after the foreground window, wrapping;
+  `TaskActivation`, unit tested), Win+S (Start with search focus).
 - Win+T: the taskbar is `WS_EX_NOACTIVATE`, which keeps it from ever becoming active (and so from getting the
   keyboard). Win+T drops that style, activates the taskbar and focuses the first task button; the style comes back
   when the taskbar loses activation.

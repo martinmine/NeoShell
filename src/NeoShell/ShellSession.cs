@@ -15,6 +15,8 @@ internal sealed class ShellSession : IDisposable
     private const int ShowDesktopHotkey = 1;
     private const int FocusTaskbarHotkey = 2;
     private const int SearchHotkey = 3;
+    // Win+1…9 use these IDs plus 0…8.
+    private const int FirstTaskHotkey = 11;
 
     private readonly ShellRegistration _registration;
     private readonly Taskbars _taskbars;
@@ -36,6 +38,7 @@ internal sealed class ShellSession : IDisposable
     {
         _registration.TaskListRequested += _taskbars.ToggleStartMenuFromKeyboard;
         _registration.SessionEnding += OnSessionEnding;
+
         _registration.Complete();
         Log.Info("Shell ready");
 
@@ -47,6 +50,11 @@ internal sealed class ShellSession : IDisposable
         {
             if (!_hotkeys.Register(id, WinKey, key))
                 Log.Warn($"{name} is taken by another app");
+        }
+        for (int n = 1; n <= 9; n++)
+        {
+            if (!_hotkeys.Register(FirstTaskHotkey + n - 1, WinKey, (uint)('0' + n)))
+                Log.Warn($"Win+{n} is taken by another app");
         }
 
         // The Windows key on its own isn't a hotkey: only a hook sees it pressed and released by itself. Keys pass
@@ -87,9 +95,11 @@ internal sealed class ShellSession : IDisposable
 
     private void OnHotkey(int id)
     {
-
         switch (id)
         {
+            case >= FirstTaskHotkey and < FirstTaskHotkey + 9:
+                _taskbars.ActivateTask(id - FirstTaskHotkey);
+                break;
             case ShowDesktopHotkey:
                 _taskbars.ToggleDesktop();
                 break;

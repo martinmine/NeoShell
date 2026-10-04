@@ -11,6 +11,8 @@ public enum WindowEvent
     Destroyed = 0x8001,
     Shown = 0x8002,
     Hidden = 0x8003,
+    /// <summary>The window moved or changed size.</summary>
+    LocationChanged = 0x800B,
     NameChanged = 0x800C,
     Cloaked = 0x8017,
     Uncloaked = 0x8018,
@@ -30,7 +32,7 @@ public sealed unsafe class WindowEvents : IDisposable
         (WindowEvent.Foreground, WindowEvent.Foreground),
         (WindowEvent.MinimizeStart, WindowEvent.MinimizeEnd),
         (WindowEvent.Destroyed, WindowEvent.Hidden),
-        (WindowEvent.NameChanged, WindowEvent.NameChanged),
+        (WindowEvent.LocationChanged, WindowEvent.NameChanged),
         (WindowEvent.Cloaked, WindowEvent.Uncloaked),
     ];
 

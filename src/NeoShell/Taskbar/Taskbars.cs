@@ -8,6 +8,7 @@ using NeoShell.Interop.Tray;
 using NeoShell.Settings;
 using NeoShell.Tray;
 using NeoShell.StartMenu;
+using Windows.Graphics;
 
 namespace NeoShell.Taskbar;
 
@@ -38,8 +39,9 @@ internal sealed class Taskbars : IDisposable
         // Start shows icons at up to 32 effective pixels; load them sharp for the densest monitor.
         uint dpi = DisplayMonitor.GetAll().Select(m => m.Dpi).DefaultIfEmpty(96u).Max();
         Icons = new AppIcons((int)Math.Round(32 * dpi / 96.0));
-        Tracker = new WindowTracker(Icons);
+        Tracker = new WindowTracker(Icons, announceButtons: runMode == RunMode.Shell);
         Tracker.Changed += RefreshTasks;
+        Tracker.ForegroundChanged += UpdateFullScreen;
         Settings.Changed += OnSettingsChanged;
     }
 
@@ -65,6 +67,7 @@ internal sealed class Taskbars : IDisposable
         {
             Tray = new NotificationArea();
             Tray.IconBounds = icon => PrimaryWindow?.TrayIconBounds(icon);
+            Tray.TaskbarListCalled += Tracker.Apply;
         }
         // Created up front, so it opens instantly and its app catalog is already loaded.
         _startMenu = new StartMenuWindow(this);
@@ -88,10 +91,20 @@ internal sealed class Taskbars : IDisposable
             return;
 
         if (_startMenu.IsOpen)
+        {
             _startMenu.Hide();
+        }
         else if (!_startMenu.WasJustDeactivated)
+        {
+            taskbar.Reveal();
             _startMenu.Show(taskbar.Monitor, taskbar.ScreenBounds, Settings.Current.TaskbarAlignment == TaskbarAlignment.Center, _theme);
+        }
     }
+
+    public bool IsStartMenuOpen => _startMenu?.IsOpen == true;
+
+    /// <summary>Win+1…9: the Nth button on the primary taskbar (0-based here).</summary>
+    public void ActivateTask(int index) => PrimaryWindow?.ActivateTask(index);
 
     public void HideStartMenu() => _startMenu?.Hide();
 
@@ -118,7 +131,11 @@ internal sealed class Taskbars : IDisposable
     }
 
     /// <summary>Win+T: puts the keyboard focus on the primary taskbar's buttons.</summary>
-    public void FocusTaskbar() => PrimaryWindow?.FocusTaskList();
+    public void FocusTaskbar()
+    {
+        PrimaryWindow?.Reveal();
+        PrimaryWindow?.FocusTaskList();
+    }
 
     private TaskbarWindow? PrimaryWindow => _windows.FirstOrDefault(window => window.Monitor.IsPrimary) ?? _windows.FirstOrDefault();
 
@@ -181,7 +198,9 @@ internal sealed class Taskbars : IDisposable
     {
         // Where the taskbars go and how they're laid out needs new windows; the rest is just their buttons.
         ShellSettings current = Settings.Current;
-        if (current.TaskbarAlignment != _windowSettings.TaskbarAlignment || current.ShowOnAllDisplays != _windowSettings.ShowOnAllDisplays)
+        if (current.TaskbarAlignment != _windowSettings.TaskbarAlignment
+            || current.ShowOnAllDisplays != _windowSettings.ShowOnAllDisplays
+            || current.AutoHide != _windowSettings.AutoHide)
             QueueRecreate();
         else
             RefreshTasks();
@@ -193,6 +212,31 @@ internal sealed class Taskbars : IDisposable
         {
             window.RefreshTasks();
             window.RefreshTray();
+        }
+    }
+
+    /// <summary>
+    /// A full-screen app in front pushes its monitor's taskbar out of the topmost band, just below it; anything else
+    /// in front brings the taskbar back on top.
+    /// </summary>
+    private void UpdateFullScreen()
+    {
+        nint foreground = Tracker.Foreground;
+        bool candidate = foreground != 0
+            && TopLevelWindows.Exists(foreground)
+            && !TopLevelWindows.IsMinimized(foreground)
+            // Maximized fills the screen too when nothing reserves space (auto-hide), but isn't full screen.
+            && !TopLevelWindows.IsMaximized(foreground)
+            && TopLevelWindows.GetProcessId(foreground) != Environment.ProcessId
+            && !TopLevelWindows.IsDesktop(foreground);
+        nint monitor = candidate ? TopLevelWindows.MonitorOf(foreground) : 0;
+        RectInt32 bounds = candidate ? TopLevelWindows.GetBounds(foreground) : default;
+
+        foreach (TaskbarWindow window in _windows)
+        {
+            bool fullScreen = candidate && window.Monitor.Handle == monitor
+                && (Tracker.IsMarkedFullScreen(foreground) || TaskbarLayout.IsFullScreen(bounds, window.Monitor.Bounds));
+            window.SetFullScreenWindow(fullScreen ? foreground : 0);
         }
     }
 
@@ -251,6 +295,7 @@ internal sealed class Taskbars : IDisposable
                 Tray?.SetTaskbarBounds(window.ScreenBounds);
         }
         Log.Info($"Taskbars on {monitors.Count} monitor(s)");
+        UpdateFullScreen();
     }
 
     private void CloseWindows()

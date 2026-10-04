@@ -1,5 +1,6 @@
 using System.Runtime.InteropServices;
 using NeoShell.Interop.Native;
+using Windows.Graphics;
 
 namespace NeoShell.Interop.Windowing;
 
@@ -39,9 +40,39 @@ public static unsafe class TopLevelWindows
 
     public static bool IsMinimized(nint hwnd) => User32.IsIconic(hwnd);
 
+    public static bool IsMaximized(nint hwnd) => User32.IsZoomed(hwnd);
+
     public static bool Exists(nint hwnd) => User32.IsWindow(hwnd);
 
+    private static readonly uint s_taskbarButtonCreated = User32.RegisterWindowMessage("TaskbarButtonCreated");
+
+    /// <summary>
+    /// Tells a window its taskbar button exists. Apps wait for this before using <c>ITaskbarList3</c> (progress,
+    /// badges). Sent without waiting, so a hung app can't hold the taskbar up.
+    /// </summary>
+    public static void NotifyButtonCreated(nint hwnd) => User32.SendNotifyMessage(hwnd, s_taskbarButtonCreated, 0, 0);
+
     public static nint GetForeground() => User32.GetForegroundWindow();
+
+    /// <summary>The window's rectangle on screen, in pixels.</summary>
+    public static RectInt32 GetBounds(nint hwnd) => User32.GetWindowRect(hwnd, out User32.RECT rect) ? rect.ToRectInt32() : default;
+
+    /// <summary>The monitor the window is mostly on (compare with <see cref="DisplayMonitor.Handle"/>), or 0.</summary>
+    public static nint MonitorOf(nint hwnd) => User32.MonitorFromWindow(hwnd, User32.MONITOR_DEFAULTTONULL);
+
+    /// <summary>
+    /// Whether the window is the desktop: the shell window, or Explorer's desktop windows (which cover the screen but
+    /// aren't full-screen apps).
+    /// </summary>
+    public static bool IsDesktop(nint hwnd)
+    {
+        if (hwnd == User32.GetShellWindow())
+            return true;
+
+        char* name = stackalloc char[32];
+        string className = new(name, 0, User32.GetClassName(hwnd, name, 32));
+        return className is "Progman" or "WorkerW";
+    }
 
     /// <summary>
     /// Brings a window to the front, restoring it if minimized. Windows allows this because the user's click on the

@@ -29,6 +29,7 @@ public sealed class ShellRegistration : IDisposable
     /// <summary>The session is ending (sign-out, restart, shutdown). Raised before Windows ends the process.</summary>
     public event Action? SessionEnding;
 
+
     /// <summary>True when another process (normally Explorer) has registered itself as the shell.</summary>
     public static bool IsShellRunning() => User32.GetShellWindow() != 0;
 
@@ -68,6 +69,7 @@ public sealed class ShellRegistration : IDisposable
             case User32.WM_ENDSESSION when wParam != 0:
                 SessionEnding?.Invoke();
                 return 0;
+
             default:
                 return null;
         }

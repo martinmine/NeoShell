@@ -2,6 +2,7 @@ using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Media;
+using NeoShell.Interop.Tray;
 using NeoShell.Interop.Windowing;
 using NeoShell.Settings;
 
@@ -16,6 +17,8 @@ internal sealed class TaskButton(string key) : INotifyPropertyChanged
     private bool _isActive;
     private bool _isFlashing;
     private bool _showLabel;
+    private TaskProgress? _progress;
+    private ImageSource? _overlay;
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
@@ -80,6 +83,46 @@ internal sealed class TaskButton(string key) : INotifyPropertyChanged
 
     public Visibility FlashVisibility => IsFlashing ? Visibility.Visible : Visibility.Collapsed;
 
+    /// <summary>The app's progress (ITaskbarList3), shown as a bar along the bottom of the button.</summary>
+    public TaskProgress? Progress
+    {
+        get => _progress;
+        private set
+        {
+            if (Set(ref _progress, value))
+            {
+                Raise(nameof(ProgressVisibility));
+                Raise(nameof(ProgressPercent));
+                Raise(nameof(IsProgressIndeterminate));
+                Raise(nameof(IsProgressError));
+                Raise(nameof(IsProgressPaused));
+            }
+        }
+    }
+
+    public Visibility ProgressVisibility => Progress is null ? Visibility.Collapsed : Visibility.Visible;
+
+    public double ProgressPercent => (Progress?.Value ?? 0) * 100;
+
+    public bool IsProgressIndeterminate => Progress?.State == TaskbarProgressState.Indeterminate;
+
+    public bool IsProgressError => Progress?.State == TaskbarProgressState.Error;
+
+    public bool IsProgressPaused => Progress?.State == TaskbarProgressState.Paused;
+
+    /// <summary>The app's overlay badge (ITaskbarList3), drawn over the corner of the icon.</summary>
+    public ImageSource? Overlay
+    {
+        get => _overlay;
+        private set
+        {
+            if (Set(ref _overlay, value))
+                Raise(nameof(OverlayVisibility));
+        }
+    }
+
+    public Visibility OverlayVisibility => Overlay is null ? Visibility.Collapsed : Visibility.Visible;
+
     public void Update(TaskButtonModel model, WindowTracker tracker, bool combined)
     {
         Pinned = model.Pinned;
@@ -99,6 +142,9 @@ internal sealed class TaskButton(string key) : INotifyPropertyChanged
         ShowLabel = single is not null;
         IsActive = model.Windows.Any(w => w.Handle == tracker.Foreground);
         IsFlashing = model.Windows.Any(w => tracker.IsFlashing(w.Handle));
+        // A combined button shows the first of its windows that reports anything.
+        Progress = model.Windows.Select(w => tracker.Progress(w.Handle)).FirstOrDefault(p => p is not null);
+        Overlay = model.Windows.Select(w => tracker.Overlay(w.Handle)).FirstOrDefault(o => o is not null);
         Raise(nameof(RunningVisibility));
         Raise(nameof(MultipleVisibility));
     }
