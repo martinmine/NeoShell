@@ -34,6 +34,12 @@ taskbar space reserved.
 
 **Only do this on a test account or a virtual machine, never on your main account.**
 
+For this session only, run `tools\start-shell.ps1` (optionally `-Path <NeoShell.exe>`; it defaults to the Debug
+build). It closes Explorer's desktop and taskbar and starts NeoShell as the shell; nothing is written to the
+registry, so signing out brings Explorer back.
+
+To make it the shell at every sign-in:
+
 1. Publish or build NeoShell.
 2. Signed in as the test user, run `tools\set-shell.ps1 -Path <full path to NeoShell.exe>`. This sets the
    per-user `HKCU\Software\Microsoft\Windows NT\CurrentVersion\Winlogon\Shell` value only.

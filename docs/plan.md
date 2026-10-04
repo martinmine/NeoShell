@@ -121,6 +121,7 @@ Tick items off as they land. The feature details are in [design.md](design.md).
 - [x] Start: resize by dragging a top corner; the size is saved
 - [x] Desktop menus: Explorer's full menu in one (no "Show more options"), the shell's New menu, Display settings and
       Personalize opening classic dialogs in shell mode; no Undo (Explorer's own history)
+- [x] `tools/start-shell.ps1`: replace the running Explorer shell with NeoShell for this session
 
 ## Later / not planned yet
 

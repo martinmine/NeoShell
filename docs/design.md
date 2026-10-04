@@ -479,4 +479,6 @@ DesktopSortOrder     Name | Size | ItemType | DateModified
 - Logic that touches Windows is split so the decision is a pure function over a snapshot (e.g. `WindowInfo`) that
   tests can construct.
 - **Live UI checks** through UI Automation (`AutomationId`s on all interactive controls), never global keystrokes.
-- **Shell mode** only on a test account or VM, via `tools/set-shell.ps1`.
+- **Shell mode** only on a test account or VM, via `tools/set-shell.ps1` (every sign-in) or `tools/start-shell.ps1`
+  (this session: "Exit Explorer"'s message to `Shell_TrayWnd`, NeoShell started, then what's left of Explorer's
+  process ended, since a later Explorer hangs on it).
