@@ -288,6 +288,37 @@
                 Visibility="Collapsed" />
         </Grid>
 
+        <!-- Corners to drag for resizing; the bottom stays on the taskbar. -->
+        <local:ResizeGrip
+            x:Name="LeftGrip"
+            Grid.RowSpan="3"
+            IsLeft="True"
+            Width="16"
+            Height="16"
+            HorizontalAlignment="Left"
+            VerticalAlignment="Top"
+            Background="Transparent"
+            AutomationProperties.AutomationId="StartResizeGripLeft"
+            AutomationProperties.Name="Resize Start"
+            PointerPressed="Grip_PointerPressed"
+            PointerMoved="Grip_PointerMoved"
+            PointerReleased="Grip_PointerReleased"
+            PointerCaptureLost="Grip_PointerReleased" />
+        <local:ResizeGrip
+            x:Name="RightGrip"
+            Grid.RowSpan="3"
+            Width="16"
+            Height="16"
+            HorizontalAlignment="Right"
+            VerticalAlignment="Top"
+            Background="Transparent"
+            AutomationProperties.AutomationId="StartResizeGrip"
+            AutomationProperties.Name="Resize Start"
+            PointerPressed="Grip_PointerPressed"
+            PointerMoved="Grip_PointerMoved"
+            PointerReleased="Grip_PointerReleased"
+            PointerCaptureLost="Grip_PointerReleased" />
+
         <!-- User, Switch to Explorer, Settings, Power. -->
         <Grid
             Grid.Row="2"

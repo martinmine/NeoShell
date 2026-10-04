@@ -34,11 +34,6 @@ internal sealed class StartGroup(string key, IEnumerable<StartItem> items) : Lis
 /// </summary>
 internal sealed partial class StartMenuWindow : Window
 {
-    // Effective pixels.
-    private const double MenuWidth = 832;
-    private const double MenuHeight = 860;
-    private const double Gap = 12;
-
     private const int MaxRecentApps = 6;
     private const int MaxAppResults = 8;
     private const int MaxFileResults = 20;
@@ -63,6 +58,8 @@ internal sealed partial class StartMenuWindow : Window
     private bool _loadingApps;
     private bool _importingPins;
     private CancellationTokenSource? _search;
+    private (DisplayMonitor Monitor, RectInt32 Taskbar, bool Centered) _anchor;
+    private ResizeDrag? _resize;
 
     public StartMenuWindow(Taskbars owner)
     {
@@ -132,12 +129,11 @@ internal sealed partial class StartMenuWindow : Window
         ShowRecent();
         LoadAppsIfStale();
 
-        double scale = monitor.Dpi / 96.0;
-        int gap = (int)(Gap * scale);
-        int width = (int)(MenuWidth * scale);
-        int height = Math.Min((int)(MenuHeight * scale), taskbar.Y - monitor.Bounds.Y - 2 * gap);
-        int x = centered ? monitor.Bounds.X + (monitor.Bounds.Width - width) / 2 : taskbar.X + gap;
-        _placement.Bounds = new RectInt32(x, taskbar.Y - height - gap, width, height);
+        _anchor = (monitor, taskbar, centered);
+        ShellSettings settings = _owner.Settings.Current;
+        Place(settings.StartMenuWidth, settings.StartMenuHeight);
+        // A left-aligned Start keeps its left edge by the Start button.
+        LeftGrip.Visibility = centered ? Visibility.Visible : Visibility.Collapsed;
 
         IsOpen = true;
         _previousForeground = TopLevelWindows.GetForeground();
@@ -151,6 +147,46 @@ internal sealed partial class StartMenuWindow : Window
     }
 
     public void Hide() => Hide(restoreForeground: true);
+
+    private void Place(double width, double height) =>
+        _placement.Bounds = StartMenuLayout.Bounds(_anchor.Monitor.Bounds, _anchor.Taskbar, _anchor.Centered, width, height, _anchor.Monitor.Dpi / 96.0);
+
+    // The window moves under the pointer while it's resized, so the drag is followed in screen pixels.
+    private void Grip_PointerPressed(object sender, PointerRoutedEventArgs e)
+    {
+        var grip = (ResizeGrip)sender;
+        if (e.GetCurrentPoint(grip).Properties.IsLeftButtonPressed && grip.CapturePointer(e.Pointer))
+        {
+            _resize = new ResizeDrag(e.Pointer.PointerId, Cursor.Position(), _placement.Bounds, grip.IsLeft);
+            e.Handled = true;
+        }
+    }
+
+    private void Grip_PointerMoved(object sender, PointerRoutedEventArgs e)
+    {
+        if (_resize is not { } drag || e.Pointer.PointerId != drag.PointerId)
+            return;
+
+        PointInt32 now = Cursor.Position();
+        (double width, double height) = StartMenuLayout.Resize(
+            drag.Bounds, now.X - drag.Start.X, now.Y - drag.Start.Y, drag.LeftCorner, _anchor.Centered, _anchor.Monitor.Dpi / 96.0);
+        Place(width, height);
+    }
+
+    private void Grip_PointerReleased(object sender, PointerRoutedEventArgs e)
+    {
+        if (_resize is not { } drag || e.Pointer.PointerId != drag.PointerId)
+            return;
+
+        _resize = null;
+        ((UIElement)sender).ReleasePointerCapture(e.Pointer);
+        // What the monitor allowed, so a size too big for this one isn't kept for the next.
+        double scale = _anchor.Monitor.Dpi / 96.0;
+        RectInt32 bounds = _placement.Bounds;
+        _owner.Settings.Update(_owner.Settings.Current with { StartMenuWidth = bounds.Width / scale, StartMenuHeight = bounds.Height / scale });
+    }
+
+    private sealed record ResizeDrag(uint PointerId, PointInt32 Start, RectInt32 Bounds, bool LeftCorner);
 
     private void Hide(bool restoreForeground)
     {

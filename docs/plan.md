@@ -118,6 +118,7 @@ Tick items off as they land. The feature details are in [design.md](design.md).
 - [x] Desktop: drag a selection rectangle over the icons (Ctrl adds to the selection)
 - [x] Taskbar and Start: the accent colour when "Show accent color on Start and taskbar" is on
 - [x] Taskbar backdrop setting: Acrylic, Mica or Translucent (taskbar menu)
+- [x] Start: resize by dragging a top corner; the size is saved
 
 ## Later / not planned yet
 

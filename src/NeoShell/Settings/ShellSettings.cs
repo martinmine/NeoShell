@@ -31,5 +31,8 @@ public sealed record ShellSettings
     public IReadOnlyList<PinnedApp> PinnedStartApps { get; set; } = [];
     /// <summary>Whether Explorer's Start pins have been added to <see cref="PinnedStartApps"/>; done once.</summary>
     public bool ExplorerStartPinsImported { get; set; }
+    /// <summary>Start's size in effective pixels, as the user left it by dragging a corner.</summary>
+    public double StartMenuWidth { get; set; } = 832;
+    public double StartMenuHeight { get; set; } = 860;
     public DesktopSortOrder DesktopSortOrder { get; set; } = DesktopSortOrder.Name;
 }

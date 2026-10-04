@@ -395,7 +395,11 @@ Exit NeoShell (alongside Explorer only).
   that app; otherwise Windows picks the next window in z-order, which can be Explorer's invisible Start/search host.
 - Toggling: pressing the Start button deactivates Start before the button's click arrives, so a click within
   400 ms of a deactivation doesn't reopen it.
-- Home is one scrolling page, as in Windows 11 (832 by 860 epx at most), below the search box:
+- Resizable by dragging a top corner (`ResizeGrip`, with the resize pointer): the bottom stays above the taskbar, a
+  centred Start grows on both sides, a left-aligned one only has the top-right grip. Live while dragging; the size
+  (as the monitor allowed it) is saved on release. 832 by 860 epx by default, at least 480 by 400, at most the
+  monitor above the taskbar (`StartMenuLayout`, tests).
+- Home is one scrolling page, as in Windows 11, below the search box:
   - **Pinned** grid (persisted in settings, drag to reorder). The first time the catalog loads, Explorer's Start pins
     are added once (`ExplorerStartPinsImported`). Start keeps them encrypted in `start2.bin`, so they're read through
     `StartTileData.dll`'s `IStartLayoutCmdlet::ExportStartLayout` (the object behind `Export-StartLayout`), which
@@ -455,6 +459,8 @@ TaskbarBackdrop      Acrylic | Mica | Translucent
 PinnedTaskbarApps    list
 PinnedStartApps      list
 ExplorerStartPinsImported  bool
+StartMenuWidth       double (epx)
+StartMenuHeight      double (epx)
 DesktopSortOrder     Name | Size | ItemType | DateModified
 ```
 
