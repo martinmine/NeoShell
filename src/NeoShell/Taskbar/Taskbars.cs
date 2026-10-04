@@ -4,6 +4,7 @@ using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using NeoShell.Interop.Windowing;
 using NeoShell.Logging;
+using NeoShell.QuickSettings;
 using NeoShell.Interop.Tray;
 using NeoShell.Settings;
 using NeoShell.Tray;
@@ -139,12 +140,8 @@ internal sealed class Taskbars : IDisposable
             ToggleStartMenu(window);
     }
 
-    /// <summary>Win+Ctrl+V: the volume flyout's Sound output page on the primary taskbar.</summary>
-    public void OpenSoundOutput()
-    {
-        PrimaryWindow?.Reveal();
-        PrimaryWindow?.OpenSoundOutput();
-    }
+    /// <summary>Win+A, Win+Ctrl+V, Win+K, Win+P: Quick Settings on the primary taskbar, open on the page.</summary>
+    public void ShowQuickSettings(QuickSettingsPage page) => PrimaryWindow?.ShowQuickSettings(page);
 
     /// <summary>Win+T: puts the keyboard focus on the primary taskbar's buttons.</summary>
     public void FocusTaskbar()

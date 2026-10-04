@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A Windows key shortcut as key caps, as page headers show it: the Windows key, then the other keys. -->
+<UserControl
+    x:Class="NeoShell.QuickSettings.ShortcutKeys"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    IsTabStop="False">
+    <UserControl.Resources>
+        <Style x:Key="KeyCapStyle" TargetType="Border">
+            <Setter Property="MinWidth" Value="20" />
+            <Setter Property="Height" Value="20" />
+            <Setter Property="Padding" Value="4,0" />
+            <Setter Property="CornerRadius" Value="4" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="BorderBrush" Value="{ThemeResource ControlStrokeColorDefaultBrush}" />
+            <Setter Property="Background" Value="{ThemeResource ControlFillColorDefaultBrush}" />
+        </Style>
+    </UserControl.Resources>
+
+    <StackPanel x:Name="Keys" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+        <Border Style="{StaticResource KeyCapStyle}">
+            <!-- The Windows key's logo: four squares, as on the Start button. -->
+            <Grid Width="9" Height="9" ColumnSpacing="1" RowSpacing="1" HorizontalAlignment="Center" VerticalAlignment="Center">
+                <Grid.RowDefinitions>
+                    <RowDefinition />
+                    <RowDefinition />
+                </Grid.RowDefinitions>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition />
+                    <ColumnDefinition />
+                </Grid.ColumnDefinitions>
+                <Rectangle Grid.Row="0" Grid.Column="0" Fill="{ThemeResource TextFillColorPrimaryBrush}" />
+                <Rectangle Grid.Row="0" Grid.Column="1" Fill="{ThemeResource TextFillColorPrimaryBrush}" />
+                <Rectangle Grid.Row="1" Grid.Column="0" Fill="{ThemeResource TextFillColorPrimaryBrush}" />
+                <Rectangle Grid.Row="1" Grid.Column="1" Fill="{ThemeResource TextFillColorPrimaryBrush}" />
+            </Grid>
+        </Border>
+    </StackPanel>
+</UserControl>

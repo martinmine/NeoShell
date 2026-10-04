@@ -24,6 +24,14 @@ public sealed class IndicatorTests
     }
 
     [Fact]
+    public void Airplane_mode_shows_the_plane_even_with_a_cable_connected()
+    {
+        var ethernet = new NetworkState(NetworkKind.Ethernet, "Ethernet", true, 0);
+        Assert.Equal("", IndicatorDisplay.NetworkGlyph(ethernet, airplaneMode: true));
+        Assert.Equal("Airplane mode", IndicatorDisplay.NetworkToolTip(ethernet, airplaneMode: true));
+    }
+
+    [Fact]
     public void Network_tooltip_names_the_network_and_its_access()
     {
         Assert.Equal("Home\nInternet access", IndicatorDisplay.NetworkToolTip(new NetworkState(NetworkKind.WiFi, "Home", true, 4)));

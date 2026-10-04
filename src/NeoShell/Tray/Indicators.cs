@@ -2,14 +2,17 @@ using System.Diagnostics;
 using Microsoft.UI.Dispatching;
 using NeoShell.Interop.Audio;
 using NeoShell.Interop.Network;
+using NeoShell.Interop.Power;
+using NeoShell.Interop.Radios;
 using NeoShell.Interop.Shell;
 using NeoShell.Logging;
 
 namespace NeoShell.Tray;
 
 /// <summary>
-/// The network, volume and microphone state behind the taskbar's indicators. Windows reports changes on its own
-/// threads; they arrive here as one <see cref="Changed"/> on the UI thread per burst.
+/// The state behind the taskbar's indicators and Quick Settings: network, volume, microphone, radios, airplane mode,
+/// energy saver and battery. Windows reports changes on its own threads; they arrive here as one
+/// <see cref="Changed"/> on the UI thread per burst.
 /// </summary>
 internal sealed class Indicators : IDisposable
 {
@@ -18,11 +21,19 @@ internal sealed class Indicators : IDisposable
     private readonly AudioEndpoint? _audio;
     private readonly CaptureMonitor? _capture;
     private readonly AudioMixer? _mixer;
+    private readonly RadioSwitches _radios = new();
+    private readonly EnergySaver _energySaver = new();
+    private readonly BatteryMonitor _battery = new();
     private int _updateQueued;
+    // Airplane mode has no change notification; it's read again when a radio changes.
+    private volatile bool _radiosChanged = true;
 
     public Indicators()
     {
         _network.Changed += QueueUpdate;
+        _radios.Changed += OnRadiosChanged;
+        _energySaver.Changed += QueueUpdate;
+        _battery.Changed += QueueUpdate;
         try
         {
             _audio = new AudioEndpoint();
@@ -38,6 +49,7 @@ internal sealed class Indicators : IDisposable
             Log.Warn("Audio indicators unavailable", ex);
         }
         Update();
+        _ = RefreshRadiosAsync();
     }
 
     /// <summary>Raised on the UI thread after any of the state changed.</summary>
@@ -135,12 +147,85 @@ internal sealed class Indicators : IDisposable
     /// <summary>The apps playing on the default output, for the mixer: read fresh each time.</summary>
     public IReadOnlyList<AudioApp> MixerApps() => _mixer?.Apps() ?? [];
 
+    public bool HasRadio(RadioType type) => _radios.Has(type);
+
+    public bool IsRadioOn(RadioType type) => _radios.IsOn(type);
+
+    /// <summary>Finds the radios again (adapters come and go) and reads airplane mode; raises <see cref="Changed"/>.</summary>
+    public async Task RefreshRadiosAsync()
+    {
+        try
+        {
+            await _radios.RefreshAsync();
+        }
+        catch (Exception ex)
+        {
+            Log.Warn("Could not find the radios", ex);
+        }
+        OnRadiosChanged();
+    }
+
+    public async Task SetRadioAsync(RadioType type, bool on)
+    {
+        try
+        {
+            if (await _radios.SetAsync(type, on))
+                Log.Info($"{type}: {(on ? "on" : "off")}");
+            else
+                Log.Warn($"Windows refused to turn {type} {(on ? "on" : "off")}");
+        }
+        catch (Exception ex)
+        {
+            Log.Warn($"Could not turn {type} {(on ? "on" : "off")}", ex);
+        }
+    }
+
+    /// <summary>On or off; null without radio management.</summary>
+    public bool? AirplaneMode { get; private set; }
+
+    public void SetAirplaneMode(bool on)
+    {
+        try
+        {
+            Interop.Radios.AirplaneMode.Set(on);
+            Log.Info($"Airplane mode: {(on ? "on" : "off")}");
+        }
+        catch (Exception ex)
+        {
+            Log.Warn($"Could not turn airplane mode {(on ? "on" : "off")}", ex);
+        }
+        OnRadiosChanged();
+    }
+
+    public bool IsEnergySaverAvailable => _energySaver.IsAvailable;
+
+    public bool IsEnergySaverOn => _energySaver.IsOn;
+
+    public void SetEnergySaver(bool on)
+    {
+        try
+        {
+            _energySaver.Set(on);
+            Log.Info($"Energy saver: {(on ? "on" : "off")}");
+        }
+        catch (Exception ex)
+        {
+            Log.Warn($"Could not turn energy saver {(on ? "on" : "off")}", ex);
+        }
+    }
+
+    /// <summary>Null on a PC without a battery.</summary>
+    public BatteryState? Battery { get; private set; }
+
     /// <summary>Names of the apps recording from a microphone; empty while none is.</summary>
     public IReadOnlyList<string> MicrophoneApps { get; private set; } = [];
 
     public void Dispose()
     {
         _network.Dispose();
+        _radios.Dispose();
+        _energySaver.Dispose();
+        _battery.Dispose();
         _audio?.Dispose();
         _capture?.Dispose();
         _mixer?.Dispose();
@@ -170,6 +255,12 @@ internal sealed class Indicators : IDisposable
         return Path.GetFileNameWithoutExtension(path);
     }
 
+    private void OnRadiosChanged()
+    {
+        _radiosChanged = true;
+        QueueUpdate();
+    }
+
     // Called from Windows' threads.
     private void QueueUpdate()
     {
@@ -183,6 +274,12 @@ internal sealed class Indicators : IDisposable
         try
         {
             Network = NetworkStatus.Read();
+            if (_radiosChanged)
+            {
+                _radiosChanged = false;
+                AirplaneMode = Interop.Radios.AirplaneMode.Read();
+            }
+            Battery = BatteryMonitor.Read();
             MicrophoneApps = [.. (_capture?.ActiveProcessIds() ?? []).Select(AppName).Distinct()];
             Changed?.Invoke();
         }

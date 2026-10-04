@@ -14,10 +14,10 @@ using Microsoft.UI.Input;
 using Microsoft.UI.Composition;
 using Microsoft.UI.Xaml.Hosting;
 using System.Numerics;
-using NeoShell.Interop.Audio;
 using NeoShell.Interop.Shell;
 using NeoShell.Interop.Tray;
 using NeoShell.Logging;
+using NeoShell.QuickSettings;
 using NeoShell.Settings;
 using NeoShell.Tray;
 using Windows.Foundation;
@@ -54,12 +54,7 @@ internal sealed partial class TaskbarWindow : Window
     private bool _suppressClick;
     private readonly NotificationArea? _tray;
     private readonly Indicators? _indicators;
-    private bool _updatingVolumeSlider;
-    private bool _volumeFlyoutOpen;
-    private bool _volumeSliderPressed;
-    private bool _updatingOutputs;
-    private IReadOnlyList<AudioDevice> _outputs = [];
-    private readonly ObservableCollection<MixerApp> _mixerApps = [];
+    private QuickSettingsPage _quickSettingsPage;
     private readonly DispatcherQueueTimer _trayHoverTimer;
     private TrayIcon? _trayHovered;
     private bool _trayPopupOpen;
@@ -187,13 +182,9 @@ internal sealed partial class TaskbarWindow : Window
         if (_indicators is not null)
         {
             IndicatorArea.Visibility = Visibility.Visible;
-            MixerList.ItemsSource = _mixerApps;
-            // Handled events too: the slider handles the pointer itself.
-            VolumeSlider.AddHandler(UIElement.PointerPressedEvent, new PointerEventHandler(VolumeSlider_PointerPressed), handledEventsToo: true);
-            VolumeSlider.AddHandler(UIElement.PointerReleasedEvent, new PointerEventHandler(VolumeSlider_PointerReleased), handledEventsToo: true);
-            VolumeSlider.AddHandler(UIElement.PointerCaptureLostEvent, new PointerEventHandler(VolumeSlider_PointerReleased), handledEventsToo: true);
+            QuickSettings.Attach(_indicators, owner.RunMode, owner.Icons);
+            QuickSettings.CloseRequested += QuickSettingsFlyout.Hide;
             _indicators.Changed += RefreshIndicators;
-            owner.Icons.Loaded += RefreshMixerIcons;
             RefreshIndicators();
         }
 
@@ -212,7 +203,7 @@ internal sealed partial class TaskbarWindow : Window
             if (_indicators is not null)
             {
                 _indicators.Changed -= RefreshIndicators;
-                owner.Icons.Loaded -= RefreshMixerIcons;
+                QuickSettings.Detach();
             }
             _autoHideTimer?.Stop();
             _slideTimer.Stop();
@@ -316,6 +307,10 @@ internal sealed partial class TaskbarWindow : Window
         Root.RequestedTheme = accent is { } color ? SystemTheme.ThemeOn(color) : theme;
         _backdrop.Theme = Root.RequestedTheme;
         _backdrop.Tint = accent;
+        // Quick Settings takes the taskbar's colour, as Windows' does; its popup window gets a backdrop of its own,
+        // acrylic whatever the taskbar's, as Windows' always is.
+        QuickSettings.RequestedTheme = Root.RequestedTheme;
+        QuickSettingsFlyout.SystemBackdrop = new ShellBackdrop(Backdrop.Acrylic) { Theme = Root.RequestedTheme, Tint = accent };
     }
 
     public void SetBackdrop(Backdrop kind)
@@ -401,268 +396,103 @@ internal sealed partial class TaskbarWindow : Window
         if (_indicators is null)
             return;
 
-        NetworkIcon.Glyph = IndicatorDisplay.NetworkGlyph(_indicators.Network);
-        SetToolTip(NetworkButton, IndicatorDisplay.NetworkToolTip(_indicators.Network));
+        bool airplaneMode = _indicators.AirplaneMode == true;
+        NetworkIcon.Glyph = IndicatorDisplay.NetworkGlyph(_indicators.Network, airplaneMode);
+        SetToolTip(NetworkIndicator, IndicatorDisplay.NetworkToolTip(_indicators.Network, airplaneMode));
 
         float volume = _indicators.Volume;
         bool muted = _indicators.IsMuted;
-        VolumeIcon.Glyph = MuteIcon.Glyph = IndicatorDisplay.VolumeGlyph(_indicators.HasAudioDevice, volume, muted);
-        SetToolTip(VolumeButton, IndicatorDisplay.VolumeToolTip(_indicators.AudioDeviceName, volume, muted));
-        AutomationProperties.SetName(MuteButton, muted ? "Unmute" : "Mute");
-        // Moving the slider changes the volume, which comes back here; don't set it back while it's being dragged.
-        _updatingVolumeSlider = true;
-        VolumeSlider.Value = IndicatorDisplay.Percent(volume);
-        _updatingVolumeSlider = false;
+        VolumeIcon.Glyph = IndicatorDisplay.VolumeGlyph(_indicators.HasAudioDevice, volume, muted);
+        SetToolTip(VolumeIndicator, IndicatorDisplay.VolumeToolTip(_indicators.AudioDeviceName, volume, muted));
+
+        BatteryIndicator.Visibility = _indicators.Battery is null ? Visibility.Collapsed : Visibility.Visible;
+        if (_indicators.Battery is { } battery)
+        {
+            BatteryIcon.Glyph = QuickSettingsDisplay.BatteryGlyph(battery);
+            SetToolTip(BatteryIndicator, QuickSettingsDisplay.BatteryToolTip(battery));
+        }
+        EnergySaverIndicator.Visibility =
+            _indicators.IsEnergySaverOn && _indicators.Battery is null ? Visibility.Visible : Visibility.Collapsed;
 
         IReadOnlyList<string> apps = _indicators.MicrophoneApps;
         MicrophoneButton.Visibility = apps.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
         SetToolTip(MicrophoneButton, IndicatorDisplay.MicrophoneToolTip(apps));
+    }
 
-        // The Sound output page is only read while someone looks at it.
-        if (_volumeFlyoutOpen && SoundOutputPage.Visibility == Visibility.Visible)
+    private void QuickSettingsButton_Click(object sender, RoutedEventArgs e) => ShowQuickSettings(QuickSettingsPage.Main);
+
+    /// <summary>
+    /// Opens Quick Settings on a page, as Win+A (the tiles), Win+Ctrl+V (Sound output), Win+K (Cast) and Win+P
+    /// (Project) do; closes it when it's open on that page already.
+    /// </summary>
+    public void ShowQuickSettings(QuickSettingsPage page)
+    {
+        if (_indicators is null)
+            return;
+
+        if (QuickSettingsFlyout.IsOpen)
         {
-            RefreshOutputs();
-            RefreshSpatialSound();
-            RefreshMixer();
+            if (page == _quickSettingsPage)
+                QuickSettingsFlyout.Hide();
+            else
+                QuickSettings.Navigate(page);
+            _quickSettingsPage = page;
+            return;
         }
+        _quickSettingsPage = page;
+        Reveal();
+        TaskbarFlyouts.ShowAtRight(QuickSettingsFlyout, QuickSettingsButton);
     }
 
-    private void VolumeButton_Click(object sender, RoutedEventArgs e) => ShowVolumeFlyout(soundOutput: false);
-
-    /// <summary>Win+Ctrl+V: the volume flyout's Sound output page, as in Windows.</summary>
-    public void OpenSoundOutput()
-    {
-        if (_indicators is not null)
-            ShowVolumeFlyout(soundOutput: true);
-    }
-
-    private void ShowVolumeFlyout(bool soundOutput)
-    {
-        ShowVolumePage(soundOutput, animate: false);
-        TaskbarFlyouts.ShowAtRight(VolumeFlyout, VolumeButton);
-    }
-
-    private void VolumeButton_ContextRequested(UIElement sender, ContextRequestedEventArgs e)
+    // The icon under the pointer gets its own menu; from the keyboard, the speaker's.
+    private void QuickSettingsButton_ContextRequested(UIElement sender, ContextRequestedEventArgs e)
     {
         e.Handled = true;
-        TaskbarFlyouts.ShowCentered(VolumeMenu, VolumeButton);
+        bool network = e.TryGetPosition(NetworkIndicator, out Point point)
+            && point.X >= 0 && point.X < NetworkIndicator.ActualWidth;
+        if (network)
+            TaskbarFlyouts.ShowCentered(NetworkMenu, NetworkIndicator);
+        else
+            TaskbarFlyouts.ShowCentered(VolumeMenu, VolumeIndicator);
     }
 
-    private void SoundOutputButton_Click(object sender, RoutedEventArgs e) => ShowVolumePage(soundOutput: true, animate: true);
+    private void QuickSettingsFlyout_Opening(object sender, object e) => QuickSettings.Opening(_quickSettingsPage);
 
-    private void SoundOutputBack_Click(object sender, RoutedEventArgs e) => ShowVolumePage(soundOutput: false, animate: true);
-
-    // Pages slide in from the side they lie on, as Quick Settings' pages do.
-    private void ShowVolumePage(bool soundOutput, bool animate)
+    private void QuickSettingsFlyout_Closed(object sender, object e)
     {
-        FrameworkElement page = soundOutput ? SoundOutputPage : VolumePage;
-        VolumePage.Visibility = soundOutput ? Visibility.Collapsed : Visibility.Visible;
-        SoundOutputPage.Visibility = soundOutput ? Visibility.Visible : Visibility.Collapsed;
-        if (soundOutput)
-            RefreshIndicators();
-        if (!animate)
-            return;
-
-        Compositor compositor = ElementCompositionPreview.GetElementVisual(page).Compositor;
-        CompositionEasingFunction easing = compositor.CreateCubicBezierEasingFunction(new(0.1f, 0.9f), new(0.2f, 1f));
-        Vector3KeyFrameAnimation slide = compositor.CreateVector3KeyFrameAnimation();
-        slide.InsertKeyFrame(0, new Vector3(soundOutput ? 60 : -60, 0, 0));
-        slide.InsertKeyFrame(1, Vector3.Zero, easing);
-        slide.Target = nameof(UIElement.Translation);
-        slide.Duration = TimeSpan.FromMilliseconds(250);
-        ScalarKeyFrameAnimation fade = compositor.CreateScalarKeyFrameAnimation();
-        fade.InsertKeyFrame(0, 0);
-        fade.InsertKeyFrame(1, 1, easing);
-        fade.Target = nameof(UIElement.Opacity);
-        fade.Duration = TimeSpan.FromMilliseconds(250);
-        page.StartAnimation(slide);
-        page.StartAnimation(fade);
-    }
-
-    private void RefreshOutputs()
-    {
-        IReadOnlyList<AudioDevice> outputs = _indicators!.OutputDevices();
-        if (outputs.SequenceEqual(_outputs))
-            return;
-
-        // Filling the list selects items; that isn't the user choosing an output.
-        _outputs = outputs;
-        _updatingOutputs = true;
-        OutputDevices.Items.Clear();
-        foreach (AudioDevice device in outputs)
-        {
-            ListViewItem item = SoundOutputItem("\uE7F5", device.Name, device, "OutputDevice");
-            OutputDevices.Items.Add(item);
-            if (device.IsDefault)
-                OutputDevices.SelectedItem = item;
-        }
-        _updatingOutputs = false;
-    }
-
-    private void OutputDevices_SelectionChanged(object sender, SelectionChangedEventArgs e)
-    {
-        if (!_updatingOutputs && OutputDevices.SelectedItem is ListViewItem { Tag: AudioDevice { IsDefault: false } device })
-            _indicators?.SetOutputDevice(device);
-    }
-
-    private void RefreshSpatialSound()
-    {
-        (IReadOnlyList<SpatialFormat> formats, string current) = _indicators!.SpatialFormats();
-        SpatialSection.Visibility = formats.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
-        _updatingOutputs = true;
-        SpatialFormats.Items.Clear();
-        foreach (SpatialFormat format in formats)
-        {
-            ListViewItem item = SoundOutputItem(null, format.Name, format, "SpatialFormat");
-            SpatialFormats.Items.Add(item);
-            if (string.Equals(format.Subtype, current, StringComparison.OrdinalIgnoreCase))
-                SpatialFormats.SelectedItem = item;
-        }
-        _updatingOutputs = false;
-    }
-
-    private async void SpatialFormats_SelectionChanged(object sender, SelectionChangedEventArgs e)
-    {
-        if (_updatingOutputs || _indicators is null || SpatialFormats.SelectedItem is not ListViewItem { Tag: SpatialFormat format })
-            return;
-
-        await _indicators.SetSpatialFormat(format);
-        RefreshSpatialSound();
-    }
-
-    private static ListViewItem SoundOutputItem(string? glyph, string text, object tag, string automationId)
-    {
-        var content = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 12 };
-        if (glyph is not null)
-            content.Children.Add(new FontIcon { Glyph = glyph, FontSize = 16 });
-        content.Children.Add(new TextBlock { Text = text, VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis });
-        var item = new ListViewItem { Content = content, Tag = tag, MinHeight = 40 };
-        AutomationProperties.SetAutomationId(item, automationId);
-        AutomationProperties.SetName(item, text);
-        return item;
-    }
-
-    // Updated in place, so a slider being dragged isn't replaced under the pointer.
-    private void RefreshMixer()
-    {
-        IReadOnlyList<AudioApp> apps = _indicators!.MixerApps();
-        var keys = apps.Select(app => app.Key).ToHashSet();
-        for (int i = _mixerApps.Count - 1; i >= 0; i--)
-        {
-            if (!keys.Contains(_mixerApps[i].Key))
-                _mixerApps.RemoveAt(i);
-        }
-        for (int i = 0; i < apps.Count; i++)
-        {
-            int existing = -1;
-            for (int j = i; j < _mixerApps.Count && existing < 0; j++)
-            {
-                if (_mixerApps[j].Key == apps[i].Key)
-                    existing = j;
-            }
-            if (existing < 0)
-                _mixerApps.Insert(i, new MixerApp(apps[i].Key));
-            else if (existing != i)
-                _mixerApps.Move(existing, i);
-
-            string name = Indicators.AppName(apps[i]);
-            _mixerApps[i].Update(apps[i], name, MixerIcon(apps[i], name));
-        }
-        NoMixerAppsText.Visibility = _mixerApps.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
-    }
-
-    private ImageSource? MixerIcon(AudioApp app, string name) =>
-        app.PackageAppId is { } appId ? _owner.Icons.Get(new PinnedApp(name, AppUserModelId: appId))
-        : app.ProcessPath is { } path ? _owner.Icons.Get(new PinnedApp(name, Path: path))
-        : null;
-
-    private void RefreshMixerIcons()
-    {
-        if (_volumeFlyoutOpen && SoundOutputPage.Visibility == Visibility.Visible)
-            RefreshMixer();
-    }
-
-    private void MixerMute_Click(object sender, RoutedEventArgs e)
-    {
-        if (sender is FrameworkElement { DataContext: MixerApp app })
-            app.IsMuted = !app.IsMuted;
+        QuickSettings.Closed();
+        _quickSettingsPage = QuickSettingsPage.Main;
     }
 
     private static void SetToolTip(FrameworkElement element, string text)
     {
         ToolTipService.SetToolTip(element, text);
-        AutomationProperties.SetName(element, text.Replace('\n', ' '));
+        AutomationProperties.SetName(element, text.Replace("\n", " "));
     }
 
-    private void Network_Click(object sender, RoutedEventArgs e) =>
+    private void NetworkSettings_Click(object sender, RoutedEventArgs e) =>
         Launcher.OpenSettings(_owner.RunMode, "Network settings", "ms-settings:network", "ncpa.cpl");
 
     // As the shell: the Recording tab of Sound, as Control Panel has no microphone privacy page.
     private void Microphone_Click(object sender, RoutedEventArgs e) =>
         Launcher.OpenSettings(_owner.RunMode, "Microphone privacy settings", "ms-settings:privacy-microphone", "mmsys.cpl,,1");
 
-    private void SoundSettings_Click(object sender, RoutedEventArgs e)
-    {
-        VolumeFlyout.Hide();
+    private void SoundSettings_Click(object sender, RoutedEventArgs e) =>
         Launcher.OpenSettings(_owner.RunMode, "Sound settings", "ms-settings:sound", "mmsys.cpl");
-    }
 
     // As the shell, the classic mixer: Settings can't start without Explorer.
-    private void OpenVolumeMixer_Click(object sender, RoutedEventArgs e)
-    {
-        VolumeFlyout.Hide();
+    private void OpenVolumeMixer_Click(object sender, RoutedEventArgs e) =>
         Launcher.Launch(_owner.RunMode == RunMode.Shell
             ? new PinnedApp("Volume mixer", Path: "sndvol.exe")
             : new PinnedApp("Volume mixer", Path: "ms-settings:apps-volume"));
-    }
-
-    private void VolumeFlyout_Opening(object sender, object e)
-    {
-        _volumeFlyoutOpen = true;
-        RefreshIndicators();
-    }
-
-    private void VolumeFlyout_Closed(object sender, object e) => _volumeFlyoutOpen = false;
 
     private void Volume_PointerWheelChanged(object sender, PointerRoutedEventArgs e)
     {
         if (_indicators is null)
             return;
 
-        _indicators.Volume = IndicatorDisplay.WheelVolume(_indicators.Volume, e.GetCurrentPoint(VolumeButton).Properties.MouseWheelDelta);
+        _indicators.Volume = IndicatorDisplay.WheelVolume(_indicators.Volume, e.GetCurrentPoint(QuickSettingsButton).Properties.MouseWheelDelta);
         e.Handled = true;
-    }
-
-    private void VolumeSlider_ValueChanged(object sender, RangeBaseValueChangedEventArgs e)
-    {
-        if (_indicators is null || _updatingVolumeSlider)
-            return;
-
-        _indicators.Volume = (float)(e.NewValue / 100);
-        // Turning it up means wanting to hear it, as in Windows' own volume slider.
-        if (_indicators.IsMuted && e.NewValue > 0)
-            _indicators.IsMuted = false;
-        // Changed with the keyboard: each step is let go of at once.
-        if (!_volumeSliderPressed && ReferenceEquals(FocusManager.GetFocusedElement(VolumeSlider.XamlRoot), VolumeSlider))
-            AudioDevices.PlayVolumeFeedback();
-    }
-
-    // Windows plays a sound when the slider is let go, so the new volume can be heard.
-    private void VolumeSlider_PointerPressed(object sender, PointerRoutedEventArgs e) => _volumeSliderPressed = true;
-
-    private void VolumeSlider_PointerReleased(object sender, PointerRoutedEventArgs e)
-    {
-        if (!_volumeSliderPressed)
-            return;
-
-        _volumeSliderPressed = false;
-        AudioDevices.PlayVolumeFeedback();
-    }
-
-    private void Mute_Click(object sender, RoutedEventArgs e)
-    {
-        if (_indicators is not null)
-            _indicators.IsMuted = !_indicators.IsMuted;
     }
 
     private void OnTrayIconsChanged(object? sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e) => RefreshTray();

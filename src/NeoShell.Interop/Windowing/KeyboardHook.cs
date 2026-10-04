@@ -5,9 +5,9 @@ using NeoShell.Interop.Native;
 namespace NeoShell.Interop.Windowing;
 
 /// <summary>
-/// Sees every key press and release in the session before apps do (<c>WH_KEYBOARD_LL</c>), without changing them.
-/// Create it on the UI thread; <see cref="Key"/> is raised there and must return quickly: Windows drops a hook that
-/// keeps keystrokes waiting.
+/// Sees every key press and release in the session before apps and hotkeys do (<c>WH_KEYBOARD_LL</c>), and can swallow
+/// them. Create it on the UI thread; <see cref="Key"/> is called there and must return quickly: Windows drops a hook
+/// that keeps keystrokes waiting.
 /// </summary>
 public sealed unsafe class KeyboardHook : IDisposable
 {
@@ -27,8 +27,25 @@ public sealed unsafe class KeyboardHook : IDisposable
         s_current = this;
     }
 
-    /// <summary>A key went down (true) or up (false); the int is its virtual-key code.</summary>
-    public event Action<int, bool>? Key;
+    /// <summary>
+    /// A key going down (true) or up (false), by its virtual-key code. Returning true swallows it: no app or hotkey
+    /// sees it.
+    /// </summary>
+    public Func<int, bool, bool>? Key { get; set; }
+
+    /// <summary>
+    /// Tells Windows another key went down while the Windows key is held, after the hook swallowed the real one: let go
+    /// of, the Windows key would otherwise count as pressed alone and open Start. The key is vkE8, which no keyboard
+    /// has (AutoHotkey masks the Windows key with it too).
+    /// </summary>
+    public static void MaskWindowsKey()
+    {
+        const ushort Unassigned = 0xE8;
+        User32.INPUT* inputs = stackalloc User32.INPUT[2];
+        inputs[0] = new User32.INPUT { type = User32.INPUT_KEYBOARD, ki = new User32.KEYBDINPUT { wVk = Unassigned } };
+        inputs[1] = new User32.INPUT { type = User32.INPUT_KEYBOARD, ki = new User32.KEYBDINPUT { wVk = Unassigned, dwFlags = User32.KEYEVENTF_KEYUP } };
+        User32.SendInput(2, inputs, sizeof(User32.INPUT));
+    }
 
     public void Dispose()
     {
@@ -49,7 +66,8 @@ public sealed unsafe class KeyboardHook : IDisposable
             try
             {
                 var key = (User32.KBDLLHOOKSTRUCT*)lParam;
-                hook.Key?.Invoke((int)key->vkCode, (key->flags & User32.LLKHF_UP) == 0);
+                if (hook.Key?.Invoke((int)key->vkCode, (key->flags & User32.LLKHF_UP) == 0) == true)
+                    return 1;
             }
             catch (Exception ex)
             {

@@ -7,7 +7,10 @@ public static class IndicatorDisplay
 {
     public const string MicrophoneGlyph = "";
 
-    public static string NetworkGlyph(NetworkState state) => state.Kind switch
+    public const string AirplaneGlyph = "";
+
+    /// <summary>The connection's glyph; in airplane mode the plane, whatever is still connected (Ethernet).</summary>
+    public static string NetworkGlyph(NetworkState state, bool airplaneMode = false) => airplaneMode ? AirplaneGlyph : state.Kind switch
     {
         NetworkKind.WiFi when !state.HasInternet => "",   // Wi-Fi with a warning
         NetworkKind.WiFi => state.SignalBars switch
@@ -23,8 +26,10 @@ public static class IndicatorDisplay
         _ => "",                                           // globe, blocked: no network or no internet
     };
 
-    public static string NetworkToolTip(NetworkState state)
+    public static string NetworkToolTip(NetworkState state, bool airplaneMode = false)
     {
+        if (airplaneMode)
+            return "Airplane mode";
         if (state.Kind == NetworkKind.Disconnected)
             return "Not connected";
 

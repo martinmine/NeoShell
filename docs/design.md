@@ -8,11 +8,15 @@ coding rules are in [CLAUDE.md](../CLAUDE.md).
 - Display the wallpaper and the desktop icons, with Explorer's context menus for icons and the desktop.
 - A WinUI taskbar with feature parity with the Windows 11 taskbar (exceptions in the system tray area).
 - System tray icons, either all shown or hidden behind an overflow flyout.
-- Network, volume and microphone-in-use indicators.
+- Network, volume, battery and microphone-in-use indicators; network, volume and battery are one button, as in
+  Windows 11, that opens Quick Settings.
+- Quick Settings: tiles (Wi-Fi, Bluetooth, Airplane mode, Accessibility, Energy saver, Live captions, Night light,
+  Nearby sharing, Cast, Project), the volume slider with its Sound output page, battery and All settings.
 - A Start menu with search (apps + Windows Search Indexer), Settings, power options (Lock, Sign out, Sleep,
   Restart, Shut down) and a button to switch back to `explorer.exe`.
 
-Out of scope: Quick Settings, Action Center/toasts, Widgets, Task View, Win+X, pinning items in jump lists.
+Out of scope: the notification center and toasts, editing Quick Settings' tiles, Widgets, Task View, Win+X, pinning
+items in jump lists.
 
 ## Technical decisions
 
@@ -235,7 +239,7 @@ Shell mode only, like the wallpaper: alongside Explorer, Explorer's desktop has 
 2. Search button — opens the Start menu with the search box focused. Can be hidden from the taskbar menu.
 3. Pinned and running apps.
 4. Tray area: chevron/overflow, tray icons.
-5. Indicators: network, volume, microphone (when active).
+5. Indicators: microphone (when active), then network, volume and battery as one button (Quick Settings).
 6. Clock: time and short date; tooltip with full date; click opens a calendar flyout (`CalendarView`).
 7. Show-desktop sliver at the far right edge.
 
@@ -364,12 +368,19 @@ progress (bar along the bottom; indeterminate, error and paused states) and over
 ### Hotkeys (shell mode only)
 
 - Low-level keyboard hook (`WH_KEYBOARD_LL`): Win pressed and released alone, or Ctrl+Esc → toggle Start
-  (`StartKeyDetector`, unit tested). Keys are not swallowed: Windows has to see Win go down for the Win+ hotkeys,
+  (`StartKeyDetector`, unit tested). Keys are not swallowed (but for Quick Settings' shortcuts, below): Windows has
+  to see Win go down for the Win+ hotkeys,
   and without Explorer nothing else reacts to Win alone. Ctrl+Esc also arrives as `SC_TASKLIST` on the taskman
   window; keyboard toggles within 300 ms of each other count once.
 - `RegisterHotKey`: Win+D (show desktop toggle), Win+T (focus taskbar), Win+1…9 (the Nth button of the primary
   taskbar: no window → launch, one window → as a click, several → the one after the foreground window, wrapping;
   `TaskActivation`, unit tested), Win+S (Start with search focus).
+- Quick Settings' shortcuts — Win+A (tiles), Win+Ctrl+V (Sound output), Win+K (Cast), Win+P (Project) — can't be
+  registered: Windows' own Quick Settings host (ShellHost) keeps them after Explorer has gone, and would open its
+  panel. The hook takes them instead (`QuickSettingsKeys`, unit tested): the letter is swallowed (down, repeats, up)
+  and an unassigned key (vkE8, as AutoHotkey's menu mask key) is injected while Win is still down, so letting go of
+  Win doesn't count as Win alone (which Windows sends to the shell as `SC_TASKLIST`, opening Start). Pressing the
+  shortcut of the page shown closes Quick Settings; another page's switches to it.
 - Win+T: the taskbar is `WS_EX_NOACTIVATE`, which keeps it from ever becoming active (and so from getting the
   keyboard). Win+T drops that style, activates the taskbar and focuses the first task button; the style comes back
   when the taskbar loses activation.
@@ -416,41 +427,32 @@ Exit NeoShell (alongside Explorer only).
 
 - `NetworkInformation.GetInternetConnectionProfile()` + `NetworkStatusChanged`.
 - States: Ethernet, Wi-Fi (`WlanConnectionProfileDetails`, `GetSignalBars()` 0–5), cellular, no internet access,
-  disconnected. Each maps to a Segoe Fluent Icons glyph.
-- Tooltip: network name and access status. Click opens `ms-settings:network` (shell mode: `ncpa.cpl`).
+  disconnected. Each maps to a Segoe Fluent Icons glyph; airplane mode shows the plane instead, even with a cable
+  still connected, as Explorer does.
+- Tooltip: network name and access status ("Airplane mode" while it's on). Right-click menu: Network and Internet
+  settings (`ms-settings:network`; shell mode `ncpa.cpl`).
 
 ### Volume
 
 - `IMMDeviceEnumerator` → default render endpoint → `IAudioEndpointVolume` with `IAudioEndpointVolumeCallback`
   (`AudioEndpoint`).
 - `IMMNotificationClient` to follow default-device changes.
-- Icon reflects mute and level (0 / low / medium / high glyphs). Mouse wheel changes volume in 2% steps.
-- Click opens NeoShell's own flyout, laid out as Quick Settings' volume: a mute button, the slider, and a button
-  (speaker with sliders, chevron) to the **Sound output** page, which slides in from the right; its back button
-  slides the volume back in. Moving a slider up unmutes, as Windows' own sliders do. Letting go of the slider (or
-  each keyboard step) plays the default beep as a system sound (`PlaySound` with `SND_SYSTEM`, so it goes to the
-  System Sounds session), as Windows does to let the new volume be heard.
-- The Sound output page, as Windows': header with back button and the Win+Ctrl+V shortcut (registered in shell mode
-  to open this page), Output device, Spatial sound, Volume mixer with a settings button, and More volume settings
-  (`ms-settings:sound`; shell mode `mmsys.cpl`) at the bottom. Read only while it's shown.
-- **Output device**: the enabled outputs (`AudioDevices`, the default selected); choosing one makes it the default
-  for all three roles (console, multimedia, communications), as the Sound control panel does. There's no public API
-  for that: it's the undocumented `IPolicyConfig::SetDefaultEndpoint` (`PolicyConfigClient`), unchanged since
-  Windows 7 and what volume tools use. The volume then follows the new device.
-- **Spatial sound** (`SpatialSound`, WinRT `SpatialAudioDeviceConfiguration` for the default output): Off (the empty
-  GUID) and Windows Sonic for Headphones when supported, set with `SetDefaultSpatialAudioFormatAsync`. Dolby Atmos
-  and DTS report themselves supported but need their apps and licences, which Windows' page checks; they aren't
-  offered. Hidden when the output has no spatial sound.
-- **Volume mixer** (`AudioMixer`): the default output's audio sessions that haven't expired (`IAudioSessionManager2`),
-  one row per app as Windows' mixer groups them (packaged app, else executable; the system sounds, whose session
-  answers `GetProcessId` with the success code `AUDCLNT_S_NO_SINGLE_PROCESS`), each an icon that mutes it and a
-  slider (`ISimpleAudioVolume` on all its sessions; the slider shows the loudest); the name is the icon's tooltip.
-  Names: the session's display name (resource references resolved), else the packaged app's or the executable's
-  description.
-  New sessions, state changes and volume changes made elsewhere (`IAudioSessionEvents`) refresh the rows in place;
-  NeoShell's own changes carry an event context GUID and aren't reported back. Read only while the flyout is open.
+- Icon reflects mute and level (0 / low / medium / high glyphs). Mouse wheel over the button changes volume in 2%
+  steps.
 - Right-click menu on the icon, as Explorer's: Open volume mixer (`ms-settings:apps-volume`; shell mode the classic
   `sndvol.exe`) and Sound settings.
+
+### Battery and energy saver
+
+- `Battery.AggregateBattery` (WinRT) and its `ReportUpdated` (`BatteryMonitor`): the charge in tenths, with the
+  plug while charging; tooltip "Battery: 54% remaining". Shown only on PCs with a battery.
+- Energy saver's leaf shows after the volume while energy saver is on and there's no battery icon (a desktop).
+
+### The button
+
+- Network, volume and battery are one flat button with one hover plate, as on the Windows 11 taskbar; each icon is
+  a cell with its own tooltip and right-click menu (the cell under the pointer decides; from the keyboard, the
+  speaker's). Clicking opens Quick Settings at the screen's right edge; clicking again closes it.
 
 ### Microphone in use
 
@@ -463,12 +465,102 @@ Exit NeoShell (alongside Explorer only).
 
 ### Threads and placement
 
-- Core Audio and `NetworkInformation` call back on their own threads, and calling back into Core Audio from inside
-  its callbacks can deadlock. So callbacks only mark state stale and raise `Changed`; `Indicators` marshals one
-  update per burst to the UI thread (`DispatcherQueue.TryEnqueue`), which rebinds devices and reads fresh values.
+- Core Audio, `NetworkInformation`, the radios, energy saver and the battery call back on their own threads, and
+  calling back into Core Audio from inside its callbacks can deadlock. So callbacks only mark state stale and raise
+  `Changed`; `Indicators` marshals one update per burst to the UI thread (`DispatcherQueue.TryEnqueue`), which
+  rebinds devices and reads fresh values.
 - The callback objects are `[GeneratedComClass]` classes; the COM interfaces are `[GeneratedComInterface]`.
 - The indicators sit on the primary taskbar, next to the tray, in both run modes (they don't depend on Explorer).
-  Glyphs and tooltips come from `IndicatorDisplay` (unit tested).
+  Glyphs and tooltips come from `IndicatorDisplay` and `QuickSettingsDisplay` (unit tested).
+
+## Quick Settings (`QuickSettings/`)
+
+What Windows 11 opens from the network and volume icons (what earlier Windows called the action center).
+`QuickSettingsPanel` is the content of the primary taskbar's flyout, 360 effective pixels wide, laid out as
+Windows': tiles, the volume slider, and a footer with the battery (when there is one) and All settings
+(`ms-settings:`; shell mode Control Panel). Its state comes from `Indicators` and is only read while it's open.
+Like Windows', it takes the taskbar's colour: the flyout's popup window gets its own acrylic `ShellBackdrop` (the
+presenter is transparent), tinted with the accent colour and with the theme readable on it when "Show accent color
+on Start and taskbar" is on, and plain theme acrylic otherwise; it follows theme changes with the taskbar.
+
+### Tiles
+
+- Two rows of three per page (`QuickSettingsDisplay`, unit tested); more pages are turned with the mouse wheel or the
+  arrows beside the page dots, sliding up or down. A tile is a toggle button, accent-filled while its feature is on,
+  with its name below: a switch, a page (glyph and chevron), or both split in two halves (left switches, right opens
+  the page). Tiles without hardware or support aren't shown, as in Windows.
+- Windows' default order, then the owner's: Wi-Fi, Bluetooth, Airplane mode, Accessibility, Energy saver, Live
+  captions, Night light, Nearby sharing, Cast, Project.
+- **Wi-Fi** and **Bluetooth** (shown when the PC has the radio): the switch turns the radio on or off
+  (`RadioSwitches`, WinRT `Windows.Devices.Radios`; `Radio.RequestAccessAsync` once). The Wi-Fi tile shows the
+  connected network's name. Radios are looked for again each time Quick Settings opens (adapters come and go).
+- **Airplane mode** (shown when the radio management service answers): every radio off at once through the Radio
+  Management API (`AirplaneMode`): `IRadioManager` (CLSID `581333F6-…`, RmSvc), undocumented but unchanged since
+  Windows 8 and what airplane-mode tools use; there's no public API. No change notification: it's read again
+  whenever a radio changes or Quick Settings opens.
+- **Energy saver** (Windows 11 24H2 and later): state from the documented `GUID_ENERGY_SAVER_STATUS` power setting
+  notification (`PowerSettingRegisterNotification`; the first call comes straight away). Setting it has no public
+  API: Windows' own setting (`SettingsHandlers_OneCore_BatterySaver.dll`) publishes the WNF state
+  `0x41C6013DA3BC3075` with 1 (on) or 2 (off), which is what `EnergySaver.Set` does (`RtlPublishWnfStateData`).
+- **Live captions**: on while `LiveCaptions.exe` runs; see Accessibility below.
+- **Night light** and **Nearby sharing** open their Settings pages (`ms-settings:nightlight`,
+  `ms-settings:crossdevice`), and are hidden in shell mode, where Settings can't open. Their state lives in private
+  stores: night light in Windows' cloud data store (on Windows 11 25H2 the old CloudStore registry blob is neither
+  written nor read any more), nearby sharing in the Connected Devices Platform service (writing its registry values
+  changes nothing).
+
+### Pages
+
+Each slides in from the right (back slides the tiles in from the left) and has a header with a back button and, as
+Windows', its shortcut as key caps (`ShortcutKeys`), and a footer with a link to Settings.
+
+- **Wi-Fi**: a switch for the radio, a refresh button, and the networks in range (`WifiNetworks`, WinRT
+  `WiFiAdapter`): one entry per name at its strongest, the connected one first, then by signal (unit tested), each
+  with its signal and a lock when secured, and "Connected, secured" / "Secured" / "Open". Choosing one opens it up:
+  Connect automatically and Connect, or Disconnect for the connected one. Connecting uses the saved profile; when
+  Windows has no key (or a wrong one) a password box and Next appear. Scanned when the page opens and on refresh.
+  Windows only gives network names to apps allowed to use the location. More Wi-Fi settings
+  (`ms-settings:network-wifi`; shell mode `ncpa.cpl`).
+- **Bluetooth**: a switch for the radio and the paired devices, classic and LE (`BluetoothDevices`,
+  `DeviceInformation` with `GetDeviceSelectorFromPairingState(true)`), with a glyph by kind (class of device or LE
+  appearance) and Connected or Paired. There's no public API to connect or disconnect a paired device, so they're
+  only listed. More Bluetooth settings (`ms-settings:bluetooth`; shell mode Devices and Printers).
+- **Accessibility**, by need as Windows': Vision (Magnifier, Narrator, Colour filters), Hearing (Live captions, Mono
+  audio), Motor and Mobility (Voice access, Sticky keys). Each row: glyph, name, description, its state in words and
+  a switch. Magnifier, Narrator, Live captions and Voice access are apps of their own: on while their executable runs
+  in this session, started from System32, and closed with their window's `SC_CLOSE` (Magnifier ignores `WM_CLOSE`),
+  or ended when they have no window (`AssistiveTools`). Sticky keys is `SPI_SETSTICKYKEYS` (saved to the profile and
+  announced). Colour filters and Mono audio can't be switched from outside Settings (colour filters are applied by
+  the AT broker through `user32!SetDesktopColorTransform`; `atbroker /start colorfiltering` turns them on but nothing
+  turns them off again), so their rows link to their Settings pages (shell mode: `access.cpl`). None of these states
+  is reported, so they're read when the page or the tiles open. More Accessibility settings.
+- **Cast** (Win+K): without Wi-Fi there's no Miracast, and the page says so as Windows does ("Connect a cable to
+  cast"); with Wi-Fi it offers Settings' wireless display search, since connecting to one has no public API. More
+  cast settings opens Display settings (shell mode the adapter's classic properties).
+- **Project** (Win+P): PC screen only, Duplicate, Extend, Second screen only, the current one selected
+  (`QueryDisplayConfig` with `QDC_DATABASE_CURRENT`); choosing one is `SetDisplayConfig(SDC_APPLY | SDC_TOPOLOGY_…)`
+  (`DisplayProjection`). More Display settings.
+- **Sound output** (Win+Ctrl+V), from the button beside the volume slider (speaker with sliders, chevron). Moving a
+  slider up unmutes, as Windows' own sliders do. Letting go of the slider (or each keyboard step) plays the default
+  beep as a system sound (`PlaySound` with `SND_SYSTEM`, so it goes to the System Sounds session), as Windows does to
+  let the new volume be heard. The page: Output device, Spatial sound, Volume mixer with a settings button, and More
+  volume settings (`ms-settings:sound`; shell mode `mmsys.cpl`). Read only while it's shown.
+  - **Output device**: the enabled outputs (`AudioDevices`, the default selected); choosing one makes it the default
+    for all three roles (console, multimedia, communications), as the Sound control panel does. There's no public
+    API for that: it's the undocumented `IPolicyConfig::SetDefaultEndpoint` (`PolicyConfigClient`), unchanged since
+    Windows 7 and what volume tools use. The volume then follows the new device.
+  - **Spatial sound** (`SpatialSound`, WinRT `SpatialAudioDeviceConfiguration` for the default output): Off (the
+    empty GUID) and Windows Sonic for Headphones when supported, set with `SetDefaultSpatialAudioFormatAsync`. Dolby
+    Atmos and DTS report themselves supported but need their apps and licences, which Windows' page checks; they
+    aren't offered. Hidden when the output has no spatial sound.
+  - **Volume mixer** (`AudioMixer`): the default output's audio sessions that haven't expired
+    (`IAudioSessionManager2`), one row per app as Windows' mixer groups them (packaged app, else executable; the
+    system sounds, whose session answers `GetProcessId` with the success code `AUDCLNT_S_NO_SINGLE_PROCESS`), each an
+    icon that mutes it and a slider (`ISimpleAudioVolume` on all its sessions; the slider shows the loudest); the
+    name is the icon's tooltip. Names: the session's display name (resource references resolved), else the packaged
+    app's or the executable's description. New sessions, state changes and volume changes made elsewhere
+    (`IAudioSessionEvents`) refresh the rows in place; NeoShell's own changes carry an event context GUID and aren't
+    reported back.
 
 ## Start menu (`StartMenu/`)
 
@@ -564,7 +656,7 @@ DesktopSortOrder     Name | Size | ItemType | DateModified
 - **xunit** tests in `tests/NeoShell.Tests` for pure logic: taskbar window filter, grouping keys, NOTIFYICONDATA
   parsing (32/64-bit), app search ranking, indexer query building, startup entry parsing and `StartupApproved`,
   settings round-trip and corrupt-file handling, wallpaper style mapping, AppBar rect calculation, which desktop
-  items get icons and in which order.
+  items get icons and in which order, Quick Settings' paging, Wi-Fi network list and shortcut keys.
 - Logic that touches Windows is split so the decision is a pure function over a snapshot (e.g. `WindowInfo`) that
   tests can construct.
 - **Live UI checks** through UI Automation (`AutomationId`s on all interactive controls), never global keystrokes.

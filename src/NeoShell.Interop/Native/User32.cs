@@ -58,6 +58,9 @@ internal static unsafe partial class User32
     public const uint SPI_GETMINIMIZEDMETRICS = 0x002B;
     public const uint SPI_SETMINIMIZEDMETRICS = 0x002C;
     public const uint SPI_SETWORKAREA = 0x002F;
+    public const uint SPI_GETSTICKYKEYS = 0x003A;
+    public const uint SPI_SETSTICKYKEYS = 0x003B;
+    public const uint SPIF_UPDATEINIFILE = 0x0001;
     public const uint SPIF_SENDCHANGE = 0x0002;
 
     public const uint MONITORINFOF_PRIMARY = 1;
@@ -212,6 +215,30 @@ internal static unsafe partial class User32
         public uint time;
         public nint dwExtraInfo;
     }
+
+    public const uint INPUT_KEYBOARD = 1;
+    public const uint KEYEVENTF_KEYUP = 0x0002;
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct KEYBDINPUT
+    {
+        public ushort wVk;
+        public ushort wScan;
+        public uint dwFlags;
+        public uint time;
+        public nint dwExtraInfo;
+    }
+
+    /// <summary>INPUT for 64-bit: the type, then the union (as large as MOUSEINPUT) of which only the keyboard is used.</summary>
+    [StructLayout(LayoutKind.Explicit, Size = 40)]
+    public struct INPUT
+    {
+        [FieldOffset(0)] public uint type;
+        [FieldOffset(8)] public KEYBDINPUT ki;
+    }
+
+    [LibraryImport("user32.dll", SetLastError = true)]
+    public static partial uint SendInput(uint count, INPUT* inputs, int size);
 
     [LibraryImport("user32.dll", EntryPoint = "SetWindowsHookExW", SetLastError = true)]
     public static partial nint SetWindowsHookEx(int hookType, delegate* unmanaged<int, nint, nint, nint> callback, nint module, uint threadId);
@@ -472,4 +499,28 @@ internal static unsafe partial class User32
     [LibraryImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     public static partial bool IsClipboardFormatAvailable(uint format);
+
+    public const uint SKF_STICKYKEYSON = 0x0001;
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct STICKYKEYS
+    {
+        public uint cbSize;
+        public uint dwFlags;
+    }
+
+    public const uint QDC_DATABASE_CURRENT = 0x0004;
+    public const uint SDC_APPLY = 0x0080;
+    // DISPLAYCONFIG_PATH_INFO and DISPLAYCONFIG_MODE_INFO: only their sizes matter here.
+    public const int DisplayConfigPathInfoSize = 72;
+    public const int DisplayConfigModeInfoSize = 64;
+
+    [LibraryImport("user32.dll")]
+    public static partial int GetDisplayConfigBufferSizes(uint flags, out uint pathCount, out uint modeCount);
+
+    [LibraryImport("user32.dll")]
+    public static partial int QueryDisplayConfig(uint flags, ref uint pathCount, void* paths, ref uint modeCount, void* modes, out uint topologyId);
+
+    [LibraryImport("user32.dll")]
+    public static partial int SetDisplayConfig(uint pathCount, void* paths, uint modeCount, void* modes, uint flags);
 }

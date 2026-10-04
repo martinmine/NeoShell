@@ -2,6 +2,7 @@ using Microsoft.UI.Dispatching;
 using NeoShell.Interop.Shell;
 using NeoShell.Interop.Windowing;
 using NeoShell.Logging;
+using NeoShell.QuickSettings;
 using NeoShell.Taskbar;
 
 namespace NeoShell;
@@ -15,7 +16,6 @@ internal sealed class ShellSession : IDisposable
     private const int ShowDesktopHotkey = 1;
     private const int FocusTaskbarHotkey = 2;
     private const int SearchHotkey = 3;
-    private const int SoundOutputHotkey = 4;
     // Win+1…9 use these IDs plus 0…8.
     private const int FirstTaskHotkey = 11;
 
@@ -24,6 +24,7 @@ internal sealed class ShellSession : IDisposable
     private readonly Action _endSession;
     private readonly DispatcherQueue _dispatcher = DispatcherQueue.GetForCurrentThread();
     private readonly StartKeyDetector _startKeys = new();
+    private readonly QuickSettingsKeys _quickSettingsKeys = new();
     private Hotkeys? _hotkeys;
     private KeyboardHook? _keyboardHook;
 
@@ -52,8 +53,6 @@ internal sealed class ShellSession : IDisposable
             if (!_hotkeys.Register(id, WinKey, key))
                 Log.Warn($"{name} is taken by another app");
         }
-        if (!_hotkeys.Register(SoundOutputHotkey, WinKey | HotkeyModifiers.Control, 'V'))
-            Log.Warn("Win+Ctrl+V is taken by another app");
         for (int n = 1; n <= 9; n++)
         {
             if (!_hotkeys.Register(FirstTaskHotkey + n - 1, WinKey, (uint)('0' + n)))
@@ -61,19 +60,30 @@ internal sealed class ShellSession : IDisposable
         }
 
         // The Windows key on its own isn't a hotkey: only a hook sees it pressed and released by itself. Keys pass
-        // through unchanged, so Windows still knows the key is down for Win+ shortcuts.
+        // through unchanged, so Windows still knows the key is down for Win+ shortcuts; only Quick Settings' own
+        // shortcuts are taken (see QuickSettingsKeys).
         try
         {
-            _keyboardHook = new KeyboardHook();
-            _keyboardHook.Key += (key, down) =>
+            _keyboardHook = new KeyboardHook
             {
-                if (_startKeys.OnKey(key, down))
-                    _dispatcher.Post(_taskbars.ToggleStartMenuFromKeyboard);
+                Key = (key, down) =>
+                {
+                    if (_startKeys.OnKey(key, down))
+                        _dispatcher.Post(_taskbars.ToggleStartMenuFromKeyboard);
+                    if (!_quickSettingsKeys.OnKey(key, down, out QuickSettingsPage? page))
+                        return false;
+                    if (page is { } shown)
+                    {
+                        KeyboardHook.MaskWindowsKey();
+                        _dispatcher.Post(() => _taskbars.ShowQuickSettings(shown));
+                    }
+                    return true;
+                },
             };
         }
         catch (System.ComponentModel.Win32Exception ex)
         {
-            // Ctrl+Esc still reaches the shell window; only the Windows key alone is lost.
+            // Ctrl+Esc still reaches the shell window; only the Windows key alone and Quick Settings' keys are lost.
             Log.Warn("Keyboard hook unavailable; the Windows key won't open Start", ex);
         }
 
@@ -112,9 +122,7 @@ internal sealed class ShellSession : IDisposable
             case SearchHotkey:
                 _taskbars.OpenStartMenu();
                 break;
-            case SoundOutputHotkey:
-                _taskbars.OpenSoundOutput();
-                break;
+
         }
     }
 

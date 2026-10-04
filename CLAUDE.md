@@ -1,8 +1,8 @@
 # NeoShell
 
 A replacement for the `explorer.exe` shell on Windows 11, built with WinUI 3 on .NET 10. It shows the wallpaper
-and desktop icons, a Windows 11 style taskbar (with system tray, network, volume and microphone indicators) and a
-Start menu with search and power options.
+and desktop icons, a Windows 11 style taskbar (with system tray, network, volume and microphone indicators, and Quick
+Settings) and a Start menu with search and power options.
 
 - Design and feature spec: [docs/design.md](docs/design.md)
 - Milestones and progress: [docs/plan.md](docs/plan.md) — tick items off as they land
@@ -64,7 +64,8 @@ src/NeoShell/                 WinUI app
   Logging/                    Small file logger
   Desktop/                    WallpaperWindow (one per monitor), desktop icons and their menus (primary monitor)
   Taskbar/                    TaskbarWindow, task list + grouping, pinned apps, thumbnail popup, clock + calendar
-  Tray/                       Tray area, overflow flyout, network/volume/mic indicators, volume flyout
+  Tray/                       Tray area, overflow flyout, network/volume/battery/mic indicators
+  QuickSettings/              Quick Settings: tiles, Wi-Fi, Bluetooth, Accessibility, Cast, Project and Sound output pages
   StartMenu/                  StartMenuWindow, app list, search results, power menu
   Settings/                   Settings record + JSON load/save (%LOCALAPPDATA%\NeoShell\settings.json)
 src/NeoShell.Interop/
@@ -72,8 +73,13 @@ src/NeoShell.Interop/
   Com/                        Core Audio, IShellItem/IShellItemImageFactory, IPropertyStore, ITaskbarList, ISearchQueryHelper
   Windowing/                  MessageWindow, WindowSubclass, AppBar, ShellHook, DwmThumbnail, KeyboardHook, WindowInfo
   Tray/                       TrayHost (owns Shell_TrayWnd), NOTIFYICONDATA parsing (32/64-bit)
-  Audio/                      AudioEndpoint (volume/mute + events), CaptureMonitor (microphone in use)
-  Network/                    NetworkStatus (WinRT NetworkInformation)
+  Audio/                      AudioEndpoint (volume/mute + events), CaptureMonitor (microphone in use), mixer, outputs
+  Network/                    NetworkStatus (WinRT NetworkInformation), WifiNetworks (WinRT WiFiAdapter)
+  Radios/                     RadioSwitches (Wi-Fi/Bluetooth radios), AirplaneMode (Radio Management API)
+  Bluetooth/                  BluetoothDevices (paired devices)
+  Power/                      EnergySaver, BatteryMonitor
+  Display/                    DisplayProjection (Win+P modes)
+  Accessibility/              StickyKeys
   Search/                     IndexSearch (ISearchQueryHelper + OleDb against Search.CollatorDSO)
   Shell/                      AppCatalog (shell:AppsFolder), DesktopFolder, ShellContextMenu, ShellMenu, Launcher, Power,
                               ShellRegistration, StartupApps
@@ -124,5 +130,5 @@ src/NeoShell/bin/Debug/net10.0-windows10.0.26100.0/win-x64/NeoShell.exe /exit   
 
 ## Out of scope
 
-Quick Settings, Action Center and toast notifications, Widgets, Task View, Win+X, system flyouts
-(network/volume flyouts open `ms-settings:` or NeoShell's own simple flyout instead), pinning items in jump lists.
+The notification center and toast notifications, editing Quick Settings' tiles, Widgets, Task View, Win+X, pinning
+items in jump lists.

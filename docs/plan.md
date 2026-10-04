@@ -140,6 +140,25 @@ Tick items off as they land. The feature details are in [design.md](design.md).
 - [x] Volume flyout as Quick Settings: slider row, Sound output page (output device, spatial sound, mixer, More volume
       settings, Win+Ctrl+V), the default beep on letting go of the slider — Win+Ctrl+V not pressed live
 
+## 13. Quick Settings
+
+- [x] Network, volume and battery as one taskbar button with a hover plate; each icon keeps its tooltip and menu
+      (network: Network and Internet settings); energy saver's leaf; airplane mode's plane on the network icon
+- [x] Quick Settings laid out as Windows 11's: pages of 2×3 tiles (wheel and arrows, page dots), the volume slider
+      and Sound output page moved in, battery and All settings in the footer
+- [x] Wi-Fi tile and page: radio switch, networks in range, connect (saved profile or key) and disconnect — no Wi-Fi
+      on the VM, only the hidden tile checked live
+- [x] Bluetooth tile and page: radio switch, paired devices and their state (no public API to connect them) — no
+      Bluetooth on the VM, only the hidden tile checked live
+- [x] Airplane mode (Radio Management API), Energy saver (WNF), Live captions
+- [x] Accessibility page: Magnifier, Narrator, Live captions, Voice access, Sticky keys switched; Colour filters and
+      Mono audio link to Settings (no way to switch them from outside) — Narrator and Voice access not run live
+- [x] Cast page (no Miracast without Wi-Fi), Project page (`SetDisplayConfig`) — switching screens not done live
+      (one monitor on the VM)
+- [x] Night light and Nearby sharing open Settings (their state is in private stores); hidden in shell mode
+- [x] Win+A, Win+K, Win+P, Win+Ctrl+V in shell mode through the keyboard hook (ShellHost holds the hotkeys)
+- [x] Fix: closing an open Start at exit crashed in its hide animation (the watchdog started Explorer)
+
 ## Later / not planned yet
 
 - Jump lists: pinned entries, Pin to / Remove from this list

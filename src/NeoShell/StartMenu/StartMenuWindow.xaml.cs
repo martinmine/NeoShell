@@ -126,6 +126,8 @@ internal sealed partial class StartMenuWindow : Window
         owner.Icons.Loaded += RefreshIcons;
         Closed += (_, _) =>
         {
+            // Closing an open Start deactivates it afterwards; hiding it then would slide a window that's gone.
+            IsOpen = false;
             _slide.Stop();
             owner.Icons.Loaded -= RefreshIcons;
             _placement.Dispose();
