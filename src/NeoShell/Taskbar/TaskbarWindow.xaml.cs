@@ -8,6 +8,7 @@ using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
+using Microsoft.UI.Xaml.Media.Animation;
 using NeoShell.Interop.Windowing;
 using Microsoft.UI.Input;
 using NeoShell.Interop.Tray;
@@ -40,6 +41,9 @@ internal sealed partial class TaskbarWindow : Window
     private readonly DispatcherQueueTimer _hoverTimer;
     private readonly DispatcherQueueTimer _hideTimer;
     private (TaskButton Button, FrameworkElement Element)? _hovered;
+    private (uint PointerId, double X, TaskButton Button)? _pressed;
+    private TaskDrag? _drag;
+    private bool _suppressClick;
     private readonly NotificationArea? _tray;
     private readonly Indicators? _indicators;
     private bool _updatingVolumeSlider;
@@ -118,6 +122,11 @@ internal sealed partial class TaskbarWindow : Window
         _placement = new PinnedWindow(hwnd, bounds, PinnedLayer.Topmost);
 
         TaskList.ItemsSource = _tasks;
+        // Handled events too: the button under the pointer takes the press for its click.
+        TaskList.AddHandler(UIElement.PointerPressedEvent, new PointerEventHandler(TaskList_PointerPressed), handledEventsToo: true);
+        TaskList.AddHandler(UIElement.PointerMovedEvent, new PointerEventHandler(TaskList_PointerMoved), handledEventsToo: true);
+        TaskList.AddHandler(UIElement.PointerReleasedEvent, new PointerEventHandler(TaskList_PointerReleased), handledEventsToo: true);
+        TaskList.AddHandler(UIElement.PointerCaptureLostEvent, new PointerEventHandler(TaskList_PointerCaptureLost), handledEventsToo: true);
         // A click anywhere else on the taskbar closes Start, as in Windows; the Start button toggles it itself.
         Root.AddHandler(UIElement.PointerPressedEvent, new PointerEventHandler(Root_PointerPressed), handledEventsToo: true);
         Root.SizeChanged += (_, _) => RefreshTasks();
@@ -520,6 +529,13 @@ internal sealed partial class TaskbarWindow : Window
     /// <summary>Rebuilds the task buttons from the pinned apps and the tracked windows.</summary>
     public void RefreshTasks()
     {
+        // The drag measured the buttons as they were; windows that came or went are shown once it's over.
+        if (_drag is not null)
+        {
+            _drag.RefreshPending = true;
+            return;
+        }
+
         ShellSettings settings = _owner.Settings.Current;
         IReadOnlyList<WindowInfo> windows = _owner.Tracker.Windows;
         double available = AvailableTaskWidth();
@@ -597,7 +613,7 @@ internal sealed partial class TaskbarWindow : Window
 
     private void TaskList_ItemClick(object sender, ItemClickEventArgs e)
     {
-        if (e.ClickedItem is TaskButton button)
+        if (e.ClickedItem is TaskButton button && !_suppressClick)
             ActivateButton(button);
     }
 
@@ -639,7 +655,7 @@ internal sealed partial class TaskbarWindow : Window
 
     private void TaskItem_PointerEntered(object sender, PointerRoutedEventArgs e)
     {
-        if (sender is not FrameworkElement { DataContext: TaskButton button } element)
+        if (sender is not FrameworkElement { DataContext: TaskButton button } element || _drag is not null)
             return;
 
         _hovered = (button, element);
@@ -690,10 +706,128 @@ internal sealed partial class TaskbarWindow : Window
         }
     }
 
-    private void TaskList_DragItemsCompleted(ListViewBase sender, DragItemsCompletedEventArgs args)
+    // Reordering is done by hand rather than with the list's own drag and drop: that lifts the button off the
+    // taskbar to follow the pointer anywhere, where Windows keeps it sliding along the row (see TaskReorder).
+    private void TaskList_PointerPressed(object sender, PointerRoutedEventArgs e)
     {
-        // Only pinned apps keep their place; running apps fall back in line on the next refresh.
-        _owner.SetPinnedOrder([.. _tasks.Select(t => t.Pinned).OfType<PinnedApp>().DistinctBy(TaskGrouping.Key)]);
+        _suppressClick = false;
+        if (_drag is not null || !e.GetCurrentPoint(TaskList).Properties.IsLeftButtonPressed)
+            return;
+
+        for (var element = e.OriginalSource as DependencyObject; element is not null && element != TaskList; element = VisualTreeHelper.GetParent(element))
+        {
+            if (element is ListViewItem { Content: TaskButton button })
+            {
+                _pressed = (e.Pointer.PointerId, e.GetCurrentPoint(TaskList).Position.X, button);
+                return;
+            }
+        }
+    }
+
+    private void TaskList_PointerMoved(object sender, PointerRoutedEventArgs e)
+    {
+        if (_pressed is not { } pressed || pressed.PointerId != e.Pointer.PointerId)
+            return;
+
+        double travel = e.GetCurrentPoint(TaskList).Position.X - pressed.X;
+        if (_drag is null)
+        {
+            if (Math.Abs(travel) < TaskReorder.Threshold || !StartDrag(pressed.Button, e.Pointer))
+                return;
+        }
+
+        TaskDrag drag = _drag!;
+        double offset = TaskReorder.Offset(drag.Slots, drag.Index, travel);
+        drag.Target = TaskReorder.TargetIndex(drag.Slots, drag.Index, offset);
+        for (int i = 0; i < drag.Containers.Count; i++)
+        {
+            double x = i == drag.Index ? offset : TaskReorder.MakeWayOffset(drag.Slots, drag.Index, drag.Target, i);
+            drag.Containers[i].Translation = new System.Numerics.Vector3((float)x, 0, 0);
+        }
+        e.Handled = true;
+    }
+
+    private void TaskList_PointerReleased(object sender, PointerRoutedEventArgs e)
+    {
+        _pressed = null;
+        if (_drag is null)
+            return;
+
+        // The list would otherwise take the release as a click on the button.
+        _suppressClick = true;
+        EndDrag(drop: true);
+        TaskList.ReleasePointerCapture(e.Pointer);
+        e.Handled = true;
+    }
+
+    private void TaskList_PointerCaptureLost(object sender, PointerRoutedEventArgs e)
+    {
+        _pressed = null;
+        if (_drag is not null)
+            EndDrag(drop: false);
+    }
+
+    private bool StartDrag(TaskButton button, Pointer pointer)
+    {
+        int index = _tasks.IndexOf(button);
+        var containers = new List<UIElement>();
+        var slots = new List<(double Left, double Width)>();
+        for (int i = 0; i < _tasks.Count; i++)
+        {
+            if (TaskList.ContainerFromIndex(i) is not FrameworkElement container)
+                return false;
+            containers.Add(container);
+            slots.Add((container.TransformToVisual(TaskList).TransformPoint(default).X, container.ActualWidth));
+        }
+        if (index < 0 || !TaskList.CapturePointer(pointer))
+            return false;
+
+        _hoverTimer.Stop();
+        _thumbnails.Hide();
+        button.IsHovered = false;
+        _hovered = null;
+        // The dragged button follows the pointer straight away and passes over the others, which slide aside.
+        foreach (UIElement container in containers)
+            container.TranslationTransition = new Vector3Transition { Duration = TimeSpan.FromMilliseconds(150) };
+        containers[index].TranslationTransition = null;
+        Canvas.SetZIndex(containers[index], 1);
+        _drag = new TaskDrag(containers, slots, index) { Target = index };
+        return true;
+    }
+
+    private void EndDrag(bool drop)
+    {
+        TaskDrag drag = _drag!;
+        _drag = null;
+        foreach (UIElement container in drag.Containers)
+        {
+            container.TranslationTransition = null;
+            container.Translation = default;
+        }
+        Canvas.SetZIndex(drag.Containers[drag.Index], 0);
+        if (drop && drag.Target != drag.Index)
+        {
+            // The buttons are already where they belong. The list would animate the move as a removal and an
+            // addition, so the buttons vanish and come back.
+            TransitionCollection transitions = TaskList.ItemContainerTransitions;
+            TaskList.ItemContainerTransitions = [];
+            _tasks.Move(drag.Index, drag.Target);
+            TaskList.UpdateLayout();
+            TaskList.ItemContainerTransitions = transitions;
+            // Only pinned apps keep their place; running apps fall back in line on the next refresh.
+            _owner.SetPinnedOrder([.. _tasks.Select(t => t.Pinned).OfType<PinnedApp>().DistinctBy(TaskGrouping.Key)]);
+        }
+        if (drag.RefreshPending)
+            RefreshTasks();
+    }
+
+    private sealed class TaskDrag(List<UIElement> containers, List<(double Left, double Width)> slots, int index)
+    {
+        public List<UIElement> Containers { get; } = containers;
+        public List<(double Left, double Width)> Slots { get; } = slots;
+        public int Index { get; } = index;
+        public int Target { get; set; }
+        public bool RefreshPending { get; set; }
     }
 
     private void TaskbarMenu_Opening(object sender, object e)
