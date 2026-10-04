@@ -15,6 +15,7 @@ internal sealed class TaskButton(string key) : INotifyPropertyChanged
     private ImageSource? _icon;
     private bool _isActive;
     private bool _isFlashing;
+    private bool _isHovered;
     private bool _showLabel;
     private TaskProgress? _progress;
     private ImageSource? _overlay;
@@ -55,6 +56,17 @@ internal sealed class TaskButton(string key) : INotifyPropertyChanged
         }
     }
 
+    /// <summary>Set by the taskbar while the pointer is over the button.</summary>
+    public bool IsHovered
+    {
+        get => _isHovered;
+        set
+        {
+            if (Set(ref _isHovered, value))
+                Raise(nameof(HoverVisibility));
+        }
+    }
+
     public bool ShowLabel
     {
         get => _showLabel;
@@ -68,15 +80,18 @@ internal sealed class TaskButton(string key) : INotifyPropertyChanged
         }
     }
 
-    public double Width => ShowLabel ? TaskListBuilder.LabeledButtonWidth - 4 : 40;
+    public double Width => ShowLabel ? TaskListBuilder.LabeledButtonWidth : TaskListBuilder.CombinedButtonWidth;
 
     public Visibility LabelVisibility => ShowLabel ? Visibility.Visible : Visibility.Collapsed;
 
     public Visibility ActiveVisibility => IsActive ? Visibility.Visible : Visibility.Collapsed;
 
-    public Visibility RunningVisibility => !IsActive && Windows.Count == 1 ? Visibility.Visible : Visibility.Collapsed;
+    public Visibility RunningVisibility => !IsActive && Windows.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
 
-    public Visibility MultipleVisibility => !IsActive && Windows.Count > 1 ? Visibility.Visible : Visibility.Collapsed;
+    /// <summary>Several windows: the plate shows the edge of a second card behind it, as in Windows 11.</summary>
+    public Visibility StackVisibility => Windows.Count > 1 ? Visibility.Visible : Visibility.Collapsed;
+
+    public Visibility HoverVisibility => IsHovered ? Visibility.Visible : Visibility.Collapsed;
 
     public Visibility FlashVisibility => IsFlashing ? Visibility.Visible : Visibility.Collapsed;
 
@@ -137,7 +152,7 @@ internal sealed class TaskButton(string key) : INotifyPropertyChanged
         Progress = model.Windows.Select(w => tracker.Progress(w.Handle)).FirstOrDefault(p => p is not null);
         Overlay = model.Windows.Select(w => tracker.Overlay(w.Handle)).FirstOrDefault(o => o is not null);
         Raise(nameof(RunningVisibility));
-        Raise(nameof(MultipleVisibility));
+        Raise(nameof(StackVisibility));
     }
 
     // UI Automation names list items by their ToString.

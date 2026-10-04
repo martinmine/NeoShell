@@ -28,7 +28,7 @@ internal sealed class AppIcons(int size)
             return icon;
 
         _icons[item] = null;
-        Load(() => ShellItems.GetIcon(item, Size), loaded =>
+        Load(() => LoadIcon(app, item), loaded =>
         {
             _icons[item] = loaded;
             Loaded?.Invoke();
@@ -62,6 +62,9 @@ internal sealed class AppIcons(int size)
         bitmap.Invalidate();
         return bitmap;
     }
+
+    private IconBitmap? LoadIcon(PinnedApp app, string item) =>
+        (app.AppUserModelId is { } appId ? PackagedApps.GetLogo(appId, Size) : null) ?? ShellItems.GetIcon(item, Size);
 
     private static string ShellItemFor(PinnedApp app) =>
         app.AppUserModelId is { } appId ? ShellItems.AppsFolderPath(appId) : app.Path ?? "";

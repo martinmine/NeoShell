@@ -22,6 +22,7 @@ public sealed record ShellSettings
     public CombineButtons CombineButtons { get; set; } = CombineButtons.Always;
     public bool AutoHide { get; set; }
     public bool ShowOnAllDisplays { get; set; } = true;
+    public bool ShowSearchButton { get; set; } = true;
     public TrayMode TrayMode { get; set; } = TrayMode.Overflow;
     public IReadOnlyList<PinnedApp> PinnedTaskbarApps { get; set; } = [];
     public IReadOnlyList<PinnedApp> PinnedStartApps { get; set; } = [];

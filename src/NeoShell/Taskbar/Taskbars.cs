@@ -36,10 +36,11 @@ internal sealed class Taskbars : IDisposable
         _exit = exit;
         _switchToExplorer = switchToExplorer;
         _windowSettings = settings.Current;
-        // Start shows icons at up to 32 effective pixels; load them sharp for the densest monitor.
+        // Start shows icons at up to 32 effective pixels, the taskbar at 24; load them sharp for the densest monitor.
+        // The taskbar gets its own size, not a scaled-down 32: packaged apps have their own image for 24 pixels.
         uint dpi = DisplayMonitor.GetAll().Select(m => m.Dpi).DefaultIfEmpty(96u).Max();
         Icons = new AppIcons((int)Math.Round(32 * dpi / 96.0));
-        Tracker = new WindowTracker(Icons, announceButtons: runMode == RunMode.Shell);
+        Tracker = new WindowTracker(new AppIcons((int)Math.Round(24 * dpi / 96.0)), announceButtons: runMode == RunMode.Shell);
         Tracker.Changed += RefreshTasks;
         Tracker.ForegroundChanged += UpdateFullScreen;
         Settings.Changed += OnSettingsChanged;
@@ -200,7 +201,8 @@ internal sealed class Taskbars : IDisposable
         ShellSettings current = Settings.Current;
         if (current.TaskbarAlignment != _windowSettings.TaskbarAlignment
             || current.ShowOnAllDisplays != _windowSettings.ShowOnAllDisplays
-            || current.AutoHide != _windowSettings.AutoHide)
+            || current.AutoHide != _windowSettings.AutoHide
+            || current.ShowSearchButton != _windowSettings.ShowSearchButton)
             QueueRecreate();
         else
             RefreshTasks();

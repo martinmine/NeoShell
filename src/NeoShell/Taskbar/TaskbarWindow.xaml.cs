@@ -23,8 +23,9 @@ namespace NeoShell.Taskbar;
 /// <summary>The taskbar on one monitor.</summary>
 internal sealed partial class TaskbarWindow : Window
 {
-    // Effective pixels taken by the Start and Search buttons and the margins around the task list.
-    private const double FixedButtonsWidth = 2 * 44 + 24;
+    // Effective pixels taken by a Start or Search button, and by the margins around the task list.
+    private const double FixedButtonWidth = 44;
+    private const double AppsPanelMargins = 2 * 11;
 
     private readonly Taskbars _owner;
     private readonly DisplayMonitor _monitor;
@@ -68,6 +69,7 @@ internal sealed partial class TaskbarWindow : Window
         SetTheme(theme);
         AppsPanel.HorizontalAlignment =
             settings.TaskbarAlignment == TaskbarAlignment.Left ? HorizontalAlignment.Left : HorizontalAlignment.Center;
+        SearchButton.Visibility = settings.ShowSearchButton ? Visibility.Visible : Visibility.Collapsed;
         ExitSeparator.Visibility = ExitItem.Visibility =
             owner.RunMode == RunMode.AlongsideExplorer ? Visibility.Visible : Visibility.Collapsed;
 
@@ -529,7 +531,14 @@ internal sealed partial class TaskbarWindow : Window
             ? TaskListBuilder.Build(settings.PinnedTaskbarApps, windows, combine: true)
             : uncombined;
 
-        // Update in place, so buttons keep their state and the list doesn't flicker.
+        // Update in place, so buttons keep their state and the list doesn't flicker. Gone buttons are removed first:
+        // otherwise every button after one would be moved up a place, and the list animates each move as a new item.
+        var keys = models.Select(model => model.Key).ToHashSet();
+        for (int i = _tasks.Count - 1; i >= 0; i--)
+        {
+            if (!keys.Contains(_tasks[i].Key))
+                _tasks.RemoveAt(i);
+        }
         for (int i = 0; i < models.Count; i++)
         {
             int existing = IndexOf(models[i].Key, i);
@@ -539,8 +548,6 @@ internal sealed partial class TaskbarWindow : Window
                 _tasks.Move(existing, i);
             _tasks[i].Update(models[i], _owner.Tracker, combine);
         }
-        while (_tasks.Count > models.Count)
-            _tasks.RemoveAt(_tasks.Count - 1);
 
         // The previews show windows that may have closed or opened.
         if (_thumbnails.Button is { } shown && !_tasks.Contains(shown))
@@ -551,7 +558,8 @@ internal sealed partial class TaskbarWindow : Window
     {
         // Centred, the task list must stay clear of the right-hand panel on both sides to stay centred.
         double right = AppsPanel.HorizontalAlignment == HorizontalAlignment.Center ? 2 * RightPanel.ActualWidth : RightPanel.ActualWidth;
-        return Root.ActualWidth - right - FixedButtonsWidth;
+        double buttons = SearchButton.Visibility == Visibility.Visible ? 2 * FixedButtonWidth : FixedButtonWidth;
+        return Root.ActualWidth - right - buttons - AppsPanelMargins;
     }
 
     private int IndexOf(string key, int start)
@@ -635,6 +643,7 @@ internal sealed partial class TaskbarWindow : Window
             return;
 
         _hovered = (button, element);
+        button.IsHovered = true;
         _hideTimer.Stop();
         // Once previews are open, moving along the taskbar switches them straight away.
         if (_thumbnails.Button is not null && _thumbnails.Button != button && button.Windows.Count > 0)
@@ -645,6 +654,8 @@ internal sealed partial class TaskbarWindow : Window
 
     private void TaskItem_PointerExited(object sender, PointerRoutedEventArgs e)
     {
+        if (sender is FrameworkElement { DataContext: TaskButton button })
+            button.IsHovered = false;
         _hovered = null;
         _hoverTimer.Stop();
         _hideTimer.Start();
@@ -691,6 +702,7 @@ internal sealed partial class TaskbarWindow : Window
         AutoHideItem.IsChecked = settings.AutoHide;
         AlignCenterItem.IsChecked = settings.TaskbarAlignment == TaskbarAlignment.Center;
         AlignLeftItem.IsChecked = settings.TaskbarAlignment == TaskbarAlignment.Left;
+        ShowSearchItem.IsChecked = settings.ShowSearchButton;
         CombineAlwaysItem.IsChecked = settings.CombineButtons == CombineButtons.Always;
         CombineWhenFullItem.IsChecked = settings.CombineButtons == CombineButtons.WhenFull;
         CombineNeverItem.IsChecked = settings.CombineButtons == CombineButtons.Never;
@@ -706,6 +718,9 @@ internal sealed partial class TaskbarWindow : Window
         {
             TaskbarAlignment = ReferenceEquals(sender, AlignLeftItem) ? TaskbarAlignment.Left : TaskbarAlignment.Center,
         });
+
+    private void ShowSearch_Click(object sender, RoutedEventArgs e) =>
+        _owner.Settings.Update(_owner.Settings.Current with { ShowSearchButton = ShowSearchItem.IsChecked });
 
     private void Combine_Click(object sender, RoutedEventArgs e) =>
         _owner.Settings.Update(_owner.Settings.Current with

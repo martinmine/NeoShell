@@ -203,7 +203,7 @@ Shell mode only, like the wallpaper: alongside Explorer, Explorer's desktop has 
 ### Layout (left → right, or centred like Windows 11 by setting)
 
 1. Start button.
-2. Search button — opens the Start menu with the search box focused.
+2. Search button — opens the Start menu with the search box focused. Can be hidden from the taskbar menu.
 3. Pinned and running apps.
 4. Tray area: chevron/overflow, tray icons.
 5. Indicators: network, volume, microphone (when active).
@@ -236,8 +236,11 @@ Shell mode only, like the wallpaper: alongside Explorer, Explorer's desktop has 
 
 - A `ListView` of `TaskButton` view models (built by `TaskListBuilder`, unit tested, and synced in place by key);
   `ListView` gives drag-to-reorder.
-- Indicators: running (short grey pill), several windows (two pills), active (long accent pill), flashing (amber
-  background until activated).
+- Sized as Explorer's: 44×48 buttons with a 40×40 plate behind the 24 px icon, shown when hovered or active.
+- Packaged apps' icons come from their package's `targetsize-24_altform-unplated` image, as in Explorer; the shell's
+  24 px icon is scaled from a bigger image and comes out a pixel off.
+- Indicators: running (short grey pill), active (long accent pill and plate), several windows (the plate shows a
+  second card's edge behind it), flashing (amber background until activated).
 - Left click: one window → activate it, or minimize if it's already foreground; several windows → show thumbnails.
   Pinned, not running → launch.
 - No tooltip: hovering shows the thumbnails instead.
@@ -306,8 +309,8 @@ progress (bar along the bottom; indeterminate, error and paused states) and over
 
 ### Taskbar context menu
 
-Task Manager, the taskbar settings toggles (alignment, combine, auto-hide, all displays, tray mode), Exit NeoShell
-(alongside Explorer only).
+Task Manager, the taskbar settings toggles (alignment, search button, combine, auto-hide, all displays, tray mode),
+Exit NeoShell (alongside Explorer only).
 
 ## System tray (`Tray/`)
 
@@ -438,6 +441,7 @@ TaskbarAlignment     Center | Left
 CombineButtons       Always | WhenFull | Never
 AutoHide             bool
 ShowOnAllDisplays    bool
+ShowSearchButton     bool
 TrayMode             ShowAll | Overflow
 PinnedTaskbarApps    list
 PinnedStartApps      list

@@ -97,6 +97,13 @@ internal sealed class NotificationArea : IDisposable
     private void Refresh()
     {
         List<TrayIconState> visible = [.. _store.Icons.Where(icon => !icon.IsHidden)];
+        // Gone icons first, so the icons after them aren't each moved up a place.
+        var keys = visible.Select(state => state.Key).ToHashSet();
+        for (int i = Icons.Count - 1; i >= 0; i--)
+        {
+            if (!keys.Contains(Icons[i].Key))
+                Icons.RemoveAt(i);
+        }
         for (int i = 0; i < visible.Count; i++)
         {
             TrayIconState state = visible[i];
@@ -116,8 +123,6 @@ internal sealed class NotificationArea : IDisposable
                 Icons.Move(existing, i);
             Icons[i].Update(state, _images.GetValueOrDefault(state.Key));
         }
-        while (Icons.Count > visible.Count)
-            Icons.RemoveAt(Icons.Count - 1);
 
         foreach (string gone in _images.Keys.Except(_store.Icons.Select(icon => icon.Key)).ToList())
             _images.Remove(gone);

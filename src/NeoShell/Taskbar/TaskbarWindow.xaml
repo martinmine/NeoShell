@@ -17,7 +17,7 @@
                 <!-- A tray icon: every mouse action goes to the icon's app. -->
                 <DataTemplate x:Key="TrayIconTemplate" x:DataType="tray:TrayIcon">
                     <Grid
-                        Width="28"
+                        Width="32"
                         Height="40"
                         Background="Transparent"
                         AutomationProperties.AutomationId="TrayIcon"
@@ -45,7 +45,7 @@
         <StackPanel
             x:Name="AppsPanel"
             Grid.ColumnSpan="2"
-            Margin="12,0"
+            Margin="11,0"
             Orientation="Horizontal"
             HorizontalAlignment="Center"
             VerticalAlignment="Center">
@@ -56,7 +56,8 @@
                 ToolTipService.ToolTip="Start"
                 Style="{StaticResource FlatButtonStyle}"
                 Click="StartButton_Click">
-                <Grid Width="18" Height="18" ColumnSpacing="1" RowSpacing="1">
+                <!-- Explorer's logo: four 11 px squares. -->
+                <Grid Width="23" Height="23" ColumnSpacing="1" RowSpacing="1">
                     <Grid.RowDefinitions>
                         <RowDefinition />
                         <RowDefinition />
@@ -105,12 +106,22 @@
                     <Style TargetType="ListViewItem" BasedOn="{StaticResource DefaultListViewItemStyle}">
                         <Setter Property="MinWidth" Value="0" />
                         <Setter Property="MinHeight" Value="0" />
-                        <Setter Property="Height" Value="40" />
+                        <Setter Property="Height" Value="48" />
                         <Setter Property="Padding" Value="0" />
-                        <Setter Property="Margin" Value="2,0" />
-                        <Setter Property="CornerRadius" Value="4" />
-                        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-                        <Setter Property="VerticalContentAlignment" Value="Stretch" />
+                        <Setter Property="Margin" Value="0" />
+                        <Setter Property="UseSystemFocusVisuals" Value="True" />
+                        <!-- Just the content: the default presenter insets its hover plate, smaller than Explorer's. -->
+                        <Setter Property="Template">
+                            <Setter.Value>
+                                <ControlTemplate TargetType="ListViewItem">
+                                    <ContentPresenter
+                                        Content="{TemplateBinding Content}"
+                                        ContentTemplate="{TemplateBinding ContentTemplate}"
+                                        HorizontalContentAlignment="Stretch"
+                                        VerticalContentAlignment="Stretch" />
+                                </ControlTemplate>
+                            </Setter.Value>
+                        </Setter>
                     </Style>
                 </ListView.ItemContainerStyle>
                 <ListView.ItemTemplate>
@@ -126,8 +137,43 @@
                             <Grid.ContextFlyout>
                                 <MenuFlyout ShouldConstrainToRootBounds="False" Opening="TaskMenu_Opening" />
                             </Grid.ContextFlyout>
+                            <!-- Plates as in Explorer: 40x40 behind the active app, lighter while hovered; with several
+                                 windows, the edge of a second card shows on the right. -->
+                            <Grid Margin="2,4" ColumnSpacing="2" Visibility="{x:Bind ActiveVisibility, Mode=OneWay}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <Border
+                                    CornerRadius="4"
+                                    Background="{ThemeResource ControlFillColorDefaultBrush}"
+                                    BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}"
+                                    BorderThickness="1" />
+                                <Border
+                                    Grid.Column="1"
+                                    Width="3"
+                                    Margin="0,1"
+                                    CornerRadius="0,4,4,0"
+                                    Background="{ThemeResource ControlFillColorDefaultBrush}"
+                                    Visibility="{x:Bind StackVisibility, Mode=OneWay}" />
+                            </Grid>
+                            <Grid Margin="2,4" ColumnSpacing="2" Visibility="{x:Bind HoverVisibility, Mode=OneWay}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <Border CornerRadius="4" Background="{ThemeResource SubtleFillColorSecondaryBrush}" />
+                                <Border
+                                    Grid.Column="1"
+                                    Width="3"
+                                    Margin="0,1"
+                                    CornerRadius="0,4,4,0"
+                                    Background="{ThemeResource SubtleFillColorSecondaryBrush}"
+                                    Visibility="{x:Bind StackVisibility, Mode=OneWay}" />
+                            </Grid>
                             <!-- The window asks for attention. -->
                             <Border
+                                Margin="2,4"
                                 CornerRadius="4"
                                 Background="{ThemeResource SystemFillColorCautionBrush}"
                                 Opacity="0.4"
@@ -155,7 +201,7 @@
                             </StackPanel>
                             <!-- The app's progress, along the bottom of the button. -->
                             <ProgressBar
-                                Margin="6,0,6,5"
+                                Margin="8,0,8,9"
                                 VerticalAlignment="Bottom"
                                 MinHeight="3"
                                 Height="3"
@@ -166,13 +212,11 @@
                                 ShowPaused="{x:Bind IsProgressPaused, Mode=OneWay}"
                                 Visibility="{x:Bind ProgressVisibility, Mode=OneWay}"
                                 AutomationProperties.AutomationId="TaskProgress" />
-                            <!-- Running: short grey pill (two for several windows); active: long accent pill. -->
-                            <StackPanel Orientation="Horizontal" Spacing="3" HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,1">
+                            <!-- Running: short grey pill; active: long accent pill. -->
+                            <Grid HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,5">
                                 <Rectangle Width="6" Height="3" RadiusX="1.5" RadiusY="1.5" Fill="{ThemeResource TextFillColorTertiaryBrush}" Visibility="{x:Bind RunningVisibility, Mode=OneWay}" />
-                                <Rectangle Width="6" Height="3" RadiusX="1.5" RadiusY="1.5" Fill="{ThemeResource TextFillColorTertiaryBrush}" Visibility="{x:Bind MultipleVisibility, Mode=OneWay}" />
-                                <Rectangle Width="6" Height="3" RadiusX="1.5" RadiusY="1.5" Fill="{ThemeResource TextFillColorTertiaryBrush}" Visibility="{x:Bind MultipleVisibility, Mode=OneWay}" />
                                 <Rectangle Width="16" Height="3" RadiusX="1.5" RadiusY="1.5" Fill="{ThemeResource AccentFillColorDefaultBrush}" Visibility="{x:Bind ActiveVisibility, Mode=OneWay}" />
-                            </StackPanel>
+                            </Grid>
                         </Grid>
                     </DataTemplate>
                 </ListView.ItemTemplate>
@@ -187,7 +231,7 @@
                     AutomationProperties.AutomationId="TrayOverflowButton"
                     AutomationProperties.Name="Show hidden icons"
                     ToolTipService.ToolTip="Show hidden icons"
-                    Width="28"
+                    Width="32"
                     Style="{StaticResource FlatButtonStyle}">
                     <FontIcon Glyph="&#xE70E;" FontSize="12" />
                     <Button.Flyout>
@@ -219,7 +263,7 @@
                     Style="{StaticResource FlatButtonStyle}"
                     Visibility="Collapsed"
                     Click="Microphone_Click">
-                    <FontIcon Glyph="&#xE720;" FontSize="14" />
+                    <FontIcon Glyph="&#xE720;" FontSize="16" />
                 </Button>
                 <Button
                     x:Name="NetworkButton"
@@ -227,7 +271,7 @@
                     Width="32"
                     Style="{StaticResource FlatButtonStyle}"
                     Click="Network_Click">
-                    <FontIcon x:Name="NetworkIcon" FontSize="14" />
+                    <FontIcon x:Name="NetworkIcon" FontSize="16" />
                 </Button>
                 <Button
                     x:Name="VolumeButton"
@@ -235,7 +279,7 @@
                     Width="32"
                     Style="{StaticResource FlatButtonStyle}"
                     PointerWheelChanged="Volume_PointerWheelChanged">
-                    <FontIcon x:Name="VolumeIcon" FontSize="14" />
+                    <FontIcon x:Name="VolumeIcon" FontSize="16" />
                     <Button.Flyout>
                         <Flyout x:Name="VolumeFlyout" Placement="TopEdgeAlignedRight" ShouldConstrainToRootBounds="False" Opening="VolumeFlyout_Opening">
                             <StackPanel Width="300" Spacing="8">
@@ -295,14 +339,11 @@
         <Grid.ContextFlyout>
             <!-- Unconstrained: the window is only as tall as the taskbar. -->
             <MenuFlyout x:Name="TaskbarMenu" ShouldConstrainToRootBounds="False" Opening="TaskbarMenu_Opening">
+                <!-- No icons: next to the toggles' check column, an icon column pushes every label far right. -->
                 <MenuFlyoutItem
                     AutomationProperties.AutomationId="TaskManagerMenuItem"
                     Text="Task Manager"
-                    Click="TaskManager_Click">
-                    <MenuFlyoutItem.Icon>
-                        <FontIcon Glyph="&#xE9D9;" />
-                    </MenuFlyoutItem.Icon>
-                </MenuFlyoutItem>
+                    Click="TaskManager_Click" />
                 <MenuFlyoutSeparator />
                 <RadioMenuFlyoutItem
                     x:Name="AlignCenterItem"
@@ -316,6 +357,11 @@
                     GroupName="Alignment"
                     Text="Left-align taskbar items"
                     Click="Alignment_Click" />
+                <ToggleMenuFlyoutItem
+                    x:Name="ShowSearchItem"
+                    AutomationProperties.AutomationId="ShowSearchMenuItem"
+                    Text="Show search button"
+                    Click="ShowSearch_Click" />
                 <MenuFlyoutSubItem AutomationProperties.AutomationId="CombineMenuItem" Text="Combine taskbar buttons">
                     <RadioMenuFlyoutItem
                         x:Name="CombineAlwaysItem"

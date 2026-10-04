@@ -33,6 +33,7 @@ public sealed class SettingsStoreTests : IDisposable
             CombineButtons = CombineButtons.Never,
             AutoHide = true,
             ShowOnAllDisplays = false,
+            ShowSearchButton = false,
             TrayMode = TrayMode.ShowAll,
             PinnedTaskbarApps = [new PinnedApp("Notepad", AppUserModelId: "Microsoft.WindowsNotepad_8wekyb3d8bbwe!App")],
             PinnedStartApps = [new PinnedApp("Tool", Path: @"C:\Tools\tool.exe", Arguments: "--fast")],

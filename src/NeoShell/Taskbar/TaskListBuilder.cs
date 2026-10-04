@@ -10,10 +10,10 @@ public sealed record TaskButtonModel(string Key, PinnedApp? Pinned, IReadOnlyLis
 /// <summary>Turns pinned apps and running windows into the row of taskbar buttons.</summary>
 public static class TaskListBuilder
 {
-    /// <summary>Effective width of a combined (icon-only) button, including margins.</summary>
+    /// <summary>Effective width of a combined (icon-only) button, as in Explorer.</summary>
     public const double CombinedButtonWidth = 44;
 
-    /// <summary>Effective width of an uncombined button with its label, including margins.</summary>
+    /// <summary>Effective width of an uncombined button with its label.</summary>
     public const double LabeledButtonWidth = 164;
 
     /// <summary>
