@@ -136,6 +136,7 @@ internal sealed partial class TaskbarWindow : Window
         TaskList.ItemsSource = _tasks;
         IconPress.Attach(StartButton, (UIElement)StartButton.Content);
         IconPress.Attach(SearchButton, (UIElement)SearchButton.Content);
+        IconPress.Attach(OverflowButton, OverflowChevron);
         // Handled events too: the button under the pointer takes the press for its click.
         TaskList.AddHandler(UIElement.PointerPressedEvent, new PointerEventHandler(TaskList_PointerPressed), handledEventsToo: true);
         TaskList.AddHandler(UIElement.PointerMovedEvent, new PointerEventHandler(TaskList_PointerMoved), handledEventsToo: true);
@@ -984,7 +985,8 @@ internal sealed partial class TaskbarWindow : Window
             if (element is ListViewItem { Content: TaskButton button })
             {
                 _pressed = (e.Pointer.PointerId, e.GetCurrentPoint(TaskList).Position.X, button);
-                ScaleIcon(button, IconPress.Pressed);
+                if (TaskIcon(button) is { } icon)
+                    IconPress.Press(icon);
                 return;
             }
         }
@@ -1015,8 +1017,8 @@ internal sealed partial class TaskbarWindow : Window
 
     private void TaskList_PointerReleased(object sender, PointerRoutedEventArgs e)
     {
-        if (_pressed is { } pressed)
-            ScaleIcon(pressed.Button, 1);
+        if (_pressed is { } pressed && TaskIcon(pressed.Button) is { } icon)
+            IconPress.Release(icon);
         _pressed = null;
         if (_drag is null)
             return;
@@ -1030,8 +1032,8 @@ internal sealed partial class TaskbarWindow : Window
 
     private void TaskList_PointerCaptureLost(object sender, PointerRoutedEventArgs e)
     {
-        if (_pressed is { } pressed)
-            ScaleIcon(pressed.Button, 1);
+        if (_pressed is { } pressed && TaskIcon(pressed.Button) is { } icon)
+            IconPress.Release(icon);
         _pressed = null;
         if (_drag is not null)
             EndDrag(drop: false);
@@ -1096,12 +1098,14 @@ internal sealed partial class TaskbarWindow : Window
 
     private void ScaleIcon(TaskButton button, float scale)
     {
-        if (TaskList.ContainerFromItem(button) is ContentControl { ContentTemplateRoot: FrameworkElement root }
-            && root.FindName("TaskIcon") is UIElement icon)
-        {
+        if (TaskIcon(button) is { } icon)
             IconPress.Scale(icon, scale);
-        }
     }
+
+    private UIElement? TaskIcon(TaskButton button) =>
+        TaskList.ContainerFromItem(button) is ContentControl { ContentTemplateRoot: FrameworkElement root }
+            ? root.FindName("TaskIcon") as UIElement
+            : null;
 
     private sealed class TaskDrag(List<UIElement> containers, List<(double Left, double Width)> slots, int index)
     {
@@ -1121,6 +1125,17 @@ internal sealed partial class TaskbarWindow : Window
     }
 
     private void OverflowButton_Click(object sender, RoutedEventArgs e) => TaskbarFlyouts.ShowCentered(OverflowFlyout, OverflowButton);
+
+    private void OverflowFlyout_Opening(object sender, object e) => TurnOverflowChevron(180);
+
+    private void OverflowFlyout_Closing(FlyoutBase sender, FlyoutBaseClosingEventArgs e) => TurnOverflowChevron(0);
+
+    private void TurnOverflowChevron(float degrees)
+    {
+        OverflowChevron.CenterPoint = new Vector3((float)OverflowChevron.ActualWidth / 2, (float)OverflowChevron.ActualHeight / 2, 0);
+        OverflowChevron.RotationTransition ??= new ScalarTransition { Duration = TimeSpan.FromMilliseconds(200) };
+        OverflowChevron.Rotation = degrees;
+    }
 
     private void TaskbarMenu_Opening(object sender, object e)
     {

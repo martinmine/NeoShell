@@ -8,6 +8,7 @@ using NeoShell.Interop.Windowing;
 using NeoShell.Settings;
 using Windows.Foundation;
 using Windows.Graphics;
+using Windows.UI;
 
 namespace NeoShell.Taskbar;
 
@@ -83,7 +84,7 @@ internal sealed class ThumbnailPopup : Window
         double maxCellWidth = (monitor.WorkArea.Width / scale - 2 * Padding - (count - 1) * Gap) / count;
         double cellWidth = Math.Max(MinCellWidth, Math.Min(CellWidth, maxCellWidth));
         foreach (WindowInfo window in button.Windows)
-            _cells.Children.Add(CreateCell(window, cellWidth));
+            _cells.Children.Add(CreateCell(window, cellWidth, theme));
 
         int width = (int)Math.Ceiling((2 * Padding + count * cellWidth + (count - 1) * Gap) * scale);
         int height = (int)Math.Ceiling((2 * Padding + HeaderHeight + PreviewHeight) * scale);
@@ -120,13 +121,20 @@ internal sealed class ThumbnailPopup : Window
         });
     }
 
-    private Grid CreateCell(WindowInfo window, double width)
+    private Grid CreateCell(WindowInfo window, double width, ElementTheme theme)
     {
+        // Explorer's plate behind the preview under the pointer. The colours are the Fluent SubtleFillColorSecondary
+        // and Tertiary tokens: a brush from the app's resources would follow the app's theme, not the popup's.
+        bool dark = theme == ElementTheme.Dark;
+        var hover = new SolidColorBrush(dark ? Color.FromArgb(0x0F, 0xFF, 0xFF, 0xFF) : Color.FromArgb(0x09, 0, 0, 0));
+        var pressed = new SolidColorBrush(dark ? Color.FromArgb(0x0A, 0xFF, 0xFF, 0xFF) : Color.FromArgb(0x06, 0, 0, 0));
+        var idle = new SolidColorBrush(Colors.Transparent);
+
         var cell = new Grid
         {
             Width = width,
             CornerRadius = new CornerRadius(4),
-            Background = new SolidColorBrush(Colors.Transparent),
+            Background = idle,
             RowDefinitions =
             {
                 new RowDefinition { Height = new GridLength(HeaderHeight) },
@@ -135,6 +143,10 @@ internal sealed class ThumbnailPopup : Window
         };
         AutomationProperties.SetName(cell, window.Title);
         AutomationProperties.SetAutomationId(cell, "ThumbnailCell");
+        cell.PointerEntered += (_, _) => cell.Background = hover;
+        cell.PointerExited += (_, _) => cell.Background = idle;
+        cell.PointerPressed += (_, _) => cell.Background = pressed;
+        cell.PointerReleased += (_, _) => cell.Background = hover;
         cell.Tapped += (_, _) =>
         {
             TopLevelWindows.Activate(window.Handle);

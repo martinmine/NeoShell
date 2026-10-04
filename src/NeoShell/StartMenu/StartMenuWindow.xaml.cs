@@ -586,7 +586,7 @@ internal sealed partial class StartMenuWindow : Window
             if (element is GridViewItem item && ItemIcon(item) is { } icon)
             {
                 _pressedIcon = icon;
-                IconPress.Scale(icon, IconPress.Pressed);
+                IconPress.Press(icon);
                 return;
             }
         }
@@ -595,7 +595,7 @@ internal sealed partial class StartMenuWindow : Window
     private void GridItem_PointerReleased(object sender, PointerRoutedEventArgs e)
     {
         if (_pressedIcon is not null)
-            IconPress.Scale(_pressedIcon, 1);
+            IconPress.Release(_pressedIcon);
         _pressedIcon = null;
     }
 

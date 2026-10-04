@@ -253,9 +253,10 @@
                     Width="32"
                     Style="{StaticResource FlatButtonStyle}"
                     Click="OverflowButton_Click">
-                    <FontIcon Glyph="&#xE70E;" FontSize="12" />
+                    <!-- Shrinks while pressed (IconPress) and points down while the flyout is open. -->
+                    <FontIcon x:Name="OverflowChevron" Glyph="&#xE70E;" FontSize="12" />
                     <FlyoutBase.AttachedFlyout>
-                        <Flyout x:Name="OverflowFlyout">
+                        <Flyout x:Name="OverflowFlyout" Opening="OverflowFlyout_Opening" Closing="OverflowFlyout_Closing">
                             <Flyout.FlyoutPresenterStyle>
                                 <Style TargetType="FlyoutPresenter" BasedOn="{StaticResource DefaultFlyoutPresenterStyle}">
                                     <!-- The flyout's own backdrop shows through (SetTheme). -->
