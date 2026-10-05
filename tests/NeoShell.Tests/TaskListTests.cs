@@ -84,6 +84,15 @@ public sealed class TaskListTests
     }
 
     [Fact]
+    public void File_Explorer_windows_take_File_Explorers_app_id()
+    {
+        Assert.Equal("Microsoft.Windows.Explorer", WindowInfo.ImplicitAppId("CabinetWClass", @"C:\Windows\explorer.exe"));
+        Assert.Null(WindowInfo.ImplicitAppId("Progman", @"C:\Windows\explorer.exe"));
+        Assert.Null(WindowInfo.ImplicitAppId("CabinetWClass", @"C:\Tools\other.exe"));
+        Assert.Null(WindowInfo.ImplicitAppId("CabinetWClass", null));
+    }
+
+    [Fact]
     public void App_for_a_window_launches_by_app_id_when_it_has_one()
     {
         Assert.Equal(new PinnedApp("Terminal", Terminal, null), TaskGrouping.AppFor(Window(1, appId: Terminal), "Terminal"));

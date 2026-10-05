@@ -38,12 +38,13 @@ public sealed record WindowInfo(
         int cloaked = 0;
         Dwmapi.DwmGetWindowAttribute(hwnd, Dwmapi.DWMWA_CLOAKED, &cloaked, sizeof(int));
         (string? path, string? packageAppId) = ReadProcess(processId);
-        char* className = stackalloc char[256];
+        char* buffer = stackalloc char[256];
+        string className = new(buffer, 0, User32.GetClassName(hwnd, buffer, 256));
 
         return new WindowInfo(
             hwnd,
             ReadTitle(hwnd),
-            new string(className, 0, User32.GetClassName(hwnd, className, 256)),
+            className,
             User32.IsWindowVisible(hwnd),
             cloaked != 0,
             (exStyle & User32.WS_EX_APPWINDOW) != 0,
@@ -51,9 +52,18 @@ public sealed record WindowInfo(
             (exStyle & User32.WS_EX_NOACTIVATE) != 0,
             User32.GetWindow(hwnd, User32.GW_OWNER),
             processId,
-            ReadWindowAppId(hwnd) ?? packageAppId,
+            ReadWindowAppId(hwnd) ?? packageAppId ?? ImplicitAppId(className, path),
             path);
     }
+
+    /// <summary>
+    /// File Explorer's windows set no AppUserModelID, but Explorer's taskbar gives them File Explorer's, so they group
+    /// with its pin rather than as explorer.exe.
+    /// </summary>
+    internal static string? ImplicitAppId(string className, string? processPath) =>
+        className == "CabinetWClass" && string.Equals(Path.GetFileName(processPath), "explorer.exe", StringComparison.OrdinalIgnoreCase)
+            ? "Microsoft.Windows.Explorer"
+            : null;
 
     public static unsafe string ReadTitle(nint hwnd)
     {
