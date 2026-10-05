@@ -329,7 +329,13 @@ internal sealed partial class TaskbarWindow : Window
         QuickSettingsFlyout.SystemBackdrop = new ShellBackdrop(Backdrop.Acrylic) { Theme = Root.RequestedTheme, Tint = accent };
         OverflowIcons.RequestedTheme = Root.RequestedTheme;
         OverflowFlyout.SystemBackdrop = new ShellBackdrop(Backdrop.Acrylic) { Theme = Root.RequestedTheme, Tint = accent };
+        foreach (MenuFlyout menu in (MenuFlyout[])[TaskbarMenu, NetworkMenu, VolumeMenu])
+            menu.SystemBackdrop = MenuBackdrop();
     }
+
+    // WinUI's own menu backdrop turns solid while the menu's window is inactive, as a menu of the taskbar (which
+    // doesn't take the focus) nearly always is; Explorer's menus stay acrylic.
+    private ShellBackdrop MenuBackdrop() => new(Backdrop.Acrylic) { Theme = Root.RequestedTheme };
 
     public void SetBackdrop(Backdrop kind)
     {
@@ -919,6 +925,7 @@ internal sealed partial class TaskbarWindow : Window
 
         _taskMenuOpen = true;
         _hoverTimer.Stop();
+        menu.SystemBackdrop = MenuBackdrop();
         _thumbnails.Hide();
         menu.Items.Clear();
         AddJumpList(menu, button.App);

@@ -15,6 +15,11 @@
                     <ResourceDictionary Source="ms-appx:///FlatButtons.xaml" />
                 </ResourceDictionary.MergedDictionaries>
 
+                <!-- The taskbar's menus: see-through, so their own backdrop shows (SetTheme). -->
+                <Style x:Key="ShellMenuPresenterStyle" TargetType="MenuFlyoutPresenter" BasedOn="{StaticResource DefaultMenuFlyoutPresenterStyle}">
+                    <Setter Property="Background" Value="Transparent" />
+                </Style>
+
                 <!-- A jump list's category heading in a task button's menu: text only, not a command. -->
                 <Style x:Key="JumpListHeaderStyle" TargetType="MenuFlyoutItem">
                     <Setter Property="IsEnabled" Value="False" />
@@ -153,7 +158,7 @@
                             ContextRequested="TaskItem_ContextRequested">
                             <!-- Not a ContextFlyout: WinUI would open that at the pointer itself (TaskItem_ContextRequested). -->
                             <FlyoutBase.AttachedFlyout>
-                                <MenuFlyout Opening="TaskMenu_Opening" Closed="TaskMenu_Closed" />
+                                <MenuFlyout Opening="TaskMenu_Opening" Closed="TaskMenu_Closed" MenuFlyoutPresenterStyle="{StaticResource ShellMenuPresenterStyle}" />
                             </FlyoutBase.AttachedFlyout>
                             <!-- Plates as in Explorer: 40x40 behind the active app, lighter while hovered; with several
                                  windows, the edge of a second card shows on the right. -->
@@ -320,7 +325,7 @@
                             <!-- Explorer's menus on the network and speaker icons; the button's flyout is Quick Settings. -->
                             <FontIcon x:Name="NetworkIcon" FontSize="16">
                                 <FlyoutBase.AttachedFlyout>
-                                    <MenuFlyout x:Name="NetworkMenu">
+                                    <MenuFlyout x:Name="NetworkMenu" MenuFlyoutPresenterStyle="{StaticResource ShellMenuPresenterStyle}">
                                         <MenuFlyoutItem
                                             AutomationProperties.AutomationId="NetworkSettingsMenuItem"
                                             Text="Network and Internet settings"
@@ -332,7 +337,7 @@
                         <Grid x:Name="VolumeIndicator" Width="24" Height="40" Background="Transparent" AutomationProperties.AutomationId="VolumeIndicator">
                             <FontIcon x:Name="VolumeIcon" FontSize="16">
                                 <FlyoutBase.AttachedFlyout>
-                                    <MenuFlyout x:Name="VolumeMenu">
+                                    <MenuFlyout x:Name="VolumeMenu" MenuFlyoutPresenterStyle="{StaticResource ShellMenuPresenterStyle}">
                                         <MenuFlyoutItem
                                             AutomationProperties.AutomationId="VolumeMixerMenuItem"
                                             Text="Open volume mixer"
@@ -401,7 +406,7 @@
 
         <FlyoutBase.AttachedFlyout>
             <!-- Opened at the pointer by Root_ContextRequested (TaskbarFlyouts). -->
-            <MenuFlyout x:Name="TaskbarMenu" Opening="TaskbarMenu_Opening">
+            <MenuFlyout x:Name="TaskbarMenu" Opening="TaskbarMenu_Opening" MenuFlyoutPresenterStyle="{StaticResource ShellMenuPresenterStyle}">
                 <!-- No icons: next to the toggles' check column, an icon column pushes every label far right. -->
                 <MenuFlyoutItem
                     AutomationProperties.AutomationId="TaskManagerMenuItem"
