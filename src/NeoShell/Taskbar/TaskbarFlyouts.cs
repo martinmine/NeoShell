@@ -162,7 +162,8 @@ internal static class TaskbarFlyouts
     private static nint NewWindow(nint taskbarWindow) =>
         PopupWindows.OwnedBy(taskbarWindow).FirstOrDefault(w => !s_windows.ContainsValue(w) && !s_pointerWindows.Contains(w));
 
-    private static void Hide(nint window) => PopupWindows.Place(window, PopupWindows.GetBounds(window).Y, visibleBottom: int.MinValue);
+    // Until it slides: from now on, each time WinUI shows the window too, it's hidden until it's placed.
+    private static void Hide(nint window) => PopupWindows.Conceal(window);
 
     /// <summary>
     /// A flyout's window being found, then waiting to be shown in place (covering <paramref name="anchor"/>), then

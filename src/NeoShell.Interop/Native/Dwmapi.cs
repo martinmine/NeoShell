@@ -5,6 +5,7 @@ namespace NeoShell.Interop.Native;
 internal static unsafe partial class Dwmapi
 {
     public const uint DWMWA_EXCLUDED_FROM_PEEK = 12;
+    public const uint DWMWA_CLOAK = 13;
     public const uint DWMWA_CLOAKED = 14;
     public const uint DWMWA_WINDOW_CORNER_PREFERENCE = 33;
     public const uint DWMWA_BORDER_COLOR = 34;

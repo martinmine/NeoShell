@@ -13,6 +13,10 @@ public static unsafe class PopupWindows
 
     // The popups given an offset, each kept for as long as its window lives.
     private static readonly Dictionary<nint, WindowSubclass> s_offsets = [];
+    // The popups hidden whenever WinUI shows them, each kept for as long as its window lives.
+    private static readonly Dictionary<nint, WindowSubclass> s_concealed = [];
+    // Where concealed popups are partly shown (sliding), held there against WinUI's moves until shown in full.
+    private static readonly Dictionary<nint, int> s_held = [];
     // Set while Place moves a popup: an offset only applies to the moves WinUI makes.
     private static bool s_placing;
 
@@ -38,7 +42,8 @@ public static unsafe class PopupWindows
 
     /// <summary>
     /// Moves the popup to <paramref name="y"/> and shows only what's above <paramref name="visibleBottom"/> (screen
-    /// pixels); a <paramref name="visibleBottom"/> of null shows it all again.
+    /// pixels); a <paramref name="visibleBottom"/> of null shows it all again. A concealed popup shows again, and while
+    /// it's partly shown, WinUI's own moves (a layout pass placing it again) leave it where it's put.
     /// </summary>
     public static void Place(nint popup, int y, int? visibleBottom)
     {
@@ -57,6 +62,14 @@ public static unsafe class PopupWindows
         // The system owns a region once it's set, and deletes it.
         nint region = visibleBottom is { } bottom ? Gdi32.CreateRectRgn(0, 0, rect.right - rect.left, Math.Max(0, bottom - y)) : 0;
         User32.SetWindowRgn(popup, region, true);
+        if (s_concealed.ContainsKey(popup))
+        {
+            Cloak(popup, false);
+            if (visibleBottom is null)
+                s_held.Remove(popup);
+            else
+                s_held[popup] = y;
+        }
     }
 
     /// <summary>
@@ -81,6 +94,43 @@ public static unsafe class PopupWindows
         // Where it is now is where WinUI put it.
         if (IsShown(popup))
             Place(popup, GetBounds(popup).Y + pixels(), null);
+    }
+
+    /// <summary>
+    /// Hides the popup now, and whenever WinUI shows it, until <see cref="Place"/> shows it again: WinUI shows a
+    /// flyout's window again where it last was, before the flyout's <c>Opened</c>, so a flyout that slides in would
+    /// flash there first. The window is cloaked, as WinUI clears a window region of its own accord. Call on the UI
+    /// thread.
+    /// </summary>
+    public static void Conceal(nint popup)
+    {
+        Cloak(popup, true);
+        s_held.Remove(popup);
+        foreach (nint gone in s_concealed.Keys.Where(w => !Exists(w)).ToList())
+            s_concealed.Remove(gone);
+        if (s_concealed.ContainsKey(popup))
+            return;
+
+        s_concealed[popup] = new WindowSubclass(popup, (message, _, lParam) =>
+        {
+            var position = (User32.WINDOWPOS*)lParam;
+            if (message != User32.WM_WINDOWPOSCHANGING)
+                return null;
+            if ((position->flags & User32.SWP_SHOWWINDOW) != 0)
+                Cloak(popup, true);
+            // Closed while sliding: the next opening is placed by WinUI afresh.
+            if ((position->flags & User32.SWP_HIDEWINDOW) != 0)
+                s_held.Remove(popup);
+            if (!s_placing && (position->flags & User32.SWP_NOMOVE) == 0 && s_held.TryGetValue(popup, out int y))
+                position->y = y;
+            return null;
+        });
+    }
+
+    private static void Cloak(nint popup, bool cloak)
+    {
+        int value = cloak ? 1 : 0;
+        Dwmapi.DwmSetWindowAttribute(popup, Dwmapi.DWMWA_CLOAK, &value, sizeof(int));
     }
 
     /// <summary>The popup's place on screen, in pixels.</summary>
