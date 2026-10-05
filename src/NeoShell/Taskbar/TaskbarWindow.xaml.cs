@@ -49,6 +49,8 @@ internal sealed partial class TaskbarWindow : Window
     private readonly DispatcherQueueTimer _hideTimer;
     private (TaskButton Button, FrameworkElement Element)? _hovered;
     private (uint PointerId, double X, TaskButton Button)? _pressed;
+    // A right press shrinks the icon as a left one does, but never drags.
+    private TaskButton? _rightPressed;
     private TaskDrag? _drag;
     private readonly List<(UIElement Container, string Property, long Started)> _layoutAnimations = [];
     private static readonly TimeSpan s_layoutAnimationDuration = TimeSpan.FromMilliseconds(250);
@@ -1004,6 +1006,8 @@ internal sealed partial class TaskbarWindow : Window
                 _noPreviews = null;
         }
         _hovered = null;
+        // A right press isn't captured: let go of elsewhere, its release never comes here.
+        ReleaseRightPress();
         _hoverTimer.Stop();
         _hideTimer.Start();
     }
@@ -1122,14 +1126,18 @@ internal sealed partial class TaskbarWindow : Window
     private void TaskList_PointerPressed(object sender, PointerRoutedEventArgs e)
     {
         _suppressClick = false;
-        if (_drag is not null || !e.GetCurrentPoint(TaskList).Properties.IsLeftButtonPressed)
+        PointerPointProperties properties = e.GetCurrentPoint(TaskList).Properties;
+        if (_drag is not null || !(properties.IsLeftButtonPressed || properties.IsRightButtonPressed))
             return;
 
         for (var element = e.OriginalSource as DependencyObject; element is not null && element != TaskList; element = VisualTreeHelper.GetParent(element))
         {
             if (element is ListViewItem { Content: TaskButton button })
             {
-                _pressed = (e.Pointer.PointerId, e.GetCurrentPoint(TaskList).Position.X, button);
+                if (properties.IsLeftButtonPressed)
+                    _pressed = (e.Pointer.PointerId, e.GetCurrentPoint(TaskList).Position.X, button);
+                else
+                    _rightPressed = button;
                 if (TaskIcon(button) is { } icon)
                     IconPress.Press(icon);
                 return;
@@ -1162,6 +1170,7 @@ internal sealed partial class TaskbarWindow : Window
 
     private void TaskList_PointerReleased(object sender, PointerRoutedEventArgs e)
     {
+        ReleaseRightPress();
         if (_pressed is { } pressed && TaskIcon(pressed.Button) is { } icon)
             IconPress.Release(icon);
         _pressed = null;
@@ -1175,8 +1184,16 @@ internal sealed partial class TaskbarWindow : Window
         e.Handled = true;
     }
 
+    private void ReleaseRightPress()
+    {
+        if (_rightPressed is { } button && TaskIcon(button) is { } icon)
+            IconPress.Release(icon);
+        _rightPressed = null;
+    }
+
     private void TaskList_PointerCaptureLost(object sender, PointerRoutedEventArgs e)
     {
+        ReleaseRightPress();
         if (_pressed is { } pressed && TaskIcon(pressed.Button) is { } icon)
             IconPress.Release(icon);
         _pressed = null;
