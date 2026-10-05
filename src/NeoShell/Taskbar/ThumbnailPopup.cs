@@ -110,8 +110,10 @@ internal sealed class ThumbnailPopup : Window
         int x = Math.Clamp(anchor.X + anchor.Width / 2 - width / 2, monitor.WorkArea.X, monitor.WorkArea.X + monitor.WorkArea.Width - width);
         int y = anchor.Y - height - (int)(8 * scale);
         var bounds = new RectInt32(x, y, width, height);
-        // Out of the taskbar, as in Windows 11; once open, it follows the pointer along the taskbar.
+        // Out of the taskbar, as in Windows 11, shown only above its edge; once open, it follows the pointer along
+        // the taskbar.
         _taskbarTop = anchor.Y;
+        _placement.VisibleBottom = _taskbarTop;
         if (!_visible)
         {
             _visible = true;

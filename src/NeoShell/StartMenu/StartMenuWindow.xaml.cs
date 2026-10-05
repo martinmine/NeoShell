@@ -135,6 +135,17 @@ internal sealed partial class StartMenuWindow : Window
         };
 
         LoadAppsIfStale();
+
+        // Shown once, cut off entirely, so WinUI draws it: the first opening would otherwise slide up a black window
+        // until the first frame is ready.
+        _placement.Bounds = new RectInt32(0, 0, 640, 640);
+        _placement.VisibleBottom = int.MinValue;
+        AppWindow.Show(activateWindow: false);
+        Root.Loaded += (_, _) => DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
+        {
+            if (!IsOpen)
+                AppWindow.Hide();
+        });
     }
 
     public bool IsOpen { get; private set; }
@@ -168,8 +179,10 @@ internal sealed partial class StartMenuWindow : Window
         _anchor = (monitor, taskbar, centered);
         ShellSettings settings = _owner.Settings.Current;
         RectInt32 shown = BoundsFor(settings.StartMenuWidth, settings.StartMenuHeight);
-        // Just below the taskbar in the topmost band, so the taskbar covers it while it slides up from behind.
+        // Just below the taskbar in the topmost band, and cut off at its edge: it slides up from behind the taskbar,
+        // whatever's in front of the screen's bottom and however see-through the taskbar is.
         _placement.SetLayer(PinnedLayer.Topmost, above: taskbarWindow);
+        _placement.VisibleBottom = taskbar.Y;
         _placement.Bounds = closing ? shown with { Y = _placement.Bounds.Y } : shown with { Y = taskbar.Y };
         // A left-aligned Start keeps its left edge by the Start button.
         LeftGrip.Visibility = centered ? Visibility.Visible : Visibility.Collapsed;

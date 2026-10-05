@@ -26,6 +26,9 @@ public sealed unsafe class PinnedWindow : IDisposable
     private PinnedLayer _layer;
     private nint _above;
     private RectInt32 _bounds;
+    private int? _visibleBottom;
+    // The visible part's size while the window is cut off, so an unchanged region isn't set again.
+    private (int Width, int Height)? _region;
 
     public PinnedWindow(nint hwnd, RectInt32 bounds, PinnedLayer layer)
     {
@@ -43,6 +46,21 @@ public sealed unsafe class PinnedWindow : IDisposable
         {
             _bounds = value;
             Apply();
+            ApplyRegion();
+        }
+    }
+
+    /// <summary>
+    /// The screen row the window is cut off at: what's below it isn't shown, as a panel sliding out of the taskbar
+    /// shows only what's above the taskbar's edge. Null shows all of it.
+    /// </summary>
+    public int? VisibleBottom
+    {
+        get => _visibleBottom;
+        set
+        {
+            _visibleBottom = value;
+            ApplyRegion();
         }
     }
 
@@ -81,6 +99,19 @@ public sealed unsafe class PinnedWindow : IDisposable
     {
         uint flags = User32.SWP_NOACTIVATE | (_layer == PinnedLayer.Normal ? User32.SWP_NOZORDER : 0);
         User32.SetWindowPos(_hwnd, InsertAfter, _bounds.X, _bounds.Y, _bounds.Width, _bounds.Height, flags);
+    }
+
+    private void ApplyRegion()
+    {
+        (int, int)? region = _visibleBottom is { } bottom && bottom < _bounds.Y + _bounds.Height
+            ? (_bounds.Width, Math.Max(0, bottom - _bounds.Y))
+            : null;
+        if (region == _region)
+            return;
+
+        _region = region;
+        // The system owns a region once it's set, and deletes it.
+        User32.SetWindowRgn(_hwnd, region is (int width, int height) ? Gdi32.CreateRectRgn(0, 0, width, height) : 0, true);
     }
 
     private nint? OnMessage(uint message, nint wParam, nint lParam)
