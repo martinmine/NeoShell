@@ -3,6 +3,7 @@ using NeoShell.Interop.Shell;
 using NeoShell.Interop.Windowing;
 using NeoShell.Logging;
 using NeoShell.QuickSettings;
+using NeoShell.Switcher;
 using NeoShell.Taskbar;
 
 namespace NeoShell;
@@ -25,6 +26,8 @@ internal sealed class ShellSession : IDisposable
     private readonly DispatcherQueue _dispatcher = DispatcherQueue.GetForCurrentThread();
     private readonly StartKeyDetector _startKeys = new();
     private readonly PanelKeys _panelKeys = new();
+    private readonly AltTabKeys _altTabKeys = new();
+    private WindowSwitcher? _switcher;
     private Hotkeys? _hotkeys;
     private KeyboardHook? _keyboardHook;
 
@@ -59,9 +62,14 @@ internal sealed class ShellSession : IDisposable
                 Log.Warn($"Win+{n} is taken by another app");
         }
 
+        // Without Explorer, Alt+Tab is Windows' old icon grid; the hook takes it for NeoShell's switcher.
+        var switcher = new WindowSwitcher(_taskbars.Tracker, () => _taskbars.Theme);
+        switcher.Dismissed += _altTabKeys.Close;
+        _switcher = switcher;
+
         // The Windows key on its own isn't a hotkey: only a hook sees it pressed and released by itself. Keys pass
         // through unchanged, so Windows still knows the key is down for Win+ shortcuts; only the panels' own
-        // shortcuts are taken (see PanelKeys).
+        // shortcuts and the switcher's keys are taken (see PanelKeys, AltTabKeys).
         try
         {
             _keyboardHook = new KeyboardHook
@@ -70,11 +78,20 @@ internal sealed class ShellSession : IDisposable
                 {
                     if (_startKeys.OnKey(key, down))
                         _dispatcher.Post(_taskbars.ToggleStartMenuFromKeyboard);
+                    bool switcherKey = _altTabKeys.OnKey(key, down, out SwitcherCommand? switcherCommand);
+                    if (switcherCommand is { } command)
+                    {
+                        if (command is SwitcherCommand.Open or SwitcherCommand.OpenBackwards)
+                            KeyboardHook.MaskModifierKeys();
+                        _dispatcher.Post(() => switcher.Run(command));
+                    }
+                    if (switcherKey)
+                        return true;
                     if (!_panelKeys.OnKey(key, down, out PanelShortcut? shortcut))
                         return false;
                     if (shortcut is { } pressed)
                     {
-                        KeyboardHook.MaskWindowsKey();
+                        KeyboardHook.MaskModifierKeys();
                         if (PanelKeys.PageFor(pressed) is { } page)
                             _dispatcher.Post(() => _taskbars.ShowQuickSettings(page));
                         else if (pressed == PanelShortcut.QuickLinks)
@@ -109,6 +126,7 @@ internal sealed class ShellSession : IDisposable
         _registration.SessionEnding -= OnSessionEnding;
         _keyboardHook?.Dispose();
         _hotkeys?.Dispose();
+        _switcher?.Close();
     }
 
     private void OnHotkey(int id)

@@ -85,6 +85,21 @@ public static unsafe class TopLevelWindows
         User32.SetForegroundWindow(hwnd);
     }
 
+    /// <summary>
+    /// Brings a window to the front as Alt+Tab does, restoring it if minimized. The keys went to the app in front, not
+    /// to NeoShell, so Windows' foreground lock would refuse: a key of NeoShell's own (one no keyboard has) makes it the
+    /// source of the last input, which may take the foreground.
+    /// </summary>
+    /// <remarks>
+    /// Not <c>SwitchToThisWindow</c>: that sends the window left behind to the bottom of the stack, out of the most
+    /// recently used order the next Alt+Tab goes by.
+    /// </remarks>
+    public static void SwitchTo(nint hwnd)
+    {
+        KeyboardHook.MaskModifierKeys();
+        Activate(hwnd);
+    }
+
     /// <summary>Minimizes and activates the next window, as clicking the active window's taskbar button does.</summary>
     public static void MinimizeAndActivateNext(nint hwnd) => User32.ShowWindowAsync(hwnd, User32.SW_MINIMIZE);
 

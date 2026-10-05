@@ -34,11 +34,11 @@ public sealed unsafe class KeyboardHook : IDisposable
     public Func<int, bool, bool>? Key { get; set; }
 
     /// <summary>
-    /// Tells Windows another key went down while the Windows key is held, after the hook swallowed the real one: let go
-    /// of, the Windows key would otherwise count as pressed alone and open Start. The key is vkE8, which no keyboard
-    /// has (AutoHotkey masks the Windows key with it too).
+    /// Tells Windows another key went down while the Windows or Alt key is held, after the hook swallowed the real one:
+    /// let go of, the Windows key would otherwise count as pressed alone and open Start, and Alt would open the menu
+    /// bar of the app in front. The key is vkE8, which no keyboard has (AutoHotkey masks these keys with it too).
     /// </summary>
-    public static void MaskWindowsKey()
+    public static void MaskModifierKeys()
     {
         const ushort Unassigned = 0xE8;
         User32.INPUT* inputs = stackalloc User32.INPUT[2];

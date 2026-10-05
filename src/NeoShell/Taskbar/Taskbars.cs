@@ -55,6 +55,9 @@ internal sealed class Taskbars : IDisposable
 
     public RunMode RunMode { get; }
 
+    /// <summary>The taskbar's theme, which its panels and the window switcher share.</summary>
+    public ElementTheme Theme => _theme;
+
     public SettingsStore Settings { get; }
 
     public AppIcons Icons { get; }
