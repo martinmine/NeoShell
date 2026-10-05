@@ -5,7 +5,9 @@
     Closes Explorer's desktop and taskbar the way its hidden "Exit Explorer" command does (Ctrl+Shift+right-click on
     the taskbar), so Windows doesn't restart it, then starts NeoShell, which becomes the shell, and ends what's left of
     Explorer's shell process. File Explorer windows in that process close; those in their own process stay open.
-    Nothing is written to the registry: after signing out, Explorer is the shell again.
+    The shell isn't changed in the registry: after signing out, Explorer is the shell again. The one registry change is
+    machine-wide: Windows restarts a shell that ends unexpectedly (AutoRestartShell), which would bring Explorer back
+    when its leftover process is ended, so the script asks to turn that off and does it from an elevated PowerShell.
 
     If NeoShell doesn't become the shell, Explorer is started again so the session isn't left without one.
     Back to Explorer: Start > Switch to Explorer, or Ctrl+Alt+Del > Task Manager > Run new task > explorer.exe.
@@ -24,6 +26,32 @@ if (-not (Test-Path -LiteralPath $Path)) {
     throw "NeoShell.exe not found at $Path. Build it first (dotnet build) or pass -Path."
 }
 $exe = (Resolve-Path -LiteralPath $Path).Path
+
+# Ending Explorer's leftover process below counts as the shell stopping unexpectedly; unless AutoRestartShell is 0,
+# Windows then starts a new Explorer that puts its taskbar back next to NeoShell's and takes the Win-key hotkeys.
+$winlogonKey = 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon'
+function Get-AutoRestartShell {
+    (Get-ItemProperty -LiteralPath $winlogonKey -Name AutoRestartShell -ErrorAction SilentlyContinue).AutoRestartShell
+}
+if ((Get-AutoRestartShell) -ne 0) {
+    Write-Host 'Windows restarts Explorer when it ends unexpectedly (AutoRestartShell), so it would come back next to NeoShell.'
+    Write-Host 'Turning this off is machine-wide and needs administrator rights: if Explorer crashes later, for any user,'
+    Write-Host 'start it again from Task Manager (Run new task > explorer.exe). To undo, set AutoRestartShell back to 1.'
+    if ((Read-Host 'Turn off AutoRestartShell? [y/N]') -notmatch '^(y|yes)$') {
+        throw 'AutoRestartShell is on; NeoShell was not started.'
+    }
+    $command = "Set-ItemProperty -LiteralPath '$winlogonKey' -Name AutoRestartShell -Value 0 -Type DWord"
+    try {
+        Start-Process -FilePath powershell.exe -Verb RunAs -Wait -WindowStyle Hidden -ArgumentList "-NoProfile -Command $command"
+    }
+    catch {
+        throw "AutoRestartShell was not turned off ($($_.Exception.Message)); NeoShell was not started."
+    }
+    if ((Get-AutoRestartShell) -ne 0) {
+        throw 'AutoRestartShell is still on; NeoShell was not started.'
+    }
+    Write-Host 'AutoRestartShell is off.'
+}
 
 Add-Type -Namespace NeoShellTools -Name Shell -MemberDefinition @'
 [DllImport("user32.dll")] public static extern IntPtr GetShellWindow();
@@ -82,8 +110,8 @@ $neoShell = Start-Process -FilePath $exe -PassThru
 $started = Wait-Until { (Get-ShellProcessId) -eq $neoShell.Id } 60
 
 # After "Exit Explorer" the old process can live on with its DDE and desktop windows, and an Explorer started later
-# (Switch to Explorer) hangs talking to it. It goes once NeoShell holds the shell role, so if Windows restarts Explorer
-# for it, that Explorer finds a shell and doesn't put up a second taskbar.
+# (Switch to Explorer) hangs talking to it. It goes once NeoShell holds the shell role; with AutoRestartShell off,
+# Windows doesn't start a new Explorer for it.
 if ($shellProcessId -ne 0 -and (Get-Process -Id $shellProcessId -ErrorAction SilentlyContinue)) {
     Stop-Process -Id $shellProcessId -Force
 }

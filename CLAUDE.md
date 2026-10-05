@@ -118,7 +118,9 @@ src/NeoShell/bin/Debug/net10.0-windows10.0.26100.0/win-x64/NeoShell.exe /exit   
 
 - **Never** set NeoShell as the shell on the main user account. Use a dedicated local test account or a VM.
 - `tools/set-shell.ps1` writes only the **per-user** `HKCU\Software\Microsoft\Windows NT\CurrentVersion\Winlogon\Shell`.
-  Never write to HKLM.
+  Never write to HKLM. The one exception: `tools/start-shell.ps1` turns off `AutoRestartShell` (machine-wide), after
+  asking the user and from an elevated PowerShell, because otherwise Windows brings Explorer back when it ends
+  Explorer's leftover process.
 - Recovery: Ctrl+Alt+Del → Task Manager → Run new task → `explorer.exe`, then run `tools/restore-explorer.ps1`.
 - Unhandled exceptions must be logged, and when NeoShell runs as the shell its watchdog (`NeoShell.exe /watch <pid>`)
   must start `explorer.exe` after any abnormal exit, so the user is never left on a blank screen. An in-process
