@@ -25,6 +25,9 @@ public sealed record WidgetSettings
     /// <summary>Where a floating widget's top-left corner is, in screen pixels; null while it's in the sidebar.</summary>
     public int? X { get; set; }
     public int? Y { get; set; }
+    /// <summary>A floating widget's width, and the height of the part that can be resized (a note's text), in effective pixels.</summary>
+    public double? FloatingWidth { get; set; }
+    public double? ContentHeight { get; set; }
 
     // Profile
     public bool? ShowSeconds { get; set; }

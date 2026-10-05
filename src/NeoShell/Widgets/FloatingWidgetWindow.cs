@@ -1,7 +1,9 @@
 using Microsoft.UI;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Media;
 using NeoShell.Interop.Windowing;
 using NeoShell.Settings;
 using Windows.Graphics;
@@ -22,14 +24,19 @@ internal sealed class FloatingWidgetWindow : Window
     private ShellBackdrop _backdrop;
     private ElementTheme _theme;
     private Color? _accent;
+    private WindowSlide? _slide;
+    // Where the corner was pressed, and the size then, while the widget is being resized.
+    private (PointInt32 Start, double Width, double ContentHeight)? _resize;
 
     public FloatingWidgetWindow(WidgetFrame frame, PointInt32 topLeft, Backdrop backdrop, ElementTheme theme, Color? accent)
     {
         Frame = frame;
-        frame.Width = SidebarLayout.FloatingWidth;
+        frame.Width = frame.Widget.Settings.FloatingWidth ?? SidebarLayout.FloatingWidth;
         // A canvas lets the widget take the height it wants; the window then follows (Resize).
         _root = new Canvas { Children = { frame } };
         Content = _root;
+        if (frame.Widget.CanResize)
+            AddResizeGrip();
 
         var presenter = OverlappedPresenter.Create();
         presenter.SetBorderAndTitleBar(false, false);
@@ -50,7 +57,7 @@ internal sealed class FloatingWidgetWindow : Window
 
         // Sized for the monitor it's on until the widget has been laid out.
         uint dpi = DisplayMonitor.GetAll().FirstOrDefault(m => SidebarLayout.Contains(m.Bounds, topLeft))?.Dpi ?? 96;
-        int width = (int)Math.Round(SidebarLayout.FloatingWidth * dpi / 96.0);
+        int width = (int)Math.Round(frame.Width * dpi / 96.0);
         _placement = new PinnedWindow(_hwnd, new RectInt32(topLeft.X, topLeft.Y, width, width / 2), PinnedLayer.Desktop);
 
         frame.SizeChanged += (_, _) => Resize();
@@ -60,6 +67,7 @@ internal sealed class FloatingWidgetWindow : Window
     /// <summary>Closes the window (see <see cref="WindowClosing.IgnoreMoves"/>).</summary>
     public void Shut()
     {
+        _slide?.Stop();
         _placement.Dispose();
         _frameless.Dispose();
         WindowClosing.IgnoreMoves(_hwnd);
@@ -72,7 +80,17 @@ internal sealed class FloatingWidgetWindow : Window
 
     public PointInt32 TopLeft => new(_placement.Bounds.X, _placement.Bounds.Y);
 
+    /// <summary>The widget was resized by its corner: its width and <see cref="WidgetView.ContentHeight"/>, in effective pixels.</summary>
+    public event Action<double, double>? Resized;
+
     public void MoveTo(PointInt32 topLeft) => _placement.Bounds = _placement.Bounds with { X = topLeft.X, Y = topLeft.Y };
+
+    /// <summary>Slides the window to <paramref name="topLeft"/> (into its place in the sidebar), then calls <paramref name="done"/>.</summary>
+    public void SlideTo(PointInt32 topLeft, Action done)
+    {
+        _slide ??= new WindowSlide(_placement);
+        _slide.To(_placement.Bounds with { X = topLeft.X, Y = topLeft.Y }, TimeSpan.FromMilliseconds(150), decelerate: true, done);
+    }
 
     public void SetTheme(ElementTheme theme, Color? accent)
     {
@@ -102,8 +120,52 @@ internal sealed class FloatingWidgetWindow : Window
         double scale = root.RasterizationScale;
         _placement.Bounds = _placement.Bounds with
         {
-            Width = (int)Math.Round(SidebarLayout.FloatingWidth * scale),
+            Width = (int)Math.Round(Frame.ActualWidth * scale),
             Height = (int)Math.Round(Frame.ActualHeight * scale),
         };
+    }
+
+    // A corner to drag at the bottom right; the window follows the widget's new size.
+    private void AddResizeGrip()
+    {
+        const double size = 16;
+        var grip = new CornerGrip { Width = size, Height = size, Background = new SolidColorBrush(Microsoft.UI.Colors.Transparent) };
+        AutomationProperties.SetAutomationId(grip, "WidgetResizeGrip");
+        _root.Children.Add(grip);
+        Frame.SizeChanged += (_, _) =>
+        {
+            Canvas.SetLeft(grip, Frame.ActualWidth - size);
+            Canvas.SetTop(grip, Frame.ActualHeight - size);
+        };
+
+        grip.PointerPressed += (_, e) =>
+        {
+            _resize = (Cursor.Position(), Frame.ActualWidth, Frame.Widget.ContentHeight);
+            grip.CapturePointer(e.Pointer);
+            e.Handled = true;
+        };
+        grip.PointerMoved += (_, _) =>
+        {
+            if (_resize is not { } resize)
+                return;
+            double scale = _root.XamlRoot.RasterizationScale;
+            PointInt32 cursor = Cursor.Position();
+            Frame.Width = Math.Clamp(resize.Width + (cursor.X - resize.Start.X) / scale, SidebarLayout.FloatingMinWidth, SidebarLayout.FloatingMaxWidth);
+            Frame.Widget.ContentHeight = Math.Clamp(resize.ContentHeight + (cursor.Y - resize.Start.Y) / scale,
+                SidebarLayout.MinContentHeight, SidebarLayout.MaxContentHeight);
+        };
+        void EndResize()
+        {
+            if (_resize is null)
+                return;
+            _resize = null;
+            Resized?.Invoke(Frame.Width, Frame.Widget.ContentHeight);
+        }
+        grip.PointerReleased += (_, e) =>
+        {
+            EndResize();
+            grip.ReleasePointerCapture(e.Pointer);
+        };
+        grip.PointerCaptureLost += (_, _) => EndResize();
     }
 }

@@ -30,6 +30,8 @@ internal sealed class Sidebar : IDisposable
     // A docked widget dragged off the sidebar: its window on the desktop, shown while the pointer is off the sidebar.
     private FloatingWidgetWindow? _dragOut;
     private Point _grab;
+    // The height of the docked widget being dragged, for the gap it leaves where it would go.
+    private double _dragHeight;
 
     public Sidebar(RunMode runMode, SettingsStore settings, Taskbars taskbars)
     {
@@ -181,11 +183,19 @@ internal sealed class Sidebar : IDisposable
             WidgetKind.Wireless => new WirelessWidget(widget, _wireless),
             _ => new NotesWidget(widget),
         };
-        // The widget's copy may have an old position: it was made before the widget was last dragged.
+        // The widget's copy may have an old position and size: it was made before the widget was last dragged or resized.
         view.SettingsChanged += changed =>
         {
             if (Widgets.FirstOrDefault(w => w.Id == changed.Id) is { } stored)
-                Save(SidebarLayout.Replace(Widgets, changed with { X = stored.X, Y = stored.Y }));
+            {
+                Save(SidebarLayout.Replace(Widgets, changed with
+                {
+                    X = stored.X,
+                    Y = stored.Y,
+                    FloatingWidth = stored.FloatingWidth,
+                    ContentHeight = stored.ContentHeight,
+                }));
+            }
         };
 
         var frame = new WidgetFrame(view, floating);
@@ -198,7 +208,11 @@ internal sealed class Sidebar : IDisposable
         }
         else
         {
-            frame.DragStarted += (dragged, _) => dragged.Opacity = 0.5;
+            frame.DragStarted += (dragged, _) =>
+            {
+                _dragHeight = dragged.ActualHeight;
+                SidebarWindow.Lift(dragged, true);
+            };
             frame.DragMoved += MoveDocked;
             frame.DragEnded += DropDocked;
         }
@@ -207,9 +221,20 @@ internal sealed class Sidebar : IDisposable
 
     private void ShowFloating(WidgetSettings widget, PointInt32 topLeft)
     {
-        var window = new FloatingWidgetWindow(CreateFrame(widget, floating: true), topLeft, _backdrop, _taskbars.Theme, _taskbars.Accent);
+        FloatingWidgetWindow window = NewFloatingWindow(widget, topLeft);
         window.AppWindow.Show(activateWindow: false);
         _floating[widget.Id] = window;
+    }
+
+    private FloatingWidgetWindow NewFloatingWindow(WidgetSettings widget, PointInt32 topLeft)
+    {
+        var window = new FloatingWidgetWindow(CreateFrame(widget, floating: true), topLeft, _backdrop, _taskbars.Theme, _taskbars.Accent);
+        window.Resized += (width, contentHeight) =>
+        {
+            if (Widgets.FirstOrDefault(w => w.Id == widget.Id) is { } stored)
+                Save(SidebarLayout.Replace(Widgets, stored with { FloatingWidth = width, ContentHeight = contentHeight }));
+        };
+        return window;
     }
 
     private void Remove(WidgetFrame frame)
@@ -240,14 +265,15 @@ internal sealed class Sidebar : IDisposable
         if (IsOverSidebar(cursor))
         {
             _dragOut?.AppWindow.Hide();
+            _window!.ShowDropSlot(cursor, _dragHeight, except: frame);
             return;
         }
+        _window?.HideDropSlot();
 
         PointInt32 topLeft = TopLeftAt(cursor, _grab, frame.XamlRoot.RasterizationScale);
         if (_dragOut is null)
         {
-            WidgetSettings widget = Widgets.Single(w => w.Id == frame.Widget.Settings.Id);
-            _dragOut = new FloatingWidgetWindow(CreateFrame(widget, floating: true), topLeft, _backdrop, _taskbars.Theme, _taskbars.Accent);
+            _dragOut = NewFloatingWindow(Widgets.Single(w => w.Id == frame.Widget.Settings.Id), topLeft);
         }
         _dragOut.MoveTo(topLeft);
         _dragOut.AppWindow.Show(activateWindow: false);
@@ -255,19 +281,22 @@ internal sealed class Sidebar : IDisposable
 
     private void DropDocked(WidgetFrame frame, PointInt32 cursor)
     {
-        frame.Opacity = 1;
         string id = frame.Widget.Settings.Id;
         if (IsOverSidebar(cursor) || _dragOut is null)
         {
             CloseDragOut();
             if (_window is null)
+            {
+                SidebarWindow.Lift(frame, false);
                 return;
-            int index = _window.DropIndex(cursor, except: frame);
+            }
+            int index = _window.DropSlotIndex;
             Save(SidebarLayout.Dock(Widgets, id, index));
-            // Moved once the press that holds it has ended.
+            // Into the gap once the press that holds it has ended.
             _dispatcher.Post(() =>
             {
                 _window?.Remove(frame);
+                _window?.HideDropSlot();
                 _window?.Insert(frame, index);
             });
             return;
@@ -279,13 +308,21 @@ internal sealed class Sidebar : IDisposable
         _floating[id] = window;
         frame.Widget.Close();
         _dispatcher.Post(() => _window?.Remove(frame));
+        _window?.HideDropSlot();
         SaveFloating(id, window.TopLeft);
     }
 
     private void MoveFloating(WidgetFrame frame, PointInt32 cursor)
     {
-        if (_floating.GetValueOrDefault(frame.Widget.Settings.Id) is { } window)
-            window.MoveTo(TopLeftAt(cursor, _grab, frame.XamlRoot.RasterizationScale));
+        if (_floating.GetValueOrDefault(frame.Widget.Settings.Id) is not { } window)
+            return;
+
+        window.MoveTo(TopLeftAt(cursor, _grab, frame.XamlRoot.RasterizationScale));
+        // Over the sidebar the widgets make room where it would go.
+        if (IsOverSidebar(cursor))
+            _window!.ShowDropSlot(cursor, frame.ActualHeight, except: null);
+        else
+            _window?.HideDropSlot();
     }
 
     private void DropFloating(WidgetFrame frame, PointInt32 cursor)
@@ -300,12 +337,18 @@ internal sealed class Sidebar : IDisposable
             return;
         }
 
-        // Back into the sidebar, where it was let go.
-        int index = _window.DropIndex(cursor, except: null);
+        // Back into the sidebar: it slides into the gap the others made, and takes its place among them.
+        int index = _window.DropSlotIndex;
         _floating.Remove(id);
         Save(SidebarLayout.Dock(Widgets, id, index));
-        _window.Insert(CreateFrame(Widgets.Single(w => w.Id == id), floating: false), index);
-        _dispatcher.Post(() => Close(window));
+        window.SlideTo(_window.DropSlotTopLeft, () =>
+        {
+            Close(window);
+            if (_window is null)
+                return;
+            _window.HideDropSlot();
+            _window.Insert(CreateFrame(Widgets.Single(w => w.Id == id), floating: false), index);
+        });
     }
 
     private void SaveFloating(string id, PointInt32 topLeft)

@@ -5,12 +5,16 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:local="using:NeoShell.Widgets">
     <local:WidgetView.Resources>
-        <!-- Text straight on the card, without a box around it; the underline still shows while typing. -->
+        <!-- Text straight on the card: no box around it, and no underline while typing. -->
         <SolidColorBrush x:Key="TextControlBackground" Color="Transparent" />
         <SolidColorBrush x:Key="TextControlBackgroundPointerOver" Color="Transparent" />
         <SolidColorBrush x:Key="TextControlBackgroundFocused" Color="Transparent" />
         <SolidColorBrush x:Key="TextControlBorderBrush" Color="Transparent" />
         <SolidColorBrush x:Key="TextControlBorderBrushPointerOver" Color="Transparent" />
+        <SolidColorBrush x:Key="TextControlBorderBrushFocused" Color="Transparent" />
+        <SolidColorBrush x:Key="TextControlElevationBorderBrush" Color="Transparent" />
+        <SolidColorBrush x:Key="TextControlElevationBorderFocusedBrush" Color="Transparent" />
+        <Thickness x:Key="TextControlBorderThemeThicknessFocused">0</Thickness>
     </local:WidgetView.Resources>
 
     <StackPanel Spacing="4">
@@ -21,8 +25,8 @@
             Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
         <TextBox
             x:Name="NoteBox"
-            Height="160"
             Padding="0,4"
+            BorderThickness="0"
             AutomationProperties.AutomationId="NoteText"
             AutomationProperties.Name="Note"
             AcceptsReturn="True"

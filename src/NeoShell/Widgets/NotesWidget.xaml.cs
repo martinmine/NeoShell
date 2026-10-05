@@ -20,12 +20,21 @@ internal sealed partial class NotesWidget : WidgetView
         InitializeComponent();
         _path = Path.Combine(Program.DataDirectory, "notes", settings.Id + ".txt");
         NoteBox.FontSize = Settings.FontSize ?? 14;
+        NoteBox.Height = Settings.ContentHeight ?? 160;
 
         _saveTimer = DispatcherQueue.GetForCurrentThread().CreateTimer();
         _saveTimer.Interval = TimeSpan.FromMilliseconds(500);
         _saveTimer.IsRepeating = false;
         _saveTimer.Tick += (_, _) => Save();
         Load();
+    }
+
+    public override bool CanResize => true;
+
+    public override double ContentHeight
+    {
+        get => NoteBox.Height;
+        set => NoteBox.Height = value;
     }
 
     public override void Close()

@@ -859,10 +859,16 @@ Small widgets about the computer and its user, as Windows Vista's sidebar gadget
 
 - `WidgetFrame` draws the card (none when floating: the window is the card) and, while the pointer is over it, a
   settings button (a flyout with the widget's own settings) and a close button, on a solid plate at the top right.
-- Pressing anywhere the widget's own controls don't take and moving 4 epx drags it. From the sidebar: once the
-  pointer leaves the sidebar the widget follows it in its own window, held where it was grabbed; let go outside the
-  sidebar it stays there, inside it goes where it was dropped (before the first card whose middle is below the
-  pointer), which also reorders the sidebar. A floating widget dropped on the sidebar docks the same way.
+- Pressing anywhere the widget's own controls don't take and moving 4 epx drags it. A widget dragged from the sidebar
+  is lifted out of the column (kept in the tree without height, so it keeps the pointer; each card keeps its gap below
+  itself rather than the panel's spacing, so a lifted one leaves none). While a widget is over the sidebar, the others
+  make room for it: a card-shaped gap opens where it would go (before the first card whose middle is below the
+  pointer, measured as if the gap weren't there), and the cards slide (`RepositionThemeTransition`). Off the sidebar
+  the widget follows the pointer in its own window, held where it was grabbed, and stays where it's let go. Let go
+  over the sidebar it takes the gap's place; a floating widget first slides into the gap (150 ms).
+- A floating note can be resized by its bottom-right corner (`WidgetView.CanResize`): its width (200 to 640 epx) and
+  the height of its text (60 to 900 epx), saved as `FloatingWidth` and `ContentHeight`; the text keeps its height when
+  the note is docked.
 - `ShellSettings.Widgets` keeps every widget, docked and floating; the docked ones in the sidebar's order. Each has an
   id, its kind, a position while floating and its kind's options (`WidgetSettings`; unset options take defaults and
   aren't written). A widget's view is made anew when it moves between the sidebar and the desktop, so what it keeps
@@ -905,7 +911,7 @@ Small widgets about the computer and its user, as Windows Vista's sidebar gadget
   at once, every 5 minutes (its setting), and 2 s after the last of a burst of `WM_DEVICECHANGE` (a receiver plugged
   in or out, from the taskbars' windows). A row per device: its kind's icon, name, battery bar (red at 10% or less
   while not charging), a charging mark and the level, or dimmed and "Unavailable" when out of reach.
-- **Notes**: plain text saved half a second after typing stops, to `notes\<id>.txt` next to the settings; text size
+- **Notes**: plain text, straight on the card (no box or underline, focused or not), saved half a second after typing stops, to `notes\<id>.txt` next to the settings; text size
   in its settings. Closing a note keeps its file.
 
 ## Settings (`Settings/`)
@@ -930,7 +936,7 @@ StartMenuHeight      double (epx)
 DesktopSortOrder     Name | Size | ItemType | DateModified
 ShowWidgetSidebar    bool
 WidgetSidebarWidth   double (epx)
-Widgets              list (id, kind, X/Y while floating, the kind's options)
+Widgets              list (id, kind, X/Y and size while floating, the kind's options)
 ```
 
 ## Testing strategy

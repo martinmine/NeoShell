@@ -44,6 +44,14 @@ internal partial class WidgetView : UserControl
     /// <summary>Whether the sidebar and desktop may show more than one of this kind.</summary>
     public static bool AllowsSeveral(WidgetKind kind) => kind is WidgetKind.Pictures or WidgetKind.Notes;
 
+    /// <summary>
+    /// The widget can be resized while it floats: its width, and the height of <see cref="ContentHeight"/>'s part.
+    /// </summary>
+    public virtual bool CanResize => false;
+
+    /// <summary>The height of the part that grows when the widget is resized (a note's text), in effective pixels.</summary>
+    public virtual double ContentHeight { get; set; }
+
     /// <summary>Content that fills the card to its edges (a picture), without the card's padding and border.</summary>
     public virtual bool FillsCard => false;
 

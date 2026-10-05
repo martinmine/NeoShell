@@ -10,8 +10,14 @@ public static class SidebarLayout
     public const double MinWidth = 240;
     public const double MaxWidth = 560;
 
-    /// <summary>A floating widget's width in effective pixels.</summary>
+    /// <summary>A floating widget's width in effective pixels, and how narrow and wide one that can be resized gets.</summary>
     public const double FloatingWidth = 300;
+    public const double FloatingMinWidth = 200;
+    public const double FloatingMaxWidth = 640;
+
+    /// <summary>How short and tall the resizable part of a widget (a note's text) gets, in effective pixels.</summary>
+    public const double MinContentHeight = 60;
+    public const double MaxContentHeight = 900;
 
     public static int PhysicalWidth(double width, uint dpi) =>
         (int)Math.Round(Math.Clamp(width, MinWidth, MaxWidth) * dpi / 96.0);

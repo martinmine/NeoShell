@@ -57,7 +57,24 @@
         </Grid>
 
         <ScrollViewer x:Name="Scroller" Grid.Row="1" AutomationProperties.AutomationId="WidgetSidebarScroller">
-            <StackPanel x:Name="Cards" Padding="12,8,12,12" Spacing="12" />
+            <!-- No spacing: each card keeps its own gap below (CardGap), so a lifted one leaves none. -->
+            <StackPanel x:Name="Cards" Padding="12,8,12,0">
+                <!-- The cards slide aside for a widget dragged over them, and back. -->
+                <StackPanel.ChildrenTransitions>
+                    <TransitionCollection>
+                        <RepositionThemeTransition />
+                    </TransitionCollection>
+                </StackPanel.ChildrenTransitions>
+                <!-- Where a widget dragged over the sidebar would go; moved among the cards while it's dragged. -->
+                <Border
+                    x:Name="DropSlot"
+                    Margin="0,0,0,12"
+                    CornerRadius="8"
+                    BorderThickness="1"
+                    Background="{ThemeResource SubtleFillColorSecondaryBrush}"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                    Visibility="Collapsed" />
+            </StackPanel>
         </ScrollViewer>
 
         <!-- Dragging the left edge resizes the sidebar. -->
