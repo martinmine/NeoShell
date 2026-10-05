@@ -54,6 +54,9 @@ internal sealed partial class TaskbarWindow : Window
     private TaskDrag? _drag;
     private readonly List<(UIElement Container, string Property, long Started)> _layoutAnimations = [];
     private static readonly TimeSpan s_layoutAnimationDuration = TimeSpan.FromMilliseconds(250);
+    // Measured on Explorer: open previews move to another button ~200 ms after the pointer enters it, moving or not.
+    private static readonly TimeSpan s_previewDelay = TimeSpan.FromMilliseconds(500);
+    private static readonly TimeSpan s_previewSwitchDelay = TimeSpan.FromMilliseconds(200);
     private bool _suppressClick;
     // A right-clicked button shows no previews until the pointer has left it, and none show while its menu is open:
     // a hover that began before the click would otherwise open them over the menu.
@@ -175,7 +178,7 @@ internal sealed partial class TaskbarWindow : Window
         _thumbnails.Root.PointerEntered += (_, _) => _hideTimer!.Stop();
         _thumbnails.Root.PointerExited += (_, _) => _hideTimer!.Start();
         DispatcherQueue dispatcher = DispatcherQueue.GetForCurrentThread();
-        _hoverTimer = CreateTimer(dispatcher, TimeSpan.FromMilliseconds(500), () =>
+        _hoverTimer = CreateTimer(dispatcher, s_previewDelay, () =>
         {
             if (_hovered is { } hovered && hovered.Button.Windows.Count > 0 && CanPreview(hovered.Button))
                 ShowThumbnails(hovered.Button, hovered.Element);
@@ -1053,13 +1056,12 @@ internal sealed partial class TaskbarWindow : Window
         _hovered = (button, element);
         button.IsHovered = true;
         _hideTimer.Stop();
-        if (!CanPreview(button))
+        if (!CanPreview(button) || _thumbnails.Button == button)
             return;
-        // Once previews are open, moving along the taskbar switches them straight away.
-        if (_thumbnails.Button is not null && _thumbnails.Button != button && button.Windows.Count > 0)
-            ShowThumbnails(button, element);
-        else
-            _hoverTimer.Start();
+        // Once previews are open, they follow the pointer along the taskbar after a short pause, as in Explorer:
+        // crossing a neighbour on the way up to the previews doesn't switch them.
+        _hoverTimer.Interval = _thumbnails.Button is null ? s_previewDelay : s_previewSwitchDelay;
+        _hoverTimer.Start();
     }
 
     private void TaskItem_PointerExited(object sender, PointerRoutedEventArgs e)
