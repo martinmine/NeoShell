@@ -56,6 +56,10 @@ internal sealed partial class TaskbarWindow : Window
     // a hover that began before the click would otherwise open them over the menu.
     private TaskButton? _noPreviews;
     private bool _taskMenuOpen;
+    // The taskbar around the Start button acts as the button (TaskbarLayout.IsStartZone): hovered, or pressed by
+    // this pointer.
+    private bool _startZoneHovered;
+    private uint? _startZonePointer;
     private readonly NotificationArea? _tray;
     private readonly Indicators? _indicators;
     private QuickSettingsPage _quickSettingsPage;
@@ -149,6 +153,10 @@ internal sealed partial class TaskbarWindow : Window
         TaskList.AddHandler(UIElement.PointerCaptureLostEvent, new PointerEventHandler(TaskList_PointerCaptureLost), handledEventsToo: true);
         // A click anywhere else on the taskbar closes Start, as in Windows; the Start button toggles it itself.
         Root.AddHandler(UIElement.PointerPressedEvent, new PointerEventHandler(Root_PointerPressed), handledEventsToo: true);
+        Root.PointerMoved += Root_PointerMoved;
+        Root.AddHandler(UIElement.PointerReleasedEvent, new PointerEventHandler(Root_PointerReleased), handledEventsToo: true);
+        Root.PointerExited += (_, _) => SetStartZoneHover(false);
+        Root.PointerCaptureLost += (_, _) => EndStartZonePress();
         Root.SizeChanged += (_, _) => RefreshTasks();
         RightPanel.SizeChanged += (_, _) => RefreshTasks();
 
@@ -812,11 +820,74 @@ internal sealed partial class TaskbarWindow : Window
             start |= element == StartButton || element == SearchButton;
             clock |= element == Clock;
         }
+        if (!start && e.GetCurrentPoint(Root).Properties.IsLeftButtonPressed && InStartZone(e) && Root.CapturePointer(e.Pointer))
+        {
+            start = true;
+            _startZonePointer = e.Pointer.PointerId;
+            VisualStateManager.GoToState(StartButton, "Pressed", false);
+            IconPress.Press((UIElement)StartButton.Content);
+        }
         // Each toggles its own; the taskbar doesn't take the focus, so they wouldn't close by themselves.
         if (!start)
             _owner.HideStartMenu();
         if (!clock)
             _owner.HideClockFlyout();
+    }
+
+    // Pressed and released in the zone, it's a click on Start.
+    private void Root_PointerReleased(object sender, PointerRoutedEventArgs e)
+    {
+        if (_startZonePointer != e.Pointer.PointerId)
+            return;
+
+        bool click = InStartZone(e);
+        Root.ReleasePointerCapture(e.Pointer);
+        EndStartZonePress();
+        SetStartZoneHover(click);
+        // Once the capture is gone: Start taking the foreground while the taskbar still has the mouse loses it
+        // again, and closes.
+        if (click)
+            DispatcherQueue.TryEnqueue(() => _owner.ToggleStartMenu(this));
+    }
+
+    private void Root_PointerMoved(object sender, PointerRoutedEventArgs e)
+    {
+        if (_startZonePointer is null)
+            SetStartZoneHover(InStartZone(e));
+    }
+
+    private void EndStartZonePress()
+    {
+        if (_startZonePointer is null)
+            return;
+
+        _startZonePointer = null;
+        _startZoneHovered = false;
+        VisualStateManager.GoToState(StartButton, "Normal", false);
+        IconPress.Release((UIElement)StartButton.Content);
+    }
+
+    private void SetStartZoneHover(bool hovered)
+    {
+        if (hovered == _startZoneHovered || _startZonePointer is not null)
+            return;
+
+        _startZoneHovered = hovered;
+        // Moving onto the button itself, the button shows its own hover.
+        if (hovered || !StartButton.IsPointerOver)
+            VisualStateManager.GoToState(StartButton, hovered ? "PointerOver" : "Normal", false);
+    }
+
+    // On the taskbar's own background around the Start button, not on the button (which handles itself).
+    private bool InStartZone(PointerRoutedEventArgs e)
+    {
+        if (StartButton.IsPointerOver)
+            return false;
+
+        Point point = e.GetCurrentPoint(Root).Position;
+        Rect button = StartButton.TransformToVisual(Root).TransformBounds(new Rect(0, 0, StartButton.ActualWidth, StartButton.ActualHeight));
+        return point.Y >= 0 && point.Y < Root.ActualHeight
+            && TaskbarLayout.IsStartZone(point.X, button.Left, button.Right, AppsPanel.HorizontalAlignment == HorizontalAlignment.Left);
     }
 
     private void TaskList_ItemClick(object sender, ItemClickEventArgs e)

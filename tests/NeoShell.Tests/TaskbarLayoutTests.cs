@@ -79,4 +79,25 @@ public sealed class TaskbarLayoutTests
     {
         Assert.Equal(expected, TaskbarLayout.IsFullScreen(new RectInt32(x, y, width, height), new RectInt32(0, 0, 1920, 1080)));
     }
+
+    [Theory]
+    [InlineData(0, true)]     // the screen's corner
+    [InlineData(11, true)]    // the margin left of the button
+    [InlineData(30, true)]    // the button itself
+    [InlineData(55, false)]   // past it
+    public void Left_aligned_start_zone_reaches_the_screen_edge(double x, bool expected)
+    {
+        Assert.Equal(expected, TaskbarLayout.IsStartZone(x, startLeft: 13, startRight: 53, leftAligned: true));
+    }
+
+    [Theory]
+    [InlineData(0, false)]
+    [InlineData(786, false)]  // further left than the gap
+    [InlineData(787, true)]   // the gap left of the button
+    [InlineData(839, true)]
+    [InlineData(840, false)]  // the next button
+    public void Centred_start_zone_takes_only_the_gap_beside_the_button(double x, bool expected)
+    {
+        Assert.Equal(expected, TaskbarLayout.IsStartZone(x, startLeft: 800, startRight: 840, leftAligned: false));
+    }
 }

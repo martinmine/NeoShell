@@ -39,6 +39,21 @@ public static class TaskbarLayout
         && window.X + window.Width >= monitor.X + monitor.Width
         && window.Y + window.Height >= monitor.Y + monitor.Height;
 
+    /// <summary>
+    /// Effective pixels left of a centred Start button that still count as Start: the gap to the next thing on its
+    /// left, the task list's margin and the button's own.
+    /// </summary>
+    public const double StartZoneLead = 13;
+
+    /// <summary>
+    /// Whether a point on the taskbar, <paramref name="x"/> across it, counts as the Start button (from
+    /// <paramref name="startLeft"/> to <paramref name="startRight"/>), at any height: as in Explorer, Start opens from
+    /// the screen's corner and from the taskbar's edges beside the button, which the pointer reaches without aiming.
+    /// Left-aligned, everything up to the screen's edge counts.
+    /// </summary>
+    public static bool IsStartZone(double x, double startLeft, double startRight, bool leftAligned) =>
+        x < startRight && (leftAligned || x >= startLeft - StartZoneLead);
+
     /// <summary>The monitors that get a taskbar: all of them, or only the primary one.</summary>
     public static IReadOnlyList<DisplayMonitor> MonitorsWithTaskbar(IReadOnlyList<DisplayMonitor> monitors, bool showOnAllDisplays) =>
         showOnAllDisplays ? monitors : [.. monitors.Where(monitor => monitor.IsPrimary)];
