@@ -3,11 +3,12 @@ using NeoShell.QuickSettings;
 namespace NeoShell;
 
 /// <summary>What a panel shortcut opens.</summary>
-public enum PanelShortcut { QuickSettings, SoundOutput, Cast, Project, NotificationCenter }
+public enum PanelShortcut { QuickSettings, SoundOutput, Cast, Project, NotificationCenter, QuickLinks }
 
 /// <summary>
 /// Spots the shortcuts of Quick Settings and the notification center in a stream of key presses: Win+A (the tiles),
-/// Win+Ctrl+V (Sound output), Win+K (Cast), Win+P (Project) and Win+N (notifications and calendar).
+/// Win+Ctrl+V (Sound output), Win+K (Cast), Win+P (Project) and Win+N (notifications and calendar); and Start's Quick
+/// Link menu, Win+X.
 /// </summary>
 /// <remarks>
 /// Windows' own Quick Settings host keeps its shortcuts registered as hotkeys after Explorer has gone, so NeoShell
@@ -56,6 +57,7 @@ public sealed class PanelKeys
             'P' when !_controlDown => PanelShortcut.Project,
             'V' when _controlDown => PanelShortcut.SoundOutput,
             'N' when !_controlDown => PanelShortcut.NotificationCenter,
+            'X' when !_controlDown => PanelShortcut.QuickLinks,
             _ => null,
         };
         if (shortcut is null)
@@ -65,7 +67,7 @@ public sealed class PanelKeys
         return true;
     }
 
-    /// <summary>The Quick Settings page a shortcut opens; null for the notification center.</summary>
+    /// <summary>The Quick Settings page a shortcut opens; null for the notification center and the Quick Link menu.</summary>
     public static QuickSettingsPage? PageFor(PanelShortcut shortcut) => shortcut switch
     {
         PanelShortcut.QuickSettings => QuickSettingsPage.Main,

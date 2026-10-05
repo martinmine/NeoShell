@@ -76,7 +76,8 @@
                 AutomationProperties.Name="Start"
                 ToolTipService.ToolTip="Start"
                 Style="{StaticResource FlatButtonStyle}"
-                Click="StartButton_Click">
+                Click="StartButton_Click"
+                ContextRequested="StartButton_ContextRequested">
                 <!-- Explorer's logo: four 11 px squares. -->
                 <Grid Width="23" Height="23" ColumnSpacing="1" RowSpacing="1">
                     <Grid.RowDefinitions>

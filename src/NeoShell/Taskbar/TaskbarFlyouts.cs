@@ -91,6 +91,13 @@ internal static class TaskbarFlyouts
         }
     }
 
+    /// <summary>Opens the flyout above <paramref name="target"/>, left edges aligned, as Explorer opens Start's own menu.</summary>
+    public static void ShowAboveLeft(FlyoutBase flyout, FrameworkElement target)
+    {
+        s_centredOn.Remove(flyout);
+        Show(flyout, target, 0, FlyoutPlacementMode.TopEdgeAlignedLeft);
+    }
+
     /// <summary>Opens the flyout at the right of the screen, the gap away from its edge, as Quick Settings and the calendar.</summary>
     public static void ShowAtRight(FlyoutBase flyout, FrameworkElement target)
     {

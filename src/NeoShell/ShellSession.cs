@@ -77,6 +77,8 @@ internal sealed class ShellSession : IDisposable
                         KeyboardHook.MaskWindowsKey();
                         if (PanelKeys.PageFor(pressed) is { } page)
                             _dispatcher.Post(() => _taskbars.ShowQuickSettings(page));
+                        else if (pressed == PanelShortcut.QuickLinks)
+                            _dispatcher.Post(_taskbars.ToggleQuickLinks);
                         else
                             _dispatcher.Post(_taskbars.ToggleNotificationCenter);
                     }

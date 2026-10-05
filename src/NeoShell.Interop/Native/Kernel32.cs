@@ -11,6 +11,9 @@ internal static unsafe partial class Kernel32
 
     public const uint EVENT_MODIFY_STATE = 0x0002;
 
+    [LibraryImport("kernel32.dll")]
+    public static partial uint GetCurrentThreadId();
+
     [LibraryImport("kernel32.dll", EntryPoint = "OpenEventW", StringMarshalling = StringMarshalling.Utf16, SetLastError = true)]
     public static partial nint OpenEvent(uint access, [MarshalAs(UnmanagedType.Bool)] bool inheritHandle, string name);
 

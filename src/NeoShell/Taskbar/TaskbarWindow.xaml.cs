@@ -44,6 +44,7 @@ internal sealed partial class TaskbarWindow : Window
     private readonly AppBar? _appBar;
     private readonly ObservableCollection<TaskButton> _tasks = [];
     private readonly ThumbnailPopup _thumbnails;
+    private readonly MenuFlyout _quickLinks;
     private readonly DispatcherQueueTimer _hoverTimer;
     private readonly DispatcherQueueTimer _hideTimer;
     private (TaskButton Button, FrameworkElement Element)? _hovered;
@@ -86,6 +87,8 @@ internal sealed partial class TaskbarWindow : Window
         _owner = owner;
         _monitor = monitor;
         InitializeComponent();
+        _quickLinks = QuickLinkMenu.Create(owner, this);
+        _quickLinks.MenuFlyoutPresenterStyle = (Style)Root.Resources["ShellMenuPresenterStyle"];
 
         _backdrop = new ShellBackdrop(settings.TaskbarBackdrop);
         SetTheme(theme, accent);
@@ -337,7 +340,7 @@ internal sealed partial class TaskbarWindow : Window
         QuickSettingsFlyout.SystemBackdrop = new ShellBackdrop(Backdrop.Acrylic) { Theme = Root.RequestedTheme, Tint = accent };
         OverflowIcons.RequestedTheme = Root.RequestedTheme;
         OverflowFlyout.SystemBackdrop = new ShellBackdrop(Backdrop.Acrylic) { Theme = Root.RequestedTheme, Tint = accent };
-        foreach (MenuFlyout menu in (MenuFlyout[])[TaskbarMenu, NetworkMenu, VolumeMenu])
+        foreach (MenuFlyout menu in (MenuFlyout[])[TaskbarMenu, NetworkMenu, VolumeMenu, _quickLinks])
             menu.SystemBackdrop = MenuBackdrop();
     }
 
@@ -379,14 +382,48 @@ internal sealed partial class TaskbarWindow : Window
     /// <summary>Activates the taskbar and focuses its first task button (or Start), for the arrow keys and Enter.</summary>
     public void FocusTaskList()
     {
-        // A no-activate window can't become active, and only the active window gets the keyboard.
-        WindowStyles.RemoveExtended(_hwnd, ExtendedWindowStyles.NoActivate);
-        TopLevelWindows.Activate(_hwnd);
+        TakeKeyboard();
 
         if (_tasks.Count > 0 && TaskList.ContainerFromIndex(0) is Control first)
             first.Focus(FocusState.Keyboard);
         else
             StartButton.Focus(FocusState.Keyboard);
+    }
+
+    // A no-activate window can't become active, and only the active window gets the keyboard; once it's left, the
+    // taskbar is no-activate again (see the Activated handler).
+    private void TakeKeyboard()
+    {
+        WindowStyles.RemoveExtended(_hwnd, ExtendedWindowStyles.NoActivate);
+        TopLevelWindows.Activate(_hwnd);
+    }
+
+    /// <summary>
+    /// Win+X: opens the Quick Link menu above Start, with the keyboard in it for the arrow keys and Enter; closes it
+    /// when it's open.
+    /// </summary>
+    public void ToggleQuickLinks()
+    {
+        if (_quickLinks.IsOpen)
+        {
+            _quickLinks.Hide();
+            return;
+        }
+        Reveal();
+        TakeKeyboard();
+        ShowQuickLinks();
+    }
+
+    private void ShowQuickLinks()
+    {
+        _owner.HideStartMenu();
+        TaskbarFlyouts.ShowAboveLeft(_quickLinks, StartButton);
+    }
+
+    private void StartButton_ContextRequested(UIElement sender, ContextRequestedEventArgs e)
+    {
+        e.Handled = true;
+        ShowQuickLinks();
     }
 
     /// <summary>Shows the tray icons on the taskbar, or behind the chevron, as the tray mode setting says.</summary>
@@ -879,12 +916,10 @@ internal sealed partial class TaskbarWindow : Window
     }
 
     // On the taskbar's own background around the Start button, not on the button (which handles itself).
-    private bool InStartZone(PointerRoutedEventArgs e)
-    {
-        if (StartButton.IsPointerOver)
-            return false;
+    private bool InStartZone(PointerRoutedEventArgs e) => !StartButton.IsPointerOver && InStartZone(e.GetCurrentPoint(Root).Position);
 
-        Point point = e.GetCurrentPoint(Root).Position;
+    private bool InStartZone(Point point)
+    {
         Rect button = StartButton.TransformToVisual(Root).TransformBounds(new Rect(0, 0, StartButton.ActualWidth, StartButton.ActualHeight));
         return point.Y >= 0 && point.Y < Root.ActualHeight
             && TaskbarLayout.IsStartZone(point.X, button.Left, button.Right, AppsPanel.HorizontalAlignment == HorizontalAlignment.Left);
@@ -1226,12 +1261,15 @@ internal sealed partial class TaskbarWindow : Window
         public bool RefreshPending { get; set; }
     }
 
-    // From the keyboard, at the middle of the taskbar's top edge.
+    // From the keyboard, at the middle of the taskbar's top edge. Around Start, it's Start's menu.
     private void Root_ContextRequested(UIElement sender, ContextRequestedEventArgs e)
     {
         e.Handled = true;
-        Point point = e.TryGetPosition(Root, out Point pointer) ? pointer : new Point(Root.ActualWidth / 2, 0);
-        TaskbarFlyouts.ShowAtPointer(TaskbarMenu, Root, point);
+        bool atPointer = e.TryGetPosition(Root, out Point pointer);
+        if (atPointer && InStartZone(pointer))
+            ShowQuickLinks();
+        else
+            TaskbarFlyouts.ShowAtPointer(TaskbarMenu, Root, atPointer ? pointer : new Point(Root.ActualWidth / 2, 0));
     }
 
     private void OverflowButton_Click(object sender, RoutedEventArgs e) => TaskbarFlyouts.ShowCentered(OverflowFlyout, OverflowButton);

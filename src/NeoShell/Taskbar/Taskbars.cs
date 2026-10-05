@@ -168,6 +168,9 @@ internal sealed class Taskbars : IDisposable
     /// <summary>Win+A, Win+Ctrl+V, Win+K, Win+P: Quick Settings on the primary taskbar, open on the page.</summary>
     public void ShowQuickSettings(QuickSettingsPage page) => PrimaryWindow?.ShowQuickSettings(page);
 
+    /// <summary>Win+X: Start's Quick Link menu on the primary taskbar.</summary>
+    public void ToggleQuickLinks() => PrimaryWindow?.ToggleQuickLinks();
+
     /// <summary>Opens the notification center and calendar at the right of <paramref name="taskbar"/>, or closes them.</summary>
     public void ToggleClockFlyout(TaskbarWindow taskbar)
     {

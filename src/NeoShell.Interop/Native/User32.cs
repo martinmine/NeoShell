@@ -205,6 +205,8 @@ internal static unsafe partial class User32
     [return: MarshalAs(UnmanagedType.Bool)]
     public static partial bool UnregisterHotKey(nint hwnd, int id);
 
+    public const int WH_CBT = 5;
+    public const int HCBT_ACTIVATE = 5;
     public const int WH_KEYBOARD_LL = 13;
     public const uint LLKHF_UP = 0x80;
 

@@ -116,6 +116,7 @@ public sealed class QuickSettingsTests
     [InlineData('P', false, PanelShortcut.Project)]
     [InlineData('V', true, PanelShortcut.SoundOutput)]
     [InlineData('N', false, PanelShortcut.NotificationCenter)]
+    [InlineData('X', false, PanelShortcut.QuickLinks)]
     public void Win_shortcuts_open_their_panel(char key, bool control, PanelShortcut expected)
     {
         var keys = new PanelKeys();

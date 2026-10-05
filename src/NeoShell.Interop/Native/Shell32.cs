@@ -133,6 +133,10 @@ internal static unsafe partial class Shell32
         public nint hProcess;
     }
 
+    // Undocumented, exported by ordinal only; Explorer's Win+R calls it.
+    [LibraryImport("shell32.dll", EntryPoint = "#61")]
+    public static partial void RunFileDlg(nint owner, nint icon, char* directory, char* title, char* description, uint flags);
+
     [LibraryImport("shell32.dll", EntryPoint = "ShellExecuteExW", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     public static partial bool ShellExecuteEx(SHELLEXECUTEINFOW* info);
