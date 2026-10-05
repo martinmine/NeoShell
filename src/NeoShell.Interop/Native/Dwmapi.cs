@@ -12,12 +12,15 @@ internal static unsafe partial class Dwmapi
     public const uint DWMWA_BORDER_COLOR = 34;
 
     public const int DWMWCP_DONOTROUND = 1;
+    public const int DWMWCP_ROUND = 2;
     public const uint DWMWA_COLOR_NONE = 0xFFFFFFFE;
+    public const uint DWMWA_COLOR_DEFAULT = 0xFFFFFFFF;
 
     public const uint DWM_BB_ENABLE = 0x01;
     public const uint DWM_BB_BLURREGION = 0x02;
 
     public const uint DWM_TNP_RECTDESTINATION = 0x01;
+    public const uint DWM_TNP_RECTSOURCE = 0x02;
     public const uint DWM_TNP_VISIBLE = 0x08;
     public const uint DWM_TNP_SOURCECLIENTAREAONLY = 0x10;
 
@@ -46,6 +49,9 @@ internal static unsafe partial class Dwmapi
 
     [LibraryImport("dwmapi.dll")]
     public static partial int DwmSetWindowAttribute(nint hwnd, uint attribute, void* value, uint size);
+
+    [LibraryImport("dwmapi.dll")]
+    public static partial int DwmFlush();
 
     [LibraryImport("dwmapi.dll")]
     public static partial int DwmRegisterThumbnail(nint destination, nint source, out nint thumbnail);

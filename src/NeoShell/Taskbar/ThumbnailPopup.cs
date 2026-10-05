@@ -46,6 +46,8 @@ internal sealed class ThumbnailPopup : Window
     private bool _peeking;
     private bool _visible;
     private int _taskbarTop;
+    // Where the previews are cut off, in pixels from the popup's top.
+    private int _thumbnailsBottom;
 
     /// <param name="taskbar">The taskbar the popup belongs to; it slides out from behind it.</param>
     public ThumbnailPopup(WindowTracker tracker, nint taskbar)
@@ -70,6 +72,9 @@ internal sealed class ThumbnailPopup : Window
         _placement = new PinnedWindow(_hwnd, default, PinnedLayer.Topmost);
         _placement.SetLayer(PinnedLayer.Topmost, above: taskbar);
         _slide = new WindowSlide(_placement);
+        // The previews are cut off at the taskbar's edge where the popup is or is about to be, whichever shows less:
+        // the window and the previews move in separate steps.
+        _slide.Moving += next => ClipThumbnails(Math.Max(_placement.Bounds.Y, next.Y));
         _peekTimer = DispatcherQueue.CreateTimer();
         _peekTimer.IsRepeating = false;
         _peekTimer.Tick += (_, _) => UpdatePeek();
@@ -97,6 +102,8 @@ internal sealed class ThumbnailPopup : Window
         _root.RequestedTheme = theme;
         _backdrop.Theme = theme;
         ClearCells();
+        _taskbarTop = anchor.Y;
+        ClipThumbnails(_visible ? _placement.Bounds.Y : _taskbarTop);
 
         double scale = monitor.Dpi / 96.0;
         int count = button.Windows.Count;
@@ -112,18 +119,17 @@ internal sealed class ThumbnailPopup : Window
         var bounds = new RectInt32(x, y, width, height);
         // Out of the taskbar, as in Windows 11, shown only above its edge; once open, it follows the pointer along
         // the taskbar.
-        _taskbarTop = anchor.Y;
         _placement.VisibleBottom = _taskbarTop;
         if (!_visible)
         {
             _visible = true;
             _placement.Bounds = bounds with { Y = _taskbarTop };
             AppWindow.Show(activateWindow: false);
-            _slide.To(bounds, TimeSpan.FromMilliseconds(200), decelerate: true);
+            _slide.To(bounds, TimeSpan.FromMilliseconds(200), decelerate: true, () => ClipThumbnails(bounds.Y));
         }
         else
         {
-            _slide.To(bounds, TimeSpan.FromMilliseconds(150), decelerate: true);
+            _slide.To(bounds, TimeSpan.FromMilliseconds(150), decelerate: true, () => ClipThumbnails(bounds.Y));
         }
     }
 
@@ -224,6 +230,7 @@ internal sealed class ThumbnailPopup : Window
         Grid.SetRow(placeholder, 1);
         cell.Children.Add(placeholder);
         var thumbnail = new DwmThumbnail(_hwnd, window.Handle);
+        thumbnail.Clip(_thumbnailsBottom);
         _thumbnails.Add(thumbnail);
         placeholder.SizeChanged += (_, _) => PlaceThumbnail(thumbnail, placeholder);
         return cell;
@@ -289,6 +296,14 @@ internal sealed class ThumbnailPopup : Window
             return;
         _peeking = false;
         Peek.End(_taskbar);
+    }
+
+    // Cuts the previews off at the taskbar's edge for the popup at screen row <paramref name="top"/>.
+    private void ClipThumbnails(int top)
+    {
+        _thumbnailsBottom = _taskbarTop - top;
+        foreach (DwmThumbnail thumbnail in _thumbnails)
+            thumbnail.Clip(_thumbnailsBottom);
     }
 
     private void ClearCells()

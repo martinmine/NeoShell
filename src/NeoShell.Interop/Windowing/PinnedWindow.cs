@@ -27,7 +27,7 @@ public sealed unsafe class PinnedWindow : IDisposable
     private nint _above;
     private RectInt32 _bounds;
     private int? _visibleBottom;
-    // The visible part's size while the window is cut off, so an unchanged region isn't set again.
+    // The region set, so an unchanged one isn't set again.
     private (int Width, int Height)? _region;
 
     public PinnedWindow(nint hwnd, RectInt32 bounds, PinnedLayer layer)
@@ -44,9 +44,15 @@ public sealed unsafe class PinnedWindow : IDisposable
         get => _bounds;
         set
         {
+            // Less of the window shows before it moves, more only after: between the two DWM may draw a frame, which
+            // then never shows more than the visible part (Start sliding back into the taskbar).
+            bool shrinking = (RegionFor(value)?.Height ?? value.Height) < (_region?.Height ?? _bounds.Height);
             _bounds = value;
+            if (shrinking)
+                ApplyRegion();
             Apply();
-            ApplyRegion();
+            if (!shrinking)
+                ApplyRegion();
         }
     }
 
@@ -101,17 +107,35 @@ public sealed unsafe class PinnedWindow : IDisposable
         User32.SetWindowPos(_hwnd, InsertAfter, _bounds.X, _bounds.Y, _bounds.Width, _bounds.Height, flags);
     }
 
+    // The visible part's size while the window is cut off at VisibleBottom; null when all of it shows.
+    private (int Width, int Height)? RegionFor(RectInt32 bounds) =>
+        _visibleBottom is { } bottom && bottom < bounds.Y + bounds.Height
+            ? (bounds.Width, Math.Max(0, bottom - bounds.Y))
+            : null;
+
     private void ApplyRegion()
     {
-        (int, int)? region = _visibleBottom is { } bottom && bottom < _bounds.Y + _bounds.Height
-            ? (_bounds.Width, Math.Max(0, bottom - _bounds.Y))
-            : null;
+        (int Width, int Height)? region = RegionFor(_bounds);
         if (region == _region)
             return;
 
+        bool wasCutOff = _region is not null;
         _region = region;
-        // The system owns a region once it's set, and deletes it.
-        User32.SetWindowRgn(_hwnd, region is (int width, int height) ? Gdi32.CreateRectRgn(0, 0, width, height) : 0, true);
+        WindowRegion.SetVisibleHeight(_hwnd, _bounds.Width, region?.Height);
+
+        // A region doesn't cut off Windows 11's border and shadow: their edge would cross a see-through taskbar as a line
+        // and a dark band. A square window has neither. The windows cut off are rounded popups (Start, thumbnails).
+        bool cutOff = region is not null;
+        if (cutOff == wasCutOff)
+            return;
+        int corners = cutOff ? Dwmapi.DWMWCP_DONOTROUND : Dwmapi.DWMWCP_ROUND;
+        Dwmapi.DwmSetWindowAttribute(_hwnd, Dwmapi.DWMWA_WINDOW_CORNER_PREFERENCE, &corners, sizeof(int));
+        uint borderColor = cutOff ? Dwmapi.DWMWA_COLOR_NONE : Dwmapi.DWMWA_COLOR_DEFAULT;
+        Dwmapi.DwmSetWindowAttribute(_hwnd, Dwmapi.DWMWA_BORDER_COLOR, &borderColor, sizeof(uint));
+        // DWM takes these a frame later than a move: the border would still cross the taskbar as the window moves
+        // into it.
+        if (cutOff)
+            Dwmapi.DwmFlush();
     }
 
     private nint? OnMessage(uint message, nint wParam, nint lParam)

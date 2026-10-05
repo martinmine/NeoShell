@@ -26,6 +26,9 @@ internal sealed class WindowSlide(PinnedWindow placement)
 
     public bool IsRunning => _slide is not null;
 
+    /// <summary>Raised on each frame with the bounds the window is about to move to.</summary>
+    public event Action<RectInt32>? Moving;
+
     public void Stop()
     {
         if (_slide is null)
@@ -42,11 +45,13 @@ internal sealed class WindowSlide(PinnedWindow placement)
 
         double progress = Math.Min(1, Stopwatch.GetElapsedTime(slide.Start) / slide.Duration);
         double eased = slide.Decelerate ? 1 - Math.Pow(1 - progress, 3) : Math.Pow(progress, 3);
-        placement.Bounds = slide.To with
+        RectInt32 bounds = slide.To with
         {
             X = (int)Math.Round(slide.From.X + (slide.To.X - slide.From.X) * eased),
             Y = (int)Math.Round(slide.From.Y + (slide.To.Y - slide.From.Y) * eased),
         };
+        Moving?.Invoke(bounds);
+        placement.Bounds = bounds;
         if (progress < 1)
             return;
 

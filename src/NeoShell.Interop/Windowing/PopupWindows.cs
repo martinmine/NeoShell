@@ -50,6 +50,10 @@ public static unsafe class PopupWindows
         if (!User32.GetWindowRect(popup, out User32.RECT rect))
             return;
 
+        // Less of it shows before it moves down, more only after it moves up: DWM may draw a frame in between.
+        bool down = y > rect.top;
+        if (down)
+            WindowRegion.SetVisibleHeight(popup, rect.right - rect.left, visibleBottom - y);
         s_placing = true;
         try
         {
@@ -59,9 +63,8 @@ public static unsafe class PopupWindows
         {
             s_placing = false;
         }
-        // The system owns a region once it's set, and deletes it.
-        nint region = visibleBottom is { } bottom ? Gdi32.CreateRectRgn(0, 0, rect.right - rect.left, Math.Max(0, bottom - y)) : 0;
-        User32.SetWindowRgn(popup, region, true);
+        if (!down)
+            WindowRegion.SetVisibleHeight(popup, rect.right - rect.left, visibleBottom - y);
         if (s_concealed.ContainsKey(popup))
         {
             Cloak(popup, false);

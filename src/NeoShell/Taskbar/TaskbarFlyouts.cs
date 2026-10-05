@@ -18,7 +18,7 @@ namespace NeoShell.Taskbar;
 /// Unconstrained, a flyout is a window of its own (<see cref="PopupWindows"/>), owned by the taskbar and so always in
 /// front of it, with its acrylic belonging to that window: WinUI's own animation slides it in over the taskbar, and
 /// sliding only the content would leave the acrylic standing still. So the window itself slides up from the
-/// taskbar's top edge, with a window region cutting off what's still below that edge.
+/// taskbar's top edge, with a window region cutting off what's still below that edge, and back down when it closes.
 /// </remarks>
 internal static class TaskbarFlyouts
 {
@@ -26,6 +26,7 @@ internal static class TaskbarFlyouts
     public const double Gap = 12;
 
     private static readonly TimeSpan s_duration = TimeSpan.FromMilliseconds(200);
+    private static readonly TimeSpan s_closeDuration = TimeSpan.FromMilliseconds(150);
     private static readonly HashSet<FlyoutBase> s_prepared = [];
     private static readonly Dictionary<FlyoutBase, FrameworkElement> s_centredOn = [];
     // Centred flyouts that have been moved into place since they opened.
@@ -33,6 +34,9 @@ internal static class TaskbarFlyouts
     // Each flyout's popup window, which WinUI keeps between openings.
     private static readonly Dictionary<FlyoutBase, nint> s_windows = [];
     private static Slide? s_slide;
+    private static SlideOut? s_slideOut;
+    // Flyouts whose slide out is over, closing for real.
+    private static readonly HashSet<FlyoutBase> s_slidOut = [];
     private static readonly HashSet<FlyoutBase> s_atPointer = [];
     // The windows of menus at the pointer and their submenus, which no other flyout has.
     private static readonly HashSet<nint> s_pointerWindows = [];
@@ -110,6 +114,9 @@ internal static class TaskbarFlyouts
     private static void Show(FlyoutBase flyout, FrameworkElement target, double x, FlyoutPlacementMode placement)
     {
         Prepare(flyout);
+        // Opened again on its way out: it closes at once and opens afresh.
+        if (s_slideOut?.Flyout == flyout)
+            FinishSlideOut();
         // The gap above the taskbar's top edge, whatever the target's height.
         flyout.ShowAt(target, new FlyoutShowOptions { Position = new Point(x, Above(target)), Placement = placement });
     }
@@ -122,7 +129,67 @@ internal static class TaskbarFlyouts
         flyout.ShouldConstrainToRootBounds = false;
         flyout.AreOpenCloseAnimationsEnabled = false;
         flyout.Opened += (_, _) => SlideIn(flyout);
+        flyout.Closing += (_, e) => StartSlideOut(flyout, e);
         flyout.Closed += (_, _) => s_centred.Remove(flyout);
+    }
+
+    // Cancels the closing, slides the window back behind the taskbar's top edge, and closes it then.
+    private static void StartSlideOut(FlyoutBase flyout, FlyoutBaseClosingEventArgs e)
+    {
+        if (s_slidOut.Remove(flyout) || e.Cancel || s_slideOut?.Flyout == flyout)
+            return;
+        if (!s_windows.TryGetValue(flyout, out nint window) || !PopupWindows.IsShown(window))
+            return;
+
+        int edge;
+        if (s_slide is { } slide && slide.Flyout == flyout)
+        {
+            // Still on its way in, or not even shown yet.
+            if (slide.To is null)
+                return;
+            edge = slide.Edge;
+            StopSlide();
+        }
+        else if (flyout.Target?.XamlRoot is { } root)
+        {
+            edge = TopLevelWindows.GetBounds(Win32Interop.GetWindowFromWindowId(root.ContentIslandEnvironment.AppWindowId)).Y;
+        }
+        else
+        {
+            return;
+        }
+
+        e.Cancel = true;
+        if (s_slideOut is not null)
+            FinishSlideOut();
+        s_slideOut = new SlideOut(flyout, window, PopupWindows.GetBounds(window).Y, edge, Stopwatch.GetTimestamp());
+        CompositionTarget.Rendering += SlideOutFrame;
+    }
+
+    private sealed record SlideOut(FlyoutBase Flyout, nint Window, int From, int Edge, long Since);
+
+    // Accelerating into the taskbar, as Start does.
+    private static void SlideOutFrame(object? sender, object e)
+    {
+        if (s_slideOut is not { } slide)
+            return;
+
+        double progress = Math.Min(1, Stopwatch.GetElapsedTime(slide.Since) / s_closeDuration);
+        int y = (int)Math.Round(slide.From + (slide.Edge - slide.From) * Math.Pow(progress, 3));
+        PopupWindows.Place(slide.Window, y, slide.Edge);
+        if (progress >= 1)
+            FinishSlideOut();
+    }
+
+    private static void FinishSlideOut()
+    {
+        if (s_slideOut is not { } slide)
+            return;
+
+        CompositionTarget.Rendering -= SlideOutFrame;
+        s_slideOut = null;
+        s_slidOut.Add(slide.Flyout);
+        slide.Flyout.Hide();
     }
 
     private static void SlideIn(FlyoutBase flyout)
