@@ -18,8 +18,8 @@ coding rules are in [CLAUDE.md](../CLAUDE.md).
   is the shell.
 - Start's Quick Link menu (right-click Start, Win+X) and, while NeoShell is the shell, Alt+Tab, Explorer's other
   Win+ shortcuts, Snap layouts (Win+Z) and screenshots (Win+PrtScn, Win+Shift+S).
-- A widget sidebar, as Windows Vista's: profile and clock, resource usage, pictures, now playing, weather and notes,
-  docked along the right of the screen or dragged out to float on the desktop.
+- A widget sidebar, as Windows Vista's: profile and clock, resource usage, pictures, now playing, weather, notes and
+  wireless devices' batteries, docked along the right of the screen or dragged out to float on the desktop.
 
 Out of scope: editing Quick Settings' tiles, Windows 11's Widgets board (Win+W), Task View, pinning items in jump
 lists, toast images, buttons and inline replies.
@@ -49,6 +49,10 @@ All shell surfaces (taskbar, Start menu, wallpaper, flyouts) are WinUI `Window`s
   the surface should not steal focus (taskbar).
 - Taskbar and Start menu are topmost (`IsAlwaysOnTop`); the wallpaper window is forced to `HWND_BOTTOM`.
 - Sizes are in physical pixels from `AppWindow`; convert using the window's DPI (`GetDpiForWindow`).
+- A `ShellBackdrop` (acrylic or Mica kept active, or a see-through colour) can have several targets at once: a
+  menu's backdrop is used by its submenus' popups too. They share one controller (or brush), disposed with the last
+  target. A controller left behind closes itself when the dispatcher shuts down and touches a popup that's gone (a
+  crash in `CPopup::GetSystemBackdrop` on exit after the taskbar's backdrop submenu had been used).
 
 ## Application lifecycle
 
@@ -845,6 +849,11 @@ Small widgets about the computer and its user, as Windows Vista's sidebar gadget
   take the focus when clicked: notes are typed into.
 - Backdrop, theme and accent colour are the taskbar's (`TaskbarBackdrop`, `Taskbars.Updated`), on the sidebar and on
   each floating widget.
+- Closing a widget window (`Shut`): its subclasses are removed and moves and resizes no longer reach WinUI
+  (`WindowClosing.IgnoreMoves`). While closing, WinUI destroys the window's content and then re-applies the window's
+  styles; when that moves the client area, WinUI's move handler repositions the destroyed content (an access violation
+  in `CWindowChrome::UpdateBridgeWindowSizePosition`, found from a crash dump: NeoShell crashed on exit now and then,
+  as the shell, after a widget had been added).
 
 ### Each widget (`WidgetFrame`, `WidgetView`)
 
@@ -887,6 +896,15 @@ Small widgets about the computer and its user, as Windows Vista's sidebar gadget
   forecast reused until it expires (`Expires`) and then asked for with `If-Modified-Since`, and "Data from MET
   Norway" credited in its settings (kept off the widget to keep it small). Refreshed every 30 minutes, five after a
   failure.
+- **Wireless devices**: the batteries of the same devices the WirelessStatus app lists, its code brought over
+  into `NeoShell.Interop/Wireless`: Bluetooth devices Windows knows the level of (`DEVPKEY_Bluetooth_Battery` on the
+  device nodes, connected per the paired association endpoints, linked by container id), and over HID the 2.4 GHz
+  devices Windows doesn't know (Razer mice through Razer's control report, the Audeze Maxwell through its dongle's
+  reports; protocols as documented by OpenRazer and HeadsetControl, reimplemented). Each kind is read on the thread
+  pool with a 15 s limit, keeping its last devices when it fails. Read by `WirelessMonitor` while the widget is shown:
+  at once, every 5 minutes (its setting), and 2 s after the last of a burst of `WM_DEVICECHANGE` (a receiver plugged
+  in or out, from the taskbars' windows). A row per device: its kind's icon, name, battery bar (red at 10% or less
+  while not charging), a charging mark and the level, or dimmed and "Unavailable" when out of reach.
 - **Notes**: plain text saved half a second after typing stops, to `notes\<id>.txt` next to the settings; text size
   in its settings. Closing a note keeps its file.
 

@@ -16,6 +16,7 @@ public static class ShellWorkArea
 
     // Changes go out one at a time and in order, off the UI thread: setting one waits for every window (WorkArea.Set).
     private static Task s_pending = Task.CompletedTask;
+    private static volatile bool s_exiting;
 
     public static void ReserveBottom(RectInt32 monitor, int height) =>
         Reserve(monitor, Reserved(monitor) with { Bottom = height });
@@ -30,8 +31,20 @@ public static class ShellWorkArea
     public static RectInt32 Compute(RectInt32 monitor, int bottom, int right) =>
         new(monitor.X, monitor.Y, monitor.Width - right, monitor.Height - bottom);
 
-    /// <summary>Waits a moment for changes still going out, so the space is given back before NeoShell exits.</summary>
-    public static void Flush() => s_pending.Wait(TimeSpan.FromSeconds(2));
+    /// <summary>
+    /// NeoShell is exiting: from now on changes are only noted, for <see cref="Restore"/>. One going out would wait for
+    /// NeoShell's own windows, which are closing and no longer answer.
+    /// </summary>
+    public static void BeginExit() => s_exiting = true;
+
+    /// <summary>
+    /// Gives the space back as NeoShell exits, once its windows have let go of theirs, without waiting for windows.
+    /// </summary>
+    public static void Restore()
+    {
+        foreach ((RectInt32 monitor, (int bottom, int right)) in s_reserved)
+            Apply(Compute(monitor, bottom, right), waitForWindows: false);
+    }
 
     private static (int Bottom, int Right) Reserved(RectInt32 monitor) => s_reserved.GetValueOrDefault(monitor);
 
@@ -42,15 +55,21 @@ public static class ShellWorkArea
             return;
 
         s_reserved[monitor] = reserved;
+        if (s_exiting)
+            return;
         RectInt32 area = Compute(monitor, reserved.Bottom, reserved.Right);
-        s_pending = s_pending.ContinueWith(_ => Apply(area), TaskScheduler.Default);
+        s_pending = s_pending.ContinueWith(_ =>
+        {
+            if (!s_exiting)
+                Apply(area, waitForWindows: true);
+        }, TaskScheduler.Default);
     }
 
-    private static void Apply(RectInt32 area)
+    private static void Apply(RectInt32 area, bool waitForWindows)
     {
         try
         {
-            WorkArea.Set(area);
+            WorkArea.Set(area, waitForWindows);
         }
         catch (Win32Exception ex)
         {

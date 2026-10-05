@@ -23,6 +23,7 @@ internal sealed class Sidebar : IDisposable
     private readonly SettingsStore _settings;
     private readonly Taskbars _taskbars;
     private readonly ResourceMonitor _resources = new();
+    private readonly WirelessMonitor _wireless = new();
     private readonly Dictionary<string, FloatingWidgetWindow> _floating = [];
     private SidebarWindow? _window;
     private Backdrop _backdrop;
@@ -53,12 +54,14 @@ internal sealed class Sidebar : IDisposable
 
         _settings.Changed += OnSettingsChanged;
         _taskbars.Updated += OnTaskbarsUpdated;
+        _taskbars.DevicesChanged += _wireless.DevicesChanged;
     }
 
     public void Dispose()
     {
         _settings.Changed -= OnSettingsChanged;
         _taskbars.Updated -= OnTaskbarsUpdated;
+        _taskbars.DevicesChanged -= _wireless.DevicesChanged;
         CloseDragOut();
         foreach (FloatingWidgetWindow window in _floating.Values)
             Close(window);
@@ -162,7 +165,7 @@ internal sealed class Sidebar : IDisposable
 
         foreach (WidgetFrame frame in _window.Frames)
             frame.Widget.Close();
-        _window.Close();
+        _window.Shut();
         _window = null;
     }
 
@@ -175,6 +178,7 @@ internal sealed class Sidebar : IDisposable
             WidgetKind.Pictures => new PicturesWidget(widget),
             WidgetKind.Media => new MediaWidget(widget),
             WidgetKind.Weather => new WeatherWidget(widget),
+            WidgetKind.Wireless => new WirelessWidget(widget, _wireless),
             _ => new NotesWidget(widget),
         };
         // The widget's copy may have an old position: it was made before the widget was last dragged.
@@ -337,6 +341,6 @@ internal sealed class Sidebar : IDisposable
     private static void Close(FloatingWidgetWindow window)
     {
         window.Frame.Widget.Close();
-        window.Close();
+        window.Shut();
     }
 }

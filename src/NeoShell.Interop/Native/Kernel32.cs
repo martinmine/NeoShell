@@ -54,6 +54,21 @@ internal static unsafe partial class Kernel32
     [return: MarshalAs(UnmanagedType.Bool)]
     public static partial bool GlobalMemoryStatusEx(ref MEMORYSTATUSEX buffer);
 
+    public const uint GENERIC_READ = 0x8000_0000;
+    public const uint GENERIC_WRITE = 0x4000_0000;
+    public const uint FILE_SHARE_READ = 0x1;
+    public const uint FILE_SHARE_WRITE = 0x2;
+    public const uint OPEN_EXISTING = 3;
+
+    [LibraryImport("kernel32.dll", EntryPoint = "CreateFileW", SetLastError = true, StringMarshalling = StringMarshalling.Utf16)]
+    public static partial Microsoft.Win32.SafeHandles.SafeFileHandle CreateFile(
+        string fileName, uint desiredAccess, uint shareMode, nint securityAttributes,
+        uint creationDisposition, uint flagsAndAttributes, nint templateFile);
+
+    [LibraryImport("kernel32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static partial bool WriteFile(Microsoft.Win32.SafeHandles.SafeFileHandle file, byte* buffer, uint bytesToWrite, out uint bytesWritten, nint overlapped);
+
     public const uint GMEM_MOVEABLE = 0x0002;
 
     [LibraryImport("kernel32.dll", SetLastError = true)]

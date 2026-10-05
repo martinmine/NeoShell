@@ -26,6 +26,9 @@ internal sealed partial class SidebarWindow : Window
     private readonly PinnedWindow _placement;
     private readonly AppBar? _appBar;
     private ShellBackdrop _backdrop;
+    // The menus keep theirs; a change of theme is applied to it.
+    private readonly ShellBackdrop _addMenuBackdrop = new(Backdrop.Acrylic);
+    private readonly ShellBackdrop _sidebarMenuBackdrop = new(Backdrop.Acrylic);
     private DisplayMonitor _monitor;
     private double _width;
     private ElementTheme _theme;
@@ -58,6 +61,8 @@ internal sealed partial class SidebarWindow : Window
         _frameless = new FramelessWindow(_hwnd);
         // Stays while peeking at the desktop, as gadgets did.
         Peek.Exclude(_hwnd);
+        AddMenu.SystemBackdrop = _addMenuBackdrop;
+        SidebarMenu.SystemBackdrop = _sidebarMenuBackdrop;
         _backdrop = new ShellBackdrop(backdrop);
         SystemBackdrop = _backdrop;
         WindowTransparency.SetSeeThrough(_hwnd, _backdrop.Kind is Backdrop.Translucent or Backdrop.Transparent);
@@ -75,17 +80,19 @@ internal sealed partial class SidebarWindow : Window
         // The cards move with layout (a widget grows, one is added) and with scrolling.
         Root.LayoutUpdated += (_, _) => UpdateRegion();
         Scroller.ViewChanged += (_, _) => UpdateRegion();
+    }
 
-        Closed += (_, _) =>
-        {
-            // Give the space back first, so windows can use it straight away.
-            if (_appBar is not null)
-                _appBar.Dispose();
-            else
-                ShellWorkArea.ReserveRight(_monitor.Bounds, 0);
-            _placement.Dispose();
-            _frameless.Dispose();
-        };
+    /// <summary>Gives the space back and closes the window (see <see cref="WindowClosing.IgnoreMoves"/>).</summary>
+    public void Shut()
+    {
+        if (_appBar is not null)
+            _appBar.Dispose();
+        else
+            ShellWorkArea.ReserveRight(_monitor.Bounds, 0);
+        _placement.Dispose();
+        _frameless.Dispose();
+        WindowClosing.IgnoreMoves(_hwnd);
+        Close();
     }
 
     public DisplayMonitor Monitor => _monitor;
@@ -121,8 +128,7 @@ internal sealed partial class SidebarWindow : Window
         Root.RequestedTheme = accent is { } color ? SystemTheme.ThemeOn(color) : theme;
         _backdrop.Theme = Root.RequestedTheme;
         _backdrop.Tint = accent;
-        AddMenu.SystemBackdrop = new ShellBackdrop(Backdrop.Acrylic) { Theme = Root.RequestedTheme };
-        SidebarMenu.SystemBackdrop = new ShellBackdrop(Backdrop.Acrylic) { Theme = Root.RequestedTheme };
+        _addMenuBackdrop.Theme = _sidebarMenuBackdrop.Theme = Root.RequestedTheme;
     }
 
     /// <summary>

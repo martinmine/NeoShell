@@ -55,12 +55,15 @@ internal sealed class FloatingWidgetWindow : Window
 
         frame.SizeChanged += (_, _) => Resize();
         _root.Loaded += (_, _) => _root.XamlRoot.Changed += (_, _) => Resize();
+    }
 
-        Closed += (_, _) =>
-        {
-            _placement.Dispose();
-            _frameless.Dispose();
-        };
+    /// <summary>Closes the window (see <see cref="WindowClosing.IgnoreMoves"/>).</summary>
+    public void Shut()
+    {
+        _placement.Dispose();
+        _frameless.Dispose();
+        WindowClosing.IgnoreMoves(_hwnd);
+        Close();
     }
 
     public WidgetFrame Frame { get; }

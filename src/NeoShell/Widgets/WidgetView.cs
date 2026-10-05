@@ -24,6 +24,7 @@ internal partial class WidgetView : UserControl
         WidgetKind.Media => "Now playing",
         WidgetKind.Weather => "Weather",
         WidgetKind.Notes => "Notes",
+        WidgetKind.Wireless => "Wireless devices",
         _ => kind.ToString(),
     };
 
@@ -36,6 +37,7 @@ internal partial class WidgetView : UserControl
         WidgetKind.Media => "\uE8D6",
         WidgetKind.Weather => "\uE706",
         WidgetKind.Notes => "\uE70B",
+        WidgetKind.Wireless => "\uE957",
         _ => "\uE74C",
     };
 

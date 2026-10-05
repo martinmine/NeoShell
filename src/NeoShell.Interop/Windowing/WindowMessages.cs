@@ -16,6 +16,9 @@ public static class WindowMessages
     /// <summary><c>WM_DISPLAYCHANGE</c>: monitors were added, removed or changed resolution.</summary>
     public const uint DisplayChange = 0x007E;
 
+    /// <summary><c>WM_DEVICECHANGE</c>: a device was added or removed (wParam <c>DBT_DEVNODES_CHANGED</c>, and others).</summary>
+    public const uint DeviceChange = 0x0219;
+
     /// <summary><c>WM_DPICHANGED</c>: the window's DPI changed; the low word of wParam is the new DPI.</summary>
     public const uint DpiChanged = 0x02E0;
 

@@ -117,12 +117,13 @@ public partial class App : Application
         _shuttingDown = true;
 
         Log.Info("Shutting down");
+        ShellWorkArea.BeginExit();
         _shellSession?.Dispose();
         // The sidebar and taskbars next: they give the reserved screen space back.
         _sidebar?.Dispose();
         _taskbars?.Dispose();
         _wallpaper?.Dispose();
-        ShellWorkArea.Flush();
+        ShellWorkArea.Restore();
         // Last, so Explorer started below becomes the shell rather than opening a folder window.
         _shellRegistration?.Dispose();
         _controlWindow?.Dispose();

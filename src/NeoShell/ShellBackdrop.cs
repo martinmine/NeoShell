@@ -22,6 +22,7 @@ internal sealed class ShellBackdrop(Backdrop kind) : SystemBackdrop
     private MicaController? _mica;
     private Windows.UI.Composition.CompositionColorBrush? _brush;
     private Color? _tint;
+    private int _targets;
 
     public Backdrop Kind { get; } = kind == Backdrop.Mica && !MicaController.IsSupported() ? Backdrop.Acrylic : kind;
 
@@ -44,26 +45,36 @@ internal sealed class ShellBackdrop(Backdrop kind) : SystemBackdrop
         }
     }
 
+    // A menu's backdrop is shared by its submenus' popups, so one backdrop can have several targets at once. Each
+    // gets the same controller (or brush), which goes with the last of them: a controller left behind closes itself
+    // when the dispatcher shuts down and touches a popup that's gone (a crash in CPopup::GetSystemBackdrop).
     protected override void OnTargetConnected(ICompositionSupportsSystemBackdrop target, XamlRoot xamlRoot)
     {
         base.OnTargetConnected(target, xamlRoot);
+        _targets++;
         switch (Kind)
         {
             case Backdrop.Acrylic:
-                _acrylic = new DesktopAcrylicController();
+                if (_acrylic is null)
+                {
+                    _acrylic = new DesktopAcrylicController();
+                    _acrylic.SetSystemBackdropConfiguration(_configuration);
+                }
                 _acrylic.AddSystemBackdropTarget(target);
-                _acrylic.SetSystemBackdropConfiguration(_configuration);
                 break;
             case Backdrop.Mica:
-                _mica = new MicaController();
+                if (_mica is null)
+                {
+                    _mica = new MicaController();
+                    _mica.SetSystemBackdropConfiguration(_configuration);
+                }
                 _mica.AddSystemBackdropTarget(target);
-                _mica.SetSystemBackdropConfiguration(_configuration);
                 break;
             case Backdrop.Translucent:
             case Backdrop.Transparent:
                 // The system backdrop slot takes a brush from the system compositor, not WinUI's.
                 s_compositor ??= new Windows.UI.Composition.Compositor();
-                _brush = s_compositor.CreateColorBrush();
+                _brush ??= s_compositor.CreateColorBrush();
                 target.SystemBackdrop = _brush;
                 break;
         }
@@ -74,17 +85,18 @@ internal sealed class ShellBackdrop(Backdrop kind) : SystemBackdrop
     {
         base.OnTargetDisconnected(target);
         _acrylic?.RemoveSystemBackdropTarget(target);
+        _mica?.RemoveSystemBackdropTarget(target);
+        if (_brush is not null)
+            target.SystemBackdrop = null;
+
+        if (--_targets > 0)
+            return;
         _acrylic?.Dispose();
         _acrylic = null;
-        _mica?.RemoveSystemBackdropTarget(target);
         _mica?.Dispose();
         _mica = null;
-        if (_brush is not null)
-        {
-            target.SystemBackdrop = null;
-            _brush.Dispose();
-            _brush = null;
-        }
+        _brush?.Dispose();
+        _brush = null;
     }
 
     private void ApplyTint()

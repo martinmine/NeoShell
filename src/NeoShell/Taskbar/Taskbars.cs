@@ -69,6 +69,9 @@ internal sealed class Taskbars : IDisposable
     /// </summary>
     public event Action? Updated;
 
+    /// <summary>A device was plugged in or removed (comes in bursts).</summary>
+    public event Action? DevicesChanged;
+
     public SettingsStore Settings { get; }
 
     public AppIcons Icons { get; }
@@ -303,6 +306,9 @@ internal sealed class Taskbars : IDisposable
             case WindowMessages.SettingChange: // theme, accent colour, regional formats
             case WindowMessages.TimeChange:
                 QueueUpdate();
+                break;
+            case WindowMessages.DeviceChange:
+                DevicesChanged?.Invoke();
                 break;
         }
     }

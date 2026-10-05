@@ -220,6 +220,12 @@ Tick items off as they land. The feature details are in [design.md](design.md).
 - [x] Smaller widgets (profile, weather, resources, now playing); pictures fill their card
 - [x] Resources: GPU, free disk space, each drive and each network adapter as an option
 - [x] Sidebar menu: hide the panel behind the widgets (window cut to its cards), add widget
+- [x] Wireless devices widget: the WirelessStatus app's devices (Bluetooth, Razer, Audeze Maxwell), its protocol
+      tests brought over; read again on device changes — rows with devices checked with made-up ones (none on the VM)
+- [x] Fix: exit crashed now and then as the shell after a widget was added (WinUI handling a move of a closing
+      window); exit crashed after the taskbar's backdrop submenu was used (a backdrop shared by a menu and its
+      submenu leaked a controller). Both found from crash dumps.
+- [x] Fix: the shell's work area is set off the UI thread (its broadcast waits for every window; startup hung once)
 - Not run live: Now playing with media playing (nothing plays on the VM), the weather from the computer's location
   (location is off on the VM), a second monitor
 

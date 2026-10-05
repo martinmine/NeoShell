@@ -13,6 +13,8 @@ internal static unsafe partial class User32
     public const uint WM_WINDOWPOSCHANGED = 0x0047;
     public const uint WM_STYLECHANGING = 0x007C;
     public const uint WM_NCCREATE = 0x0081;
+    public const uint WM_MOVE = 0x0003;
+    public const uint WM_SIZE = 0x0005;
     public const uint WM_NCDESTROY = 0x0082;
 
     public const uint SWP_NOSIZE = 0x0001;

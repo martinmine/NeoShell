@@ -12,7 +12,7 @@ public enum Backdrop { Acrylic, Mica, Translucent, Transparent }
 
 public enum DesktopSortOrder { Name, Size, ItemType, DateModified }
 
-public enum WidgetKind { Profile, Resources, Pictures, Media, Weather, Notes }
+public enum WidgetKind { Profile, Resources, Pictures, Media, Weather, Notes, Wireless }
 
 /// <summary>
 /// One widget: in the sidebar, in the order of <see cref="ShellSettings.Widgets"/>, or floating on the desktop. Its
@@ -51,6 +51,9 @@ public sealed record WidgetSettings
 
     // Notes
     public double? FontSize { get; set; }
+
+    // Wireless devices: how often their batteries are read, in minutes.
+    public int? PollMinutes { get; set; }
 
     [JsonIgnore]
     public bool IsFloating => X is not null && Y is not null;
@@ -103,6 +106,7 @@ public sealed record ShellSettings
         new() { Id = "profile", Kind = WidgetKind.Profile },
         new() { Id = "weather", Kind = WidgetKind.Weather },
         new() { Id = "resources", Kind = WidgetKind.Resources },
+        new() { Id = "wireless", Kind = WidgetKind.Wireless },
         new() { Id = "media", Kind = WidgetKind.Media },
         new() { Id = "pictures", Kind = WidgetKind.Pictures },
         new() { Id = "notes", Kind = WidgetKind.Notes },
