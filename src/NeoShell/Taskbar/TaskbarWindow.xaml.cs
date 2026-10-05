@@ -151,7 +151,7 @@ internal sealed partial class TaskbarWindow : Window
         }
         else
         {
-            WorkArea.Set(TaskbarLayout.WorkArea(monitor.Bounds, bounds));
+            ShellWorkArea.ReserveBottom(monitor.Bounds, monitor.Bounds.Y + monitor.Bounds.Height - bounds.Y);
         }
         _shownBounds = bounds;
         _placement = new PinnedWindow(hwnd, bounds, PinnedLayer.Topmost);
@@ -252,7 +252,7 @@ internal sealed partial class TaskbarWindow : Window
             if (_appBar is not null)
                 _appBar.Dispose();
             else if (!_autoHide)
-                WorkArea.Set(monitor.Bounds);
+                ShellWorkArea.ReserveBottom(monitor.Bounds, 0);
             _placement.Dispose();
             _messages.Dispose();
             _frameless.Dispose();
@@ -1377,6 +1377,7 @@ internal sealed partial class TaskbarWindow : Window
         AlignCenterItem.IsChecked = settings.TaskbarAlignment == TaskbarAlignment.Center;
         AlignLeftItem.IsChecked = settings.TaskbarAlignment == TaskbarAlignment.Left;
         ShowSearchItem.IsChecked = settings.ShowSearchButton;
+        ShowWidgetsItem.IsChecked = settings.ShowWidgetSidebar;
         CombineAlwaysItem.IsChecked = settings.CombineButtons == CombineButtons.Always;
         CombineWhenFullItem.IsChecked = settings.CombineButtons == CombineButtons.WhenFull;
         CombineNeverItem.IsChecked = settings.CombineButtons == CombineButtons.Never;
@@ -1399,6 +1400,9 @@ internal sealed partial class TaskbarWindow : Window
 
     private void ShowSearch_Click(object sender, RoutedEventArgs e) =>
         _owner.Settings.Update(_owner.Settings.Current with { ShowSearchButton = ShowSearchItem.IsChecked });
+
+    private void ShowWidgets_Click(object sender, RoutedEventArgs e) =>
+        _owner.Settings.Update(_owner.Settings.Current with { ShowWidgetSidebar = ShowWidgetsItem.IsChecked });
 
     private void Combine_Click(object sender, RoutedEventArgs e) =>
         _owner.Settings.Update(_owner.Settings.Current with

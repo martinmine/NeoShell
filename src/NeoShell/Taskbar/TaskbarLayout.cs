@@ -18,10 +18,6 @@ public static class TaskbarLayout
         return new RectInt32(monitor.X, monitor.Y + monitor.Height - height, monitor.Width, height);
     }
 
-    /// <summary>What's left of the monitor above the taskbar, for windows to maximize into.</summary>
-    public static RectInt32 WorkArea(RectInt32 monitor, RectInt32 taskbar) =>
-        new(monitor.X, monitor.Y, monitor.Width, taskbar.Y - monitor.Y);
-
     /// <summary>Pixels of an auto-hidden taskbar left on screen, for the pointer to find.</summary>
     public const int AutoHideVisiblePixels = 2;
 

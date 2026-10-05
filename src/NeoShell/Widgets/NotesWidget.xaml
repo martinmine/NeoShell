@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<local:WidgetView
+    x:Class="NeoShell.Widgets.NotesWidget"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:NeoShell.Widgets">
+    <local:WidgetView.Resources>
+        <!-- Text straight on the card, without a box around it; the underline still shows while typing. -->
+        <SolidColorBrush x:Key="TextControlBackground" Color="Transparent" />
+        <SolidColorBrush x:Key="TextControlBackgroundPointerOver" Color="Transparent" />
+        <SolidColorBrush x:Key="TextControlBackgroundFocused" Color="Transparent" />
+        <SolidColorBrush x:Key="TextControlBorderBrush" Color="Transparent" />
+        <SolidColorBrush x:Key="TextControlBorderBrushPointerOver" Color="Transparent" />
+    </local:WidgetView.Resources>
+
+    <StackPanel Spacing="4">
+        <TextBlock
+            Height="28"
+            Text="Notes"
+            Style="{StaticResource CaptionTextBlockStyle}"
+            Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+        <TextBox
+            x:Name="NoteBox"
+            Height="160"
+            Padding="0,4"
+            AutomationProperties.AutomationId="NoteText"
+            AutomationProperties.Name="Note"
+            AcceptsReturn="True"
+            TextWrapping="Wrap"
+            PlaceholderText="Write a note"
+            ScrollViewer.VerticalScrollBarVisibility="Auto"
+            TextChanged="NoteBox_TextChanged" />
+    </StackPanel>
+</local:WidgetView>

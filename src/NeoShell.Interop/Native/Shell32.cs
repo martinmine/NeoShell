@@ -11,6 +11,7 @@ internal static unsafe partial class Shell32
     public const uint ABM_ACTIVATE = 0x06;
     public const uint ABM_WINDOWPOSCHANGED = 0x09;
 
+    public const uint ABE_RIGHT = 2;
     public const uint ABE_BOTTOM = 3;
 
     public const nint ABN_POSCHANGED = 1;

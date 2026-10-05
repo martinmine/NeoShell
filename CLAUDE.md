@@ -61,6 +61,7 @@ Directory.Build.props
 src/NeoShell/                 WinUI app
   Program.cs, App.xaml(.cs)   Custom Main, single instance, /exit, run-mode detection, crash fallback
   ShellSession.cs             Shell-mode duties: registration, ready event, startup apps, session end
+  ShellWorkArea.cs            Shell-mode work area: what the taskbar and the widget sidebar reserve
   Logging/                    Small file logger
   Desktop/                    WallpaperWindow (one per monitor), desktop icons and their menus (primary monitor)
   Taskbar/                    TaskbarWindow, task list + grouping, pinned apps, thumbnail popup, clock
@@ -71,9 +72,11 @@ src/NeoShell/                 WinUI app
   Switcher/                   Alt+Tab window switcher (shell mode)
   Snap/                       Win+Z Snap layouts (shell mode)
   Capture/                    Screenshots: Win+PrtScn, Win+Shift+S snip (shell mode)
+  Widgets/                    Widget sidebar, floating widgets, and the widgets (profile, resources, pictures, media,
+                              weather, notes)
   Settings/                   Settings record + JSON load/save (%LOCALAPPDATA%\NeoShell\settings.json)
 src/NeoShell.Interop/
-  Native/                     LibraryImport: User32, Shell32, Dwmapi, Kernel32, Advapi32, PowrProf, Comctl32
+  Native/                     LibraryImport: User32, Shell32, Dwmapi, Kernel32, Advapi32, PowrProf, Comctl32, Pdh
   Com/                        Core Audio, IShellItem/IShellItemImageFactory, IPropertyStore, ITaskbarList, ISearchQueryHelper,
                               IQuietHoursSettings
   Windowing/                  MessageWindow, WindowSubclass, AppBar, ShellHook, DwmThumbnail, KeyboardHook, WindowInfo
@@ -86,6 +89,9 @@ src/NeoShell.Interop/
   Power/                      EnergySaver, BatteryMonitor
   Display/                    DisplayProjection (Win+P modes)
   Accessibility/              StickyKeys
+  Performance/                SystemUsage (CPU, disk and memory use through PDH)
+  Media/                      NowPlaying (system media transport controls)
+  Location/                   DeviceLocation (WinRT Geolocator)
   Notifications/              UserNotifications (UserNotificationListener), DoNotDisturb (quiet hours)
   Search/                     IndexSearch (ISearchQueryHelper + OleDb against Search.CollatorDSO)
   Shell/                      AppCatalog (shell:AppsFolder), DesktopFolder, ShellContextMenu, ShellMenu, Launcher, Power,
@@ -131,7 +137,7 @@ src/NeoShell/bin/Debug/net10.0-windows10.0.26100.0/win-x64/NeoShell.exe /exit   
 
 - Unit tests (xunit) cover non-UI logic: window filtering, grouping, NOTIFYICONDATA parsing, search ranking,
   indexer query building, startup entries, settings, wallpaper style mapping, AppBar rects, desktop icon
-  filtering and sorting.
+  filtering and sorting, widget placement and order, MET forecast parsing.
 - When testing the UI live, drive it through UI Automation (set `AutomationProperties.AutomationId` on interactive
   controls). Never use global keystrokes like SendKeys: they go to whichever window has focus.
 - Always stop a running NeoShell with `/exit` (or its taskbar menu), never by killing the process. A kill leaves the
@@ -139,5 +145,5 @@ src/NeoShell/bin/Debug/net10.0-windows10.0.26100.0/win-x64/NeoShell.exe /exit   
 
 ## Out of scope
 
-Editing Quick Settings' tiles, Widgets, Task View, pinning items in jump lists, toast images, buttons and
-inline replies.
+Editing Quick Settings' tiles, Windows 11's Widgets board (Win+W), Task View, pinning items in jump lists, toast
+images, buttons and inline replies.

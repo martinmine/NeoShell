@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    A widget as the sidebar shows it, on a card, or floating, where its window is the card. Its settings and close
+    buttons show while the pointer is over it; pressing anywhere else on it and dragging moves it.
+-->
+<UserControl
+    x:Class="NeoShell.Widgets.WidgetFrame"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="ms-appx:///FlatButtons.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+
+            <Style x:Key="WidgetButtonStyle" TargetType="Button" BasedOn="{StaticResource FlatButtonStyle}">
+                <Setter Property="Width" Value="28" />
+                <Setter Property="Height" Value="28" />
+                <Setter Property="Margin" Value="0" />
+            </Style>
+        </ResourceDictionary>
+    </UserControl.Resources>
+
+    <!-- Transparent, not null: the whole widget takes the press that starts a drag. -->
+    <Grid
+        x:Name="Root"
+        Background="Transparent"
+        PointerEntered="Root_PointerEntered"
+        PointerExited="Root_PointerExited"
+        PointerCanceled="Root_PointerExited"
+        PointerPressed="Root_PointerPressed"
+        PointerMoved="Root_PointerMoved"
+        PointerReleased="Root_PointerReleased"
+        PointerCaptureLost="Root_PointerCaptureLost">
+        <Border
+            x:Name="Card"
+            Padding="12"
+            CornerRadius="8"
+            BorderThickness="1"
+            Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+            BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" />
+
+        <!-- On a solid plate, so they read over a picture too. -->
+        <StackPanel
+            x:Name="Buttons"
+            Margin="6"
+            Padding="2"
+            Spacing="2"
+            HorizontalAlignment="Right"
+            VerticalAlignment="Top"
+            Orientation="Horizontal"
+            CornerRadius="4"
+            Background="{ThemeResource SolidBackgroundFillColorSecondaryBrush}"
+            Opacity="0">
+            <Button
+                x:Name="SettingsButton"
+                AutomationProperties.AutomationId="WidgetSettingsButton"
+                AutomationProperties.Name="Widget settings"
+                ToolTipService.ToolTip="Settings"
+                Style="{StaticResource WidgetButtonStyle}">
+                <FontIcon Glyph="&#xE713;" FontSize="12" />
+                <Button.Flyout>
+                    <Flyout
+                        x:Name="SettingsFlyout"
+                        Placement="BottomEdgeAlignedRight"
+                        ShouldConstrainToRootBounds="False"
+                        Opening="SettingsFlyout_Opening"
+                        Closed="SettingsFlyout_Closed" />
+                </Button.Flyout>
+            </Button>
+            <Button
+                x:Name="CloseButton"
+                AutomationProperties.AutomationId="WidgetCloseButton"
+                AutomationProperties.Name="Close widget"
+                ToolTipService.ToolTip="Close"
+                Style="{StaticResource WidgetButtonStyle}"
+                Click="CloseButton_Click">
+                <FontIcon Glyph="&#xE8BB;" FontSize="12" />
+            </Button>
+        </StackPanel>
+    </Grid>
+</UserControl>

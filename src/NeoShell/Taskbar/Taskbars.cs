@@ -60,6 +60,15 @@ internal sealed class Taskbars : IDisposable
     /// <summary>The taskbar's theme, which its panels and the window switcher share.</summary>
     public ElementTheme Theme => _theme;
 
+    /// <summary>The taskbar's colour when Windows shows the accent colour on Start and taskbar, otherwise null.</summary>
+    public Color? Accent => _accent;
+
+    /// <summary>
+    /// The taskbars were updated after a change of theme, accent colour, displays or their settings; their space on
+    /// screen may have changed.
+    /// </summary>
+    public event Action? Updated;
+
     public SettingsStore Settings { get; }
 
     public AppIcons Icons { get; }
@@ -401,14 +410,16 @@ internal sealed class Taskbars : IDisposable
             {
                 _recreate = false;
                 CreateWindows();
-                return;
             }
-
-            foreach (TaskbarWindow window in _windows)
+            else
             {
-                window.SetTheme(_theme, _accent);
-                window.UpdateClock();
+                foreach (TaskbarWindow window in _windows)
+                {
+                    window.SetTheme(_theme, _accent);
+                    window.UpdateClock();
+                }
             }
+            Updated?.Invoke();
         }
         catch (Exception ex)
         {

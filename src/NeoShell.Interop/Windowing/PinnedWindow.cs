@@ -13,6 +13,11 @@ public enum PinnedLayer
 
     /// <summary>Among ordinary windows, where it was put last (the taskbar behind a full-screen app).</summary>
     Normal,
+
+    /// <summary>
+    /// Just above the desktop and below every app's window, even when clicked (the widgets, as Vista's gadgets).
+    /// </summary>
+    Desktop,
 }
 
 /// <summary>
@@ -98,8 +103,31 @@ public sealed unsafe class PinnedWindow : IDisposable
     // Below a topmost window is still in the topmost band. The window above may have gone since.
     private nint InsertAfter =>
         _layer == PinnedLayer.Bottom ? User32.HWND_BOTTOM
+        : _layer == PinnedLayer.Desktop ? AboveDesktop()
         : _above != 0 && User32.IsWindow(_above) ? _above
         : User32.HWND_TOPMOST;
+
+    /// <summary>
+    /// The lowest window that's an app's: going in just below it puts this one above the desktop (Explorer's, or
+    /// NeoShell's wallpaper windows, which can't simply be gone above: each puts itself at the very bottom). NeoShell's
+    /// other desktop-level windows don't count, so the widgets don't push each other around.
+    /// </summary>
+    private nint AboveDesktop()
+    {
+        uint ownProcess = (uint)Environment.ProcessId;
+        for (nint hwnd = User32.GetWindow(_hwnd, User32.GW_HWNDLAST); hwnd != 0; hwnd = User32.GetWindow(hwnd, User32.GW_HWNDPREV))
+        {
+            if (hwnd == _hwnd || !User32.IsWindowVisible(hwnd) || TopLevelWindows.IsDesktop(hwnd))
+                continue;
+            // Only app windows are above: going below a topmost one would make this one topmost too.
+            if ((User32.GetWindowLongPtr(hwnd, User32.GWL_EXSTYLE) & User32.WS_EX_TOPMOST) != 0)
+                return User32.HWND_TOP;
+            User32.GetWindowThreadProcessId(hwnd, out uint process);
+            if (process != ownProcess)
+                return hwnd;
+        }
+        return User32.HWND_TOP;
+    }
 
     private void Apply()
     {
@@ -149,9 +177,10 @@ public sealed unsafe class PinnedWindow : IDisposable
             position->cy = _bounds.Height;
             position->flags &= ~(User32.SWP_NOMOVE | User32.SWP_NOSIZE);
 
-            // The wallpaper goes back to the bottom on every change; a topmost window only needs its layer kept
-            // when its z-order is actually changing; a normal one goes wherever it's put.
-            if (_layer == PinnedLayer.Bottom || (_layer == PinnedLayer.Topmost && (position->flags & User32.SWP_NOZORDER) == 0))
+            // The wallpaper goes back to the bottom on every change; a topmost or desktop-level window only needs its
+            // layer kept when its z-order is actually changing (it's clicked); a normal one goes wherever it's put.
+            if (_layer == PinnedLayer.Bottom
+                || ((_layer is PinnedLayer.Topmost or PinnedLayer.Desktop) && (position->flags & User32.SWP_NOZORDER) == 0))
             {
                 position->hwndInsertAfter = InsertAfter;
                 position->flags &= ~User32.SWP_NOZORDER;

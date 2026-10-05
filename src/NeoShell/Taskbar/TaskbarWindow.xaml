@@ -431,6 +431,11 @@
                     AutomationProperties.AutomationId="ShowSearchMenuItem"
                     Text="Show search button"
                     Click="ShowSearch_Click" />
+                <ToggleMenuFlyoutItem
+                    x:Name="ShowWidgetsItem"
+                    AutomationProperties.AutomationId="ShowWidgetsMenuItem"
+                    Text="Show widgets"
+                    Click="ShowWidgets_Click" />
                 <MenuFlyoutSubItem AutomationProperties.AutomationId="CombineMenuItem" Text="Combine taskbar buttons">
                     <RadioMenuFlyoutItem
                         x:Name="CombineAlwaysItem"

@@ -208,6 +208,18 @@ Tick items off as they land. The feature details are in [design.md](design.md).
 - Not done: Win+Shift+R (Snipping Tool video), Win+V, Win+Period, Win+H (no public way to Windows' text input
   host), Task View and virtual desktops (out of scope)
 
+## 17. Widgets
+
+- [x] Sidebar window on the right of the primary monitor, to the taskbar: app bar alongside Explorer, work area as the
+      shell (`ShellWorkArea` shared with the taskbar); resizable by its left edge; "Show widgets" in the taskbar menu
+- [x] Taskbar's backdrop, theme and accent colour; just above the desktop (`PinnedLayer.Desktop`)
+- [x] Widget frame: settings and close buttons on hover; add menu (one of most kinds, several notes and pictures)
+- [x] Drag out to float on the desktop, back in to dock, and within the sidebar to reorder; positions saved
+- [x] Profile, Resource usage (graphs, colours), Pictures, Now playing, Weather (MET Norway), Notes
+- [x] Tests: work area, placement and order, formats, forecast parsing
+- Not run live: Now playing with media playing (nothing plays on the VM), the weather from the computer's location
+  (location is off on the VM), a second monitor
+
 ## Later / not planned yet
 
 - Notifications: toast images, buttons and inline replies (not exposed to listeners); tray balloons as toasts

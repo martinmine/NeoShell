@@ -9,6 +9,7 @@ using NeoShell.Interop.Windowing;
 using NeoShell.Logging;
 using NeoShell.Settings;
 using NeoShell.Taskbar;
+using NeoShell.Widgets;
 
 namespace NeoShell;
 
@@ -24,6 +25,7 @@ public partial class App : Application
     private readonly ShellRegistration? _shellRegistration;
     private Wallpaper? _wallpaper;
     private Taskbars? _taskbars;
+    private Sidebar? _sidebar;
     private ShellSession? _shellSession;
     private bool _shuttingDown;
     private bool _startExplorerOnExit;
@@ -76,6 +78,8 @@ public partial class App : Application
 
         _taskbars = new Taskbars(_runMode, _settings, Shutdown, SwitchToExplorer);
         _taskbars.Show();
+        _sidebar = new Sidebar(_runMode, _settings, _taskbars);
+        _sidebar.Show();
 
         if (_shellRegistration is not null)
         {
@@ -114,9 +118,11 @@ public partial class App : Application
 
         Log.Info("Shutting down");
         _shellSession?.Dispose();
-        // Taskbars next: they give the reserved screen space back.
+        // The sidebar and taskbars next: they give the reserved screen space back.
+        _sidebar?.Dispose();
         _taskbars?.Dispose();
         _wallpaper?.Dispose();
+        ShellWorkArea.Flush();
         // Last, so Explorer started below becomes the shell rather than opening a folder window.
         _shellRegistration?.Dispose();
         _controlWindow?.Dispose();

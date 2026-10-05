@@ -23,6 +23,7 @@ internal static unsafe partial class User32
     public const uint SWP_SHOWWINDOW = 0x0040;
     public const uint SWP_HIDEWINDOW = 0x0080;
 
+    public static readonly nint HWND_TOP = 0;
     public static readonly nint HWND_TOPMOST = -1;
     public static readonly nint HWND_NOTOPMOST = -2;
     public static readonly nint HWND_BOTTOM = 1;
@@ -32,6 +33,7 @@ internal static unsafe partial class User32
     public const uint WS_CHILD = 0x4000_0000;
     public const uint WS_MINIMIZEBOX = 0x0002_0000;
     public const uint WS_THICKFRAME = 0x0004_0000;
+    public const uint WS_EX_TOPMOST = 0x0000_0008;
     public const uint WS_EX_TOOLWINDOW = 0x0000_0080;
 
     public const uint WS_EX_APPWINDOW = 0x0004_0000;
@@ -43,6 +45,8 @@ internal static unsafe partial class User32
     public const int SW_SHOWMINNOACTIVE = 7;
     public const int SW_SHOWNOACTIVATE = 4;
 
+    public const uint GW_HWNDLAST = 1;
+    public const uint GW_HWNDPREV = 3;
     public const uint GW_OWNER = 4;
     public const uint GA_ROOT = 2;
 

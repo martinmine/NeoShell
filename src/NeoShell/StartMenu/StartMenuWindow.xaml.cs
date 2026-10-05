@@ -1,6 +1,5 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
-using System.Security.Principal;
 using Microsoft.UI;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
@@ -11,7 +10,6 @@ using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Animation;
 using Microsoft.UI.Xaml.Media.Imaging;
-using Microsoft.Win32;
 using NeoShell.Interop.Search;
 using NeoShell.Interop.Shell;
 using NeoShell.Interop.Windowing;
@@ -408,36 +406,15 @@ internal sealed partial class StartMenuWindow : Window
             item.RefreshIcon();
     }
 
-    private void ShowUser()
+    private async void ShowUser()
     {
-        string name = CurrentUser.DisplayName() ?? Environment.UserName;
+        string name = UserAccount.DisplayName;
         UserName.Text = name;
         UserPicture.DisplayName = name;
         AutomationProperties.SetName(UserPicture, name);
-        LoadUserPicture();
-    }
-
-    private async void LoadUserPicture()
-    {
-        try
-        {
-            // Windows keeps the account picture's file per user SID.
-            string? sid = WindowsIdentity.GetCurrent().User?.Value;
-            using RegistryKey? key = Registry.LocalMachine.OpenSubKey($@"SOFTWARE\Microsoft\Windows\CurrentVersion\AccountPicture\Users\{sid}");
-            if (key?.GetValue("Image96") is not string path || !File.Exists(path))
-                return;
-
-            byte[] bytes = await File.ReadAllBytesAsync(path);
-            var picture = new BitmapImage();
-            using var stream = new MemoryStream(bytes);
-            await picture.SetSourceAsync(stream.AsRandomAccessStream());
+        // Without a picture, the initials stay.
+        if (await UserAccount.LoadPictureAsync(96) is { } picture)
             UserPicture.ProfilePicture = picture;
-        }
-        catch (Exception ex)
-        {
-            // The initials stay.
-            Log.Warn("Could not load the account picture", ex);
-        }
     }
 
     private async void SearchBox_TextChanged(object sender, TextChangedEventArgs e)

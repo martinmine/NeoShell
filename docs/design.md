@@ -18,9 +18,11 @@ coding rules are in [CLAUDE.md](../CLAUDE.md).
   is the shell.
 - Start's Quick Link menu (right-click Start, Win+X) and, while NeoShell is the shell, Alt+Tab, Explorer's other
   Win+ shortcuts, Snap layouts (Win+Z) and screenshots (Win+PrtScn, Win+Shift+S).
+- A widget sidebar, as Windows Vista's: profile and clock, resource usage, pictures, now playing, weather and notes,
+  docked along the right of the screen or dragged out to float on the desktop.
 
-Out of scope: editing Quick Settings' tiles, Widgets, Task View, pinning items in jump lists, toast images, buttons
-and inline replies.
+Out of scope: editing Quick Settings' tiles, Windows 11's Widgets board (Win+W), Task View, pinning items in jump
+lists, toast images, buttons and inline replies.
 
 ## Technical decisions
 
@@ -202,7 +204,10 @@ Shell mode only, like the wallpaper: alongside Explorer, Explorer's desktop has 
     `ABM_REMOVE`); Explorer places it above its own taskbar and sends `ABN_POSCHANGED` when it must move.
   - As the shell: `SHAppBarMessage` is served by Explorer's `Shell_TrayWnd`, so it doesn't work. NeoShell sets the
     monitor's work area itself (`SPI_SETWORKAREA`) and restores it on exit. Serving other apps' AppBar messages
-    belongs with `Shell_TrayWnd` (Tray).
+    belongs with `Shell_TrayWnd` (Tray). `ShellWorkArea` keeps what the taskbar and the widget sidebar reserve and
+    sets each change from the thread pool, one at a time: `SPIF_SENDCHANGE` waits for every window, and apps that
+    answer by calling the shell (re-adding tray icons) would wait for the UI thread in turn (startup hung that way).
+    Windows doesn't resize maximized windows for a new work area; NeoShell doesn't either (yet).
 - Rect calculation (unit tested) from monitor bounds and DPI.
 - Recreated on `WM_DISPLAYCHANGE`, on `WM_DPICHANGED` to a DPI other than the monitor's, and on settings changes.
 - Full-screen apps: while the foreground window covers its monitor (or the app marked it with
@@ -809,6 +814,72 @@ Windows', its shortcut as key caps (`ShortcutKeys`), and a footer with a link to
   part of the picture, as above. A click without a drag snips nothing; Esc or a right-click cancels. Rectangle
   snips only (no freeform, window or full-screen modes, no toolbar).
 
+## Widgets (`Widgets/`)
+
+Small widgets about the computer and its user, as Windows Vista's sidebar gadgets, with the taskbar's look.
+
+### Sidebar and floating widgets
+
+- `SidebarWindow`: a strip along the right of the primary monitor, from the top to the taskbar (the work area's
+  height), 320 epx wide by default (`WidgetSidebarWidth`, 240 to 560); dragging its left edge (`EdgeGrip`) resizes
+  it. It reserves its space so maximized windows stop at its edge: alongside Explorer as an app bar on the right
+  (`AppBar.DockRight`, left of other app bars there); as the shell through `ShellWorkArea` (see the taskbar's
+  Window), which keeps the taskbar's bottom and the sidebar's right reservation per monitor so neither undoes the
+  other's; the sidebar's height comes from what's reserved there, not from Windows' work area, which follows a moment
+  later. While the edge is
+  dragged only the window moves; the space is reserved again when it's let go.
+- A header with "Widgets" and an add button whose menu lists every kind; Profile, Resource usage, Now playing and
+  Weather show once only (disabled in the menu while shown), Pictures and Notes as often as wanted. Widgets are cards
+  in a scrolling column.
+- Hidden or shown from the taskbar's menu ("Show widgets", `ShowWidgetSidebar`); floating widgets stay.
+- `FloatingWidgetWindow`: a widget dragged out of the sidebar, a rounded window of its own, 300 epx wide and as tall
+  as the widget (it follows the widget's height and the monitor's scale). Its position is saved in screen pixels;
+  one left on a monitor that's gone comes back at the top right of the primary one (`SidebarLayout.KeepOnScreen`).
+- Both are just above the desktop and below every app's window, even when clicked (`PinnedLayer.Desktop`: just below
+  the lowest window that isn't the desktop, hidden, topmost or another of NeoShell's desktop-level windows), stay
+  while peeking at the desktop (Win+Comma), are left alone by Show desktop and Win+M, and are out of Alt+Tab. They
+  take the focus when clicked: notes are typed into.
+- Backdrop, theme and accent colour are the taskbar's (`TaskbarBackdrop`, `Taskbars.Updated`), on the sidebar and on
+  each floating widget.
+
+### Each widget (`WidgetFrame`, `WidgetView`)
+
+- `WidgetFrame` draws the card (none when floating: the window is the card) and, while the pointer is over it, a
+  settings button (a flyout with the widget's own settings) and a close button, on a solid plate at the top right.
+- Pressing anywhere the widget's own controls don't take and moving 4 epx drags it. From the sidebar: once the
+  pointer leaves the sidebar the widget follows it in its own window, held where it was grabbed; let go outside the
+  sidebar it stays there, inside it goes where it was dropped (before the first card whose middle is below the
+  pointer), which also reorders the sidebar. A floating widget dropped on the sidebar docks the same way.
+- `ShellSettings.Widgets` keeps every widget, docked and floating; the docked ones in the sidebar's order. Each has an
+  id, its kind, a position while floating and its kind's options (`WidgetSettings`; unset options take defaults and
+  aren't written). A widget's view is made anew when it moves between the sidebar and the desktop, so what it keeps
+  lives in its settings, a file or a shared service. The default widgets have fixed ids.
+
+### The widgets
+
+- **Profile**: the account picture (`AccountPicture\Users\<SID>`, as Start), the user's display name, the time
+  (optionally with seconds) and the date.
+- **Resource usage**: CPU (Processor Utility, as Task Manager), memory used of total, disk activity (100 - idle
+  time, all disks), network down and up over all adapters that are up (bits a second). Sampled once a second by
+  `ResourceMonitor` (PDH and `GlobalMemoryStatusEx` through `SystemUsage`, `NetworkInterface` statistics) only while
+  the widget is shown; it keeps the last minute, so moving the widget keeps its graphs. Each row expands to its graph
+  (the network's scaled to the minute's peak); each graph's colour is chosen from Windows' accent palette.
+- **Pictures**: a slideshow of the user's Pictures folder and the folders in it (up to 2,000 jpg/png/bmp/gif/webp,
+  hidden and system files skipped), in random order, every 10 s by default; another folder (Windows App SDK's
+  `FolderPicker`) and interval in its settings. Pictures are decoded at the size shown. Double-click opens the one
+  shown.
+- **Now playing**: the current media session (`GlobalSystemMediaTransportControlsSessionManager`, as Windows' media
+  flyout): title, artist, art (optional), previous, play/pause and next.
+- **Weather**: MET Norway's Locationforecast 2.0 (compact): the hour under way (symbol, temperature, words, wind) and
+  the next five hours, in degrees Celsius and m/s. The place is the computer's (Windows' location service, asked once
+  a session from the thread pool: from the UI thread Windows would prompt to turn location on, and a shell shouldn't
+  greet the user with that) or a latitude and longitude typed into its settings.
+  As MET's terms ask: a User-Agent naming NeoShell and its repository, coordinates rounded to four decimals, a
+  forecast reused until it expires (`Expires`) and then asked for with `If-Modified-Since`, and "Data from MET
+  Norway" shown. Refreshed every 30 minutes, five after a failure.
+- **Notes**: plain text saved half a second after typing stops, to `notes\<id>.txt` next to the settings; text size
+  in its settings. Closing a note keeps its file.
+
 ## Settings (`Settings/`)
 
 A single `record Settings` serialized with `System.Text.Json` (source-generated context), loaded at startup,
@@ -829,6 +900,9 @@ ExplorerTaskbarPinsImported  bool
 StartMenuWidth       double (epx)
 StartMenuHeight      double (epx)
 DesktopSortOrder     Name | Size | ItemType | DateModified
+ShowWidgetSidebar    bool
+WidgetSidebarWidth   double (epx)
+Widgets              list (id, kind, X/Y while floating, the kind's options)
 ```
 
 ## Testing strategy
@@ -837,7 +911,9 @@ DesktopSortOrder     Name | Size | ItemType | DateModified
   parsing (32/64-bit), app search ranking, indexer query building, startup entry parsing and `StartupApproved`,
   settings round-trip and corrupt-file handling, wallpaper style mapping, AppBar rect calculation, which desktop
   items get icons and in which order, Quick Settings' paging, Wi-Fi network list and shortcut keys, the keys the
-  hook takes (Start, panels, Alt+Tab, Win+Comma), Win+number's window choice, Snap layouts and screenshot names.
+  hook takes (Start, panels, Alt+Tab, Win+Comma), Win+number's window choice, Snap layouts and screenshot names,
+  the shell's work area, the sidebar's and floating widgets' placement and order, the widgets' number and colour
+  formats, and MET's forecast parsing and symbols.
 - Logic that touches Windows is split so the decision is a pure function over a snapshot (e.g. `WindowInfo`) that
   tests can construct.
 - **Live UI checks** through UI Automation (`AutomationId`s on all interactive controls), never global keystrokes.

@@ -38,15 +38,35 @@ public sealed class SettingsStoreTests : IDisposable
             TaskbarBackdrop = Backdrop.Translucent,
             PinnedTaskbarApps = [new PinnedApp("Notepad", AppUserModelId: "Microsoft.WindowsNotepad_8wekyb3d8bbwe!App")],
             PinnedStartApps = [new PinnedApp("Tool", Path: @"C:\Tools\tool.exe", Arguments: "--fast")],
+            ShowWidgetSidebar = false,
+            WidgetSidebarWidth = 400,
+            Widgets =
+            [
+                new WidgetSettings { Kind = WidgetKind.Notes, FontSize = 18 },
+                new WidgetSettings { Kind = WidgetKind.Weather, X = -1200, Y = 40, Latitude = 59.9139, Longitude = 10.7522 },
+                new WidgetSettings { Kind = WidgetKind.Resources, CpuColor = "#D13438" },
+            ],
         };
 
         _store.Save(settings);
         ShellSettings loaded = _store.Load();
 
-        Assert.Equal(settings with { PinnedTaskbarApps = [], PinnedStartApps = [] },
-            loaded with { PinnedTaskbarApps = [], PinnedStartApps = [] });
+        Assert.Equal(settings with { PinnedTaskbarApps = [], PinnedStartApps = [], Widgets = [] },
+            loaded with { PinnedTaskbarApps = [], PinnedStartApps = [], Widgets = [] });
         Assert.Equal(settings.PinnedTaskbarApps, loaded.PinnedTaskbarApps);
         Assert.Equal(settings.PinnedStartApps, loaded.PinnedStartApps);
+        Assert.Equal(settings.Widgets, loaded.Widgets);
+    }
+
+    [Fact]
+    public void Widget_options_left_unset_are_not_written()
+    {
+        _store.Save(new ShellSettings { Widgets = [new WidgetSettings { Id = "a", Kind = WidgetKind.Profile }] });
+
+        string json = File.ReadAllText(_store.Path);
+        Assert.Contains("\"Kind\": \"Profile\"", json);
+        Assert.DoesNotContain("Latitude", json);
+        Assert.DoesNotContain("IsFloating", json);
     }
 
     [Fact]
