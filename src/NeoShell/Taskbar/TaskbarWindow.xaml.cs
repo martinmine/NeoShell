@@ -52,6 +52,10 @@ internal sealed partial class TaskbarWindow : Window
     private readonly List<(UIElement Container, string Property, long Started)> _layoutAnimations = [];
     private static readonly TimeSpan s_layoutAnimationDuration = TimeSpan.FromMilliseconds(250);
     private bool _suppressClick;
+    // A right-clicked button shows no previews until the pointer has left it, and none show while its menu is open:
+    // a hover that began before the click would otherwise open them over the menu.
+    private TaskButton? _noPreviews;
+    private bool _taskMenuOpen;
     private readonly NotificationArea? _tray;
     private readonly Indicators? _indicators;
     private QuickSettingsPage _quickSettingsPage;
@@ -154,7 +158,7 @@ internal sealed partial class TaskbarWindow : Window
         DispatcherQueue dispatcher = DispatcherQueue.GetForCurrentThread();
         _hoverTimer = CreateTimer(dispatcher, TimeSpan.FromMilliseconds(500), () =>
         {
-            if (_hovered is { } hovered && hovered.Button.Windows.Count > 0)
+            if (_hovered is { } hovered && hovered.Button.Windows.Count > 0 && CanPreview(hovered.Button))
                 ShowThumbnails(hovered.Button, hovered.Element);
         });
         _hideTimer = CreateTimer(dispatcher, TimeSpan.FromMilliseconds(400), _thumbnails.Hide);
@@ -843,13 +847,23 @@ internal sealed partial class TaskbarWindow : Window
 
     private void TaskItem_PointerPressed(object sender, PointerRoutedEventArgs e)
     {
-        if (sender is FrameworkElement { DataContext: TaskButton button } element
-            && e.GetCurrentPoint(element).Properties.IsMiddleButtonPressed)
+        if (sender is not FrameworkElement { DataContext: TaskButton button } element)
+            return;
+
+        PointerPointProperties properties = e.GetCurrentPoint(element).Properties;
+        if (properties.IsMiddleButtonPressed)
         {
             Launcher.Launch(button.App);
             e.Handled = true;
         }
+        else if (properties.IsRightButtonPressed)
+        {
+            _noPreviews = button;
+            _hoverTimer.Stop();
+        }
     }
+
+    private bool CanPreview(TaskButton button) => !_taskMenuOpen && button != _noPreviews;
 
     private void TaskItem_PointerEntered(object sender, PointerRoutedEventArgs e)
     {
@@ -859,6 +873,8 @@ internal sealed partial class TaskbarWindow : Window
         _hovered = (button, element);
         button.IsHovered = true;
         _hideTimer.Stop();
+        if (!CanPreview(button))
+            return;
         // Once previews are open, moving along the taskbar switches them straight away.
         if (_thumbnails.Button is not null && _thumbnails.Button != button && button.Windows.Count > 0)
             ShowThumbnails(button, element);
@@ -869,7 +885,12 @@ internal sealed partial class TaskbarWindow : Window
     private void TaskItem_PointerExited(object sender, PointerRoutedEventArgs e)
     {
         if (sender is FrameworkElement { DataContext: TaskButton button })
+        {
             button.IsHovered = false;
+            // The open menu takes the pointer; that isn't leaving the button.
+            if (button == _noPreviews && !_taskMenuOpen)
+                _noPreviews = null;
+        }
         _hovered = null;
         _hoverTimer.Stop();
         _hideTimer.Start();
@@ -896,6 +917,8 @@ internal sealed partial class TaskbarWindow : Window
         if (menu.Target?.DataContext is not TaskButton button)
             return;
 
+        _taskMenuOpen = true;
+        _hoverTimer.Stop();
         _thumbnails.Hide();
         menu.Items.Clear();
         AddJumpList(menu, button.App);
@@ -913,6 +936,14 @@ internal sealed partial class TaskbarWindow : Window
                     TopLevelWindows.Close(window.Handle);
             }));
         }
+    }
+
+    private void TaskMenu_Closed(object sender, object e)
+    {
+        _taskMenuOpen = false;
+        // Closed with the pointer elsewhere, the button previews again on the next hover.
+        if (_hovered?.Button != _noPreviews)
+            _noPreviews = null;
     }
 
     // The app's jump list above the button's own items, as in Windows: its categories (Recent, the app's own), then

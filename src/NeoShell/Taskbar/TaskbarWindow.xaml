@@ -153,7 +153,7 @@
                             ContextRequested="TaskItem_ContextRequested">
                             <!-- Not a ContextFlyout: WinUI would open that at the pointer itself (TaskItem_ContextRequested). -->
                             <FlyoutBase.AttachedFlyout>
-                                <MenuFlyout Opening="TaskMenu_Opening" />
+                                <MenuFlyout Opening="TaskMenu_Opening" Closed="TaskMenu_Closed" />
                             </FlyoutBase.AttachedFlyout>
                             <!-- Plates as in Explorer: 40x40 behind the active app, lighter while hovered; with several
                                  windows, the edge of a second card shows on the right. -->
