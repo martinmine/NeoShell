@@ -863,11 +863,12 @@ Small widgets about the computer and its user, as Windows Vista's sidebar gadget
   time, all disks), network down and up over all adapters that are up (bits a second). Sampled once a second by
   `ResourceMonitor` (PDH and `GlobalMemoryStatusEx` through `SystemUsage`, `NetworkInterface` statistics) only while
   the widget is shown; it keeps the last minute, so moving the widget keeps its graphs. Each row expands to its graph
-  (the network's scaled to the minute's peak); each graph's colour is chosen from Windows' accent palette.
+  (the network's scaled to the minute's peak), which then takes the place of its bar; each graph's colour is chosen
+  from Windows' accent palette.
 - **Pictures**: a slideshow of the user's Pictures folder and the folders in it (up to 2,000 jpg/png/bmp/gif/webp,
   hidden and system files skipped), in random order, every 10 s by default; another folder (Windows App SDK's
-  `FolderPicker`) and interval in its settings. Pictures are decoded at the size shown. Double-click opens the one
-  shown.
+  `FolderPicker`) and interval in its settings. The picture fills the whole card, without padding or border
+  (`WidgetView.FillsCard`), and is decoded at the size shown. Double-click opens the one shown.
 - **Now playing**: the current media session (`GlobalSystemMediaTransportControlsSessionManager`, as Windows' media
   flyout): title, artist, art (optional), previous, play/pause and next.
 - **Weather**: MET Norway's Locationforecast 2.0 (compact): the hour under way (symbol, temperature, words, wind) and
@@ -876,7 +877,8 @@ Small widgets about the computer and its user, as Windows Vista's sidebar gadget
   greet the user with that) or a latitude and longitude typed into its settings.
   As MET's terms ask: a User-Agent naming NeoShell and its repository, coordinates rounded to four decimals, a
   forecast reused until it expires (`Expires`) and then asked for with `If-Modified-Since`, and "Data from MET
-  Norway" shown. Refreshed every 30 minutes, five after a failure.
+  Norway" credited in its settings (kept off the widget to keep it small). Refreshed every 30 minutes, five after a
+  failure.
 - **Notes**: plain text saved half a second after typing stops, to `notes\<id>.txt` next to the settings; text size
   in its settings. Closing a note keeps its file.
 

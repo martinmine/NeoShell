@@ -34,6 +34,8 @@ internal sealed partial class PicturesWidget : WidgetView
         Load();
     }
 
+    public override bool FillsCard => true;
+
     private string Folder => Settings.PictureFolder ?? Environment.GetFolderPath(Environment.SpecialFolder.MyPictures);
 
     private int Seconds => Math.Clamp(Settings.SlideSeconds ?? 10, 3, 3600);

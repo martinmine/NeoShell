@@ -4,13 +4,9 @@
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:local="using:NeoShell.Widgets">
-    <!-- Double-clicking opens the picture shown. -->
-    <Grid
-        Height="180"
-        CornerRadius="4"
-        Background="{ThemeResource SubtleFillColorSecondaryBrush}"
-        DoubleTapped="Picture_DoubleTapped">
-        <Border x:Name="Picture" AutomationProperties.AutomationId="PicturesWidgetImage" />
+    <!-- The whole card, its corners rounded as the card's. Double-clicking opens the picture shown. -->
+    <Grid Height="200" Background="Transparent" DoubleTapped="Picture_DoubleTapped">
+        <Border x:Name="Picture" CornerRadius="8" AutomationProperties.AutomationId="PicturesWidgetImage" />
         <TextBlock
             x:Name="StatusText"
             Margin="12"

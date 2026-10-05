@@ -31,6 +31,11 @@ internal sealed partial class WidgetFrame : UserControl
             Card.BorderThickness = new Thickness(0);
             Card.CornerRadius = default;
         }
+        if (widget.FillsCard)
+        {
+            Card.Padding = new Thickness(0);
+            Card.BorderThickness = new Thickness(0);
+        }
     }
 
     public WidgetView Widget { get; }

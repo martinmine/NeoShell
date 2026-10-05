@@ -90,6 +90,13 @@ internal sealed partial class WeatherWidget : WidgetView
             TextWrapping = TextWrapping.Wrap,
             Style = (Style)Application.Current.Resources["CaptionTextBlockStyle"],
         });
+        // MET's licence asks for credit; here rather than on the widget, to keep it small.
+        panel.Children.Add(new TextBlock
+        {
+            Text = "Weather data from MET Norway (api.met.no).",
+            TextWrapping = TextWrapping.Wrap,
+            Style = (Style)Application.Current.Resources["CaptionTextBlockStyle"],
+        });
         return panel;
     }
 
@@ -157,15 +164,20 @@ internal sealed partial class WeatherWidget : WidgetView
         {
             WeatherHour hour = forecast.Hours[i];
             Hours.ColumnDefinitions.Add(new ColumnDefinition());
-            var column = new StackPanel { HorizontalAlignment = HorizontalAlignment.Center, Spacing = 2 };
+            var column = new StackPanel { HorizontalAlignment = HorizontalAlignment.Center };
             column.Children.Add(new TextBlock
             {
                 Text = hour.Time.ToLocalTime().ToString("t", culture),
                 HorizontalAlignment = HorizontalAlignment.Center,
                 Style = (Style)Application.Current.Resources["CaptionTextBlockStyle"],
             });
-            column.Children.Add(new TextBlock { Text = MetWeather.Emoji(hour.Symbol), FontSize = 20, HorizontalAlignment = HorizontalAlignment.Center });
-            column.Children.Add(new TextBlock { Text = Temperature(hour.Temperature), HorizontalAlignment = HorizontalAlignment.Center });
+            column.Children.Add(new TextBlock { Text = MetWeather.Emoji(hour.Symbol), FontSize = 16, HorizontalAlignment = HorizontalAlignment.Center });
+            column.Children.Add(new TextBlock
+            {
+                Text = Temperature(hour.Temperature),
+                HorizontalAlignment = HorizontalAlignment.Center,
+                Style = (Style)Application.Current.Resources["CaptionTextBlockStyle"],
+            });
             Grid.SetColumn(column, i);
             Hours.Children.Add(column);
         }

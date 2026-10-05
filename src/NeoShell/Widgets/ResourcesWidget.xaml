@@ -11,6 +11,6 @@
             Text="Resource usage"
             Style="{StaticResource CaptionTextBlockStyle}"
             Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-        <StackPanel x:Name="Rows" Spacing="8" />
+        <StackPanel x:Name="Rows" Spacing="4" />
     </StackPanel>
 </local:WidgetView>

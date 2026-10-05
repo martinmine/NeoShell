@@ -42,6 +42,9 @@ internal partial class WidgetView : UserControl
     /// <summary>Whether the sidebar and desktop may show more than one of this kind.</summary>
     public static bool AllowsSeveral(WidgetKind kind) => kind is WidgetKind.Pictures or WidgetKind.Notes;
 
+    /// <summary>Content that fills the card to its edges (a picture), without the card's padding and border.</summary>
+    public virtual bool FillsCard => false;
+
     /// <summary>The controls of the settings flyout, built each time it opens.</summary>
     public virtual FrameworkElement CreateSettings() => new StackPanel();
 

@@ -12,10 +12,11 @@
         </ResourceDictionary>
     </UserControl.Resources>
 
-    <StackPanel Spacing="4">
+    <StackPanel Spacing="2">
         <Button
             x:Name="Header"
-            Padding="4,4"
+            Padding="4,2"
+            FontSize="12"
             HorizontalAlignment="Stretch"
             HorizontalContentAlignment="Stretch"
             CornerRadius="4"
@@ -29,7 +30,7 @@
                 </Grid.ColumnDefinitions>
                 <TextBlock x:Name="LabelText" />
                 <TextBlock x:Name="ValueText" Grid.Column="1" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                <FontIcon x:Name="Chevron" Grid.Column="2" Glyph="&#xE70D;" FontSize="10" />
+                <FontIcon x:Name="Chevron" Grid.Column="2" Glyph="&#xE70D;" FontSize="8" />
             </Grid>
         </Button>
         <ProgressBar x:Name="Bar" Margin="4,0" Maximum="100" />
