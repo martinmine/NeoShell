@@ -16,7 +16,8 @@ coding rules are in [CLAUDE.md](../CLAUDE.md).
   Restart, Shut down) and a button to switch back to `explorer.exe`.
 - The notification center and calendar from the clock, Do not disturb and focus sessions, and toasts while NeoShell
   is the shell.
-- Start's Quick Link menu (right-click Start, Win+X) and, while NeoShell is the shell, Alt+Tab.
+- Start's Quick Link menu (right-click Start, Win+X) and, while NeoShell is the shell, Alt+Tab, Explorer's other
+  Win+ shortcuts, Snap layouts (Win+Z) and screenshots (Win+PrtScn, Win+Shift+S).
 
 Out of scope: editing Quick Settings' tiles, Widgets, Task View, pinning items in jump lists, toast images, buttons
 and inline replies.
@@ -183,6 +184,12 @@ Shell mode only, like the wallpaper: alongside Explorer, Explorer's desktop has 
   dialogs), Esc cancels.
 - After a file operation the desktop takes the foreground back: the shell's operation windows hand it to the next
   window in the z-order when they close, and that is never the bottom-most desktop.
+- **Alt+F4** on the desktop (or on the taskbar while it has the keyboard) doesn't close the window
+  (`AppWindow.Closing` is cancelled; NeoShell's own `Close` doesn't raise it) but opens the **Shut Down Windows**
+  dialog (`ShutDownDialog`), as Explorer does: "What do you want the computer to do?" with Sign out, Sleep, Shut
+  down (chosen) and Restart, a line on what the choice does, OK and Cancel (Enter and Esc). shell32's own dialog
+  (`ExitWindowsDialog`, ordinal 60) hands the request to Explorer's taskbar and shows nothing without it. A WinUI
+  window with Mica, in the middle of the primary monitor; one at a time.
 
 ## Taskbar (`Taskbar/`)
 
@@ -260,7 +267,9 @@ Shell mode only, like the wallpaper: alongside Explorer, Explorer's desktop has 
   shell, Settings pages are Control Panel applets. Run is shell32's `RunFileDlg` (ordinal 61) on a thread of its
   own, moved above the taskbar's left end by a thread CBT hook as it activates.
 - Show desktop minimizes every minimizable window of other processes (`SW_SHOWMINNOACTIVE`) and the next click
-  restores those still minimized; Explorer's own toggle isn't available as the shell.
+  restores those still minimized; Explorer's own toggle isn't available as the shell. `ShowDesktop` also does
+  Win+M (minimize all, adding to those minimized before), Win+Shift+M (restore them) and Win+Home (all but the
+  window in front; again restores them without activating, though some apps, Chromium's, activate themselves).
 
 ### Layout (left → right, or centred like Windows 11 by setting)
 
@@ -406,26 +415,54 @@ progress (bar along the bottom; indeterminate, error and paused states) and over
 
 ### Hotkeys (shell mode only)
 
+Explorer's own shortcuts: without Explorer nothing answers them. Which process holds a combination can be probed
+with `RegisterHotKey` (it fails while another has it): as the shell, Windows' components keep Win+A/K/P/Ctrl+V
+(Quick Settings' host), Win+L, Win+U, Win+O, Win+C, Win+Plus, Win+Ctrl+Enter, Win+Space, Win+Enter, Snap's
+Win+arrows and Ctrl+Shift+Esc; the rest were Explorer's.
+
 - Low-level keyboard hook (`WH_KEYBOARD_LL`): Win pressed and released alone, or Ctrl+Esc → toggle Start
   (`StartKeyDetector`, unit tested). Keys are not swallowed (but for Quick Settings' shortcuts, below): Windows has
   to see Win go down for the Win+ hotkeys,
   and without Explorer nothing else reacts to Win alone. Ctrl+Esc also arrives as `SC_TASKLIST` on the taskman
   window; keyboard toggles within 300 ms of each other count once.
-- `RegisterHotKey`: Win+D (show desktop toggle), Win+T (focus taskbar), Win+1…9 (the Nth button of the primary
-  taskbar: no window → launch, one window → as a click, several → the one after the foreground window, wrapping;
-  `TaskActivation`, unit tested), Win+S (Start with search focus).
+- `RegisterHotKey` (`ShellSession.RegisterHotkeys`), Win plus:
+  - D show desktop (toggle), M minimize all, Shift+M restore them, Home all but the window in front (`ShowDesktop`).
+  - T focus the taskbar's first button, Shift+T its last; B the notification area (the hidden icons' chevron, else
+    Quick Settings' button). The taskbar is `WS_EX_NOACTIVATE`, which keeps it from ever becoming active (and so
+    from getting the keyboard); these drop that style, activate the taskbar and focus the button; the style comes
+    back when the taskbar loses activation.
+  - 1…9 the Nth button of the primary taskbar: no window → launch, one window → as a click, several → the one after
+    the foreground window, wrapping (`TaskActivation`, unit tested). Shift: a new instance; Ctrl+Shift: a new
+    instance as administrator (not packaged apps: their elevation goes through Explorer); Ctrl: the app's window
+    that was in front last (highest in the z-order), then on round its windows (`TaskActivation.LastActiveWindow`);
+    Alt: its menu with the jump list, with the keyboard in it.
+  - S and Q Start with search focus; E File Explorer (`shell:AppsFolder\Microsoft.Windows.Explorer`: a bare
+    `explorer.exe` makes itself a second shell, taskbar and all, even with NeoShell registered); R the Run dialog
+    above the Start button; I Settings and Pause System (as the shell their Control Panel applets, `control.exe` and
+    `sysdm.cpl`).
+  - Alt+D the notification center and calendar; Alt+K mutes the default microphone, or unmutes it (Explorer mutes
+    calls in apps that support it; the endpoint's mute is the nearest without them). The microphone indicator
+    shows it.
+  - Shift+S the screen snip, PrtScn a screenshot of the whole screen, Z Snap layouts (see Screenshots, Snap
+    layouts). A window opened from a hotkey is brought to the front with `SetForegroundWindow` after WinUI shows it:
+    WinUI's `Activate` leaves the foreground with the app the keys went to.
 - Quick Settings' shortcuts — Win+A (tiles), Win+Ctrl+V (Sound output), Win+K (Cast), Win+P (Project) — can't be
   registered: Windows' own Quick Settings host (ShellHost) keeps them after Explorer has gone, and would open its
   panel. The hook takes them instead (`PanelKeys`, unit tested): the letter is swallowed (down, repeats, up)
   and an unassigned key (vkE8, as AutoHotkey's menu mask key) is injected while Win is still down, so letting go of
   Win doesn't count as Win alone (which Windows sends to the shell as `SC_TASKLIST`, opening Start). Pressing the
   shortcut of the page shown closes Quick Settings; another page's switches to it. Win+N (the notification center
-  and calendar, toggled) is taken the same way.
-- Win+T: the taskbar is `WS_EX_NOACTIVATE`, which keeps it from ever becoming active (and so from getting the
-  keyboard). Win+T drops that style, activates the taskbar and focuses the first task button; the style comes back
-  when the taskbar loses activation.
+  and calendar, toggled) and Win+X (the Quick Link menu) are taken the same way. With Shift or Alt held the letters
+  are left alone: Win+Alt+K is the microphone's.
+- Win+Comma peeks at the desktop while Win is held (`PeekKeys`, unit tested, through the hook: a hotkey can't see
+  Win let go of): Aero Peek at the taskbar, a window left out of peeking like the wallpaper, so only those show.
+  The comma is swallowed and Win masked as for Quick Settings' keys.
 - Start closed because another window took the foreground (deactivation) doesn't hand the foreground back to the
   previous app — that would take it from the window being activated, e.g. the taskbar for Win+T.
+- Not done: Task View and virtual desktops (Win+Tab, Win+Ctrl+D/F4/arrows; out of scope, and the desktops live in
+  Explorer), Widgets (Win+W), the Snipping Tool video (Win+Shift+R: Snipping Tool shows nothing without Explorer),
+  and the clipboard history, emoji panel and voice typing (Win+V, Win+Period, Win+H), which Explorer passes to
+  Windows' text input host through no public API.
 
 ### Taskbar context menu
 
@@ -502,6 +539,8 @@ Exit NeoShell (alongside Explorer only).
 - Visible while any capture session is `AudioSessionStateActive` (system sounds session excluded). Tooltip lists the
   apps (`IAudioSessionControl2.GetProcessId` → file description, else process name). Click opens
   `ms-settings:privacy-microphone` (shell mode: Sound's Recording tab, `mmsys.cpl,,1`).
+- While the default microphone is muted (Win+Alt+K; an `AudioEndpoint` on the capture device follows it), the icon
+  is the slashed microphone and the tooltip starts with "Microphone muted".
 
 ### Threads and placement
 
@@ -743,6 +782,33 @@ Windows', its shortcut as key caps (`ShortcutKeys`), and a footer with a link to
   went to the app in front). `SwitchToThisWindow` sends the window left behind to the bottom of the stack, which
   breaks the most recently used order.
 
+## Snap layouts (`Snap/`)
+
+- Win+Z: `SnapLayoutsWindow` for the window in front, if it's another process's resizable window, at its top right
+  below the title bar (where Explorer shows them under the maximize button), kept on the monitor. Acrylic, rounded,
+  topmost; closes on Esc or when it loses activation.
+- The layouts (`SnapLayouts`, unit tested) are Windows 11's: halves, two thirds and a third, a half and two
+  quarters, four quarters, and with at least 1920 effective pixels of work area also thirds and a wide middle;
+  stacked rows on a portrait screen. Previews in the work area's shape, numbered.
+- A click on a zone (the zone under the pointer or keyboard takes the accent colour), Enter on a focused one (the
+  first has the keyboard; arrows move), or a layout's number and then the zone's (shown once the layout is picked)
+  places the window: restored if maximized, then sized so its visible frame (`DWMWA_EXTENDED_FRAME_BOUNDS`) fills
+  the zone of the work area exactly, its invisible resize borders outside it (`TopLevelWindows.Place`). Zone edges
+  are rounded on their own, so neighbours share them.
+
+## Screenshots (`Capture/`)
+
+- Pictures are copied from the screen DC (`BitBlt` with `CAPTUREBLT`, opaque), put on the clipboard as a bottom-up
+  `CF_DIB` and saved as PNG (`BitmapEncoder`) in Pictures\Screenshots (`FOLDERID_Screenshots`, created if missing)
+  as Windows names them: "Screenshot 2026-10-05 183207.png", " (2)" on for more in the same second
+  (`Screenshots`, unit tested).
+- Win+PrtScn: the whole virtual screen.
+- Win+Shift+S: Snipping Tool (`ms-screenclip:`) starts without Explorer but shows nothing and quits, so NeoShell snips
+  itself (`ScreenSnip`): each monitor's picture is taken first, then shown frozen in a topmost window per monitor,
+  dimmed, with a crosshair. Dragging out a rectangle shows it at full brightness, outlined; letting go keeps that
+  part of the picture, as above. A click without a drag snips nothing; Esc or a right-click cancels. Rectangle
+  snips only (no freeform, window or full-screen modes, no toolbar).
+
 ## Settings (`Settings/`)
 
 A single `record Settings` serialized with `System.Text.Json` (source-generated context), loaded at startup,
@@ -770,7 +836,8 @@ DesktopSortOrder     Name | Size | ItemType | DateModified
 - **xunit** tests in `tests/NeoShell.Tests` for pure logic: taskbar window filter, grouping keys, NOTIFYICONDATA
   parsing (32/64-bit), app search ranking, indexer query building, startup entry parsing and `StartupApproved`,
   settings round-trip and corrupt-file handling, wallpaper style mapping, AppBar rect calculation, which desktop
-  items get icons and in which order, Quick Settings' paging, Wi-Fi network list and shortcut keys.
+  items get icons and in which order, Quick Settings' paging, Wi-Fi network list and shortcut keys, the keys the
+  hook takes (Start, panels, Alt+Tab, Win+Comma), Win+number's window choice, Snap layouts and screenshot names.
 - Logic that touches Windows is split so the decision is a pure function over a snapshot (e.g. `WindowInfo`) that
   tests can construct.
 - **Live UI checks** through UI Automation (`AutomationId`s on all interactive controls), never global keystrokes.

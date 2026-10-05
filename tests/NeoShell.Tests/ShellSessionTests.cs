@@ -43,6 +43,37 @@ public sealed class ShellSessionTests
         Assert.Equal([false, false], Feed((Escape, true), (Escape, false)));
     }
 
+    private const int Comma = 0xBC;
+
+    private static (bool Swallowed, bool? Peek)[] FeedPeek(params (int Key, bool Down)[] keys)
+    {
+        var detector = new PeekKeys();
+        return [.. keys.Select(key => (detector.OnKey(key.Key, key.Down, out bool? peek), peek))];
+    }
+
+    [Fact]
+    public void Win_comma_peeks_until_the_windows_key_is_let_go_of()
+    {
+        Assert.Equal(
+            [(false, null), (true, true), (true, null), (true, null), (false, false)],
+            FeedPeek((Win, true), (Comma, true), (Comma, true), (Comma, false), (Win, false)));
+    }
+
+    [Fact]
+    public void Comma_let_go_of_after_the_windows_key_is_still_swallowed()
+    {
+        Assert.Equal(
+            [(false, null), (true, true), (false, false), (true, null)],
+            FeedPeek((Win, true), (Comma, true), (Win, false), (Comma, false)));
+    }
+
+    [Fact]
+    public void Comma_without_the_windows_key_is_typed()
+    {
+        Assert.Equal([(false, null), (false, null)], FeedPeek((Comma, true), (Comma, false)));
+        Assert.Equal([(false, null), (false, null), (false, null)], FeedPeek((Win, true), (D, true), (Win, false)));
+    }
+
     [Theory]
     [InlineData(null, true)]
     [InlineData(new byte[0], true)]

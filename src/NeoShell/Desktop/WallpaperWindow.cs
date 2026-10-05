@@ -25,7 +25,8 @@ internal sealed class WallpaperWindow : Window
 
     /// <param name="onMessage">Sees this window's messages; top-level windows receive the system broadcasts.</param>
     /// <param name="icons">The desktop icons to show, on the primary monitor only.</param>
-    public WallpaperWindow(DisplayMonitor monitor, RectInt32 virtualScreen, MessageHandler onMessage, DesktopIcons? icons)
+    /// <param name="closeRequested">Alt+F4 on the desktop, which doesn't close it: Explorer asks to shut down instead.</param>
+    public WallpaperWindow(DisplayMonitor monitor, RectInt32 virtualScreen, MessageHandler onMessage, DesktopIcons? icons, Action closeRequested)
     {
         _monitor = monitor;
         _virtualScreen = virtualScreen;
@@ -41,6 +42,11 @@ internal sealed class WallpaperWindow : Window
         presenter.IsMaximizable = false;
         presenter.IsMinimizable = false;
         AppWindow.SetPresenter(presenter);
+        AppWindow.Closing += (_, e) =>
+        {
+            e.Cancel = true;
+            closeRequested();
+        };
 
         // Not AppWindow.IsShownInSwitchers: it goes through the taskbar and throws when there is none.
         nint hwnd = Win32Interop.GetWindowFromWindowId(AppWindow.Id);

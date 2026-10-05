@@ -74,5 +74,6 @@ public sealed class IndicatorTests
     {
         Assert.Equal("Sound Recorder is using your microphone", IndicatorDisplay.MicrophoneToolTip(["Sound Recorder"]));
         Assert.Equal("2 apps are using your microphone:\nTeams\nOBS", IndicatorDisplay.MicrophoneToolTip(["Teams", "OBS"]));
+        Assert.Equal("Microphone muted\nTeams is using your microphone", IndicatorDisplay.MicrophoneToolTip(["Teams"], muted: true));
     }
 }

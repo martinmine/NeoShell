@@ -305,7 +305,7 @@
                     Style="{StaticResource FlatButtonStyle}"
                     Visibility="Collapsed"
                     Click="Microphone_Click">
-                    <FontIcon Glyph="&#xE720;" FontSize="16" />
+                    <FontIcon x:Name="MicrophoneIcon" Glyph="&#xE720;" FontSize="16" />
                 </Button>
                 <!--
                     Network, volume and battery are one button, as on the Windows 11 taskbar: it opens Quick Settings.

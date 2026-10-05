@@ -141,4 +141,17 @@ public sealed class QuickSettingsTests
         keys.OnKey(Control, true, out _);
         Assert.False(keys.OnKey('A', true, out _));     // Win+Ctrl+A isn't Quick Settings
     }
+
+    [Theory]
+    [InlineData(0xA4, 'K')] // Win+Alt+K mutes the microphone
+    [InlineData(0xA0, 'N')] // Win+Shift+N isn't the notification center
+    public void Shortcuts_with_alt_or_shift_are_left_to_their_hotkeys(int modifier, char key)
+    {
+        var keys = new PanelKeys();
+        keys.OnKey(Win, true, out _);
+        keys.OnKey(modifier, true, out _);
+
+        Assert.False(keys.OnKey(key, true, out PanelShortcut? page));
+        Assert.Null(page);
+    }
 }

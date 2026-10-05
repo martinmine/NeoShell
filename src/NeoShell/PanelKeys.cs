@@ -19,12 +19,21 @@ public sealed class PanelKeys
 {
     private const int VK_LWIN = 0x5B;
     private const int VK_RWIN = 0x5C;
+    private const int VK_SHIFT = 0x10;
     private const int VK_CONTROL = 0x11;
+    private const int VK_MENU = 0x12;
+    private const int VK_LSHIFT = 0xA0;
+    private const int VK_RSHIFT = 0xA1;
     private const int VK_LCONTROL = 0xA2;
     private const int VK_RCONTROL = 0xA3;
+    private const int VK_LMENU = 0xA4;
+    private const int VK_RMENU = 0xA5;
 
     private bool _winDown;
     private bool _controlDown;
+    // Other shortcuts share the letters (Win+Alt+K mutes the microphone): with Shift or Alt they're not the panels'.
+    private bool _shiftDown;
+    private bool _altDown;
     private int? _swallowing;
 
     /// <summary>Feeds one key event; returns true to swallow it, with what to open when it completes a shortcut.</summary>
@@ -39,6 +48,12 @@ public sealed class PanelKeys
             case VK_CONTROL or VK_LCONTROL or VK_RCONTROL:
                 _controlDown = down;
                 return false;
+            case VK_SHIFT or VK_LSHIFT or VK_RSHIFT:
+                _shiftDown = down;
+                return false;
+            case VK_MENU or VK_LMENU or VK_RMENU:
+                _altDown = down;
+                return false;
         }
 
         if (virtualKey == _swallowing)
@@ -47,7 +62,7 @@ public sealed class PanelKeys
                 _swallowing = null;
             return true;
         }
-        if (!down || !_winDown)
+        if (!down || !_winDown || _shiftDown || _altDown)
             return false;
 
         shortcut = (char)virtualKey switch

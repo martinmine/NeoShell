@@ -47,7 +47,7 @@ internal static class QuickLinkMenu
             new MenuFlyoutSeparator(),
             Item("Task Manager", "QuickLinkTaskManagerMenuItem", owner.OpenTaskManager),
             Item("Settings", "QuickLinkSettingsMenuItem", () => Launcher.OpenSettings(mode, "Settings", "ms-settings:")),
-            Item("File Explorer", "QuickLinkFileExplorerMenuItem", () => Launcher.Launch(new PinnedApp("File Explorer", AppUserModelId: "Microsoft.Windows.Explorer"))),
+            Item("File Explorer", "QuickLinkFileExplorerMenuItem", Launcher.OpenFileExplorer),
             Item("Search", "QuickLinkSearchMenuItem", owner.OpenStartMenu),
             Item("Run", "QuickLinkRunMenuItem", () => ShellLaunch.ShowRunDialog(taskbar.ScreenBounds.X, taskbar.ScreenBounds.Y)),
             new MenuFlyoutSeparator(),

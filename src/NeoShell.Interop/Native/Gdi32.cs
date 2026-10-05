@@ -40,6 +40,27 @@ internal static unsafe partial class Gdi32
     [LibraryImport("gdi32.dll")]
     public static partial int GetDIBits(nint hdc, nint bitmap, uint start, uint lines, void* bits, BITMAPINFOHEADER* info, uint usage);
 
+    public const uint SRCCOPY = 0x00CC0020;
+    // Includes layered windows (menus, tooltips, acrylic popups) in the copy.
+    public const uint CAPTUREBLT = 0x40000000;
+
+    [LibraryImport("gdi32.dll")]
+    public static partial nint CreateCompatibleDC(nint hdc);
+
+    [LibraryImport("gdi32.dll")]
+    public static partial nint CreateCompatibleBitmap(nint hdc, int width, int height);
+
+    [LibraryImport("gdi32.dll")]
+    public static partial nint SelectObject(nint hdc, nint gdiObject);
+
+    [LibraryImport("gdi32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static partial bool BitBlt(nint hdc, int x, int y, int width, int height, nint source, int sourceX, int sourceY, uint operation);
+
+    [LibraryImport("gdi32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static partial bool DeleteDC(nint hdc);
+
     [LibraryImport("gdi32.dll")]
     public static partial nint CreateRectRgn(int left, int top, int right, int bottom);
 

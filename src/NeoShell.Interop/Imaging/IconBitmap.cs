@@ -96,7 +96,8 @@ public sealed record IconBitmap(int Width, int Height, byte[] Pixels)
         }
     }
 
-    private static unsafe IconBitmap? Read(nint bitmap)
+    /// <summary>Copies a 32-bit HBITMAP's pixels as they are.</summary>
+    internal static unsafe IconBitmap? Read(nint bitmap)
     {
         Gdi32.BITMAP header;
         if (Gdi32.GetObject(bitmap, sizeof(Gdi32.BITMAP), &header) == 0 || header.bmWidth <= 0 || header.bmHeight <= 0)

@@ -165,4 +165,20 @@ public sealed class TaskListTests
     {
         Assert.Equal(0, TaskActivation.NextWindow([], 5));
     }
+
+    [Theory]
+    [InlineData(9, 3)] // another app in front: the button's window highest in the z-order
+    [InlineData(3, 1)] // one of them in front already: on round the button's windows
+    [InlineData(2, 3)]
+    public void Win_ctrl_number_brings_the_last_active_window(int foreground, int expected)
+    {
+        Assert.Equal((nint)expected, TaskActivation.LastActiveWindow([1, 2, 3], [9, 4, 3, 1, 2], foreground));
+    }
+
+    [Fact]
+    public void Win_ctrl_number_falls_back_to_the_first_window_and_to_nothing()
+    {
+        Assert.Equal(1, TaskActivation.LastActiveWindow([1, 2], [9], 9));
+        Assert.Equal(0, TaskActivation.LastActiveWindow([], [9], 9));
+    }
 }

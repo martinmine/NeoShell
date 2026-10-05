@@ -2,6 +2,8 @@ using System.Diagnostics;
 using System.Globalization;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
+using NeoShell.Desktop;
+using NeoShell.Interop.Shell;
 using NeoShell.Interop.Windowing;
 using NeoShell.Logging;
 using NeoShell.Notifications;
@@ -144,6 +146,15 @@ internal sealed class Taskbars : IDisposable
     /// <summary>Win+1…9: the Nth button on the primary taskbar (0-based here).</summary>
     public void ActivateTask(int index) => PrimaryWindow?.ActivateTask(index);
 
+    /// <summary>Win+Shift+1…9, and Win+Ctrl+Shift+1…9 as administrator: another instance of the Nth button's app.</summary>
+    public void LaunchTask(int index, bool elevated) => PrimaryWindow?.LaunchTask(index, elevated);
+
+    /// <summary>Win+Ctrl+1…9: the Nth button's last active window.</summary>
+    public void ActivateLastWindow(int index) => PrimaryWindow?.ActivateLastWindow(index);
+
+    /// <summary>Win+Alt+1…9: the Nth button's jump list.</summary>
+    public void ShowJumpList(int index) => PrimaryWindow?.ShowJumpList(index);
+
     public void HideStartMenu() => _startMenu?.Hide();
 
     /// <summary>
@@ -202,12 +213,50 @@ internal sealed class Taskbars : IDisposable
 
     public void HideClockFlyout() => _clockFlyout?.Hide();
 
-    /// <summary>Win+T: puts the keyboard focus on the primary taskbar's buttons.</summary>
-    public void FocusTaskbar()
+    /// <summary>Win+T (Win+Shift+T from the end): puts the keyboard focus on the primary taskbar's buttons.</summary>
+    public void FocusTaskbar(bool last = false)
     {
         PrimaryWindow?.Reveal();
-        PrimaryWindow?.FocusTaskList();
+        PrimaryWindow?.FocusTaskList(last);
     }
+
+    /// <summary>Win+B: puts the keyboard focus on the primary taskbar's notification area.</summary>
+    public void FocusTray()
+    {
+        PrimaryWindow?.Reveal();
+        PrimaryWindow?.FocusTray();
+    }
+
+    /// <summary>Win+R: Windows' Run dialog above the primary taskbar's left end, where the Quick Link menu puts it.</summary>
+    public void ShowRunDialog()
+    {
+        if (PrimaryWindow is { } window)
+            ShellLaunch.ShowRunDialog(window.ScreenBounds.X, window.ScreenBounds.Y);
+    }
+
+    /// <summary>Win+Alt+K: mutes or unmutes the microphone; the microphone indicator shows it while an app records.</summary>
+    public void ToggleMicrophoneMute() => Indicators?.ToggleMicrophoneMute();
+
+    /// <summary>
+    /// Win+Comma: while <paramref name="on"/>, every window is hidden but the desktop and the taskbars (Aero Peek
+    /// at a window that's left out of peeking anyway).
+    /// </summary>
+    public void PeekAtDesktop(bool on)
+    {
+        if (PrimaryWindow is not { } window)
+            return;
+
+        if (on)
+            Peek.Show(window.Handle, window.Handle);
+        else
+            Peek.End(window.Handle);
+    }
+
+    /// <summary>Alt+F4 on the desktop or the taskbar: the Shut Down Windows dialog.</summary>
+    public void ShowShutDownDialog() => ShutDownDialog.Open(_theme);
+
+    /// <summary>The primary taskbar's window, for what needs a window of NeoShell's (the clipboard); 0 when none.</summary>
+    public nint PrimaryHandle => PrimaryWindow?.Handle ?? 0;
 
     private TaskbarWindow? PrimaryWindow => _windows.FirstOrDefault(window => window.Monitor.IsPrimary) ?? _windows.FirstOrDefault();
 
@@ -250,6 +299,15 @@ internal sealed class Taskbars : IDisposable
     }
 
     public void ToggleDesktop() => _showDesktop.Toggle();
+
+    /// <summary>Win+M.</summary>
+    public void MinimizeAll() => _showDesktop.MinimizeAll();
+
+    /// <summary>Win+Shift+M.</summary>
+    public void RestoreMinimized() => _showDesktop.Restore();
+
+    /// <summary>Win+Home: every window but the one in front.</summary>
+    public void ToggleAllButForeground() => _showDesktop.ToggleAllBut(TopLevelWindows.GetForeground());
 
     public void OpenTaskManager()
     {

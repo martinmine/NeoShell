@@ -10,7 +10,8 @@ namespace NeoShell.Desktop;
 /// The wallpaper on every monitor, and the desktop icons on the primary one (shell mode only; Explorer draws both
 /// otherwise). Follows changes to the wallpaper, the background colour and the displays.
 /// </summary>
-internal sealed class Wallpaper(SettingsStore settings) : IDisposable
+/// <param name="closeRequested">Alt+F4 on the desktop.</param>
+internal sealed class Wallpaper(SettingsStore settings, Action closeRequested) : IDisposable
 {
     private readonly DispatcherQueue _dispatcher = DispatcherQueue.GetForCurrentThread();
     private readonly DesktopIcons _icons = new(settings);
@@ -106,7 +107,7 @@ internal sealed class Wallpaper(SettingsStore settings) : IDisposable
         {
             Log.Info($"Monitor {WallpaperWindow.Format(monitor.Bounds)}, work area {WallpaperWindow.Format(monitor.WorkArea)}, "
                 + $"{monitor.Dpi} DPI{(monitor.IsPrimary ? ", primary" : "")}");
-            var window = new WallpaperWindow(monitor, virtualScreen, OnMessage, monitor.IsPrimary ? _icons : null);
+            var window = new WallpaperWindow(monitor, virtualScreen, OnMessage, monitor.IsPrimary ? _icons : null, closeRequested);
             window.AppWindow.Show(activateWindow: false);
             _windows.Add(window);
         }

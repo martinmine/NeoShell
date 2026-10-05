@@ -69,12 +69,15 @@ src/NeoShell/                 WinUI app
   QuickSettings/              Quick Settings: tiles, Wi-Fi, Bluetooth, Accessibility, Cast, Project and Sound output pages
   StartMenu/                  StartMenuWindow, app list, search results, power menu
   Switcher/                   Alt+Tab window switcher (shell mode)
+  Snap/                       Win+Z Snap layouts (shell mode)
+  Capture/                    Screenshots: Win+PrtScn, Win+Shift+S snip (shell mode)
   Settings/                   Settings record + JSON load/save (%LOCALAPPDATA%\NeoShell\settings.json)
 src/NeoShell.Interop/
   Native/                     LibraryImport: User32, Shell32, Dwmapi, Kernel32, Advapi32, PowrProf, Comctl32
   Com/                        Core Audio, IShellItem/IShellItemImageFactory, IPropertyStore, ITaskbarList, ISearchQueryHelper,
                               IQuietHoursSettings
   Windowing/                  MessageWindow, WindowSubclass, AppBar, ShellHook, DwmThumbnail, KeyboardHook, WindowInfo
+  Imaging/                    IconBitmap (BGRA pixels), ScreenCapture (screen pixels, clipboard, PNG)
   Tray/                       TrayHost (owns Shell_TrayWnd), NOTIFYICONDATA parsing (32/64-bit)
   Audio/                      AudioEndpoint (volume/mute + events), CaptureMonitor (microphone in use), mixer, outputs
   Network/                    NetworkStatus (WinRT NetworkInformation), WifiNetworks (WinRT WiFiAdapter)

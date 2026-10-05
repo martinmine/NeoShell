@@ -7,7 +7,9 @@ public static class IndicatorDisplay
 {
     public const string MicrophoneGlyph = "";
 
-    public const string AirplaneGlyph = "";
+    public const string MicrophoneMutedGlyph = "";
+
+    public const string AirplaneGlyph ="";
 
     /// <summary>The connection's glyph; in airplane mode the plane, whatever is still connected (Ethernet).</summary>
     public static string NetworkGlyph(NetworkState state, bool airplaneMode = false) => airplaneMode ? AirplaneGlyph : state.Kind switch
@@ -59,7 +61,8 @@ public static class IndicatorDisplay
     /// <summary>A mouse wheel notch is 2%, as on the Windows 11 taskbar.</summary>
     public static float WheelVolume(float volume, int wheelDelta) => Math.Clamp(volume + wheelDelta / 120f * 0.02f, 0, 1);
 
-    public static string MicrophoneToolTip(IReadOnlyList<string> apps) => apps.Count switch
+    /// <param name="muted">The microphone is muted (Win+Alt+K): said first.</param>
+    public static string MicrophoneToolTip(IReadOnlyList<string> apps, bool muted = false) => (muted ? "Microphone muted\n" : "") + apps.Count switch
     {
         0 => "",
         1 => $"{apps[0]} is using your microphone",

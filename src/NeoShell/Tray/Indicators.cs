@@ -19,6 +19,7 @@ internal sealed class Indicators : IDisposable
     private readonly DispatcherQueue _dispatcher = DispatcherQueue.GetForCurrentThread();
     private readonly NetworkStatus _network = new();
     private readonly AudioEndpoint? _audio;
+    private readonly AudioEndpoint? _microphone;
     private readonly CaptureMonitor? _capture;
     private readonly AudioMixer? _mixer;
     private readonly RadioSwitches _radios = new();
@@ -38,6 +39,8 @@ internal sealed class Indicators : IDisposable
         {
             _audio = new AudioEndpoint();
             _audio.Changed += QueueUpdate;
+            _microphone = new AudioEndpoint(microphone: true);
+            _microphone.Changed += QueueUpdate;
             _capture = new CaptureMonitor();
             _capture.Changed += QueueUpdate;
             _mixer = new AudioMixer();
@@ -217,6 +220,21 @@ internal sealed class Indicators : IDisposable
     /// <summary>Null on a PC without a battery.</summary>
     public BatteryState? Battery { get; private set; }
 
+    /// <summary>Whether the default microphone is muted; false without one.</summary>
+    public bool IsMicrophoneMuted => _microphone?.IsMuted == true;
+
+    /// <summary>Win+Alt+K: mutes the default microphone, or unmutes it.</summary>
+    public void ToggleMicrophoneMute()
+    {
+        if (_microphone is not { HasDevice: true } microphone)
+        {
+            Log.Info("Microphone mute: no microphone");
+            return;
+        }
+        microphone.IsMuted = !microphone.IsMuted;
+        Log.Info($"Microphone {(microphone.IsMuted ? "muted" : "unmuted")}");
+    }
+
     /// <summary>Names of the apps recording from a microphone; empty while none is.</summary>
     public IReadOnlyList<string> MicrophoneApps { get; private set; } = [];
 
@@ -227,6 +245,7 @@ internal sealed class Indicators : IDisposable
         _energySaver.Dispose();
         _battery.Dispose();
         _audio?.Dispose();
+        _microphone?.Dispose();
         _capture?.Dispose();
         _mixer?.Dispose();
     }

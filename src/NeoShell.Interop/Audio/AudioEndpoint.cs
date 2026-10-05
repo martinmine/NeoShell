@@ -4,11 +4,13 @@ using NeoShell.Interop.Native;
 namespace NeoShell.Interop.Audio;
 
 /// <summary>
-/// The default output device's volume and mute, following the user from device to device. Use it on the thread that
-/// created it; <see cref="Changed"/> comes from Core Audio's threads, after which the properties read fresh values.
+/// The default output device's (or microphone's) volume and mute, following the user from device to device. Use it on
+/// the thread that created it; <see cref="Changed"/> comes from Core Audio's threads, after which the properties read
+/// fresh values.
 /// </summary>
 public sealed unsafe class AudioEndpoint : IDisposable
 {
+    private readonly EDataFlow _flow;
     private readonly IMMDeviceEnumerator _enumerator;
     private readonly DeviceNotifications _deviceNotifications;
     private readonly VolumeNotifications _volumeNotifications;
@@ -16,13 +18,15 @@ public sealed unsafe class AudioEndpoint : IDisposable
     private string? _deviceName;
     private volatile bool _stale = true;
 
-    public AudioEndpoint()
+    /// <param name="microphone">The default recording device rather than the default output.</param>
+    public AudioEndpoint(bool microphone = false)
     {
+        _flow = microphone ? EDataFlow.Capture : EDataFlow.Render;
         _enumerator = Ole32.Create<IMMDeviceEnumerator>(CoreAudio.CLSID_MMDeviceEnumerator, CoreAudio.CLSCTX_ALL);
         _volumeNotifications = new VolumeNotifications(() => Changed?.Invoke());
         _deviceNotifications = new DeviceNotifications(flow =>
         {
-            if (flow is null or EDataFlow.Render)
+            if (flow is null || flow == _flow)
             {
                 _stale = true;
                 Changed?.Invoke();
@@ -34,7 +38,7 @@ public sealed unsafe class AudioEndpoint : IDisposable
     /// <summary>Volume, mute or the default device changed. Raised on a Core Audio thread.</summary>
     public event Action? Changed;
 
-    /// <summary>False when there is no output device at all.</summary>
+    /// <summary>False when there is no such device at all.</summary>
     public bool HasDevice => Current is not null;
 
     public string? DeviceName => Current is null ? null : _deviceName;
@@ -75,8 +79,8 @@ public sealed unsafe class AudioEndpoint : IDisposable
 
     private void Bind()
     {
-        // Fails when there is no output device.
-        if (_enumerator.GetDefaultAudioEndpoint(EDataFlow.Render, ERole.Console, out IMMDevice device) != 0)
+        // Fails when there is no such device.
+        if (_enumerator.GetDefaultAudioEndpoint(_flow, ERole.Console, out IMMDevice device) != 0)
             return;
 
         _deviceName = ReadFriendlyName(device);

@@ -11,9 +11,10 @@ internal static class Launcher
     /// <c>shell:AppsFolder</c>, otherwise its executable. Failures (missing file, cancelled elevation) are logged,
     /// not thrown.
     /// </summary>
-    public static void Launch(PinnedApp app)
+    /// <param name="elevated">As administrator, asking first. Packaged apps can't be started that way without Explorer.</param>
+    public static void Launch(PinnedApp app, bool elevated = false)
     {
-        if (app.AppUserModelId is { } packagedId && PackagedApps.IsPackagedAppId(packagedId))
+        if (!elevated && app.AppUserModelId is { } packagedId && PackagedApps.IsPackagedAppId(packagedId))
         {
             // Activation waits for the app to start.
             Task.Run(() =>
@@ -33,13 +34,20 @@ internal static class Launcher
         string file = app.AppUserModelId is { } appId ? ShellItems.AppsFolderPath(appId) : app.Path ?? "";
         try
         {
-            ShellLaunch.Open(file, app.AppUserModelId is null ? app.Arguments : null);
+            ShellLaunch.Open(file, app.AppUserModelId is null ? app.Arguments : null, elevated);
         }
         catch (Exception ex)
         {
             Log.Warn($"Could not start {app.DisplayName} ({file})", ex);
         }
     }
+
+    /// <summary>
+    /// File Explorer, as Win+E and the Quick Link menu open it. Not <c>explorer.exe</c> on its own: started without
+    /// arguments while NeoShell is the shell, Explorer makes itself a second shell, taskbar and all.
+    /// </summary>
+    public static void OpenFileExplorer() =>
+        Launch(new PinnedApp("File Explorer", AppUserModelId: "Microsoft.Windows.Explorer"));
 
     /// <summary>
     /// Opens a page of Settings, or as the shell a Control Panel applet (or Control Panel's home): Settings is a UWP

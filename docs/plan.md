@@ -191,6 +191,23 @@ Tick items off as they land. The feature details are in [design.md](design.md).
 - [x] Fix: jump lists and the tray flyout flashed at their place, or jumped, before sliding
 - [x] Fix: the taskbar's menus turned solid grey while inactive; acrylic as Explorer's
 
+## 16. Explorer's shortcuts
+
+- [x] Survey: which Win+ shortcuts Explorer holds and which survive it (probed with `RegisterHotKey`)
+- [x] Win+E, Win+R, Win+I, Win+Pause, Win+Q; Win+E without starting a second Explorer shell
+- [x] Win+M, Win+Shift+M, Win+Home
+- [x] Win+B, Win+Shift+T
+- [x] Win+Shift/Ctrl/Alt+1…9 (new instance, last active window, jump list), Win+Ctrl+Shift+1…9 (as administrator)
+      — elevation not run live (it asks through UAC's secure desktop)
+- [x] Win+Alt+D, Win+Alt+K (microphone mute, shown on the microphone indicator)
+- [x] Win+Comma (peek at the desktop)
+- [x] Win+PrtScn and Win+Shift+S (NeoShell's own rectangle snip: Snipping Tool needs Explorer)
+- [x] Win+Z: Snap layouts
+- [x] Alt+F4 on the desktop or the taskbar: Shut Down Windows dialog (it closed the window before)
+- [x] Fix: Win+Alt+K (and Win+Shift with A/K/P/N/X) opened Quick Settings' pages
+- Not done: Win+Shift+R (Snipping Tool video), Win+V, Win+Period, Win+H (no public way to Windows' text input
+  host), Task View and virtual desktops (out of scope)
+
 ## Later / not planned yet
 
 - Notifications: toast images, buttons and inline replies (not exposed to listeners); tray balloons as toasts

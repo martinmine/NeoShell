@@ -35,4 +35,19 @@ internal static unsafe partial class Kernel32
     /// <summary>Returns 0, or APPMODEL_ERROR_NO_APPLICATION (15703) for a process that isn't a packaged app.</summary>
     [LibraryImport("kernel32.dll")]
     public static partial int GetApplicationUserModelId(nint process, ref uint length, char* id);
+
+    public const uint GMEM_MOVEABLE = 0x0002;
+
+    [LibraryImport("kernel32.dll", SetLastError = true)]
+    public static partial nint GlobalAlloc(uint flags, nuint bytes);
+
+    [LibraryImport("kernel32.dll")]
+    public static partial void* GlobalLock(nint memory);
+
+    [LibraryImport("kernel32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static partial bool GlobalUnlock(nint memory);
+
+    [LibraryImport("kernel32.dll")]
+    public static partial nint GlobalFree(nint memory);
 }

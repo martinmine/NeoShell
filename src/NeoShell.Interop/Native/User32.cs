@@ -31,6 +31,7 @@ internal static unsafe partial class User32
     public const uint WS_POPUP = 0x8000_0000;
     public const uint WS_CHILD = 0x4000_0000;
     public const uint WS_MINIMIZEBOX = 0x0002_0000;
+    public const uint WS_THICKFRAME = 0x0004_0000;
     public const uint WS_EX_TOOLWINDOW = 0x0000_0080;
 
     public const uint WS_EX_APPWINDOW = 0x0004_0000;
@@ -40,6 +41,7 @@ internal static unsafe partial class User32
     public const int SW_MINIMIZE = 6;
     public const int SW_RESTORE = 9;
     public const int SW_SHOWMINNOACTIVE = 7;
+    public const int SW_SHOWNOACTIVATE = 4;
 
     public const uint GW_OWNER = 4;
     public const uint GA_ROOT = 2;
@@ -300,6 +302,10 @@ internal static unsafe partial class User32
     [return: MarshalAs(UnmanagedType.Bool)]
     public static partial bool ShowWindowAsync(nint hwnd, int command);
 
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static partial bool ShowWindow(nint hwnd, int command);
+
     [LibraryImport("user32.dll", EntryPoint = "SystemParametersInfoW", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     public static partial bool SystemParametersInfo(uint action, uint param, void* value, uint flags);
@@ -498,11 +504,27 @@ internal static unsafe partial class User32
     [return: MarshalAs(UnmanagedType.Bool)]
     public static partial bool DestroyIcon(nint icon);
 
+    public const uint CF_DIB = 8;
     public const uint CF_HDROP = 15;
 
     [LibraryImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     public static partial bool IsClipboardFormatAvailable(uint format);
+
+    [LibraryImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static partial bool OpenClipboard(nint owner);
+
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static partial bool EmptyClipboard();
+
+    [LibraryImport("user32.dll", SetLastError = true)]
+    public static partial nint SetClipboardData(uint format, nint data);
+
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static partial bool CloseClipboard();
 
     public const uint SKF_STICKYKEYSON = 0x0001;
 

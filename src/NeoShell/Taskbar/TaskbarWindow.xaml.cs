@@ -118,6 +118,12 @@ internal sealed partial class TaskbarWindow : Window
             if (!_isActive)
                 WindowStyles.AddExtended(hwnd, ExtendedWindowStyles.NoActivate);
         };
+        // Alt+F4 while it has the keyboard (Win+T) would close it; Explorer's taskbar asks to shut down instead.
+        AppWindow.Closing += (_, e) =>
+        {
+            e.Cancel = true;
+            owner.ShowShutDownDialog();
+        };
         _frameless = new FramelessWindow(hwnd);
         Peek.Exclude(hwnd);
         SystemBackdrop = _backdrop;
@@ -328,6 +334,47 @@ internal sealed partial class TaskbarWindow : Window
             TopLevelWindows.Activate(TaskActivation.NextWindow([.. button.Windows.Select(w => w.Handle)], _owner.Tracker.Foreground));
     }
 
+    /// <summary>Win+Shift+1…9 starts another instance of the Nth button's app; Win+Ctrl+Shift+1…9 as administrator.</summary>
+    public void LaunchTask(int index, bool elevated)
+    {
+        if (index < _tasks.Count)
+            Launcher.Launch(_tasks[index].App, elevated);
+    }
+
+    /// <summary>
+    /// Win+Ctrl+1…9: the Nth button's window that was in front last, then round its windows; starts the app when
+    /// it has none.
+    /// </summary>
+    public void ActivateLastWindow(int index)
+    {
+        if (index >= _tasks.Count)
+            return;
+
+        TaskButton button = _tasks[index];
+        if (button.Windows.Count == 0)
+        {
+            Launcher.Launch(button.App);
+            return;
+        }
+        Reveal();
+        TopLevelWindows.Activate(TaskActivation.LastActiveWindow(
+            [.. button.Windows.Select(w => w.Handle)], TopLevelWindows.GetAll(), _owner.Tracker.Foreground));
+    }
+
+    /// <summary>Win+Alt+1…9: the Nth button's menu (its jump list), with the keyboard in it.</summary>
+    public void ShowJumpList(int index)
+    {
+        if (index >= _tasks.Count
+            || TaskList.ContainerFromIndex(index) is not ListViewItem { ContentTemplateRoot: FrameworkElement element }
+            || FlyoutBase.GetAttachedFlyout(element) is not { } menu)
+        {
+            return;
+        }
+        Reveal();
+        TakeKeyboard();
+        TaskbarFlyouts.ShowCentered(menu, element);
+    }
+
     /// <param name="accent">The taskbar's colour when Windows shows the accent colour on it.</param>
     public void SetTheme(ElementTheme theme, Color? accent)
     {
@@ -381,15 +428,32 @@ internal sealed partial class TaskbarWindow : Window
         Log.Info(window == 0 ? "Full-screen app left; taskbar back on top" : $"Full-screen app 0x{window:X}; taskbar makes way");
     }
 
-    /// <summary>Activates the taskbar and focuses its first task button (or Start), for the arrow keys and Enter.</summary>
-    public void FocusTaskList()
+    /// <summary>
+    /// Activates the taskbar and focuses its first task button (Win+T) or its last (Win+Shift+T), or Start when
+    /// there are none, for the arrow keys and Enter.
+    /// </summary>
+    public void FocusTaskList(bool last = false)
     {
         TakeKeyboard();
 
-        if (_tasks.Count > 0 && TaskList.ContainerFromIndex(0) is Control first)
-            first.Focus(FocusState.Keyboard);
+        if (_tasks.Count > 0 && TaskList.ContainerFromIndex(last ? _tasks.Count - 1 : 0) is Control button)
+            button.Focus(FocusState.Keyboard);
         else
             StartButton.Focus(FocusState.Keyboard);
+    }
+
+    /// <summary>
+    /// Win+B, on the primary taskbar: activates it and focuses the notification area: the chevron of the hidden
+    /// icons, as Explorer does, or Quick Settings' button when there is no chevron.
+    /// </summary>
+    public void FocusTray()
+    {
+        TakeKeyboard();
+
+        if (OverflowButton.Visibility == Visibility.Visible && TrayArea.Visibility == Visibility.Visible)
+            OverflowButton.Focus(FocusState.Keyboard);
+        else
+            QuickSettingsButton.Focus(FocusState.Keyboard);
     }
 
     // A no-activate window can't become active, and only the active window gets the keyboard; once it's left, the
@@ -488,8 +552,10 @@ internal sealed partial class TaskbarWindow : Window
             _indicators.IsEnergySaverOn && _indicators.Battery is null ? Visibility.Visible : Visibility.Collapsed;
 
         IReadOnlyList<string> apps = _indicators.MicrophoneApps;
+        bool microphoneMuted = _indicators.IsMicrophoneMuted;
         MicrophoneButton.Visibility = apps.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
-        SetToolTip(MicrophoneButton, IndicatorDisplay.MicrophoneToolTip(apps));
+        MicrophoneIcon.Glyph = microphoneMuted ? IndicatorDisplay.MicrophoneMutedGlyph : IndicatorDisplay.MicrophoneGlyph;
+        SetToolTip(MicrophoneButton, IndicatorDisplay.MicrophoneToolTip(apps, microphoneMuted));
     }
 
     private void QuickSettingsButton_Click(object sender, RoutedEventArgs e) => ShowQuickSettings(QuickSettingsPage.Main);

@@ -38,6 +38,9 @@ public static unsafe class TopLevelWindows
             && !IsCloaked(hwnd);
     }
 
+    /// <summary>True for a window the user can resize, which Snap may then place: it has a sizing border.</summary>
+    public static bool CanResize(nint hwnd) => ((uint)User32.GetWindowLongPtr(hwnd, User32.GWL_STYLE) & User32.WS_THICKFRAME) != 0;
+
     public static bool IsMinimized(nint hwnd) => User32.IsIconic(hwnd);
 
     public static bool IsMaximized(nint hwnd) => User32.IsZoomed(hwnd);
@@ -56,6 +59,38 @@ public static unsafe class TopLevelWindows
 
     /// <summary>The window's rectangle on screen, in pixels.</summary>
     public static RectInt32 GetBounds(nint hwnd) => User32.GetWindowRect(hwnd, out User32.RECT rect) ? rect.ToRectInt32() : default;
+
+    /// <summary>
+    /// The part of the window that's drawn, in pixels: without the invisible resize borders Windows 10 and 11 put
+    /// around most windows, which <see cref="GetBounds"/> counts in.
+    /// </summary>
+    public static RectInt32 GetVisibleBounds(nint hwnd)
+    {
+        User32.RECT frame;
+        return Dwmapi.DwmGetWindowAttribute(hwnd, Dwmapi.DWMWA_EXTENDED_FRAME_BOUNDS, &frame, (uint)sizeof(User32.RECT)) == 0
+            ? frame.ToRectInt32()
+            : GetBounds(hwnd);
+    }
+
+    /// <summary>
+    /// Moves and sizes the window so the part that's drawn fills <paramref name="bounds"/> exactly, as Snap does,
+    /// restoring it first if it's maximized or minimized.
+    /// </summary>
+    public static void Place(nint hwnd, RectInt32 bounds)
+    {
+        if (User32.IsZoomed(hwnd) || User32.IsIconic(hwnd))
+            User32.ShowWindow(hwnd, User32.SW_RESTORE);
+
+        // The invisible borders stay outside the bounds, as wide as they are now.
+        RectInt32 outer = GetBounds(hwnd);
+        RectInt32 visible = GetVisibleBounds(hwnd);
+        int left = visible.X - outer.X;
+        int top = visible.Y - outer.Y;
+        int right = outer.X + outer.Width - (visible.X + visible.Width);
+        int bottom = outer.Y + outer.Height - (visible.Y + visible.Height);
+        User32.SetWindowPos(hwnd, 0, bounds.X - left, bounds.Y - top, bounds.Width + left + right, bounds.Height + top + bottom,
+            User32.SWP_NOZORDER | User32.SWP_NOACTIVATE);
+    }
 
     /// <summary>The monitor the window is mostly on (compare with <see cref="DisplayMonitor.Handle"/>), or 0.</summary>
     public static nint MonitorOf(nint hwnd) => User32.MonitorFromWindow(hwnd, User32.MONITOR_DEFAULTTONULL);
@@ -109,7 +144,9 @@ public static unsafe class TopLevelWindows
     /// <summary>Minimizes without activating the next window, so nothing flickers to the front.</summary>
     public static void Minimize(nint hwnd) => User32.ShowWindowAsync(hwnd, User32.SW_SHOWMINNOACTIVE);
 
-    public static void Restore(nint hwnd) => User32.ShowWindowAsync(hwnd, User32.SW_RESTORE);
+    /// <param name="activate">False restores it without activating it: the window in front stays in front.</param>
+    public static void Restore(nint hwnd, bool activate = true) =>
+        User32.ShowWindowAsync(hwnd, activate ? User32.SW_RESTORE : User32.SW_SHOWNOACTIVATE);
 
     public static int GetProcessId(nint hwnd)
     {
