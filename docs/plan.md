@@ -179,6 +179,18 @@ Tick items off as they land. The feature details are in [design.md](design.md).
 - [x] Win+N in shell mode through the keyboard hook; a click elsewhere on the taskbar closes the flyout
 - [x] Clock tooltip as Explorer's (date, then day and time)
 
+## 15. Explorer parity
+
+- [x] Start opens from the screen's corner and the taskbar's edges beside the button
+- [x] Start's Quick Link menu: right-click Start or its corner, Win+X as the shell; Run above the Start button
+- [x] Alt+Tab as the shell: Explorer's card layout, live previews, most recently used order, Tab/Shift/arrows/Enter/
+      Esc/Delete, click to switch, close button
+- [x] Fix: right-clicking a task button could open its previews over the menu
+- [x] Fix: Start and the thumbnails rose from the screen's bottom edge; now cut off at the taskbar's edge, as
+      Explorer's (and the first opening of Start slid up black)
+- [x] Fix: jump lists and the tray flyout flashed at their place, or jumped, before sliding
+- [x] Fix: the taskbar's menus turned solid grey while inactive; acrylic as Explorer's
+
 ## Later / not planned yet
 
 - Notifications: toast images, buttons and inline replies (not exposed to listeners); tray balloons as toasts

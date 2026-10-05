@@ -68,6 +68,7 @@ src/NeoShell/                 WinUI app
   Notifications/              Notification center + calendar (two panel windows), toasts (shell mode), focus sessions
   QuickSettings/              Quick Settings: tiles, Wi-Fi, Bluetooth, Accessibility, Cast, Project and Sound output pages
   StartMenu/                  StartMenuWindow, app list, search results, power menu
+  Switcher/                   Alt+Tab window switcher (shell mode)
   Settings/                   Settings record + JSON load/save (%LOCALAPPDATA%\NeoShell\settings.json)
 src/NeoShell.Interop/
   Native/                     LibraryImport: User32, Shell32, Dwmapi, Kernel32, Advapi32, PowrProf, Comctl32
@@ -133,5 +134,5 @@ src/NeoShell/bin/Debug/net10.0-windows10.0.26100.0/win-x64/NeoShell.exe /exit   
 
 ## Out of scope
 
-Editing Quick Settings' tiles, Widgets, Task View, Win+X, pinning items in jump lists, toast images, buttons and
+Editing Quick Settings' tiles, Widgets, Task View, pinning items in jump lists, toast images, buttons and
 inline replies.

@@ -16,9 +16,10 @@ coding rules are in [CLAUDE.md](../CLAUDE.md).
   Restart, Shut down) and a button to switch back to `explorer.exe`.
 - The notification center and calendar from the clock, Do not disturb and focus sessions, and toasts while NeoShell
   is the shell.
+- Start's Quick Link menu (right-click Start, Win+X) and, while NeoShell is the shell, Alt+Tab.
 
-Out of scope: editing Quick Settings' tiles, Widgets, Task View, Win+X, pinning items in jump lists, toast images,
-buttons and inline replies.
+Out of scope: editing Quick Settings' tiles, Widgets, Task View, pinning items in jump lists, toast images, buttons
+and inline replies.
 
 ## Technical decisions
 
@@ -235,8 +236,29 @@ Shell mode only, like the wallpaper: alongside Explorer, Explorer's desktop has 
   anyway, WinUI's own open animation is off and the popup window itself slides up from the taskbar's edge (200 ms,
   frame by frame) under a window region that cuts off what's still below the edge. When `Opened` comes, the window
   may not exist yet or be in place: WinUI keeps a flyout's window between openings, so it's remembered per flyout;
-  on the first opening it's the taskbar's popup window no other flyout has. It's hidden (an empty region) at once,
-  and slides once it's shown where the flyout belongs.
+  on the first opening it's the taskbar's popup window no other flyout has. It's hidden at once, and slides once
+  it's shown where the flyout belongs.
+- Hidden means cloaked (`DWMWA_CLOAK`), from then on whenever WinUI shows the window (`SWP_SHOWWINDOW`) until the
+  slide places it (`PopupWindows.Conceal`): WinUI shows a reused window where the flyout last was a frame before
+  `Opened`, and clears a window region of its own accord while it lays the menu out, so an empty region let the
+  flyout flash at its final place before sliding (the jump list's "bounce", the tray flyout's after a few openings).
+  While it slides, WinUI's own moves of the window (another layout pass) are held at the slide's position.
+- The taskbar's menus (jump lists, the taskbar menu, network and speaker menus, the Quick Link menu) get a
+  `ShellBackdrop` of their own with a see-through presenter: WinUI's menu backdrop turns solid while the menu's
+  window is inactive, as a menu of the no-activate taskbar always is, where Explorer's stay acrylic. Submenus keep
+  WinUI's (no way to give them a backdrop).
+- A right-click on a task button stops its previews: none open while its menu is, and the button shows none again
+  until the pointer has left it (a hover that began before the click would otherwise open them over the menu).
+- Start's corner: as in Explorer, a click on the taskbar around the Start button acts on it, with its hover and
+  press states — left-aligned, everything from the screen's left edge to the button's right, at any height (the
+  corner pixel opens Start); centred, also the 13 epx gap on the button's left (`TaskbarLayout.IsStartZone`).
+- Quick Link menu (`QuickLinkMenu`): right-clicking Start or its corner, or Win+X as the shell (keyboard hook,
+  `PanelKeys`; the taskbar takes the keyboard for the arrow keys), opens Explorer's list above the Start button,
+  left edges aligned: Installed apps, Power Options, Event Viewer, System, Device Manager, Network Connections, Disk
+  Management, Computer Management, Terminal and Terminal (Admin) (Windows PowerShell without Terminal), Task Manager,
+  Settings, File Explorer, Search, Run, Shut down or sign out (Sign out, Sleep, Shut down, Restart), Desktop. As the
+  shell, Settings pages are Control Panel applets. Run is shell32's `RunFileDlg` (ordinal 61) on a thread of its
+  own, moved above the taskbar's left end by a thread CBT hook as it activates.
 - Show desktop minimizes every minimizable window of other processes (`SW_SHOWMINNOACTIVE`) and the next click
   restores those still minimized; Explorer's own toggle isn't available as the shell.
 
@@ -644,7 +666,10 @@ Windows', its shortcut as key caps (`ShortcutKeys`), and a footer with a link to
 - Flies out of the taskbar (250 ms, decelerating) and back into it on closing (150 ms, accelerating), as in Windows 11.
   The window itself moves, frame by frame (`WindowSlide`, on `CompositionTarget.Rendering`): the acrylic belongs to the window, so
   sliding the content would leave an empty acrylic panel standing still. It sits just below the taskbar that opened it
-  in the topmost band (`PinnedWindow.SetLayer(Topmost, above)`), so the taskbar covers it on the way. What it shows is
+  in the topmost band (`PinnedWindow.SetLayer(Topmost, above)`), and is cut off at the taskbar's edge
+  (`PinnedWindow.VisibleBottom`, a window region) so it rises from behind the taskbar whatever is in front of the
+  screen's bottom and however see-through the taskbar is; the thumbnails do the same. It's shown once, cut off
+  entirely, at startup, so the first opening doesn't slide up a black window before WinUI's first frame. What it shows is
   reset (search, All apps, scroll) once it's out of sight; opened again while closing, it turns back from where it is.
 - Toggling: pressing the Start button deactivates Start before the button's click arrives, so a click within
   400 ms of a deactivation doesn't reopen it.
@@ -700,6 +725,23 @@ Windows', its shortcut as key caps (`ShortcutKeys`), and a footer with a link to
     - Sleep → `SetSuspendState(false, false, false)`
     - Restart / Shut down → enable `SeShutdownPrivilege`, `InitiateShutdown` with `SHUTDOWN_RESTART` /
       `SHUTDOWN_POWEROFF` and a planned reason code.
+
+## Window switcher (`Switcher/`)
+
+- As the shell only: alongside, Explorer's Alt+Tab runs; without Explorer Windows would cycle windows with no UI.
+- Keys from the keyboard hook (`AltTabKeys`, unit tested): Alt+Tab opens it, Tab/Shift+Tab and the arrow keys move,
+  letting go of Alt or Enter switches, Esc cancels, Delete closes the chosen window. Its keys are swallowed (down,
+  repeats and up); Alt always passes, masked with vkE8 so the app in front doesn't open its menu bar.
+- `WindowSwitcher`: the taskbar's windows of other processes, the one in front first and then by z-order (most
+  recently used, `AltTabLayout.Order`), the previous one chosen (Shift: the last). Shown after 100 ms, so a quick
+  Alt+Tab switches without the panel flashing up; moving on shows it at once.
+- Explorer's look: an acrylic panel centred on the monitor of the window in front; cards in centred rows
+  (`AltTabLayout.Arrange`), each the window's colours with icon and title over a live DWM thumbnail 132 epx high
+  (a minimized window shows its icon), the chosen one ringed in the accent colour 3 epx off the card; the close button
+  shows over a card. More windows than fit make the previews smaller (Explorer's panel scrolls instead).
+- Switching: `SetForegroundWindow` after a key of NeoShell's own (vkE8), which lifts the foreground lock (the keys
+  went to the app in front). `SwitchToThisWindow` sends the window left behind to the bottom of the stack, which
+  breaks the most recently used order.
 
 ## Settings (`Settings/`)
 
