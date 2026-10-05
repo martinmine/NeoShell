@@ -29,11 +29,14 @@ public sealed record WidgetSettings
     // Profile
     public bool? ShowSeconds { get; set; }
 
-    // Resources: each graph's colour, as #RRGGBB.
+    // Resources: each graph's colour, as #RRGGBB, and whether drives and network adapters show one by one.
     public string? CpuColor { get; set; }
+    public string? GpuColor { get; set; }
     public string? MemoryColor { get; set; }
     public string? DiskColor { get; set; }
     public string? NetworkColor { get; set; }
+    public bool? ShowEachDrive { get; set; }
+    public bool? ShowEachAdapter { get; set; }
 
     // Pictures
     public string? PictureFolder { get; set; }
@@ -85,6 +88,8 @@ public sealed record ShellSettings
     public int FocusMinutes { get; set; } = 30;
     public DesktopSortOrder DesktopSortOrder { get; set; } = DesktopSortOrder.Name;
     public bool ShowWidgetSidebar { get; set; } = true;
+    /// <summary>The sidebar's own backdrop behind its widgets; without it, only the widgets show, each on its own.</summary>
+    public bool ShowWidgetPanel { get; set; } = true;
     /// <summary>The sidebar's width in effective pixels, as the user left it by dragging its edge.</summary>
     public double WidgetSidebarWidth { get; set; } = 320;
     public IReadOnlyList<WidgetSettings> Widgets { get; set; } = DefaultWidgets;

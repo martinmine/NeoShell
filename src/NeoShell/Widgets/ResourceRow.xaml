@@ -28,7 +28,7 @@
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
-                <TextBlock x:Name="LabelText" />
+                <TextBlock x:Name="LabelText" TextTrimming="CharacterEllipsis" />
                 <TextBlock x:Name="ValueText" Grid.Column="1" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                 <FontIcon x:Name="Chevron" Grid.Column="2" Glyph="&#xE70D;" FontSize="8" />
             </Grid>

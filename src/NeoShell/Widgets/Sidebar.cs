@@ -92,9 +92,13 @@ internal sealed class Sidebar : IDisposable
         _window?.Place(_window.Monitor, width);
     }
 
+    /// <summary>The sidebar's menu turned its own backdrop behind the widgets on or off.</summary>
+    public void SetPanelShown(bool shown) => _settings.Update(_settings.Current with { ShowWidgetPanel = shown });
+
     private void OnSettingsChanged()
     {
         ShellSettings current = _settings.Current;
+        _window?.SetPanelShown(current.ShowWidgetPanel);
         if (current.ShowWidgetSidebar != (_window is not null))
         {
             if (current.ShowWidgetSidebar)
@@ -145,7 +149,7 @@ internal sealed class Sidebar : IDisposable
         if (PrimaryMonitor() is not { } monitor)
             return;
 
-        _window = new SidebarWindow(this, _runMode, monitor, _settings.Current.WidgetSidebarWidth, _backdrop, _taskbars.Theme, _taskbars.Accent);
+        _window = new SidebarWindow(this, _runMode, monitor, _settings.Current.WidgetSidebarWidth, _settings.Current.ShowWidgetPanel, _backdrop, _taskbars.Theme, _taskbars.Accent);
         foreach (WidgetSettings widget in Widgets.Where(w => !w.IsFloating))
             _window.Insert(CreateFrame(widget, floating: false), int.MaxValue);
         _window.AppWindow.Show(activateWindow: false);

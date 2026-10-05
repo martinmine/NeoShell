@@ -1,5 +1,6 @@
 using System.Globalization;
 using NeoShell.Interop.Native;
+using NeoShell.Interop.Performance;
 using NeoShell.Interop.Windowing;
 using NeoShell.Settings;
 using NeoShell.Widgets;
@@ -103,6 +104,36 @@ public sealed class WidgetTests
     {
         using var _ = new CultureScope("en-US");
         Assert.Equal(expected, WidgetFormat.BitRate(bytesPerSecond));
+    }
+
+    [Theory]
+    [InlineData(40_802_189_312UL, "38.0 GB")]
+    [InlineData(549_755_813_888UL, "512 GB")]
+    [InlineData(1_979_120_929_996UL, "1.8 TB")]
+    public void Free_space_is_written_as_explorer_does(ulong bytes, string expected)
+    {
+        using var _ = new CultureScope("en-US");
+        Assert.Equal(expected, WidgetFormat.Size(bytes));
+    }
+
+    [Fact]
+    public void Gpu_use_is_the_busiest_engine_summed_over_processes()
+    {
+        (string, double)[] engines =
+        [
+            ("pid_100_luid_0x00000000_0x0000D1A0_phys_0_eng_0_engtype_3D", 20),
+            ("pid_200_luid_0x00000000_0x0000D1A0_phys_0_eng_0_engtype_3D", 15),
+            ("pid_100_luid_0x00000000_0x0000D1A0_phys_0_eng_3_engtype_VideoDecode", 30),
+            ("pid_300_luid_0x00000000_0x0000D1A0_phys_0_eng_5_engtype_Copy", 2),
+        ];
+
+        Assert.Equal(35, SystemUsage.GpuPercent(engines));
+    }
+
+    [Fact]
+    public void Gpu_use_is_unknown_without_gpu_counters()
+    {
+        Assert.Null(SystemUsage.GpuPercent([]));
     }
 
     [Fact]

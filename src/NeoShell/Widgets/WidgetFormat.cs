@@ -14,6 +14,15 @@ public static class WidgetFormat
     public static string Gigabytes(ulong bytes) =>
         (bytes / (1024.0 * 1024 * 1024)).ToString("0.0", CultureInfo.CurrentCulture) + " GB";
 
+    /// <summary>A size as Explorer writes a drive's free space: "512 GB", "38.2 GB", "1.8 TB" (1024-based).</summary>
+    public static string Size(ulong bytes)
+    {
+        double gigabytes = bytes / (1024.0 * 1024 * 1024);
+        return gigabytes >= 1024 ? (gigabytes / 1024).ToString("0.0", CultureInfo.CurrentCulture) + " TB"
+            : gigabytes >= 100 ? gigabytes.ToString("0", CultureInfo.CurrentCulture) + " GB"
+            : gigabytes.ToString("0.0", CultureInfo.CurrentCulture) + " GB";
+    }
+
     /// <summary>Bits a second, as Task Manager writes network speed: "0 Kbps", "840 Kbps", "12.4 Mbps".</summary>
     public static string BitRate(double bytesPerSecond)
     {

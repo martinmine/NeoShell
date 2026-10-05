@@ -4,23 +4,36 @@ using NeoShell.Interop.Performance;
 
 namespace NeoShell.Widgets;
 
+/// <summary>A fixed drive's space, and how busy it was in the last second.</summary>
+/// <param name="Name">"C:".</param>
+public sealed record DriveUsage(string Name, ulong Free, ulong Total, double BusyPercent);
+
+/// <summary>A network adapter that's up, and its bytes a second each way.</summary>
+public sealed record AdapterUsage(string Id, string Name, double DownloadRate, double UploadRate);
+
 /// <summary>
-/// Samples processor, memory, disk and network use once a second while anyone listens to <see cref="Sampled"/>,
-/// keeping the last minute for the graphs. The sidebar shares one, so the resource widget keeps its graphs when it's
-/// moved (a new widget is made each time).
+/// Samples processor, GPU, memory, disk and network use once a second while anyone listens to <see cref="Sampled"/>,
+/// keeping the last minute of each for the graphs. The sidebar shares one, so the resource widget keeps its graphs
+/// when it's moved (a new widget is made each time).
 /// </summary>
 internal sealed class ResourceMonitor : IDisposable
 {
     public const int HistoryLength = 60;
 
+    // The keys of History.
+    public const string Cpu = "cpu";
+    public const string Gpu = "gpu";
+    public const string Memory = "memory";
+    public const string Disk = "disk";
+    public const string Network = "network";
+    public static string DriveKey(string name) => "drive:" + name;
+    public static string AdapterKey(string id) => "adapter:" + id;
+
     private readonly DispatcherQueueTimer _timer;
-    private readonly List<double> _cpu = [];
-    private readonly List<double> _memory = [];
-    private readonly List<double> _disk = [];
-    private readonly List<double> _network = [];
+    private readonly Dictionary<string, List<double>> _history = [];
+    private readonly Dictionary<string, (long Received, long Sent)> _lastBytes = [];
     private SystemUsage? _usage;
     private Action? _sampled;
-    private (long Received, long Sent, long Time)? _lastNetwork;
     private long _lastSample;
 
     public ResourceMonitor()
@@ -47,17 +60,20 @@ internal sealed class ResourceMonitor : IDisposable
         }
     }
 
-    public UsageSample Latest { get; private set; }
+    public UsageSample? Latest { get; private set; }
 
-    /// <summary>Bytes a second received and sent, over all network adapters.</summary>
-    public double DownloadRate { get; private set; }
-    public double UploadRate { get; private set; }
+    public IReadOnlyList<DriveUsage> Drives { get; private set; } = [];
 
-    /// <summary>The last minute, oldest first: percentages, and the network's bytes a second both ways.</summary>
-    public IReadOnlyList<double> CpuHistory => _cpu;
-    public IReadOnlyList<double> MemoryHistory => _memory;
-    public IReadOnlyList<double> DiskHistory => _disk;
-    public IReadOnlyList<double> NetworkHistory => _network;
+    public IReadOnlyList<AdapterUsage> Adapters { get; private set; } = [];
+
+    /// <summary>Bytes a second received and sent, over all adapters.</summary>
+    public double DownloadRate => Adapters.Sum(adapter => adapter.DownloadRate);
+    public double UploadRate => Adapters.Sum(adapter => adapter.UploadRate);
+
+    /// <summary>
+    /// The last minute of one resource, oldest first: percentages, and for the network bytes a second both ways.
+    /// </summary>
+    public IReadOnlyList<double> History(string key) => _history.TryGetValue(key, out List<double>? history) ? history : [];
 
     public void Dispose()
     {
@@ -70,9 +86,8 @@ internal sealed class ResourceMonitor : IDisposable
         // After a long pause the graphs would join two moments far apart.
         if (Environment.TickCount64 - _lastSample > 5000)
         {
-            foreach (List<double> history in (List<double>[])[_cpu, _memory, _disk, _network])
-                history.Clear();
-            _lastNetwork = null;
+            _history.Clear();
+            _lastBytes.Clear();
         }
         _usage ??= new SystemUsage();
         _timer.Start();
@@ -81,55 +96,98 @@ internal sealed class ResourceMonitor : IDisposable
 
     private void Sample()
     {
-        _lastSample = Environment.TickCount64;
-        Latest = _usage!.Sample();
-        Add(_cpu, Latest.CpuPercent);
-        Add(_memory, Latest.MemoryTotal == 0 ? 0 : 100.0 * Latest.MemoryUsed / Latest.MemoryTotal);
-        Add(_disk, Latest.DiskPercent);
-
-        (long received, long sent) = NetworkTotals();
         long now = Environment.TickCount64;
-        if (_lastNetwork is { } last && now > last.Time)
+        double seconds = _lastSample == 0 ? 1 : Math.Max(0.1, (now - _lastSample) / 1000.0);
+        _lastSample = now;
+
+        UsageSample usage = Latest = _usage!.Sample();
+        var sampled = new Dictionary<string, double>
         {
-            double seconds = (now - last.Time) / 1000.0;
-            // Counters start over when an adapter comes and goes.
-            DownloadRate = Math.Max(0, received - last.Received) / seconds;
-            UploadRate = Math.Max(0, sent - last.Sent) / seconds;
-            Add(_network, DownloadRate + UploadRate);
+            [Cpu] = usage.CpuPercent,
+            [Memory] = usage.MemoryTotal == 0 ? 0 : 100.0 * usage.MemoryUsed / usage.MemoryTotal,
+            [Disk] = usage.DiskPercent,
+        };
+        if (usage.GpuPercent is { } gpu)
+            sampled[Gpu] = gpu;
+
+        Drives = ReadDrives(usage);
+        foreach (DriveUsage drive in Drives)
+            sampled[DriveKey(drive.Name)] = drive.BusyPercent;
+
+        Adapters = ReadAdapters(seconds);
+        foreach (AdapterUsage adapter in Adapters)
+            sampled[AdapterKey(adapter.Id)] = adapter.DownloadRate + adapter.UploadRate;
+        sampled[Network] = DownloadRate + UploadRate;
+
+        // Drives and adapters that are gone take their graphs with them.
+        foreach (string key in _history.Keys.Where(key => !sampled.ContainsKey(key)).ToList())
+            _history.Remove(key);
+        foreach ((string key, double value) in sampled)
+        {
+            if (!_history.TryGetValue(key, out List<double>? history))
+                _history[key] = history = [];
+            if (history.Count == HistoryLength)
+                history.RemoveAt(0);
+            history.Add(value);
         }
-        _lastNetwork = (received, sent, now);
         _sampled?.Invoke();
     }
 
-    private static void Add(List<double> history, double value)
+    private static List<DriveUsage> ReadDrives(UsageSample usage)
     {
-        if (history.Count == HistoryLength)
-            history.RemoveAt(0);
-        history.Add(value);
+        var drives = new List<DriveUsage>();
+        foreach (DriveInfo drive in DriveInfo.GetDrives())
+        {
+            try
+            {
+                if (drive.DriveType != DriveType.Fixed || !drive.IsReady)
+                    continue;
+                string name = drive.Name.TrimEnd('\\');
+                drives.Add(new DriveUsage(name, (ulong)drive.TotalFreeSpace, (ulong)drive.TotalSize,
+                    usage.DriveBusyPercent.GetValueOrDefault(name)));
+            }
+            catch (IOException)
+            {
+                // Became unavailable meanwhile.
+            }
+        }
+        return drives;
     }
 
-    private static (long Received, long Sent) NetworkTotals()
+    // Rates from the byte counters' growth since the last sample; a new adapter has none until the next one.
+    private List<AdapterUsage> ReadAdapters(double seconds)
     {
-        long received = 0;
-        long sent = 0;
+        var adapters = new List<AdapterUsage>();
+        var bytes = new Dictionary<string, (long Received, long Sent)>();
         try
         {
             foreach (NetworkInterface adapter in NetworkInterface.GetAllNetworkInterfaces())
             {
+                // Each adapter's filter drivers (QoS, WFP) are listed as adapters of their own with the same byte counts,
+                // but without IP.
                 if (adapter.OperationalStatus != OperationalStatus.Up
-                    || adapter.NetworkInterfaceType is NetworkInterfaceType.Loopback or NetworkInterfaceType.Tunnel)
+                    || adapter.NetworkInterfaceType is NetworkInterfaceType.Loopback or NetworkInterfaceType.Tunnel
+                    || !(adapter.Supports(NetworkInterfaceComponent.IPv4) || adapter.Supports(NetworkInterfaceComponent.IPv6)))
                 {
                     continue;
                 }
                 IPInterfaceStatistics statistics = adapter.GetIPStatistics();
-                received += statistics.BytesReceived;
-                sent += statistics.BytesSent;
+                (long received, long sent) = bytes[adapter.Id] = (statistics.BytesReceived, statistics.BytesSent);
+                if (_lastBytes.TryGetValue(adapter.Id, out var last))
+                {
+                    // Counters start over when an adapter is reset.
+                    adapters.Add(new AdapterUsage(adapter.Id, adapter.Name,
+                        Math.Max(0, received - last.Received) / seconds, Math.Max(0, sent - last.Sent) / seconds));
+                }
             }
         }
         catch (NetworkInformationException)
         {
             // Adapters changing under us; the next sample counts again.
         }
-        return (received, sent);
+        _lastBytes.Clear();
+        foreach ((string id, var counts) in bytes)
+            _lastBytes[id] = counts;
+        return adapters;
     }
 }

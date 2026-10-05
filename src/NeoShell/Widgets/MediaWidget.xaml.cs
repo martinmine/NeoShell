@@ -86,7 +86,7 @@ internal sealed partial class MediaWidget : WidgetView
         NextButton.IsEnabled = media?.CanGoNext == true;
         PlayPauseButton.IsEnabled = media?.CanPlayPause == true;
         bool playing = media?.IsPlaying == true;
-        PlayPauseGlyph.Glyph = playing ? "" : "";
+        PlayPauseGlyph.Glyph = playing ? "\uE769" : "\uE768";
         string playPause = playing ? "Pause" : "Play";
         AutomationProperties.SetName(PlayPauseButton, playPause);
         ToolTipService.SetToolTip(PlayPauseButton, playPause);

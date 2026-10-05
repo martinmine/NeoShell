@@ -832,6 +832,10 @@ Small widgets about the computer and its user, as Windows Vista's sidebar gadget
   Weather show once only (disabled in the menu while shown), Pictures and Notes as often as wanted. Widgets are cards
   in a scrolling column.
 - Hidden or shown from the taskbar's menu ("Show widgets", `ShowWidgetSidebar`); floating widgets stay.
+- Right-clicking the sidebar or a widget in it opens its menu: "Show panel background" (`ShowWidgetPanel`) and
+  "Add widget". Without the panel the header goes and the window is cut to its cards (`WindowRegion.SetRoundedRects`,
+  kept up with layout and scrolling): each widget keeps the backdrop behind it, as floating ones do, and the rest of
+  the strip shows the desktop and lets clicks through. The space stays reserved.
 - `FloatingWidgetWindow`: a widget dragged out of the sidebar, a rounded window of its own, 300 epx wide and as tall
   as the widget (it follows the widget's height and the monitor's scale). Its position is saved in screen pixels;
   one left on a monitor that's gone comes back at the top right of the primary one (`SidebarLayout.KeepOnScreen`).
@@ -859,12 +863,16 @@ Small widgets about the computer and its user, as Windows Vista's sidebar gadget
 
 - **Profile**: the account picture (`AccountPicture\Users\<SID>`, as Start), the user's display name, the time
   (optionally with seconds) and the date.
-- **Resource usage**: CPU (Processor Utility, as Task Manager), memory used of total, disk activity (100 - idle
-  time, all disks), network down and up over all adapters that are up (bits a second). Sampled once a second by
-  `ResourceMonitor` (PDH and `GlobalMemoryStatusEx` through `SystemUsage`, `NetworkInterface` statistics) only while
-  the widget is shown; it keeps the last minute, so moving the widget keeps its graphs. Each row expands to its graph
-  (the network's scaled to the minute's peak), which then takes the place of its bar; each graph's colour is chosen
-  from Windows' accent palette.
+- **Resource usage**: CPU (Processor Utility, as Task Manager), GPU (the busiest engine, summed over processes, as
+  Task Manager; left out without GPU counters), memory used of total, disk activity (100 - idle time) with the free
+  space of the fixed drives, network down and up (bits a second) over the adapters that are up and carry IP (each
+  adapter's filter drivers are listed as adapters too, with the same counts). Its settings show each drive and each
+  adapter as a row of its own. Sampled once a second by `ResourceMonitor` (PDH through `SystemUsage`, wildcard
+  counters for GPU engines and logical disks, `GlobalMemoryStatusEx`, `DriveInfo`, `NetworkInterface` statistics)
+  only while the widget is shown; it keeps the last minute of each, so moving the widget keeps its graphs. Each row
+  expands to its graph (networks scaled to the minute's peak). A bar shows use and goes while the graph is open; a
+  disk's bar shows its space used, as Explorer's, and stays. Colours per kind (drives take the disk's, adapters the
+  network's) from Windows' accent palette.
 - **Pictures**: a slideshow of the user's Pictures folder and the folders in it (up to 2,000 jpg/png/bmp/gif/webp,
   hidden and system files skipped), in random order, every 10 s by default; another folder (Windows App SDK's
   `FolderPicker`) and interval in its settings. The picture fills the whole card, without padding or border

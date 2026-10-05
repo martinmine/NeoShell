@@ -3,6 +3,7 @@ using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Input;
 using NeoShell.Interop.Windowing;
 using NeoShell.Settings;
@@ -31,8 +32,12 @@ internal sealed partial class SidebarWindow : Window
     private Color? _accent;
     // The right edge, in screen pixels, while the left one is dragged.
     private int? _resizeRight;
+    private bool _panelShown = true;
+    // The cards the window is cut to while the panel is hidden, in pixels; null shows all of it.
+    private List<RectInt32>? _region;
 
-    public SidebarWindow(Sidebar owner, RunMode runMode, DisplayMonitor monitor, double width, Backdrop backdrop, ElementTheme theme, Color? accent)
+    /// <param name="panelShown">The sidebar's own backdrop behind the widgets; otherwise only the widgets show.</param>
+    public SidebarWindow(Sidebar owner, RunMode runMode, DisplayMonitor monitor, double width, bool panelShown, Backdrop backdrop, ElementTheme theme, Color? accent)
     {
         _owner = owner;
         _monitor = monitor;
@@ -66,6 +71,10 @@ internal sealed partial class SidebarWindow : Window
         }
         _placement = new PinnedWindow(_hwnd, default, PinnedLayer.Desktop);
         Place(monitor, width);
+        SetPanelShown(panelShown);
+        // The cards move with layout (a widget grows, one is added) and with scrolling.
+        Root.LayoutUpdated += (_, _) => UpdateRegion();
+        Scroller.ViewChanged += (_, _) => UpdateRegion();
 
         Closed += (_, _) =>
         {
@@ -113,6 +122,19 @@ internal sealed partial class SidebarWindow : Window
         _backdrop.Theme = Root.RequestedTheme;
         _backdrop.Tint = accent;
         AddMenu.SystemBackdrop = new ShellBackdrop(Backdrop.Acrylic) { Theme = Root.RequestedTheme };
+        SidebarMenu.SystemBackdrop = new ShellBackdrop(Backdrop.Acrylic) { Theme = Root.RequestedTheme };
+    }
+
+    /// <summary>
+    /// Shows the sidebar's own backdrop behind the widgets, or only the widgets: the window is then cut to its cards,
+    /// each keeping the backdrop behind it, and the rest of it is as if it weren't there.
+    /// </summary>
+    public void SetPanelShown(bool shown)
+    {
+        _panelShown = shown;
+        // Widgets are added from the sidebar's menu then.
+        Header.Visibility = shown ? Visibility.Visible : Visibility.Collapsed;
+        UpdateRegion();
     }
 
     public void SetBackdrop(Backdrop kind)
@@ -142,9 +164,59 @@ internal sealed partial class SidebarWindow : Window
         return SidebarLayout.DropIndex(middles, y);
     }
 
-    private void AddMenu_Opening(object sender, object e)
+    private void UpdateRegion()
     {
-        AddMenu.Items.Clear();
+        List<RectInt32>? rects = null;
+        if (!_panelShown && Root.XamlRoot is { } root)
+        {
+            double scale = root.RasterizationScale;
+            Rect viewport = Scroller.TransformToVisual(Root).TransformBounds(new Rect(0, 0, Scroller.ActualWidth, Scroller.ActualHeight));
+            rects = [];
+            foreach (WidgetFrame frame in Frames)
+            {
+                // Only what's scrolled into view.
+                Rect card = frame.TransformToVisual(Root).TransformBounds(new Rect(0, 0, frame.ActualWidth, frame.ActualHeight));
+                double top = Math.Max(card.Top, viewport.Top);
+                double bottom = Math.Min(card.Bottom, viewport.Bottom);
+                if (bottom <= top || card.Width <= 0)
+                    continue;
+                rects.Add(new RectInt32(
+                    (int)Math.Round(card.X * scale),
+                    (int)Math.Round(top * scale),
+                    (int)Math.Round(card.Width * scale),
+                    (int)Math.Round((bottom - top) * scale)));
+            }
+        }
+
+        if (rects is null ? _region is null : _region is not null && rects.SequenceEqual(_region))
+            return;
+        _region = rects;
+        // Rounded as the cards are (8 epx).
+        WindowRegion.SetRoundedRects(_hwnd, rects, (int)Math.Round(8 * (Root.XamlRoot?.RasterizationScale ?? 1)));
+    }
+
+    private void Root_ContextRequested(UIElement sender, ContextRequestedEventArgs e)
+    {
+        e.Handled = true;
+        if (e.TryGetPosition(Root, out Point point))
+            SidebarMenu.ShowAt(Root, new FlyoutShowOptions { Position = point });
+        else
+            SidebarMenu.ShowAt(Root);
+    }
+
+    private void SidebarMenu_Opening(object sender, object e)
+    {
+        ShowPanelItem.IsChecked = _panelShown;
+        FillAddMenu(AddSubMenu.Items);
+    }
+
+    private void ShowPanelItem_Click(object sender, RoutedEventArgs e) => _owner.SetPanelShown(ShowPanelItem.IsChecked);
+
+    private void AddMenu_Opening(object sender, object e) => FillAddMenu(AddMenu.Items);
+
+    private void FillAddMenu(IList<MenuFlyoutItemBase> items)
+    {
+        items.Clear();
         foreach (WidgetKind kind in Enum.GetValues<WidgetKind>())
         {
             var item = new MenuFlyoutItem
@@ -155,7 +227,7 @@ internal sealed partial class SidebarWindow : Window
             };
             AutomationProperties.SetAutomationId(item, $"Add{kind}WidgetMenuItem");
             item.Click += (_, _) => _owner.Add(kind);
-            AddMenu.Items.Add(item);
+            items.Add(item);
         }
     }
 

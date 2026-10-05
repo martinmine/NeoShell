@@ -64,6 +64,15 @@ internal static unsafe partial class Gdi32
     [LibraryImport("gdi32.dll")]
     public static partial nint CreateRectRgn(int left, int top, int right, int bottom);
 
+    /// <param name="width">Width and height of the ellipse that rounds the corners.</param>
+    [LibraryImport("gdi32.dll")]
+    public static partial nint CreateRoundRectRgn(int left, int top, int right, int bottom, int width, int height);
+
+    public const int RGN_OR = 2;
+
+    [LibraryImport("gdi32.dll")]
+    public static partial int CombineRgn(nint destination, nint source1, nint source2, int mode);
+
     [LibraryImport("gdi32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     public static partial bool DeleteObject(nint gdiObject);

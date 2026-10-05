@@ -10,16 +10,21 @@ namespace NeoShell.Widgets;
 internal sealed partial class ResourceRow : UserControl
 {
     private readonly bool _showBar;
+    private readonly bool _barInGraph;
     private IReadOnlyList<double> _history = [];
     private double _max = 100;
 
-    public ResourceRow(string label, string automationId, bool showBar)
+    /// <param name="barInGraph">
+    /// The bar shows what the graph shows (use), so it goes while the graph is open; otherwise (a drive's space) it stays.
+    /// </param>
+    public ResourceRow(string label, string automationId, bool showBar, bool barInGraph)
     {
         InitializeComponent();
         LabelText.Text = label;
         AutomationProperties.SetName(Header, label);
         AutomationProperties.SetAutomationId(Header, automationId);
         _showBar = showBar;
+        _barInGraph = barInGraph;
         ShowExpanded();
     }
 
@@ -56,8 +61,7 @@ internal sealed partial class ResourceRow : UserControl
     private void ShowExpanded()
     {
         Graph.Visibility = IsExpanded ? Visibility.Visible : Visibility.Collapsed;
-        // The graph shows the same, and more.
-        Bar.Visibility = _showBar && !IsExpanded ? Visibility.Visible : Visibility.Collapsed;
+        Bar.Visibility = _showBar && !(IsExpanded && _barInGraph) ? Visibility.Visible : Visibility.Collapsed;
         Chevron.Glyph = IsExpanded ? "\uE70E" : "\uE70D";
         AutomationProperties.SetHelpText(Header, IsExpanded ? "Expanded" : "Collapsed");
     }

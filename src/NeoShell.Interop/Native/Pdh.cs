@@ -15,6 +15,18 @@ internal static unsafe partial class Pdh
         [FieldOffset(8)] public double doubleValue;
     }
 
+    public const uint PDH_MORE_DATA = 0x8000_07D2;
+    public const uint PDH_CSTATUS_VALID_DATA = 0;
+    public const uint PDH_CSTATUS_NEW_DATA = 1;
+
+    /// <summary>One instance's value of a counter with a wildcard instance (<c>\GPU Engine(*)\…</c>).</summary>
+    [StructLayout(LayoutKind.Sequential)]
+    public struct PDH_FMT_COUNTERVALUE_ITEM
+    {
+        public char* szName;
+        public PDH_FMT_COUNTERVALUE FmtValue;
+    }
+
     [LibraryImport("pdh.dll", EntryPoint = "PdhOpenQueryW", StringMarshalling = StringMarshalling.Utf16)]
     public static partial uint PdhOpenQuery(string? dataSource, nint userData, out nint query);
 
@@ -26,6 +38,10 @@ internal static unsafe partial class Pdh
 
     [LibraryImport("pdh.dll")]
     public static partial uint PdhGetFormattedCounterValue(nint counter, uint format, uint* type, out PDH_FMT_COUNTERVALUE value);
+
+    /// <summary>Called with no buffer it answers <see cref="PDH_MORE_DATA"/> and the size needed.</summary>
+    [LibraryImport("pdh.dll", EntryPoint = "PdhGetFormattedCounterArrayW")]
+    public static partial uint PdhGetFormattedCounterArray(nint counter, uint format, ref uint bufferSize, out uint itemCount, void* items);
 
     [LibraryImport("pdh.dll")]
     public static partial uint PdhCloseQuery(nint query);

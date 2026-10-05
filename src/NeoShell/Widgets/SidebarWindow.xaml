@@ -5,20 +5,36 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:local="using:NeoShell.Widgets">
 
-    <Grid x:Name="Root">
+    <!-- Transparent, not null: right-clicks between the widgets open the sidebar's menu. -->
+    <Grid x:Name="Root" Background="Transparent" ContextRequested="Root_ContextRequested">
         <Grid.Resources>
             <ResourceDictionary>
                 <ResourceDictionary.MergedDictionaries>
                     <ResourceDictionary Source="ms-appx:///FlatButtons.xaml" />
                 </ResourceDictionary.MergedDictionaries>
+
+                <!-- See-through, so the menus' own backdrop shows (SetTheme). -->
+                <Style x:Key="SidebarMenuPresenterStyle" TargetType="MenuFlyoutPresenter" BasedOn="{StaticResource DefaultMenuFlyoutPresenterStyle}">
+                    <Setter Property="Background" Value="Transparent" />
+                </Style>
             </ResourceDictionary>
         </Grid.Resources>
+        <FlyoutBase.AttachedFlyout>
+            <MenuFlyout x:Name="SidebarMenu" MenuFlyoutPresenterStyle="{StaticResource SidebarMenuPresenterStyle}" Opening="SidebarMenu_Opening">
+                <ToggleMenuFlyoutItem
+                    x:Name="ShowPanelItem"
+                    AutomationProperties.AutomationId="ShowWidgetPanelMenuItem"
+                    Text="Show panel background"
+                    Click="ShowPanelItem_Click" />
+                <MenuFlyoutSubItem x:Name="AddSubMenu" AutomationProperties.AutomationId="AddWidgetMenuItem" Text="Add widget" />
+            </MenuFlyout>
+        </FlyoutBase.AttachedFlyout>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition />
         </Grid.RowDefinitions>
 
-        <Grid Padding="16,8,8,0">
+        <Grid x:Name="Header" Padding="16,8,8,0">
             <TextBlock Text="Widgets" VerticalAlignment="Center" Style="{StaticResource BodyStrongTextBlockStyle}" />
             <Button
                 x:Name="AddButton"
@@ -31,19 +47,16 @@
                 Height="32">
                 <FontIcon Glyph="&#xE710;" FontSize="14" />
                 <Button.Flyout>
-                    <MenuFlyout x:Name="AddMenu" Placement="BottomEdgeAlignedRight" Opening="AddMenu_Opening">
-                        <MenuFlyout.MenuFlyoutPresenterStyle>
-                            <!-- See-through, so its own backdrop shows (SetTheme). -->
-                            <Style TargetType="MenuFlyoutPresenter" BasedOn="{StaticResource DefaultMenuFlyoutPresenterStyle}">
-                                <Setter Property="Background" Value="Transparent" />
-                            </Style>
-                        </MenuFlyout.MenuFlyoutPresenterStyle>
-                    </MenuFlyout>
+                    <MenuFlyout
+                        x:Name="AddMenu"
+                        Placement="BottomEdgeAlignedRight"
+                        MenuFlyoutPresenterStyle="{StaticResource SidebarMenuPresenterStyle}"
+                        Opening="AddMenu_Opening" />
                 </Button.Flyout>
             </Button>
         </Grid>
 
-        <ScrollViewer Grid.Row="1" AutomationProperties.AutomationId="WidgetSidebarScroller">
+        <ScrollViewer x:Name="Scroller" Grid.Row="1" AutomationProperties.AutomationId="WidgetSidebarScroller">
             <StackPanel x:Name="Cards" Padding="12,8,12,12" Spacing="12" />
         </ScrollViewer>
 
