@@ -53,12 +53,15 @@ if ((Get-AutoRestartShell) -ne 0) {
     Write-Host 'AutoRestartShell is off.'
 }
 
-Add-Type -Namespace NeoShellTools -Name Shell -MemberDefinition @'
+# A type can't be redefined in a PowerShell session, so a second run in the same window reuses the first one's.
+if (-not ('NeoShellTools.Shell' -as [type])) {
+    Add-Type -Namespace NeoShellTools -Name Shell -MemberDefinition @'
 [DllImport("user32.dll")] public static extern IntPtr GetShellWindow();
 [DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern IntPtr FindWindow(string className, string windowName);
 [DllImport("user32.dll")] public static extern bool PostMessage(IntPtr hwnd, uint message, IntPtr wParam, IntPtr lParam);
 [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr hwnd, out uint processId);
 '@
+}
 
 function Get-ShellProcessId {
     $window = [NeoShellTools.Shell]::GetShellWindow()
@@ -80,7 +83,8 @@ function Wait-Until([scriptblock]$Condition, [int]$Seconds) {
 # A NeoShell running alongside Explorer has to go first: there's one instance per session.
 if (Get-Process -Name NeoShell -ErrorAction SilentlyContinue) {
     Write-Host 'Closing the running NeoShell...'
-    & $exe /exit
+    # One that is still starting has no window to take the request yet (/exit then fails), so ask until it's taken.
+    Wait-Until { & $exe /exit; $LASTEXITCODE -eq 0 } 15 | Out-Null
     if (-not (Wait-Until { -not (Get-Process -Name NeoShell -ErrorAction SilentlyContinue) } 15)) {
         throw 'The running NeoShell did not exit. Close it from its taskbar menu (Exit NeoShell) and try again.'
     }
@@ -99,7 +103,7 @@ if ($shellProcessId -ne 0) {
     if ($tray -eq [IntPtr]::Zero -or -not [NeoShellTools.Shell]::PostMessage($tray, 0x5B4, [IntPtr]::Zero, [IntPtr]::Zero) -or
         -not (Wait-Until { (Get-ShellProcessId) -eq 0 } 15)) {
         Write-Warning 'Explorer did not exit; ending its process. Windows may start it again.'
-        Stop-Process -Id $shellProcessId -Force
+        Stop-Process -Id $shellProcessId -Force -ErrorAction SilentlyContinue
         Wait-Until { (Get-ShellProcessId) -eq 0 } 5 | Out-Null
     }
 }
@@ -111,9 +115,9 @@ $started = Wait-Until { (Get-ShellProcessId) -eq $neoShell.Id } 60
 
 # After "Exit Explorer" the old process can live on with its DDE and desktop windows, and an Explorer started later
 # (Switch to Explorer) hangs talking to it. It goes once NeoShell holds the shell role; with AutoRestartShell off,
-# Windows doesn't start a new Explorer for it.
-if ($shellProcessId -ne 0 -and (Get-Process -Id $shellProcessId -ErrorAction SilentlyContinue)) {
-    Stop-Process -Id $shellProcessId -Force
+# Windows doesn't start a new Explorer for it. It may already have gone by itself, so a missing process isn't an error.
+if ($shellProcessId -ne 0) {
+    Stop-Process -Id $shellProcessId -Force -ErrorAction SilentlyContinue
 }
 
 if ($started) {
