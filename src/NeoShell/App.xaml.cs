@@ -9,6 +9,7 @@ using NeoShell.Interop.Windowing;
 using NeoShell.Logging;
 using NeoShell.Settings;
 using NeoShell.Taskbar;
+using NeoShell.Themes;
 using NeoShell.Widgets;
 
 namespace NeoShell;
@@ -45,6 +46,13 @@ public partial class App : Application
     protected override void OnLaunched(LaunchActivatedEventArgs args)
     {
         _settings.Load();
+        ShellTheme.Apply(_settings.Current.Theme, this);
+        // A theme is applied to each view as it loads: a new one needs a fresh start.
+        _settings.Changed += () =>
+        {
+            if (_settings.Current.Theme != ShellTheme.Current.Kind)
+                Restart();
+        };
 
         uint exitMessage = WindowMessages.Register(ExitMessageName);
 #if DEBUG
@@ -108,6 +116,14 @@ public partial class App : Application
         }
         _startExplorerOnExit = true;
         Shutdown();
+    }
+
+    private void Restart()
+    {
+        Log.Info($"Restarting for the {_settings.Current.Theme} theme");
+        Program.RestartRequested = true;
+        // After the menu that changed the setting has closed.
+        DispatcherQueue.GetForCurrentThread().Post(Shutdown);
     }
 
     private void Shutdown()

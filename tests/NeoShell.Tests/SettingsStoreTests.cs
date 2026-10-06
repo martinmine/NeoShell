@@ -29,6 +29,7 @@ public sealed class SettingsStoreTests : IDisposable
     {
         var settings = new ShellSettings
         {
+            Theme = ThemeKind.DarkCyber,
             TaskbarAlignment = TaskbarAlignment.Left,
             CombineButtons = CombineButtons.Never,
             AutoHide = true,

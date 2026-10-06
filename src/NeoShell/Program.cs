@@ -12,9 +12,13 @@ public static class Program
 {
     private const string SingleInstanceMutexName = @"Local\NeoShell.SingleInstance";
     private const string WatchArgument = "/watch";
+    private const string AfterArgument = "/after";
 
     public static string DataDirectory { get; } =
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "NeoShell");
+
+    /// <summary>Start NeoShell again once this instance has exited (a new theme applies only at start-up).</summary>
+    internal static bool RestartRequested { get; set; }
 
     [STAThread]
     private static int Main(string[] args)
@@ -22,6 +26,10 @@ public static class Program
         // The watchdog is this same executable; it never starts the UI.
         if (args is [WatchArgument, var processId] && int.TryParse(processId, out int watchedProcess))
             return Watch(watchedProcess);
+
+        // A restart: the instance that started this one must be gone before this one can take over.
+        if (args is [AfterArgument, var previousId] && int.TryParse(previousId, out int previousProcess))
+            WaitForExit(previousProcess);
 
         bool exitRequested = args.Any(arg => arg.Equals("/exit", StringComparison.OrdinalIgnoreCase));
 
@@ -61,8 +69,38 @@ public static class Program
         });
 
         Log.Info("NeoShell exited");
+        if (RestartRequested)
+            StartAgain();
         Log.Close();
         return 0;
+    }
+
+    private static void StartAgain()
+    {
+        try
+        {
+            Process.Start(new ProcessStartInfo(Environment.ProcessPath!, $"{AfterArgument} {Environment.ProcessId}")
+            {
+                UseShellExecute = false,
+            })?.Dispose();
+        }
+        catch (Exception ex)
+        {
+            Log.Error("Could not start NeoShell again", ex);
+        }
+    }
+
+    private static void WaitForExit(int processId)
+    {
+        try
+        {
+            using Process previous = Process.GetProcessById(processId);
+            previous.WaitForExit(TimeSpan.FromSeconds(30));
+        }
+        catch (ArgumentException)
+        {
+            // Already gone.
+        }
     }
 
     internal static void OnUnhandledException(Exception exception, string source) =>

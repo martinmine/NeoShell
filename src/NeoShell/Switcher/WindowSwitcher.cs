@@ -8,6 +8,7 @@ using Microsoft.UI.Xaml.Media;
 using NeoShell.Interop.Windowing;
 using NeoShell.Settings;
 using NeoShell.Taskbar;
+using NeoShell.Themes;
 using Windows.Graphics;
 using Windows.UI;
 
@@ -69,7 +70,7 @@ internal sealed class WindowSwitcher : Window
         // Out of its own list, and the app in front keeps the focus: the keys come from the keyboard hook.
         WindowStyles.AddExtended(_hwnd, ExtendedWindowStyles.ToolWindow | ExtendedWindowStyles.NoActivate);
         Peek.Exclude(_hwnd);
-        _frameless = new FramelessWindow(_hwnd, roundedCorners: true);
+        _frameless = new FramelessWindow(_hwnd, roundedCorners: ShellTheme.Current.RoundedCorners);
         _placement = new PinnedWindow(_hwnd, default, PinnedLayer.Topmost);
         _showTimer = DispatcherQueue.CreateTimer();
         _showTimer.Interval = s_showDelay;

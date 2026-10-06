@@ -11,12 +11,15 @@ public enum TrayMode { ShowAll, Overflow }
 
 public enum Backdrop { Acrylic, Mica, Translucent, Transparent }
 
+/// <summary>How all of NeoShell looks: see <see cref="Themes.ShellTheme"/>.</summary>
+public enum ThemeKind { Windows11, DarkCyber }
+
 public enum DesktopSortOrder { Name, Size, ItemType, DateModified }
 
 /// <summary>A cell of the desktop's icon grid: columns from the left, rows from the top.</summary>
 public readonly record struct GridCell(int Column, int Row);
 
-public enum WidgetKind { Profile, Resources, Pictures, Media, Weather, Notes, Wireless, Windows }
+public enum WidgetKind { Profile, Resources, Pictures, Media, Weather, Notes, Wireless, Windows, Log, System }
 
 /// <summary>
 /// One widget: in the sidebar, in the order of <see cref="ShellSettings.Widgets"/>, or floating on the desktop. Its
@@ -62,6 +65,10 @@ public sealed record WidgetSettings
     // Wireless devices: how often their batteries are read, in minutes.
     public int? PollMinutes { get; set; }
 
+    // Event log: how many lines it shows, and whether app windows opening, closing and coming to the front are shown.
+    public int? LogLines { get; set; }
+    public bool? ShowWindowEvents { get; set; }
+
     [JsonIgnore]
     public bool IsFloating => X is not null && Y is not null;
 }
@@ -76,6 +83,8 @@ public sealed record PinnedApp(string DisplayName, string? AppUserModelId = null
 /// </remarks>
 public sealed record ShellSettings
 {
+    /// <summary>Applied when NeoShell starts; changing it restarts NeoShell.</summary>
+    public ThemeKind Theme { get; set; } = ThemeKind.Windows11;
     public TaskbarAlignment TaskbarAlignment { get; set; } = TaskbarAlignment.Center;
     public CombineButtons CombineButtons { get; set; } = CombineButtons.Always;
     public bool AutoHide { get; set; }

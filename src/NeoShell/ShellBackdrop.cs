@@ -3,6 +3,7 @@ using Microsoft.UI.Composition.SystemBackdrops;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Media;
 using NeoShell.Settings;
+using NeoShell.Themes;
 using Windows.UI;
 
 namespace NeoShell;
@@ -21,7 +22,7 @@ internal sealed class ShellBackdrop(Backdrop kind) : SystemBackdrop
     private DesktopAcrylicController? _acrylic;
     private MicaController? _mica;
     private Windows.UI.Composition.CompositionColorBrush? _brush;
-    private Color? _tint;
+    private Color? _tint = ShellTheme.Current.BackdropTint;
     private int _targets;
 
     public Backdrop Kind { get; } = kind == Backdrop.Mica && !MicaController.IsSupported() ? Backdrop.Acrylic : kind;
@@ -35,12 +36,15 @@ internal sealed class ShellBackdrop(Backdrop kind) : SystemBackdrop
         }
     }
 
-    /// <summary>A colour in place of the theme's grey: the accent colour, when Windows shows it on Start and taskbar.</summary>
+    /// <summary>
+    /// A colour in place of the theme's grey: the accent colour, when Windows shows it on Start and taskbar. Without
+    /// one, the NeoShell theme's own backdrop colour, if it has one.
+    /// </summary>
     public Color? Tint
     {
         set
         {
-            _tint = value;
+            _tint = value ?? ShellTheme.Current.BackdropTint;
             ApplyTint();
         }
     }

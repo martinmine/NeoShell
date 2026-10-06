@@ -19,6 +19,7 @@ using NeoShell.Interop.Tray;
 using NeoShell.Logging;
 using NeoShell.QuickSettings;
 using NeoShell.Settings;
+using NeoShell.Themes;
 using NeoShell.Tray;
 using Windows.Foundation;
 using Windows.Graphics;
@@ -94,6 +95,7 @@ internal sealed partial class TaskbarWindow : Window
         InitializeComponent();
         _quickLinks = QuickLinkMenu.Create(owner, this);
         _quickLinks.MenuFlyoutPresenterStyle = (Style)Root.Resources["ShellMenuPresenterStyle"];
+        AddThemeItems();
 
         _backdrop = new ShellBackdrop(settings.TaskbarBackdrop);
         SetTheme(theme, accent);
@@ -1385,6 +1387,8 @@ internal sealed partial class TaskbarWindow : Window
         ShowAllTrayIconsItem.Visibility = _tray is not null ? Visibility.Visible : Visibility.Collapsed;
         ShowAllTrayIconsItem.IsChecked = settings.TrayMode == TrayMode.ShowAll;
         BackdropAcrylicItem.IsChecked = settings.TaskbarBackdrop == Backdrop.Acrylic;
+        foreach (RadioMenuFlyoutItem item in ThemeSubMenu.Items.OfType<RadioMenuFlyoutItem>())
+            item.IsChecked = (ThemeKind)item.Tag == settings.Theme;
         BackdropMicaItem.IsChecked = settings.TaskbarBackdrop == Backdrop.Mica;
         BackdropTranslucentItem.IsChecked = settings.TaskbarBackdrop == Backdrop.Translucent;
         BackdropTransparentItem.IsChecked = settings.TaskbarBackdrop == Backdrop.Transparent;
@@ -1411,6 +1415,18 @@ internal sealed partial class TaskbarWindow : Window
                 : ReferenceEquals(sender, CombineWhenFullItem) ? CombineButtons.WhenFull
                 : CombineButtons.Always,
         });
+
+    // One item per theme; choosing another restarts NeoShell (App).
+    private void AddThemeItems()
+    {
+        foreach (ShellTheme theme in ShellTheme.All)
+        {
+            var item = new RadioMenuFlyoutItem { Text = theme.Name, GroupName = "Theme", Tag = theme.Kind };
+            AutomationProperties.SetAutomationId(item, $"Theme{theme.Kind}MenuItem");
+            item.Click += (_, _) => _owner.Settings.Update(_owner.Settings.Current with { Theme = theme.Kind });
+            ThemeSubMenu.Items.Add(item);
+        }
+    }
 
     private void Backdrop_Click(object sender, RoutedEventArgs e) =>
         _owner.Settings.Update(_owner.Settings.Current with

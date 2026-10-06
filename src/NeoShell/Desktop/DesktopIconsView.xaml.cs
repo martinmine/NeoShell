@@ -10,6 +10,7 @@ using NeoShell.Interop.Shell;
 using NeoShell.Interop.Windowing;
 using NeoShell.Logging;
 using NeoShell.Settings;
+using NeoShell.Themes;
 using Windows.ApplicationModel.DataTransfer;
 using Windows.Foundation;
 using Windows.Graphics;
@@ -103,7 +104,7 @@ internal sealed partial class DesktopIconsView : UserControl
     /// <summary>Applies the view settings, the system theme (for the menus) and the work area (to keep clear of the taskbar).</summary>
     private void Apply()
     {
-        RequestedTheme = SystemTheme.Read();
+        RequestedTheme = ShellTheme.Current.ReadTheme();
         IconGrid.Visibility = _icons.View.ShowIcons ? Visibility.Visible : Visibility.Collapsed;
 
         if (IconGrid.ItemsPanelRoot is not DesktopIconPanel panel)

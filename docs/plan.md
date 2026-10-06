@@ -263,6 +263,25 @@ Tick items off as they land. The feature details are in [design.md](design.md).
       new view is covered with a picture of the old one until it's ready; dropped on the sidebar, a widget takes its
       place at once (no slide), and the pictures widget keeps its picture
 
+## 19. Themes
+
+- [x] Theme layer: `ShellTheme` (light/dark, accent colour, backdrop tint, rounded corners), one resource dictionary
+      per theme merged at start-up, `Decoration` and `Heading` controls styled by the theme; views take the Start
+      logo, cards, headings, clock text, task indicators and corner radii from the theme
+- [x] Theme setting and the taskbar menu's Theme submenu; changing it restarts NeoShell (`/after <pid>`)
+- [x] Tests: every theme defines the keys Windows11.xaml defines; theme setting round-trips
+- [x] Dark Cyber: palette, fonts (Bahnschrift, Cascadia Mono, Yu Gothic UI), square corners, WinUI's controls
+      recoloured, near-black acrylic; decorated widget cards, Start, notification center, calendar, Quick Settings,
+      taskbar and desktop (shell mode), capitalised headings with Japanese, animations
+- [x] Event log widget (NeoShell's log and app windows, live) and System widget (host, user, CPU, memory, address,
+      uptimes, processes), in both themes
+- [x] Fix: the desktop showed an older wallpaper than Explorer when the current one hadn't been saved to the profile;
+      the wallpaper now comes from Windows' live setting (`SPI_GETDESKWALLPAPER`), the registry only as a fallback
+- [ ] Dark Cyber: the window switcher, thumbnails, Snap layouts and the shut-down dialog still take Windows 11's
+      colours from code (dark grey cards); toasts have no decoration
+- [ ] Dark Cyber: own templates for buttons, toggles and sliders (corner ticks, square thumbs) and the calendar's
+      round "today"
+
 ## Later / not planned yet
 
 - Notifications: toast images, buttons and inline replies (not exposed to listeners); tray balloons as toasts

@@ -38,6 +38,8 @@ internal sealed partial class WidgetFrame : UserControl
         Card.Child = widget;
         AutomationProperties.SetAutomationId(this, "Widget");
         AutomationProperties.SetName(this, WidgetView.Title(widget.Settings.Kind));
+        Chrome.Title = WidgetView.Title(widget.Settings.Kind);
+        Chrome.Subtitle = WidgetView.Subtitle(widget.Settings.Kind);
         if (floating)
         {
             Card.Background = null;

@@ -2,6 +2,9 @@ using System.Diagnostics;
 
 namespace NeoShell.Logging;
 
+/// <summary>A line of the log; <see cref="Level"/> is INFO, WARN or ERROR.</summary>
+public sealed record LogEntry(DateTime Time, string Level, string Message);
+
 /// <summary>
 /// Appends to one file per day in the log directory and keeps the newest few files.
 /// Until <see cref="Initialize"/> is called (e.g. in tests) messages only go to the debugger.
@@ -9,11 +12,23 @@ namespace NeoShell.Logging;
 public static class Log
 {
     private const int FilesToKeep = 10;
+    private const int EntriesToKeep = 100;
 
     private static readonly Lock s_lock = new();
     private static string? s_directory;
     private static StreamWriter? s_writer;
     private static DateOnly s_writerDate;
+    private static readonly Queue<LogEntry> s_recent = new();
+
+    /// <summary>A line was logged, on the thread that logged it.</summary>
+    public static event Action<LogEntry>? Written;
+
+    /// <summary>The last lines logged, oldest first, for a live view of the log.</summary>
+    public static LogEntry[] Recent()
+    {
+        lock (s_lock)
+            return [.. s_recent];
+    }
 
     public static void Initialize(string directory)
     {
@@ -49,6 +64,15 @@ public static class Log
             line += Environment.NewLine + exception;
 
         Debug.WriteLine(line);
+
+        var entry = new LogEntry(now, level.TrimEnd(), exception is null ? message : $"{message}: {exception.Message}");
+        lock (s_lock)
+        {
+            s_recent.Enqueue(entry);
+            if (s_recent.Count > EntriesToKeep)
+                s_recent.Dequeue();
+        }
+        Written?.Invoke(entry);
 
         lock (s_lock)
         {

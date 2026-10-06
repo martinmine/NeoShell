@@ -27,7 +27,7 @@
         <Setter Property="Height" Value="40" />
         <Setter Property="Padding" Value="0" />
         <Setter Property="Margin" Value="2,0" />
-        <Setter Property="CornerRadius" Value="4" />
+        <Setter Property="CornerRadius" Value="{ThemeResource ControlCornerRadius}" />
         <Setter Property="BorderThickness" Value="0" />
     </Style>
 </ResourceDictionary>

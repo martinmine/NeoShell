@@ -2,7 +2,8 @@
 
 A replacement for the `explorer.exe` shell on Windows 11, built with WinUI 3 on .NET 10. It shows the wallpaper
 and desktop icons, a Windows 11 style taskbar (with system tray, network, volume and microphone indicators, and Quick
-Settings) and a Start menu with search and power options.
+Settings) and a Start menu with search and power options. Themes change how all of it looks: Windows 11 (default)
+and Dark Cyber.
 
 - Design and feature spec: [docs/design.md](docs/design.md)
 - Milestones and progress: [docs/plan.md](docs/plan.md) — tick items off as they land
@@ -73,7 +74,8 @@ src/NeoShell/                 WinUI app
   Snap/                       Win+Z Snap layouts, window snapping by dragging and Win+arrows (shell mode)
   Capture/                    Screenshots: Win+PrtScn, Win+Shift+S snip (shell mode)
   Widgets/                    Widget sidebar, floating widgets, and the widgets (profile, resources, pictures, media,
-                              weather, notes, wireless devices, about Windows)
+                              weather, notes, wireless devices, about Windows, event log, system)
+  Themes/                     ShellTheme, one resource dictionary per theme, Decoration and Heading controls
   Settings/                   Settings record + JSON load/save (%LOCALAPPDATA%\NeoShell\settings.json)
 src/NeoShell.Interop/
   Native/                     LibraryImport: User32, Shell32, Dwmapi, Kernel32, Advapi32, PowrProf, Comctl32, Pdh, Hid
@@ -134,6 +136,27 @@ src/NeoShell/bin/Debug/net10.0-windows10.0.26100.0/win-x64/NeoShell.exe /exit   
   handler alone can't do this: WinUI fail-fasts on exceptions in UI callbacks without raising any event.
 - `tools/*.ps1` must work in Windows PowerShell 5.1 (they are run from Task Manager during recovery).
 
+## Themes (`src/NeoShell/Themes/`)
+
+Full spec in docs/design.md ("Themes"). `ShellTheme.Current` is fixed at start-up (`App` merges `Themes/<Kind>.xaml`
+before any window exists); changing the `Theme` setting restarts NeoShell.
+
+- **Views stay theme-neutral.** Anything that differs between themes is a key in the theme's dictionary (logo, card
+  style, heading, decoration styles…), looked up with `StaticResource`, or a WinUI resource (`ControlCornerRadius`,
+  the Fluent brushes, the text styles). Don't hard-code corner radii or colours in views; don't branch on the theme
+  in code beyond what `ShellTheme` exposes.
+- **Adding a key:** define it in Windows11.xaml and every other theme (`ThemeTests` fails otherwise; a missing key
+  crashes NeoShell at start-up). Theme-specific chrome goes in a `Decoration` style; section titles are `Heading`s.
+- **Adding a theme:** a `ThemeKind` value, a `ShellTheme` entry, `Themes/<Kind>.xaml` with every key.
+- **Pitfalls found the hard way:**
+  - A storyboard may only target `UIElement`s: animating a `Run`'s opacity fail-fasts the whole process at load.
+  - A dictionary merged through `Source` can't see its parent's keys while it loads, and generic.xaml's control
+    brushes (`ButtonBackground`) are aliases resolved inside WinUI's own dictionary: redefining a Fluent brush alone
+    doesn't reach the controls. Hence DarkCyber.Controls.xaml (Fluent brushes and the aliases in one dictionary).
+  - WinUI's text styles hard-code their font; a theme with its own font redefines them.
+  - Theme brushes picked in code: take a style from the view's resources with `ThemeResource` setters, not
+    `Application.Current.Resources[...]`, which follows the app's theme rather than the window's.
+
 ## Widgets (`src/NeoShell/Widgets/`)
 
 A sidebar of widgets on the right of the primary monitor, as Vista's gadgets; widgets can be dragged out to float on
@@ -141,9 +164,10 @@ the desktop and back. Full spec in docs/design.md ("Widgets").
 
 - **Who does what.** `Sidebar` (created by `App`) owns everything: the `SidebarWindow` (docked cards, add button and
   right-click menu, resize edge, drop slot), one `FloatingWidgetWindow` per floating widget, the drag/dock logic and
-  the shared services (`ResourceMonitor`, `WirelessMonitor`). `WidgetFrame` is the card around a widget: hover
+  the shared services (`ResourceMonitor`, `WirelessMonitor`, `EventFeed`). `WidgetFrame` is the card around a widget: hover
   settings/close buttons and the drag gesture. Each widget is a `WidgetView` subclass (`ProfileWidget`,
-  `ResourcesWidget`, `PicturesWidget`, `MediaWidget`, `WeatherWidget`, `NotesWidget`, `WirelessWidget`, `WindowsWidget`).
+  `ResourcesWidget`, `PicturesWidget`, `MediaWidget`, `WeatherWidget`, `NotesWidget`, `WirelessWidget`, `WindowsWidget`,
+  `LogWidget`, `SystemWidget`).
 - **State.** `ShellSettings.Widgets` lists every widget (`WidgetSettings`: id, kind, X/Y while floating, floating size,
   the kind's options; unset options take defaults). Docked ones show in list order. Only `Sidebar` writes the list;
   a view saves its own options through `SaveSettings`, and `Sidebar` keeps the stored position and size when it does.
@@ -151,7 +175,7 @@ the desktop and back. Full spec in docs/design.md ("Widgets").
   nothing that must survive: options go in its settings, text in a file (notes), samples in a shared service. Stop
   timers and events in `Close()`. A view that loads its content (`LoadsContent`) calls `MarkReady()` once it shows
   it: until then a moved widget's new view is covered with a picture of the old one (`WidgetFrame.Cover`).
-- **Adding a widget kind:** a `WidgetKind` value, a `WidgetView` (XAML + code), its title/glyph/`AllowsSeveral` in
+- **Adding a widget kind:** a `WidgetKind` value, a `WidgetView` (XAML + code), its title/subtitle/glyph/`AllowsSeveral` in
   `WidgetView`, a case in `Sidebar.CreateFrame`; anything that talks to Windows goes in `NeoShell.Interop`.
 - **Windows and layers.** Sidebar and floating widgets sit just above the desktop (`PinnedLayer.Desktop`); moves don't
   touch the z-order (that walk is too slow per pointer move). The sidebar reserves its space: an app bar alongside
@@ -182,7 +206,7 @@ the desktop and back. Full spec in docs/design.md ("Widgets").
 
 - Unit tests (xunit) cover non-UI logic: window filtering, grouping, NOTIFYICONDATA parsing, search ranking,
   indexer query building, startup entries, settings, wallpaper style mapping, AppBar rects, desktop icon
-  filtering, sorting and grid places, snap zones and keys, thumbnail toolbar data and image lists, widget placement and order, MET forecast parsing, wireless device protocols, Windows product name.
+  filtering, sorting and grid places, snap zones and keys, thumbnail toolbar data and image lists, widget placement and order, MET forecast parsing, wireless device protocols, Windows product name, theme keys.
 - When testing the UI live, drive it through UI Automation (set `AutomationProperties.AutomationId` on interactive
   controls). Never use global keystrokes like SendKeys: they go to whichever window has focus.
 - Always stop a running NeoShell with `/exit` (or its taskbar menu), never by killing the process. A kill leaves the

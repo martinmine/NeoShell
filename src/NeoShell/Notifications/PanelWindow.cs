@@ -3,6 +3,7 @@ using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using NeoShell.Interop.Windowing;
 using NeoShell.Settings;
+using NeoShell.Themes;
 using Windows.Foundation;
 using Windows.Graphics;
 using Windows.UI;
@@ -39,7 +40,7 @@ internal sealed class PanelWindow : Window
 
         Handle = Win32Interop.GetWindowFromWindowId(AppWindow.Id);
         WindowStyles.AddExtended(Handle, activates ? ExtendedWindowStyles.ToolWindow : ExtendedWindowStyles.ToolWindow | ExtendedWindowStyles.NoActivate);
-        _frameless = new FramelessWindow(Handle, roundedCorners: true);
+        _frameless = new FramelessWindow(Handle, roundedCorners: ShellTheme.Current.RoundedCorners);
         _placement = new PinnedWindow(Handle, default, PinnedLayer.Topmost);
         _slide = new WindowSlide(_placement);
 
@@ -77,6 +78,8 @@ internal sealed class PanelWindow : Window
     {
         // Opened again while sliding out: from where it is.
         _placement.Bounds = bounds with { X = IsShown || _slide.IsRunning ? _placement.Bounds.X : fromX };
+        if (!IsShown)
+            Decoration.PlayIntros(_content);
         IsShown = true;
         AppWindow.Show(activateWindow: false);
         _slide.To(bounds, duration, decelerate: true);

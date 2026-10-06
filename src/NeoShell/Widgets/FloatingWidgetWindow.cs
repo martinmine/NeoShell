@@ -6,6 +6,7 @@ using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
 using NeoShell.Interop.Windowing;
 using NeoShell.Settings;
+using NeoShell.Themes;
 using Windows.Graphics;
 using Windows.UI;
 
@@ -61,7 +62,7 @@ internal sealed class FloatingWidgetWindow : Window
         _hwnd = Win32Interop.GetWindowFromWindowId(AppWindow.Id);
         WindowStyles.AddExtended(_hwnd, ExtendedWindowStyles.ToolWindow);
         AppWindow.Closing += (_, e) => e.Cancel = true;
-        _frameless = new FramelessWindow(_hwnd, roundedCorners: true);
+        _frameless = new FramelessWindow(_hwnd, roundedCorners: ShellTheme.Current.RoundedCorners);
         Peek.Exclude(_hwnd);
         _backdrop = new ShellBackdrop(backdrop);
         SystemBackdrop = _backdrop;

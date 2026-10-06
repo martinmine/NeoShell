@@ -16,6 +16,7 @@ using NeoShell.Interop.Windowing;
 using NeoShell.Logging;
 using NeoShell.Settings;
 using NeoShell.Taskbar;
+using NeoShell.Themes;
 using System.Numerics;
 using Windows.Foundation;
 using Windows.Graphics;
@@ -87,7 +88,7 @@ internal sealed partial class StartMenuWindow : Window
         _hwnd = Win32Interop.GetWindowFromWindowId(AppWindow.Id);
         // Out of Alt+Tab; unlike the taskbar it takes focus, for the search box.
         WindowStyles.AddExtended(_hwnd, ExtendedWindowStyles.ToolWindow);
-        _frameless = new FramelessWindow(_hwnd, roundedCorners: true);
+        _frameless = new FramelessWindow(_hwnd, roundedCorners: ShellTheme.Current.RoundedCorners);
         _placement = new PinnedWindow(_hwnd, default, PinnedLayer.Topmost);
         _slide = new WindowSlide(_placement);
 
@@ -188,6 +189,7 @@ internal sealed partial class StartMenuWindow : Window
         IsOpen = true;
         _previousForeground = TopLevelWindows.GetForeground();
         AppWindow.Show();
+        Chrome.PlayIntro();
         // Out of the taskbar, decelerating, as in Windows 11.
         _slide.To(shown, s_openDuration, decelerate: true);
         // Window.Activate alone doesn't take the foreground from the app the user was in; SetForegroundWindow does,

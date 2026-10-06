@@ -75,6 +75,7 @@ internal static unsafe partial class User32
     public const uint SPI_SETWORKAREA = 0x002F;
     public const uint SPI_GETSTICKYKEYS = 0x003A;
     public const uint SPI_SETSTICKYKEYS = 0x003B;
+    public const uint SPI_GETDESKWALLPAPER = 0x0073;
     public const uint SPIF_UPDATEINIFILE = 0x0001;
     public const uint SPIF_SENDCHANGE = 0x0002;
 

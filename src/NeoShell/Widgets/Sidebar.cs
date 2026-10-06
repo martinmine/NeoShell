@@ -24,6 +24,7 @@ internal sealed class Sidebar : IDisposable
     private readonly Taskbars _taskbars;
     private readonly ResourceMonitor _resources = new();
     private readonly WirelessMonitor _wireless = new();
+    private readonly EventFeed _feed;
     private readonly Dictionary<string, FloatingWidgetWindow> _floating = [];
     private SidebarWindow? _window;
     private Backdrop _backdrop;
@@ -39,6 +40,7 @@ internal sealed class Sidebar : IDisposable
         _settings = settings;
         _taskbars = taskbars;
         _backdrop = settings.Current.TaskbarBackdrop;
+        _feed = new EventFeed(taskbars.Tracker);
     }
 
     private IReadOnlyList<WidgetSettings> Widgets => _settings.Current.Widgets;
@@ -70,6 +72,7 @@ internal sealed class Sidebar : IDisposable
         _floating.Clear();
         CloseWindow();
         _resources.Dispose();
+        _feed.Dispose();
     }
 
     /// <summary>Whether the add menu offers <paramref name="kind"/>: most kinds are shown once only.</summary>
@@ -182,6 +185,8 @@ internal sealed class Sidebar : IDisposable
             WidgetKind.Weather => new WeatherWidget(widget),
             WidgetKind.Wireless => new WirelessWidget(widget, _wireless),
             WidgetKind.Windows => new WindowsWidget(widget),
+            WidgetKind.Log => new LogWidget(widget, _feed),
+            WidgetKind.System => new SystemWidget(widget, _runMode),
             _ => new NotesWidget(widget),
         };
         // The widget's copy may have an old position and size: it was made before the widget was last dragged or resized.

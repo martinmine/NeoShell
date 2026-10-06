@@ -1,4 +1,5 @@
 using Microsoft.Win32;
+using NeoShell.Interop.Shell;
 using Windows.UI;
 
 namespace NeoShell.Desktop;
@@ -6,7 +7,7 @@ namespace NeoShell.Desktop;
 /// <summary>The "Choose a fit" options in Settings → Personalization → Background.</summary>
 public enum WallpaperStyle { Fill, Fit, Stretch, Center, Tile, Span }
 
-/// <summary>The user's wallpaper, as Explorer reads it from the registry.</summary>
+/// <summary>The user's wallpaper as Explorer draws it: the image Windows shows now, fitted as the registry says.</summary>
 /// <param name="ImagePath">Full path of the image, or null for a solid colour.</param>
 /// <param name="ImageWriteTime">Detects the image being replaced in place (Windows reuses one file for it).</param>
 public sealed record WallpaperSettings(string? ImagePath, DateTime ImageWriteTime, WallpaperStyle Style, Color Background)
@@ -16,7 +17,8 @@ public sealed record WallpaperSettings(string? ImagePath, DateTime ImageWriteTim
         using RegistryKey? desktop = Registry.CurrentUser.OpenSubKey(@"Control Panel\Desktop");
         using RegistryKey? colors = Registry.CurrentUser.OpenSubKey(@"Control Panel\Colors");
 
-        string? path = desktop?.GetValue("Wallpaper")?.ToString();
+        // Windows' live setting first: the registry's can be an older wallpaper (see DesktopWallpaper).
+        string? path = DesktopWallpaper.CurrentPath() ?? desktop?.GetValue("Wallpaper")?.ToString();
         path = string.IsNullOrWhiteSpace(path) ? null : Environment.ExpandEnvironmentVariables(path);
 
         return new WallpaperSettings(

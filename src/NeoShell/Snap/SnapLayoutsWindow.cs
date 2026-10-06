@@ -9,6 +9,7 @@ using Microsoft.UI.Xaml.Media;
 using NeoShell.Interop.Windowing;
 using NeoShell.Logging;
 using NeoShell.Settings;
+using NeoShell.Themes;
 using Windows.Graphics;
 using Windows.System;
 
@@ -77,7 +78,7 @@ internal sealed class SnapLayoutsWindow : Window
 
         nint hwnd = _hwnd = Win32Interop.GetWindowFromWindowId(AppWindow.Id);
         WindowStyles.AddExtended(hwnd, ExtendedWindowStyles.ToolWindow);
-        _frameless = new FramelessWindow(hwnd, roundedCorners: true);
+        _frameless = new FramelessWindow(hwnd, roundedCorners: ShellTheme.Current.RoundedCorners);
 
         // Previews in the work area's shape, three to a row when there are six of them.
         int columns = _layouts.Count > 4 ? 3 : 2;

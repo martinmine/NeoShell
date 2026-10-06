@@ -44,7 +44,25 @@ internal partial class WidgetView : UserControl
         WidgetKind.Notes => "Notes",
         WidgetKind.Wireless => "Wireless devices",
         WidgetKind.Windows => "About Windows",
+        WidgetKind.Log => "Event log",
+        WidgetKind.System => "System",
         _ => kind.ToString(),
+    };
+
+    /// <summary>A second name, which a theme may show beside the title (Dark Cyber's Japanese).</summary>
+    public static string Subtitle(WidgetKind kind) => kind switch
+    {
+        WidgetKind.Profile => "プロフィール",
+        WidgetKind.Resources => "リソース",
+        WidgetKind.Pictures => "画像",
+        WidgetKind.Media => "再生中",
+        WidgetKind.Weather => "天気",
+        WidgetKind.Notes => "メモ",
+        WidgetKind.Wireless => "無線機器",
+        WidgetKind.Windows => "ウィンドウズ",
+        WidgetKind.Log => "イベントログ",
+        WidgetKind.System => "システム",
+        _ => "",
     };
 
     /// <summary>Segoe Fluent Icons glyph for the add menu.</summary>

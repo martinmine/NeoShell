@@ -5,7 +5,8 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:local="using:NeoShell.Taskbar"
     xmlns:tray="using:NeoShell.Tray"
-    xmlns:qs="using:NeoShell.QuickSettings">
+    xmlns:qs="using:NeoShell.QuickSettings"
+    xmlns:themes="using:NeoShell.Themes">
 
     <!-- Transparent, not null: the background must take right-clicks for the context menu. -->
     <Grid x:Name="Root" Background="Transparent" ContextRequested="Root_ContextRequested">
@@ -50,7 +51,7 @@
                         PointerEntered="TrayIcon_PointerEntered"
                         PointerExited="TrayIcon_PointerExited"
                         ContextRequested="TrayIcon_ContextRequested">
-                        <Border CornerRadius="4" Background="{ThemeResource SubtleFillColorSecondaryBrush}" Opacity="0" />
+                        <Border CornerRadius="{ThemeResource ControlCornerRadius}" Background="{ThemeResource SubtleFillColorSecondaryBrush}" Opacity="0" />
                         <Image Width="16" Height="16" Source="{x:Bind Icon, Mode=OneWay}" />
                     </Grid>
                 </DataTemplate>
@@ -61,6 +62,8 @@
             <ColumnDefinition Width="*" />
             <ColumnDefinition Width="Auto" />
         </Grid.ColumnDefinitions>
+
+        <themes:Decoration Grid.ColumnSpan="2" Style="{StaticResource TaskbarDecorationStyle}" />
 
         <!-- Spans both columns so "centred" means the middle of the screen, as in Windows 11. -->
         <StackPanel
@@ -78,21 +81,7 @@
                 Style="{StaticResource FlatButtonStyle}"
                 Click="StartButton_Click"
                 ContextRequested="StartButton_ContextRequested">
-                <!-- Explorer's logo: four 11 px squares. -->
-                <Grid Width="23" Height="23" ColumnSpacing="1" RowSpacing="1">
-                    <Grid.RowDefinitions>
-                        <RowDefinition />
-                        <RowDefinition />
-                    </Grid.RowDefinitions>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition />
-                        <ColumnDefinition />
-                    </Grid.ColumnDefinitions>
-                    <Rectangle Grid.Row="0" Grid.Column="0" RadiusX="1" RadiusY="1" Fill="{ThemeResource AccentFillColorDefaultBrush}" />
-                    <Rectangle Grid.Row="0" Grid.Column="1" RadiusX="1" RadiusY="1" Fill="{ThemeResource AccentFillColorDefaultBrush}" />
-                    <Rectangle Grid.Row="1" Grid.Column="0" RadiusX="1" RadiusY="1" Fill="{ThemeResource AccentFillColorDefaultBrush}" />
-                    <Rectangle Grid.Row="1" Grid.Column="1" RadiusX="1" RadiusY="1" Fill="{ThemeResource AccentFillColorDefaultBrush}" />
-                </Grid>
+                <ContentControl ContentTemplate="{StaticResource StartLogoTemplate}" IsTabStop="False" />
             </Button>
             <Button
                 x:Name="SearchButton"
@@ -169,7 +158,7 @@
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
                                 <Border
-                                    CornerRadius="4"
+                                    CornerRadius="{ThemeResource ControlCornerRadius}"
                                     Background="{ThemeResource ControlFillColorDefaultBrush}"
                                     BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}"
                                     BorderThickness="1" />
@@ -186,7 +175,7 @@
                                     <ColumnDefinition />
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
-                                <Border CornerRadius="4" Background="{ThemeResource SubtleFillColorSecondaryBrush}" />
+                                <Border CornerRadius="{ThemeResource ControlCornerRadius}" Background="{ThemeResource SubtleFillColorSecondaryBrush}" />
                                 <Border
                                     Grid.Column="1"
                                     Width="3"
@@ -198,7 +187,7 @@
                             <!-- The window asks for attention. -->
                             <Border
                                 Margin="2,4"
-                                CornerRadius="4"
+                                CornerRadius="{ThemeResource ControlCornerRadius}"
                                 Background="{ThemeResource SystemFillColorCautionBrush}"
                                 Opacity="0.4"
                                 Visibility="{x:Bind FlashVisibility, Mode=OneWay}" />
@@ -239,8 +228,8 @@
                                 AutomationProperties.AutomationId="TaskProgress" />
                             <!-- Running: short grey pill; active: long accent pill. -->
                             <Grid HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,5">
-                                <Rectangle Width="6" Height="3" RadiusX="1.5" RadiusY="1.5" Fill="{ThemeResource TextFillColorTertiaryBrush}" Visibility="{x:Bind RunningVisibility, Mode=OneWay}" />
-                                <Rectangle Width="16" Height="3" RadiusX="1.5" RadiusY="1.5" Fill="{ThemeResource AccentFillColorDefaultBrush}" Visibility="{x:Bind ActiveVisibility, Mode=OneWay}" />
+                                <Rectangle Style="{StaticResource TaskRunningIndicatorStyle}" Visibility="{x:Bind RunningVisibility, Mode=OneWay}" />
+                                <Rectangle Style="{StaticResource TaskActiveIndicatorStyle}" Visibility="{x:Bind ActiveVisibility, Mode=OneWay}" />
                             </Grid>
                         </Grid>
                     </DataTemplate>
@@ -482,6 +471,7 @@
                         Text="Transparent"
                         Click="Backdrop_Click" />
                 </MenuFlyoutSubItem>
+                <MenuFlyoutSubItem x:Name="ThemeSubMenu" AutomationProperties.AutomationId="ThemeMenuItem" Text="Theme" />
                 <ToggleMenuFlyoutItem
                     x:Name="AutoHideItem"
                     AutomationProperties.AutomationId="AutoHideMenuItem"

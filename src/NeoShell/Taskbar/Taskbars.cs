@@ -12,6 +12,7 @@ using NeoShell.Interop.Tray;
 using NeoShell.Settings;
 using NeoShell.Tray;
 using NeoShell.StartMenu;
+using NeoShell.Themes;
 using Windows.Graphics;
 using Windows.UI;
 
@@ -27,8 +28,8 @@ internal sealed class Taskbars : IDisposable
     private readonly Action _switchToExplorer;
     private readonly ShowDesktop _showDesktop = new();
     private readonly List<TaskbarWindow> _windows = [];
-    private ElementTheme _theme = SystemTheme.Read();
-    private Color? _accent = SystemTheme.ReadAccent();
+    private ElementTheme _theme = ShellTheme.Current.ReadTheme();
+    private Color? _accent = ShellTheme.Current.ReadAccent();
     private ShellSettings _windowSettings;
     private StartMenuWindow? _startMenu;
     private FocusSession? _focus;
@@ -410,8 +411,8 @@ internal sealed class Taskbars : IDisposable
             // Pick up changed regional formats and time zone for the clock.
             CultureInfo.CurrentCulture.ClearCachedData();
             TimeZoneInfo.ClearCachedData();
-            _theme = SystemTheme.Read();
-            _accent = SystemTheme.ReadAccent();
+            _theme = ShellTheme.Current.ReadTheme();
+            _accent = ShellTheme.Current.ReadAccent();
 
             if (_recreate)
             {

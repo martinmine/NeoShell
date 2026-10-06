@@ -8,6 +8,7 @@ using Microsoft.UI.Xaml.Media;
 using NeoShell.Interop.Tray;
 using NeoShell.Interop.Windowing;
 using NeoShell.Settings;
+using NeoShell.Themes;
 using Windows.Foundation;
 using Windows.Graphics;
 using Windows.UI;
@@ -73,7 +74,7 @@ internal sealed class ThumbnailPopup : Window
         _hwnd = Win32Interop.GetWindowFromWindowId(AppWindow.Id);
         WindowStyles.AddExtended(_hwnd, ExtendedWindowStyles.ToolWindow | ExtendedWindowStyles.NoActivate);
         Peek.Exclude(_hwnd);
-        _frameless = new FramelessWindow(_hwnd, roundedCorners: true);
+        _frameless = new FramelessWindow(_hwnd, roundedCorners: ShellTheme.Current.RoundedCorners);
         _placement = new PinnedWindow(_hwnd, default, PinnedLayer.Topmost);
         _placement.SetLayer(PinnedLayer.Topmost, above: taskbar);
         _slide = new WindowSlide(_placement);

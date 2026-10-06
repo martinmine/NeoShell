@@ -10,13 +10,13 @@
         AutomationProperties.Name="Clock"
         Height="40"
         Padding="8,0"
-        CornerRadius="4"
+        CornerRadius="{ThemeResource ControlCornerRadius}"
         BorderThickness="0"
         Click="ClockButton_Click">
         <StackPanel Orientation="Horizontal" Spacing="10">
             <StackPanel VerticalAlignment="Center">
-                <TextBlock x:Name="TimeText" HorizontalAlignment="Right" FontSize="12" />
-                <TextBlock x:Name="DateText" HorizontalAlignment="Right" FontSize="12" />
+                <TextBlock x:Name="TimeText" Style="{StaticResource ClockTextStyle}" />
+                <TextBlock x:Name="DateText" Style="{StaticResource ClockTextStyle}" />
             </StackPanel>
             <!-- Do not disturb's bell, while it's on, as Explorer shows it beside the clock. -->
             <FontIcon

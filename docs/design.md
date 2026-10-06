@@ -18,8 +18,10 @@ coding rules are in [CLAUDE.md](../CLAUDE.md).
   is the shell.
 - Start's Quick Link menu (right-click Start, Win+X) and, while NeoShell is the shell, Alt+Tab, Explorer's other
   Win+ shortcuts, Snap layouts (Win+Z) and screenshots (Win+PrtScn, Win+Shift+S).
-- A widget sidebar, as Windows Vista's: profile and clock, resource usage, pictures, now playing, weather, notes and
-  wireless devices' batteries, docked along the right of the screen or dragged out to float on the desktop.
+- A widget sidebar, as Windows Vista's: profile and clock, resource usage, pictures, now playing, weather, notes,
+  wireless devices' batteries, a live event log and a system readout, docked along the right of the screen or dragged
+  out to float on the desktop.
+- Themes that change how all of it looks: Windows 11 (the default) and Dark Cyber.
 
 Out of scope: editing Quick Settings' tiles, Windows 11's Widgets board (Win+W), Task View, pinning items in jump
 lists, toast images, buttons and inline replies.
@@ -31,6 +33,7 @@ lists, toast images, buttons and inline replies.
 | UI | WinUI 3, unpackaged, self-contained Windows App SDK | A shell starts before anything can install a runtime; MSIX gets in the way of being the shell |
 | Target | `net10.0-windows10.0.26100.0`, min. Windows 11 (10.0.22000) | The Windows TFM gives WinRT projections (e.g. `NetworkInformation`) without packages |
 | Look | Windows 11 Fluent, `DesktopAcrylicController` (or `MicaController`) with a `SystemBackdropConfiguration` whose `IsInputActive` stays `true` | Keeps the acrylic on windows that rarely have focus |
+| Themes | One resource dictionary per theme, merged into the app's resources at start-up; views take theme parts from it by key | Themes as different as Dark Cyber without a copy of every view |
 | Interop | Hand-written `[LibraryImport]` and `[GeneratedComInterface]` in `NeoShell.Interop` | BCL only, trim/AOT friendly, readable |
 | Win32 messages | Message-only windows (`MessageWindow`) and `SetWindowSubclass` (`WindowSubclass`) on WinUI HWNDs | WinUI doesn't expose a WndProc |
 | Search | `ISearchQueryHelper` builds SQL; `System.Data.OleDb` runs it against `Search.CollatorDSO` | The supported way to query the indexer |
@@ -127,8 +130,9 @@ Start menu button → confirmation dialog → delete the per-user `Winlogon\Shel
   every style change, so `WM_STYLECHANGING` strips the frame and isn't passed on; DWM border and rounded corners off.
 - Not `AppWindow.IsShownInSwitchers`: it goes through the taskbar and throws when there is none; `WS_EX_TOOLWINDOW`
   keeps the window out of Alt+Tab instead.
-- Reads `HKCU\Control Panel\Desktop`: `Wallpaper`, `WallpaperStyle`, `TileWallpaper`, and
-  `HKCU\Control Panel\Colors\Background` for the fill colour.
+- The image is Windows' live setting (`SPI_GETDESKWALLPAPER`), which Explorer draws: a wallpaper set without being
+  saved to the profile leaves an older one in the registry. `HKCU\Control Panel\Desktop`'s `Wallpaper` only if that
+  fails; its `WallpaperStyle` and `TileWallpaper`, and `HKCU\Control Panel\Colors\Background` for the fill colour.
 - Layout (unit tested): `WallpaperLayout.Arrange` returns the image rectangles in physical pixels for each style —
   Fill, Fit, Stretch, Center (exact pixels), Tile (one rectangle per tile; WinUI has no tiled brush) and Span (Fill
   over the virtual screen, offset per monitor). The window places `Image` elements on a `Canvas` at those rectangles.
@@ -1016,8 +1020,61 @@ Small widgets about the computer and its user, as Windows Vista's sidebar gadget
   edition, version, OS build with its revision, architecture and install date, read once from
   `HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion`. That key's ProductName still says "Windows 10" on Windows 11,
   so builds from 22000 are named "Windows 11", as winver does. One at a time.
+- **Event log**: NeoShell's event feed as it happens, newest at the bottom with a blinking cursor, as a terminal: what
+  NeoShell logs (`Log.Written`; the last 100 lines are kept by `Log` for a new view) and app windows opening, closing
+  and coming to the front (diffs of the window tracker's windows that get a taskbar button). `EventFeed`, shared by
+  the sidebar, keeps the last 200 entries. Lines (12) and whether window events show are its settings.
+- **System**: host, user, processor (name from the registry, logical processors), memory, the IPv4 address of the
+  first adapter with a gateway (again on `NetworkAddressChanged`), Windows' and NeoShell's uptime (with the run mode),
+  and the number of processes (counted every 5 s on the thread pool).
 - **Notes**: plain text, straight on the card (no box or underline, focused or not), saved half a second after typing stops, to `notes\<id>.txt` next to the settings; text size
   in its settings. Closing a note keeps its file.
+
+## Themes (`Themes/`)
+
+A theme changes how all of NeoShell looks, not only its colours. Windows 11 is the default; Dark Cyber is the second.
+The theme is a setting (`Theme`), chosen in the taskbar menu's Theme submenu; choosing another restarts NeoShell
+(`App` exits and `Program` starts a new instance with `/after <pid>`, which waits for the old one to be gone), since
+views take their theme as they load.
+
+- **`ShellTheme`**: the themes and what code needs to know of each: light or dark (Dark Cyber is always dark),
+  whether surfaces take Windows' accent colour, a tint for every acrylic surface, and whether popups get Windows 11's
+  rounded corners. `ShellTheme.Current` is set once, by `App` before any window exists, which also merges the
+  theme's dictionary into the app's resources.
+- **`Themes/<Kind>.xaml`**: everything else. Windows11.xaml defines every key the views look up, with the Windows 11
+  look; every theme defines the same keys (a test checks): the Start button's logo (`StartLogoTemplate`), a widget's
+  card and padding and its inner title, the clock's text, the task buttons' indicators, the search box's corners, a
+  mono font, and the styles of the two theme controls below. A theme may also redefine WinUI's own resources:
+  colours, `ControlCornerRadius`, `ContentControlThemeFontFamily`, the text styles.
+- **`Decoration`**: what a theme draws over a surface: nothing in Windows 11, frames and labels in Dark Cyber. It lies
+  over the content and takes no input; it has a title and a subtitle (Japanese, for Dark Cyber). One style per kind of
+  surface: `CardDecorationStyle` (widgets), `PanelDecorationStyle` (Start, notification center, calendar, Quick
+  Settings), `TaskbarDecorationStyle`, `DesktopDecorationStyle` (over the wallpaper). A template may have the visual
+  states Hidden and Shown: Start, Quick Settings and the panels play them as they open (`PlayIntro`, `PlayIntros`).
+- **`Heading`**: a section's heading (Start's Pinned, Recent and All apps, the notification center's): body text in
+  Windows 11; in Dark Cyber `// PINNED ピン留め` with a rule (`UpperCaseConverter` capitalises).
+
+### Dark Cyber
+
+Black, white and signal red (#FF2A3D); Bahnschrift for text (SemiBold SemiCondensed for labels, capitals with wide
+letter spacing), Cascadia Mono for figures, the clock and logs, Yu Gothic UI for Japanese — all shipped with Windows
+11, so nothing is bundled. Square corners everywhere, hairline white borders, white corner markers and short red rules.
+Acrylic surfaces are tinted near-black.
+
+- WinUI's controls are recoloured rather than replaced, so they keep their behaviour and automation. Their templates
+  look brushes up by name, but generic.xaml points each control's brushes (`ButtonBackground`…) at Fluent brushes
+  (`ControlFillColorDefaultBrush`…) as it loads; DarkCyber.Controls.xaml redefines the Fluent brushes and then points
+  every such alias of the controls NeoShell uses at them again (the list generated once from generic.xaml's dark
+  dictionary). It's a dictionary of its own because a merged dictionary can't see its parent's keys while it loads.
+  Menus and lists get a red hover.
+- WinUI's text styles name their font themselves, so they're redefined; an implicit `TextBlock` style covers text
+  without one, WinUI's templates included.
+- Movement: the Start button's diamond breathes; Start and the panels open with their corner brackets flickering in
+  and a red scan line sweeping down; a red scanner runs along the taskbar's top edge every 12 s; widget labels flicker
+  on and their red pips blink; the desktop has a faint red line sweeping down every 20 s and a blinking ONLINE. All
+  are XAML storyboards of opacity and transforms, which run on the compositor.
+- The desktop (shell mode) gets a status line (`NEO//SHELL ネオシェル <host> ● ONLINE`), corner brackets and darker
+  top and bottom edges.
 
 ## Settings (`Settings/`)
 
@@ -1025,6 +1082,7 @@ A single `record Settings` serialized with `System.Text.Json` (source-generated 
 saved on change. Unknown/missing values fall back to defaults; a corrupt file is renamed to `.bak` and defaults used.
 
 ```
+Theme                Windows11 | DarkCyber (applied at start-up; changing it restarts NeoShell)
 TaskbarAlignment     Center | Left
 CombineButtons       Always | WhenFull | Never
 AutoHide             bool
@@ -1052,7 +1110,7 @@ Widgets              list (id, kind, X/Y and size while floating, the kind's opt
   items get icons and in which order, Quick Settings' paging, Wi-Fi network list and shortcut keys, the keys the
   hook takes (Start, panels, Alt+Tab, Win+Comma), Win+number's window choice, Snap layouts and screenshot names,
   the shell's work area, the sidebar's and floating widgets' placement and order, the widgets' number and colour
-  formats, and MET's forecast parsing and symbols.
+  formats, MET's forecast parsing and symbols, and that every theme defines the keys the views look up.
 - Logic that touches Windows is split so the decision is a pure function over a snapshot (e.g. `WindowInfo`) that
   tests can construct.
 - **Live UI checks** through UI Automation (`AutomationId`s on all interactive controls), never global keystrokes.

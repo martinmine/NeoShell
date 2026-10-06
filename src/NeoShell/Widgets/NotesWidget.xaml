@@ -18,11 +18,7 @@
     </local:WidgetView.Resources>
 
     <StackPanel Spacing="4">
-        <TextBlock
-            Height="28"
-            Text="Notes"
-            Style="{StaticResource CaptionTextBlockStyle}"
-            Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+        <TextBlock Text="Notes" Style="{StaticResource WidgetTitleStyle}" />
         <TextBox
             x:Name="NoteBox"
             Padding="0,4"

@@ -6,7 +6,8 @@
 <UserControl
     x:Class="NeoShell.Widgets.WidgetFrame"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:themes="using:NeoShell.Themes">
     <UserControl.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
@@ -32,13 +33,8 @@
         PointerMoved="Root_PointerMoved"
         PointerReleased="Root_PointerReleased"
         PointerCaptureLost="Root_PointerCaptureLost">
-        <Border
-            x:Name="Card"
-            Padding="12"
-            CornerRadius="8"
-            BorderThickness="1"
-            Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-            BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" />
+        <Border x:Name="Card" Padding="{StaticResource WidgetCardPadding}" Style="{StaticResource WidgetCardStyle}" />
+        <themes:Decoration x:Name="Chrome" Style="{StaticResource CardDecorationStyle}" />
 
         <!-- On a solid plate, so they read over a picture too. -->
         <StackPanel
@@ -49,7 +45,7 @@
             HorizontalAlignment="Right"
             VerticalAlignment="Top"
             Orientation="Horizontal"
-            CornerRadius="4"
+            CornerRadius="{ThemeResource ControlCornerRadius}"
             Background="{ThemeResource SolidBackgroundFillColorSecondaryBrush}"
             Opacity="0"
             IsHitTestVisible="False">

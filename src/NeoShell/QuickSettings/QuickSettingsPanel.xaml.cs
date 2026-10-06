@@ -129,6 +129,7 @@ internal sealed partial class QuickSettingsPanel : UserControl
     {
         _isOpen = true;
         ShowPage(PageFor(page), animate: false);
+        Chrome.PlayIntro();
         // Adapters come and go; the tiles follow when they're found.
         _ = _indicators?.RefreshRadiosAsync();
     }

@@ -5,6 +5,7 @@ using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
 using NeoShell.Interop.Windowing;
 using NeoShell.Settings;
+using NeoShell.Themes;
 using Windows.Graphics;
 using Windows.UI;
 
@@ -39,7 +40,7 @@ internal sealed class SnapPreview : Window
 
         nint hwnd = Win32Interop.GetWindowFromWindowId(AppWindow.Id);
         WindowStyles.AddExtended(hwnd, ExtendedWindowStyles.ToolWindow | ExtendedWindowStyles.NoActivate);
-        _frameless = new FramelessWindow(hwnd, roundedCorners: true);
+        _frameless = new FramelessWindow(hwnd, roundedCorners: ShellTheme.Current.RoundedCorners);
         _placement = new PinnedWindow(hwnd, default, PinnedLayer.Normal);
 
         Closed += (_, _) =>

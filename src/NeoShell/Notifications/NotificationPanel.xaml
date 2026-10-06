@@ -6,7 +6,8 @@
 <UserControl
     x:Class="NeoShell.Notifications.NotificationPanel"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:themes="using:NeoShell.Themes">
     <Grid x:Name="Root">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
@@ -19,7 +20,7 @@
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
-            <TextBlock VerticalAlignment="Center" Text="Notifications" />
+            <themes:Heading Text="Notifications" Subtitle="通知" Style="{StaticResource PlainHeadingStyle}" />
             <ToggleButton
                 x:Name="DoNotDisturbButton"
                 Grid.Column="1"
@@ -53,5 +54,7 @@
         <ScrollViewer x:Name="Scroller" Grid.Row="1" Padding="6,0,6,6" HorizontalScrollMode="Disabled">
             <StackPanel x:Name="Groups" Spacing="4" />
         </ScrollViewer>
+
+        <themes:Decoration Grid.RowSpan="2" Title="Notifications" Subtitle="通知" Style="{StaticResource PanelDecorationStyle}" />
     </Grid>
 </UserControl>

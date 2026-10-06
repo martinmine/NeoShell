@@ -3,7 +3,8 @@
     x:Class="NeoShell.StartMenu.StartMenuWindow"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    xmlns:local="using:NeoShell.StartMenu">
+    xmlns:local="using:NeoShell.StartMenu"
+    xmlns:themes="using:NeoShell.Themes">
 
     <Grid x:Name="Root">
         <Grid.Resources>
@@ -121,7 +122,7 @@
                 AutomationProperties.AutomationId="StartSearchBox"
                 AutomationProperties.Name="Search"
                 Height="32"
-                CornerRadius="16"
+                CornerRadius="{StaticResource SearchBoxCornerRadius}"
                 Padding="42,6,12,0"
                 PlaceholderText="Search for apps and documents"
                 TextChanged="SearchBox_TextChanged"
@@ -142,7 +143,7 @@
         <ScrollViewer x:Name="HomeView" Grid.Row="1" Padding="32,0,24,16">
             <StackPanel>
                 <Grid Margin="32,20,24,12">
-                    <TextBlock Text="Pinned" Style="{ThemeResource BodyStrongTextBlockStyle}" VerticalAlignment="Center" />
+                    <themes:Heading Text="Pinned" Subtitle="ピン留め" />
                     <Button
                         x:Name="AllAppsButton"
                         AutomationProperties.AutomationId="AllAppsButton"
@@ -206,7 +207,7 @@
                     Text="Pin apps from All apps to keep them here." />
 
                 <StackPanel x:Name="RecentSection" Visibility="Collapsed">
-                    <TextBlock Margin="32,28,0,15" Text="Recent" Style="{ThemeResource BodyStrongTextBlockStyle}" />
+                    <themes:Heading Margin="32,28,24,15" Text="Recent" Subtitle="最近" />
                     <!--
                         Laid out as Explorer's: three columns 256 wide with 20 between the items, icons in line with the
                         heading. The last column's gap may hang off the right edge.
@@ -247,7 +248,7 @@
                 <RowDefinition />
             </Grid.RowDefinitions>
             <Grid Margin="24,20,8,12">
-                <TextBlock Text="All apps" Style="{ThemeResource BodyStrongTextBlockStyle}" VerticalAlignment="Center" />
+                <themes:Heading Text="All apps" Subtitle="すべてのアプリ" />
                 <Button
                     x:Name="BackButton"
                     AutomationProperties.AutomationId="StartBackButton"
@@ -397,5 +398,7 @@
                 </Button>
             </StackPanel>
         </Grid>
+
+        <themes:Decoration x:Name="Chrome" Grid.RowSpan="3" Title="Start" Subtitle="スタート" Style="{StaticResource PanelDecorationStyle}" />
     </Grid>
 </Window>

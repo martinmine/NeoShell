@@ -6,6 +6,7 @@ using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Imaging;
 using NeoShell.Interop.Windowing;
 using NeoShell.Logging;
+using NeoShell.Themes;
 using Windows.Graphics;
 
 namespace NeoShell.Desktop;
@@ -32,6 +33,13 @@ internal sealed class WallpaperWindow : Window
         _virtualScreen = virtualScreen;
 
         _root.Children.Add(_canvas);
+        // Over the picture and under the icons: what the theme draws on the desktop.
+        _root.Children.Add(new Decoration
+        {
+            Title = Environment.MachineName,
+            Subtitle = "デスクトップ",
+            Style = (Style)Application.Current.Resources["DesktopDecorationStyle"],
+        });
         _root.SizeChanged += (_, _) => Arrange();
         _root.Loaded += (_, _) => _root.XamlRoot.Changed += (_, _) => Arrange();
         Content = _root;

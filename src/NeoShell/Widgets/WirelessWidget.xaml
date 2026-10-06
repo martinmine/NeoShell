@@ -5,12 +5,8 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:local="using:NeoShell.Widgets">
     <StackPanel Spacing="4">
-        <TextBlock
-            Height="28"
-            Margin="4,0"
-            Text="Wireless devices"
-            Style="{StaticResource CaptionTextBlockStyle}"
-            Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+        <TextBlock Margin="4,0"
+            Text="Wireless devices" Style="{StaticResource WidgetTitleStyle}" />
         <StackPanel x:Name="Rows" AutomationProperties.AutomationId="WirelessDeviceList" />
         <TextBlock
             x:Name="StatusText"
