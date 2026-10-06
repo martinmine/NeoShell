@@ -61,6 +61,7 @@ internal sealed partial class MediaWidget : WidgetView
         if (_nowPlaying is null)
         {
             Log.Warn("The media controls aren't available");
+            MarkReady();
             return;
         }
         _nowPlaying.Changed += OnChanged;
@@ -93,7 +94,10 @@ internal sealed partial class MediaWidget : WidgetView
 
         Artwork.Visibility = ShowArtwork ? Visibility.Visible : Visibility.Collapsed;
         await ShowThumbnail(ShowArtwork ? media?.Thumbnail : null, read);
+        MarkReady();
     }
+
+    protected override bool LoadsContent => true;
 
     private async Task ShowThumbnail(byte[]? thumbnail, int read)
     {

@@ -149,7 +149,8 @@ the desktop and back. Full spec in docs/design.md ("Widgets").
   a view saves its own options through `SaveSettings`, and `Sidebar` keeps the stored position and size when it does.
 - **Views are disposable.** A new view is made whenever a widget moves between sidebar and desktop, so a view keeps
   nothing that must survive: options go in its settings, text in a file (notes), samples in a shared service. Stop
-  timers and events in `Close()`.
+  timers and events in `Close()`. A view that loads its content (`LoadsContent`) calls `MarkReady()` once it shows
+  it: until then a moved widget's new view is covered with a picture of the old one (`WidgetFrame.Cover`).
 - **Adding a widget kind:** a `WidgetKind` value, a `WidgetView` (XAML + code), its title/glyph/`AllowsSeveral` in
   `WidgetView`, a case in `Sidebar.CreateFrame`; anything that talks to Windows goes in `NeoShell.Interop`.
 - **Windows and layers.** Sidebar and floating widgets sit just above the desktop (`PinnedLayer.Desktop`); moves don't
@@ -167,8 +168,10 @@ the desktop and back. Full spec in docs/design.md ("Widgets").
     z-order changes with a minimized window around, and with a window pushed below the wallpaper.
   - Keep periodic work off the UI thread (resource sampling reads adapters and GPU engines on the thread pool): any
     hitch shows as a stutter while a widget is dragged.
-  - A card being dragged stays in the tree (lifted: no height, invisible) or it loses the pointer; cards keep their gap
-    in their own margin so a lifted card leaves none.
+  - A card being dragged stays in the tree (lifted: invisible, its size kept and its bottom margin minus its height)
+    or it loses the pointer; cards keep their gap in their own margin so a lifted card leaves none. Its view keeps its
+    layout for the picture taken on the press (`PressSnapshot`): `RenderTargetBitmap` takes 60-200 ms here, and
+    renders only in its own window (its pixels are copied out).
 - **Testing live.** Every interactive control has an AutomationId (`Widget` + Name = title, `WidgetSettingsButton`,
   `WidgetCloseButton`, `AddWidgetButton`, `Add<Kind>WidgetMenuItem`, `ShowWidgetPanelMenuItem`, `WidgetResizeGrip`,
   `*ResourceRow*`, `NoteText`…). Widgets behind other windows aren't laid out or rendered: move one into view (its

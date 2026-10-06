@@ -40,10 +40,13 @@ internal sealed partial class ProfileWidget : WidgetView
         return seconds;
     }
 
+    protected override bool LoadsContent => true;
+
     private async void LoadPicture()
     {
         if (await UserAccount.LoadPictureAsync(192) is { } picture)
             Picture.ProfilePicture = picture;
+        MarkReady();
     }
 
     // Ticks just after each second or minute turns, so the clock never runs late.

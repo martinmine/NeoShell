@@ -10,7 +10,25 @@ namespace NeoShell.Widgets;
 /// </summary>
 internal partial class WidgetView : UserControl
 {
+    public WidgetView()
+    {
+        Loaded += (_, _) =>
+        {
+            if (!LoadsContent)
+                MarkReady();
+        };
+    }
+
     public WidgetSettings Settings { get; protected set; } = new();
+
+    /// <summary>
+    /// The widget shows its content: once it's laid out, or for one that loads its content (a picture, the weather)
+    /// once that's shown. A widget moving between the sidebar and the desktop is covered with a picture of how it
+    /// looked until then (<see cref="WidgetFrame.Cover"/>), so it doesn't show empty and fill in.
+    /// </summary>
+    public bool IsReady { get; private set; }
+
+    public event Action? Ready;
 
     /// <summary>The widget changed its own settings (from its settings flyout), for the sidebar to save them.</summary>
     public event Action<WidgetSettings>? SettingsChanged;
@@ -57,6 +75,18 @@ internal partial class WidgetView : UserControl
 
     /// <summary>The controls of the settings flyout, built each time it opens.</summary>
     public virtual FrameworkElement CreateSettings() => new StackPanel();
+
+    /// <summary>The widget loads what it shows, and says so with <see cref="MarkReady"/>; otherwise it's ready once laid out.</summary>
+    protected virtual bool LoadsContent => false;
+
+    /// <summary>The widget's content is shown, or couldn't be loaded.</summary>
+    protected void MarkReady()
+    {
+        if (IsReady)
+            return;
+        IsReady = true;
+        Ready?.Invoke();
+    }
 
     /// <summary>The widget is going away: stop timers and let go of events.</summary>
     public virtual void Close()

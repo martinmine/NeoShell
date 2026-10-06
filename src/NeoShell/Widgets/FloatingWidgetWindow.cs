@@ -24,7 +24,6 @@ internal sealed class FloatingWidgetWindow : Window
     private ShellBackdrop _backdrop;
     private ElementTheme _theme;
     private Color? _accent;
-    private WindowSlide? _slide;
     // Where the corner was pressed, and the size then, while the widget is being resized.
     private (PointInt32 Start, double Width, double ContentHeight)? _resize;
 
@@ -82,7 +81,6 @@ internal sealed class FloatingWidgetWindow : Window
     /// <summary>Closes the window (see <see cref="WindowClosing.IgnoreMoves"/>).</summary>
     public void Shut()
     {
-        _slide?.Stop();
         _placement.Dispose();
         _frameless.Dispose();
         WindowClosing.IgnoreMoves(_hwnd);
@@ -99,13 +97,6 @@ internal sealed class FloatingWidgetWindow : Window
     public event Action<double, double>? Resized;
 
     public void MoveTo(PointInt32 topLeft) => _placement.Bounds = _placement.Bounds with { X = topLeft.X, Y = topLeft.Y };
-
-    /// <summary>Slides the window to <paramref name="topLeft"/> (into its place in the sidebar), then calls <paramref name="done"/>.</summary>
-    public void SlideTo(PointInt32 topLeft, Action done)
-    {
-        _slide ??= new WindowSlide(_placement);
-        _slide.To(_placement.Bounds with { X = topLeft.X, Y = topLeft.Y }, TimeSpan.FromMilliseconds(150), decelerate: true, done);
-    }
 
     public void SetTheme(ElementTheme theme, Color? accent)
     {

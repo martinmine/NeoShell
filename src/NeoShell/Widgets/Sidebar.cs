@@ -274,6 +274,7 @@ internal sealed class Sidebar : IDisposable
         if (_dragOut is null)
         {
             _dragOut = NewFloatingWindow(Widgets.Single(w => w.Id == frame.Widget.Settings.Id), topLeft);
+            CoverWithPressSnapshot(_dragOut.Frame, frame);
         }
         _dragOut.MoveTo(topLeft);
         _dragOut.AppWindow.Show(activateWindow: false);
@@ -325,7 +326,7 @@ internal sealed class Sidebar : IDisposable
             _window?.HideDropSlot();
     }
 
-    private void DropFloating(WidgetFrame frame, PointInt32 cursor)
+    private async void DropFloating(WidgetFrame frame, PointInt32 cursor)
     {
         string id = frame.Widget.Settings.Id;
         if (!_floating.TryGetValue(id, out FloatingWidgetWindow? window))
@@ -337,24 +338,38 @@ internal sealed class Sidebar : IDisposable
             return;
         }
 
-        // Back into the sidebar: it slides into the gap the others made, and takes its place among them.
+        // Back into the sidebar: it goes straight into the gap the others made, and takes its place among them. Its new
+        // card shows a picture of it until the new view is ready and drawn, and the window goes once the card is drawn:
+        // there's no moment without either, nor the widget empty and filling in.
         int index = _window.DropSlotIndex;
         _floating.Remove(id);
         Save(SidebarLayout.Dock(Widgets, id, index));
-        window.SlideTo(_window.DropSlotTopLeft, () =>
+        window.MoveTo(_window.DropSlotTopLeft);
+        WidgetSnapshot? snapshot = await frame.PressSnapshot;
+        if (_window is null)
         {
             Close(window);
-            if (_window is null)
-                return;
-            _window.HideDropSlot();
-            _window.Insert(CreateFrame(Widgets.Single(w => w.Id == id), floating: false), index);
-        });
+            return;
+        }
+        WidgetFrame docked = CreateFrame(Widgets.Single(w => w.Id == id), floating: false);
+        if (snapshot is not null)
+            docked.Cover(snapshot);
+        _window.HideDropSlot();
+        _window.Insert(docked, index);
+        docked.Loaded += (_, _) => WidgetFrame.AfterFramesDrawn(() => Close(window));
     }
 
     private void SaveFloating(string id, PointInt32 topLeft)
     {
         if (Widgets.FirstOrDefault(w => w.Id == id) is { } widget)
             Save(SidebarLayout.Replace(Widgets, widget with { X = topLeft.X, Y = topLeft.Y }));
+    }
+
+    /// <summary>Covers a new view of a widget with the picture of it taken as it was pressed, once that's taken.</summary>
+    private static async void CoverWithPressSnapshot(WidgetFrame frame, WidgetFrame pressed)
+    {
+        if (await pressed.PressSnapshot is { } snapshot)
+            frame.Cover(snapshot);
     }
 
     private void Save(IReadOnlyList<WidgetSettings> widgets) => _settings.Update(_settings.Current with { Widgets = widgets });
