@@ -67,6 +67,25 @@ internal sealed class WindowSnapping : IDisposable
         double grab = bounds.Width > 0 ? Math.Clamp((pointer.X - bounds.X) / (double)bounds.Width, 0, 1) : 0.5;
         _drag = new Drag(hwnd, bounds, TopLevelWindows.IsMaximized(hwnd), grab);
         _timer.Start();
+        WidenClip();
+    }
+
+    /// <summary>
+    /// Opens the widget sidebar's strip to the pointer: Windows keeps it inside the work area while a window moves,
+    /// which left windows unable to go over the sidebar to the screen's edge. Windows frees it when the move ends.
+    /// </summary>
+    private static void WidenClip()
+    {
+        RectInt32 clip = Cursor.Clip;
+        RectInt32 wider = clip;
+        foreach (DisplayMonitor monitor in DisplayMonitor.GetAll())
+        {
+            RectInt32 area = ShellWorkArea.DragArea(monitor.Bounds);
+            if (Overlaps(area, clip))
+                wider = Union(wider, area);
+        }
+        if (wider != clip)
+            Cursor.Clip = wider;
     }
 
     /// <summary>Shows where the window would snap if let go now, unless it's being resized rather than moved.</summary>
@@ -98,7 +117,7 @@ internal sealed class WindowSnapping : IDisposable
 
         PointInt32 pointer = Cursor.Position();
         DisplayMonitor? monitor = DisplayMonitor.GetAll().FirstOrDefault(m => Contains(m.Bounds, pointer));
-        SnapPosition target = monitor is null ? SnapPosition.None : WindowSnap.AtPointer(pointer, monitor.WorkArea, monitor.Dpi);
+        SnapPosition target = monitor is null ? SnapPosition.None : WindowSnap.AtPointer(pointer, ShellWorkArea.DragArea(monitor.Bounds), monitor.Dpi);
         ShowTarget(drag, target, monitor);
     }
 
@@ -198,6 +217,15 @@ internal sealed class WindowSnapping : IDisposable
     {
         nint handle = TopLevelWindows.MonitorOf(hwnd);
         return DisplayMonitor.GetAll().FirstOrDefault(monitor => monitor.Handle == handle);
+    }
+
+    private static bool Overlaps(RectInt32 a, RectInt32 b) =>
+        a.X < b.X + b.Width && b.X < a.X + a.Width && a.Y < b.Y + b.Height && b.Y < a.Y + a.Height;
+
+    private static RectInt32 Union(RectInt32 a, RectInt32 b)
+    {
+        int left = Math.Min(a.X, b.X), top = Math.Min(a.Y, b.Y);
+        return new RectInt32(left, top, Math.Max(a.X + a.Width, b.X + b.Width) - left, Math.Max(a.Y + a.Height, b.Y + b.Height) - top);
     }
 
     private static bool Contains(RectInt32 rect, PointInt32 point) =>

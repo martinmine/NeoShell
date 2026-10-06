@@ -869,9 +869,11 @@ nothing (they stay registered as hotkeys, so the keyboard hook takes them: `Snap
 - **Dragging.** `EVENT_SYSTEM_MOVESIZESTART`/`END` (WinEvents) bracket the app's own move loop; in between the pointer
   is polled every 30 ms. A window whose size changes is being resized, not moved, and doesn't snap. The zone under
   the pointer (`WindowSnap.AtPointer`, tested): against the left or right edge a half, within an eighth of the work
-  area's shorter side from a corner a quarter, against the top edge maximized (a quarter near its corners). The edges
-  are the work area's, not the screen's: during a move Windows keeps the pointer inside the work area, so it stops at
-  the taskbar's and the widget sidebar's edges. While the pointer is in a zone, `SnapPreview` shows it: an acrylic,
+  area's shorter side from a corner a quarter, against the top edge maximized (a quarter near its corners). During a
+  move Windows keeps the pointer inside the work area (`ClipCursor`), which left windows unable to go over the widget
+  sidebar; as a move starts NeoShell widens the clip over the sidebar's strip (`ShellWorkArea.DragArea`: the work
+  area without the sidebar's share), and Windows frees it when the move ends. The edges are that area's: the
+  taskbar's edge at the bottom, the screen's beside the sidebar. While the pointer is in a zone, `SnapPreview` shows it: an acrylic,
   rounded outline 8 epx inside the zone, just behind the dragged window (`PinnedLayer.Normal` below it). Let go, the
   window fills the zone (`TopLevelWindows.Place`, as Win+Z) or is maximized.
 - **Its own size back.** The bounds a window had before it was snapped are kept; dragged out of its zone (not just

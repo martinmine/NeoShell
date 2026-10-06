@@ -45,7 +45,7 @@ public sealed class SnapTests
         Assert.Equal(1100, right.X + right.Width);
     }
 
-    private static readonly RectInt32 WorkArea = new(0, 0, 1600, 900); // corners: 112 pixels
+    private static readonly RectInt32 DragArea = new(0, 0, 1600, 900); // corners: 112 pixels
 
     [Theory]
     [InlineData(0, 450, SnapPosition.Left)]
@@ -62,18 +62,19 @@ public sealed class SnapTests
     [InlineData(800, 899, SnapPosition.None)]       // the bottom edge (the taskbar) doesn't snap
     public void A_window_snaps_where_the_pointer_pushes_against_an_edge(int x, int y, SnapPosition expected)
     {
-        Assert.Equal(expected, WindowSnap.AtPointer(new PointInt32(x, y), WorkArea, 96));
+        Assert.Equal(expected, WindowSnap.AtPointer(new PointInt32(x, y), DragArea, 96));
     }
 
     [Fact]
-    public void Edges_are_the_work_areas_on_any_monitor()
+    public void Edges_are_the_drag_areas_on_any_monitor()
     {
-        // A monitor right of the first, above it, with a sidebar of 320 pixels on its right.
-        var workArea = new RectInt32(1600, -200, 1600, 1032);
+        // A monitor right of the first and above it, 1920 wide; the area ends at its taskbar.
+        var dragArea = new RectInt32(1600, -200, 1920, 1032);
 
-        Assert.Equal(SnapPosition.Left, WindowSnap.AtPointer(new PointInt32(1600, 300), workArea, 96));
-        Assert.Equal(SnapPosition.Maximized, WindowSnap.AtPointer(new PointInt32(2400, -200), workArea, 96));
-        Assert.Equal(SnapPosition.Right, WindowSnap.AtPointer(new PointInt32(3199, 300), workArea, 96));
+        Assert.Equal(SnapPosition.Left, WindowSnap.AtPointer(new PointInt32(1600, 300), dragArea, 96));
+        Assert.Equal(SnapPosition.Maximized, WindowSnap.AtPointer(new PointInt32(2400, -200), dragArea, 96));
+        Assert.Equal(SnapPosition.Right, WindowSnap.AtPointer(new PointInt32(3519, 300), dragArea, 96));
+        Assert.Equal(SnapPosition.None, WindowSnap.AtPointer(new PointInt32(3199, 300), dragArea, 96)); // a sidebar's edge
     }
 
     [Theory]

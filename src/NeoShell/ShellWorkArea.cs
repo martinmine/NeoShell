@@ -28,6 +28,12 @@ public static class ShellWorkArea
     public static RectInt32 Get(RectInt32 monitor) =>
         Compute(monitor, Reserved(monitor).Bottom, Reserved(monitor).Right);
 
+    /// <summary>
+    /// Where a window can be dragged: the work area with the sidebar's strip, which windows may cover. Windows keeps
+    /// the pointer inside the work area while it moves a window, and the sidebar shouldn't fence windows off.
+    /// </summary>
+    public static RectInt32 DragArea(RectInt32 monitor) => Compute(monitor, Reserved(monitor).Bottom, 0);
+
     public static RectInt32 Compute(RectInt32 monitor, int bottom, int right) =>
         new(monitor.X, monitor.Y, monitor.Width - right, monitor.Height - bottom);
 

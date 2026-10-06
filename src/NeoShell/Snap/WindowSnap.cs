@@ -26,21 +26,21 @@ public static class WindowSnap
     /// <summary>
     /// Where a window dragged with the pointer here snaps, as in Windows: pushed against the left or right edge, to
     /// that half, or a quarter near a corner; against the top edge, it fills the screen, or a quarter near a corner.
-    /// Elsewhere nowhere. The edges are the work area's: while a window is dragged, Windows keeps the pointer inside
-    /// the work area, so it stops at the taskbar's or the widget sidebar's edge, not the screen's.
+    /// Elsewhere nowhere. The edges are those of the area the pointer is kept in while a window is dragged: the work
+    /// area, so the taskbar's edge rather than the screen's, but with the widget sidebar's strip.
     /// </summary>
     /// <param name="pointer">The pointer, in screen pixels.</param>
-    /// <param name="workArea">The work area of the monitor the pointer is on.</param>
-    public static SnapPosition AtPointer(PointInt32 pointer, RectInt32 workArea, uint dpi)
+    /// <param name="dragArea">Where the pointer can go on the monitor it's on while the window is dragged.</param>
+    public static SnapPosition AtPointer(PointInt32 pointer, RectInt32 dragArea, uint dpi)
     {
         // A couple of pixels' slack catches the pointer on an edge shared with another monitor too, which it crosses.
         int edge = Math.Max(2, (int)Math.Round(2 * dpi / 96.0));
-        int corner = Math.Min(workArea.Width, workArea.Height) / 8;
-        bool left = pointer.X < workArea.X + edge;
-        bool right = pointer.X >= workArea.X + workArea.Width - edge;
-        bool top = pointer.Y < workArea.Y + edge;
-        bool nearTop = pointer.Y < workArea.Y + corner;
-        bool nearBottom = pointer.Y >= workArea.Y + workArea.Height - corner;
+        int corner = Math.Min(dragArea.Width, dragArea.Height) / 8;
+        bool left = pointer.X < dragArea.X + edge;
+        bool right = pointer.X >= dragArea.X + dragArea.Width - edge;
+        bool top = pointer.Y < dragArea.Y + edge;
+        bool nearTop = pointer.Y < dragArea.Y + corner;
+        bool nearBottom = pointer.Y >= dragArea.Y + dragArea.Height - corner;
 
         if (left)
             return nearTop ? SnapPosition.TopLeft : nearBottom ? SnapPosition.BottomLeft : SnapPosition.Left;
@@ -48,8 +48,8 @@ public static class WindowSnap
             return nearTop ? SnapPosition.TopRight : nearBottom ? SnapPosition.BottomRight : SnapPosition.Right;
         if (top)
         {
-            return pointer.X < workArea.X + corner ? SnapPosition.TopLeft
-                : pointer.X >= workArea.X + workArea.Width - corner ? SnapPosition.TopRight
+            return pointer.X < dragArea.X + corner ? SnapPosition.TopLeft
+                : pointer.X >= dragArea.X + dragArea.Width - corner ? SnapPosition.TopRight
                 : SnapPosition.Maximized;
         }
         return SnapPosition.None;

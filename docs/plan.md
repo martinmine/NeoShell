@@ -254,6 +254,8 @@ Tick items off as they land. The feature details are in [design.md](design.md).
 - [x] Fix: a widget clicked soon after the shell started could sink under the wallpaper, as if closed: it went below
       a console's sizeless window lying under the wallpaper. Such windows, and all below the wallpaper, are skipped
 - [x] Fix: a widget's settings and close buttons took clicks while hidden
+- [x] Fix: windows couldn't be dragged over the widget sidebar (Windows keeps the pointer in the work area during a
+      move); the clip is widened over it, and windows snap right at the screen's edge
 
 ## Later / not planned yet
 

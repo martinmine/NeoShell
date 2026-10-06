@@ -467,6 +467,14 @@ internal static unsafe partial class User32
     public static partial nint SetCursor(nint cursor);
 
     [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static partial bool GetClipCursor(out RECT rect);
+
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static partial bool ClipCursor(in RECT rect);
+
+    [LibraryImport("user32.dll")]
     public static partial nint CreatePopupMenu();
 
     [LibraryImport("user32.dll")]
