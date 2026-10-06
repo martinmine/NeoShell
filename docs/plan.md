@@ -229,6 +229,8 @@ Tick items off as they land. The feature details are in [design.md](design.md).
 - [x] Floating notes resize by their corner; the note's text has no box or underline
 - [x] Smoother dragging (no z-order search per move); no "Widgets" heading, the add button shows on hover
 - [x] Fix: a floating widget didn't follow its height (expanded graphs cut off, Now playing too tall)
+- [x] Fix: a clicked widget (or the whole sidebar) could sink below the wallpaper when a window was minimized, as if
+      closed; resource sampling moved off the UI thread
 - [x] Fix: the shell's work area is set off the UI thread (its broadcast waits for every window; startup hung once)
 - Not run live: Now playing with media playing (nothing plays on the VM), the weather from the computer's location
   (location is off on the VM), a second monitor

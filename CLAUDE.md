@@ -161,6 +161,11 @@ the desktop and back. Full spec in docs/design.md ("Widgets").
   - Resize a floating window through `AppWindow.Resize` as well as `PinnedWindow.Bounds`: WinUI otherwise restores the
     size it last knew. The widget sits top-aligned in a non-scrolling `ScrollViewer` so it takes its natural height.
   - A `ShellBackdrop` may serve several popups (a menu and its submenus); it shares one controller among them.
+  - `PinnedLayer.Desktop` goes just below the lowest *showing* app window: minimized windows (moved to the very
+    bottom, below the wallpaper) and cloaked ones are skipped, or a clicked widget sinks under the wallpaper and looks
+    closed. Test z-order changes with a minimized window around.
+  - Keep periodic work off the UI thread (resource sampling reads adapters and GPU engines on the thread pool): any
+    hitch shows as a stutter while a widget is dragged.
   - A card being dragged stays in the tree (lifted: no height, invisible) or it loses the pointer; cards keep their gap
     in their own margin so a lifted card leaves none.
 - **Testing live.** Every interactive control has an AutomationId (`Widget` + Name = title, `WidgetSettingsButton`,

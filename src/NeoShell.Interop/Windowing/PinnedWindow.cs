@@ -110,15 +110,20 @@ public sealed unsafe class PinnedWindow : IDisposable
     /// <summary>
     /// The lowest window that's an app's: going in just below it puts this one above the desktop (Explorer's, or
     /// NeoShell's wallpaper windows, which can't simply be gone above: each puts itself at the very bottom). NeoShell's
-    /// other desktop-level windows don't count, so the widgets don't push each other around.
+    /// other desktop-level windows don't count, so the widgets don't push each other around. Neither do windows that
+    /// don't show: a minimized window goes to the very bottom, below the wallpaper, and a cloaked one (another virtual
+    /// desktop, a suspended Store app) can be anywhere; going below one of those hid the widget under the wallpaper.
     /// </summary>
     private nint AboveDesktop()
     {
         uint ownProcess = (uint)Environment.ProcessId;
         for (nint hwnd = User32.GetWindow(_hwnd, User32.GW_HWNDLAST); hwnd != 0; hwnd = User32.GetWindow(hwnd, User32.GW_HWNDPREV))
         {
-            if (hwnd == _hwnd || !User32.IsWindowVisible(hwnd) || TopLevelWindows.IsDesktop(hwnd))
+            if (hwnd == _hwnd || !User32.IsWindowVisible(hwnd) || User32.IsIconic(hwnd)
+                || TopLevelWindows.IsCloaked(hwnd) || TopLevelWindows.IsDesktop(hwnd))
+            {
                 continue;
+            }
             // Only app windows are above: going below a topmost one would make this one topmost too.
             if ((User32.GetWindowLongPtr(hwnd, User32.GWL_EXSTYLE) & User32.WS_EX_TOPMOST) != 0)
                 return User32.HWND_TOP;

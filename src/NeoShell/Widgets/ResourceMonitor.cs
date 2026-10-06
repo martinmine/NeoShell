@@ -35,6 +35,8 @@ internal sealed class ResourceMonitor : IDisposable
     private SystemUsage? _usage;
     private Action? _sampled;
     private long _lastSample;
+    // A sample being read off the UI thread.
+    private Task? _reading;
 
     public ResourceMonitor()
     {
@@ -78,13 +80,15 @@ internal sealed class ResourceMonitor : IDisposable
     public void Dispose()
     {
         _timer.Stop();
+        // The counters can't be closed while a read is using them.
+        _reading?.Wait(TimeSpan.FromSeconds(1));
         _usage?.Dispose();
     }
 
     private void Start()
     {
         // After a long pause the graphs would join two moments far apart.
-        if (Environment.TickCount64 - _lastSample > 5000)
+        if (Environment.TickCount64 - _lastSample > 5000 && _reading is null)
         {
             _history.Clear();
             _lastBytes.Clear();
@@ -94,13 +98,27 @@ internal sealed class ResourceMonitor : IDisposable
         Sample();
     }
 
-    private void Sample()
+    private async void Sample()
     {
+        if (_reading is not null)
+            return;
+
         long now = Environment.TickCount64;
         double seconds = _lastSample == 0 ? 1 : Math.Max(0.1, (now - _lastSample) / 1000.0);
         _lastSample = now;
 
-        UsageSample usage = Latest = _usage!.Sample();
+        // Off the UI thread: reading every network adapter and GPU engine takes about 10 ms, a hitch in a drag.
+        SystemUsage reader = _usage!;
+        Task<(UsageSample, List<DriveUsage>, List<AdapterUsage>)> reading = Task.Run(() =>
+        {
+            UsageSample usage = reader.Sample();
+            return (usage, ReadDrives(usage), ReadAdapters(seconds));
+        });
+        _reading = reading;
+        (UsageSample usage, List<DriveUsage> drives, List<AdapterUsage> adapters) = await reading;
+        _reading = null;
+
+        Latest = usage;
         var sampled = new Dictionary<string, double>
         {
             [Cpu] = usage.CpuPercent,
@@ -110,11 +128,11 @@ internal sealed class ResourceMonitor : IDisposable
         if (usage.GpuPercent is { } gpu)
             sampled[Gpu] = gpu;
 
-        Drives = ReadDrives(usage);
+        Drives = drives;
         foreach (DriveUsage drive in Drives)
             sampled[DriveKey(drive.Name)] = drive.BusyPercent;
 
-        Adapters = ReadAdapters(seconds);
+        Adapters = adapters;
         foreach (AdapterUsage adapter in Adapters)
             sampled[AdapterKey(adapter.Id)] = adapter.DownloadRate + adapter.UploadRate;
         sampled[Network] = DownloadRate + UploadRate;

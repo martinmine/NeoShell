@@ -154,7 +154,7 @@ public static unsafe class TopLevelWindows
         return (int)processId;
     }
 
-    private static bool IsCloaked(nint hwnd)
+    internal static bool IsCloaked(nint hwnd)
     {
         int cloaked = 0;
         return Dwmapi.DwmGetWindowAttribute(hwnd, Dwmapi.DWMWA_CLOAKED, &cloaked, sizeof(int)) == 0 && cloaked != 0;

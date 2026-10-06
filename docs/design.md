@@ -848,7 +848,8 @@ Small widgets about the computer and its user, as Windows Vista's sidebar gadget
   floating resource widget was cut off). Its position is saved in screen pixels;
   one left on a monitor that's gone comes back at the top right of the primary one (`SidebarLayout.KeepOnScreen`).
 - Both are just above the desktop and below every app's window, even when clicked (`PinnedLayer.Desktop`: just below
-  the lowest window that isn't the desktop, hidden, topmost or another of NeoShell's desktop-level windows), stay
+  the lowest window that isn't the desktop, hidden, minimized, cloaked, topmost or another of NeoShell's desktop-level
+  windows; a minimized window sits at the very bottom, below the wallpaper, so going below it hid the widget), stay
   while peeking at the desktop (Win+Comma), are left alone by Show desktop and Win+M, and are out of Alt+Tab. They
   take the focus when clicked: notes are typed into.
 - Backdrop, theme and accent colour are the taskbar's (`TaskbarBackdrop`, `Taskbars.Updated`), on the sidebar and on
@@ -888,8 +889,8 @@ Small widgets about the computer and its user, as Windows Vista's sidebar gadget
   space of the fixed drives, network down and up (bits a second) over the adapters that are up and carry IP (each
   adapter's filter drivers are listed as adapters too, with the same counts). Its settings show each drive and each
   adapter as a row of its own. Sampled once a second by `ResourceMonitor` (PDH through `SystemUsage`, wildcard
-  counters for GPU engines and logical disks, `GlobalMemoryStatusEx`, `DriveInfo`, `NetworkInterface` statistics)
-  only while the widget is shown; it keeps the last minute of each, so moving the widget keeps its graphs. Each row
+  counters for GPU engines and logical disks, `GlobalMemoryStatusEx`, `DriveInfo`, `NetworkInterface` statistics;
+  read on the thread pool, about 10 ms a time) only while the widget is shown; it keeps the last minute of each, so moving the widget keeps its graphs. Each row
   expands to its graph (networks scaled to the minute's peak). A bar shows use and goes while the graph is open; a
   disk's bar shows its space used, as Explorer's, and stays. Colours per kind (drives take the disk's, adapters the
   network's) from Windows' accent palette.
