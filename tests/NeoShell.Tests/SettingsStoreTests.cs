@@ -38,6 +38,7 @@ public sealed class SettingsStoreTests : IDisposable
             TaskbarBackdrop = Backdrop.Translucent,
             PinnedTaskbarApps = [new PinnedApp("Notepad", AppUserModelId: "Microsoft.WindowsNotepad_8wekyb3d8bbwe!App")],
             PinnedStartApps = [new PinnedApp("Tool", Path: @"C:\Tools\tool.exe", Arguments: "--fast")],
+            DesktopIconPositions = new Dictionary<string, GridCell> { ["::{645FF040-5081-101B-9F08-00AA002F954E}"] = new(2, 3) },
             ShowWidgetSidebar = false,
             WidgetSidebarWidth = 400,
             Widgets =
@@ -51,8 +52,10 @@ public sealed class SettingsStoreTests : IDisposable
         _store.Save(settings);
         ShellSettings loaded = _store.Load();
 
-        Assert.Equal(settings with { PinnedTaskbarApps = [], PinnedStartApps = [], Widgets = [] },
-            loaded with { PinnedTaskbarApps = [], PinnedStartApps = [], Widgets = [] });
+        Assert.Equal(
+            settings with { PinnedTaskbarApps = [], PinnedStartApps = [], Widgets = [], DesktopIconPositions = ShellSettings.NoIconPositions },
+            loaded with { PinnedTaskbarApps = [], PinnedStartApps = [], Widgets = [], DesktopIconPositions = ShellSettings.NoIconPositions });
+        Assert.Equal(settings.DesktopIconPositions, loaded.DesktopIconPositions);
         Assert.Equal(settings.PinnedTaskbarApps, loaded.PinnedTaskbarApps);
         Assert.Equal(settings.PinnedStartApps, loaded.PinnedStartApps);
         Assert.Equal(settings.Widgets, loaded.Widgets);

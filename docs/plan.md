@@ -240,10 +240,12 @@ Tick items off as they land. The feature details are in [design.md](design.md).
 - [x] Desktop drag and drop with other apps, as Explorer's desktop: icons drag out to any app (WinUI's drag with the
       files as storage items), and files dragged in from other apps, or the desktop's own icons, drop on the desktop
       or on an icon that takes drops (a folder, the Recycle Bin, an app) through the shell's own drop targets
+- [x] Desktop icons move freely on a grid, as on Explorer's desktop: dragged anywhere, places remembered for every
+      icon, dropped files and New items where that happened, Auto arrange icons, Sort by packs again, arrow keys
+      across the grid; tests for the grid
 
 ## Later / not planned yet
 
 - Notifications: toast images, buttons and inline replies (not exposed to listeners); tray balloons as toasts
 
 - Jump lists: pinned entries, Pin to / Remove from this list
-- Desktop icons: moving icons to free positions

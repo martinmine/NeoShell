@@ -1,4 +1,5 @@
-﻿using System.Text.Json.Serialization;
+﻿using System.Collections.Frozen;
+using System.Text.Json.Serialization;
 
 namespace NeoShell.Settings;
 
@@ -11,6 +12,9 @@ public enum TrayMode { ShowAll, Overflow }
 public enum Backdrop { Acrylic, Mica, Translucent, Transparent }
 
 public enum DesktopSortOrder { Name, Size, ItemType, DateModified }
+
+/// <summary>A cell of the desktop's icon grid: columns from the left, rows from the top.</summary>
+public readonly record struct GridCell(int Column, int Row);
 
 public enum WidgetKind { Profile, Resources, Pictures, Media, Weather, Notes, Wireless }
 
@@ -93,12 +97,20 @@ public sealed record ShellSettings
     /// <summary>The length of a focus session, as last chosen in the calendar.</summary>
     public int FocusMinutes { get; set; } = 30;
     public DesktopSortOrder DesktopSortOrder { get; set; } = DesktopSortOrder.Name;
+    /// <summary>
+    /// Where the desktop's icons are, by parsing name, as Explorer remembers them: kept for every icon once placed, so
+    /// moving one leaves the others where they are. Emptied by Sort by; not used while icons are auto-arranged.
+    /// </summary>
+    public IReadOnlyDictionary<string, GridCell> DesktopIconPositions { get; set; } = NoIconPositions;
     public bool ShowWidgetSidebar { get; set; } = true;
     /// <summary>The sidebar's own backdrop behind its widgets; without it, only the widgets show, each on its own.</summary>
     public bool ShowWidgetPanel { get; set; } = true;
     /// <summary>The sidebar's width in effective pixels, as the user left it by dragging its edge.</summary>
     public double WidgetSidebarWidth { get; set; } = 320;
     public IReadOnlyList<WidgetSettings> Widgets { get; set; } = DefaultWidgets;
+
+    /// <summary>One shared empty instance, so default settings compare equal.</summary>
+    public static readonly IReadOnlyDictionary<string, GridCell> NoIconPositions = FrozenDictionary<string, GridCell>.Empty;
 
     /// <summary>
     /// The sidebar's widgets until the user changes them. Fixed ids: a note's text is kept by its widget's id, even

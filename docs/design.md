@@ -150,10 +150,21 @@ Shell mode only, like the wallpaper: alongside Explorer, Explorer's desktop has 
   so one menu can cover several items, even from both Desktop folders.
 - **Order** (unit tested): system icons first in Explorer's order, then folders, then files, by the Sort by choice
   (Name, Size, Item type, Date modified; `ShellSettings.DesktopSortOrder`) and then by name, numbers compared by
-  value. Icons fill columns from the top left of the primary monitor's work area; there is no free positioning.
+  value.
+- **Places** (`DesktopGrid`, unit tested): the icons sit on a grid of cells over the primary monitor's work area, as
+  Explorer's do with Align icons to grid (always on here). Icons fill columns from the top left in sort order, and
+  can be dragged anywhere on the grid; every icon's cell is then remembered (`ShellSettings.DesktopIconPositions`, by
+  parsing name; Explorer's own `IconLayouts` is undocumented), so a moved or deleted icon leaves a gap and new ones
+  fill the first gaps. A cell that's taken, or off a grid that got smaller (taskbar, icon size, resolution), sends
+  the icon to the nearest free cell. A dragged icon goes to the cell nearest to where it was under the pointer (the
+  grab point kept), the rest of the selection alongside. Files dropped on the desktop, and items made with New, go
+  to the cell where that happened, as in Explorer. Sort by packs the icons again and forgets their places; a
+  rename keeps the place. Arrow keys move the selection to the nearest icon that way, keeping to the row or column
+  where they can.
 - **View settings** live where Explorer keeps them, so they carry over when switching shells: the icon size in
-  `HKCU\Software\Microsoft\Windows\Shell\Bags\1\Desktop\IconSize` (32/48/96), "Show desktop icons" in
-  `Explorer\Advanced\HideIcons`.
+  `HKCU\Software\Microsoft\Windows\Shell\Bags\1\Desktop\IconSize` (32/48/96), "Auto arrange icons" as `FWF_AUTOARRANGE`
+  (bit 0x1) of that key's `FFlags` (icons stay packed in sort order; turning it on forgets their places), "Show
+  desktop icons" in `Explorer\Advanced\HideIcons`.
 - **Images** come from `IShellItemImageFactory` without `SIIGBF_ICONONLY`, so pictures get thumbnails, loaded off the
   UI thread at physical pixel size. Shortcuts get the stock link overlay (`SHGetStockIconInfo(SIID_LINK)`) in the
   corner, at most medium-icon size. Labels are white over a dark copy offset by a pixel, readable on any wallpaper.
@@ -161,7 +172,8 @@ Shell mode only, like the wallpaper: alongside Explorer, Explorer's desktop has 
   Recycle Bin icon shows whether it's empty), and every `WM_SETTINGCHANGE` (folder options, Desktop icon settings,
   the work area), queue a debounced refresh. A refresh enumerates off the UI thread and updates the
   `ObservableCollection` in place (remove, move, insert), so the selection and loaded images survive.
-- **View** (`DesktopIconsView`): a `GridView` (extended selection, vertical `ItemsWrapGrid`) in the primary monitor's
+- **View** (`DesktopIconsView`): a `GridView` (extended selection; `DesktopIconPanel` places each container at its
+  icon's cell) in the primary monitor's
   `WallpaperWindow`. Double-click or Enter opens; Delete, F2, F5, Ctrl+C/X/V and Alt+Enter work as in Explorer; a
   click on the empty desktop clears the selection. Dragging from the empty desktop draws a selection rectangle (accent
   coloured) and selects every icon it touches; with Ctrl held it adds to the selection.

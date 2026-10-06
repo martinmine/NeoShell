@@ -2,6 +2,7 @@ using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using Microsoft.UI.Xaml.Media;
 using NeoShell.Interop.Shell;
+using NeoShell.Settings;
 
 namespace NeoShell.Desktop;
 
@@ -63,6 +64,9 @@ internal sealed class DesktopIcon(DesktopEntry entry) : INotifyPropertyChanged
     }
 
     public double OverlaySize => Math.Min(_size, MaxOverlaySize);
+
+    /// <summary>Where the icon is on the desktop's grid; set by <see cref="DesktopIcons.Arrange"/>.</summary>
+    public GridCell Cell { get; set; }
 
     /// <summary>A drag is over the icon and would drop on it.</summary>
     public bool IsDropTarget

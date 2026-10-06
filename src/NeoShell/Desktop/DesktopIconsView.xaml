@@ -67,8 +67,8 @@
             </GridView.Resources>
             <GridView.ItemsPanel>
                 <ItemsPanelTemplate>
-                    <!-- Columns from the top left, like Explorer's desktop. -->
-                    <ItemsWrapGrid Orientation="Vertical" />
+                    <!-- Each icon at its cell: columns from the top left, like Explorer's desktop, or where it was put. -->
+                    <local:DesktopIconPanel />
                 </ItemsPanelTemplate>
             </GridView.ItemsPanel>
             <GridView.ItemContainerStyle>
