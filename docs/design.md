@@ -378,6 +378,10 @@ Shell mode only, like the wallpaper: alongside Explorer, Explorer's desktop has 
   that width so it never covers the clock.
 - Activation uses `SetForegroundWindow` (allowed: the user's click on the taskbar was the last input); minimized
   windows are restored with `ShowWindow(SW_RESTORE)`. Clicking the active window's button minimizes it.
+  A window of an app running as administrator refuses `ShowWindow`/`ShowWindowAsync` from NeoShell (UIPI: access
+  denied, NeoShell runs at medium integrity, as Explorer does), so a minimized one could never be brought back;
+  `TopLevelWindows` then posts the system menu's command (`WM_SYSCOMMAND` with `SC_RESTORE`, `SC_MINIMIZE` or
+  `SC_MAXIMIZE`), which gets through. This covers the taskbar, previews, Show desktop, Alt+Tab and snapping.
 
 ### Pinned apps
 

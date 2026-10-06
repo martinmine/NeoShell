@@ -79,7 +79,7 @@ public static unsafe class TopLevelWindows
     public static void Place(nint hwnd, RectInt32 bounds)
     {
         if (User32.IsZoomed(hwnd) || User32.IsIconic(hwnd))
-            User32.ShowWindow(hwnd, User32.SW_RESTORE);
+            Show(hwnd, User32.SW_RESTORE, User32.SC_RESTORE, wait: true);
 
         // The invisible borders stay outside the bounds, as wide as they are now.
         RectInt32 outer = GetBounds(hwnd);
@@ -97,10 +97,10 @@ public static unsafe class TopLevelWindows
         User32.SetWindowPos(hwnd, 0, bounds.X, bounds.Y, bounds.Width, bounds.Height, User32.SWP_NOZORDER | User32.SWP_NOACTIVATE);
 
     /// <summary>Maximizes the window, before returning.</summary>
-    public static void Maximize(nint hwnd) => User32.ShowWindow(hwnd, User32.SW_MAXIMIZE);
+    public static void Maximize(nint hwnd) => Show(hwnd, User32.SW_MAXIMIZE, User32.SC_MAXIMIZE, wait: true);
 
     /// <summary>Restores a maximized or minimized window, before returning.</summary>
-    public static void RestoreNow(nint hwnd) => User32.ShowWindow(hwnd, User32.SW_RESTORE);
+    public static void RestoreNow(nint hwnd) => Show(hwnd, User32.SW_RESTORE, User32.SC_RESTORE, wait: true);
 
     /// <summary>The monitor the window is mostly on (compare with <see cref="DisplayMonitor.Handle"/>), or 0.</summary>
     public static nint MonitorOf(nint hwnd) => User32.MonitorFromWindow(hwnd, User32.MONITOR_DEFAULTTONULL);
@@ -126,7 +126,7 @@ public static unsafe class TopLevelWindows
     public static void Activate(nint hwnd)
     {
         if (User32.IsIconic(hwnd))
-            User32.ShowWindowAsync(hwnd, User32.SW_RESTORE);
+            Show(hwnd, User32.SW_RESTORE, User32.SC_RESTORE);
         User32.SetForegroundWindow(hwnd);
     }
 
@@ -146,7 +146,7 @@ public static unsafe class TopLevelWindows
     }
 
     /// <summary>Minimizes and activates the next window, as clicking the active window's taskbar button does.</summary>
-    public static void MinimizeAndActivateNext(nint hwnd) => User32.ShowWindowAsync(hwnd, User32.SW_MINIMIZE);
+    public static void MinimizeAndActivateNext(nint hwnd) => Show(hwnd, User32.SW_MINIMIZE, User32.SC_MINIMIZE);
 
     /// <summary>
     /// Tells the window a button of its thumbnail toolbar was clicked, as Explorer does: <c>WM_COMMAND</c> with
@@ -162,11 +162,26 @@ public static unsafe class TopLevelWindows
     public static void Close(nint hwnd) => User32.PostMessage(hwnd, User32.WM_SYSCOMMAND, User32.SC_CLOSE, 0);
 
     /// <summary>Minimizes without activating the next window, so nothing flickers to the front.</summary>
-    public static void Minimize(nint hwnd) => User32.ShowWindowAsync(hwnd, User32.SW_SHOWMINNOACTIVE);
+    public static void Minimize(nint hwnd) => Show(hwnd, User32.SW_SHOWMINNOACTIVE, User32.SC_MINIMIZE);
 
     /// <param name="activate">False restores it without activating it: the window in front stays in front.</param>
     public static void Restore(nint hwnd, bool activate = true) =>
-        User32.ShowWindowAsync(hwnd, activate ? User32.SW_RESTORE : User32.SW_SHOWNOACTIVATE);
+        Show(hwnd, activate ? User32.SW_RESTORE : User32.SW_SHOWNOACTIVATE, User32.SC_RESTORE);
+
+    /// <summary>
+    /// Minimizes, restores or maximizes a window. Windows refuses that for a window of an app running as administrator
+    /// (UIPI: NeoShell runs at a lower integrity level), so it gets the system menu's command instead, which passes, as
+    /// if the user chose it there (a minimized one then activates the next window, a restored one itself). Without it,
+    /// an elevated window minimized couldn't be brought back from the taskbar.
+    /// </summary>
+    /// <param name="wait">Done before returning, not queued for the window's thread (the command is queued either way).</param>
+    private static void Show(nint hwnd, int show, nint systemCommand, bool wait = false)
+    {
+        const int ERROR_ACCESS_DENIED = 5;
+        bool done = wait ? User32.ShowWindow(hwnd, show) : User32.ShowWindowAsync(hwnd, show);
+        if (!done && Marshal.GetLastPInvokeError() == ERROR_ACCESS_DENIED)
+            User32.PostMessage(hwnd, User32.WM_SYSCOMMAND, systemCommand, 0);
+    }
 
     public static int GetProcessId(nint hwnd)
     {

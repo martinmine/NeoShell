@@ -256,6 +256,8 @@ Tick items off as they land. The feature details are in [design.md](design.md).
 - [x] Fix: a widget's settings and close buttons took clicks while hidden
 - [x] Fix: windows couldn't be dragged over the widget sidebar (Windows keeps the pointer in the work area during a
       move); the clip is widened over it, and windows snap right at the screen's edge
+- [x] Fix: a minimized window of an app running as administrator (an elevated Terminal) couldn't be brought back from
+      the taskbar, nor minimized: Windows refuses NeoShell's ShowWindow; the system menu's commands get through
 - [x] Widgets moved between the sidebar and the desktop stay as they were instead of showing empty and filling in: the
       new view is covered with a picture of the old one until it's ready; dropped on the sidebar, a widget takes its
       place at once (no slide), and the pictures widget keeps its picture

@@ -56,7 +56,10 @@ internal static unsafe partial class User32
     public const uint WM_GETICON = 0x007F;
     public const uint WM_COMMAND = 0x0111;
     public const uint WM_SYSCOMMAND = 0x0112;
+    public const nint SC_MINIMIZE = 0xF020;
+    public const nint SC_MAXIMIZE = 0xF030;
     public const nint SC_CLOSE = 0xF060;
+    public const nint SC_RESTORE = 0xF120;
     public const nint ICON_SMALL = 0;
     public const nint ICON_BIG = 1;
     public const nint ICON_SMALL2 = 2;
@@ -306,11 +309,11 @@ internal static unsafe partial class User32
     [return: MarshalAs(UnmanagedType.Bool)]
     public static partial bool IsZoomed(nint hwnd);
 
-    [LibraryImport("user32.dll")]
+    [LibraryImport("user32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     public static partial bool ShowWindowAsync(nint hwnd, int command);
 
-    [LibraryImport("user32.dll")]
+    [LibraryImport("user32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     public static partial bool ShowWindow(nint hwnd, int command);
 
