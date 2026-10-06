@@ -55,8 +55,11 @@ internal sealed partial class TaskbarWindow : Window
     private readonly List<(UIElement Container, string Property, long Started)> _layoutAnimations = [];
     private static readonly TimeSpan s_layoutAnimationDuration = TimeSpan.FromMilliseconds(250);
     // Measured on Explorer: open previews move to another button ~200 ms after the pointer enters it, moving or not.
+    // NeoShell keeps that pause only for a pointer heading up to the previews; along the taskbar they follow at once.
     private static readonly TimeSpan s_previewDelay = TimeSpan.FromMilliseconds(500);
     private static readonly TimeSpan s_previewSwitchDelay = TimeSpan.FromMilliseconds(200);
+    // Where the pointer was over the taskbar lately (Root's coordinates, Environment.TickCount64), for its direction.
+    private readonly Queue<(Point Position, long Time)> _pointerTrail = new();
     private bool _suppressClick;
     // A right-clicked button shows no previews until the pointer has left it, and none show while its menu is open:
     // a hover that began before the click would otherwise open them over the menu.
@@ -168,6 +171,8 @@ internal sealed partial class TaskbarWindow : Window
         // A click anywhere else on the taskbar closes Start, as in Windows; the Start button toggles it itself.
         Root.AddHandler(UIElement.PointerPressedEvent, new PointerEventHandler(Root_PointerPressed), handledEventsToo: true);
         Root.PointerMoved += Root_PointerMoved;
+        // Handled events too: the task buttons handle their own.
+        Root.AddHandler(UIElement.PointerMovedEvent, new PointerEventHandler(RecordPointer), handledEventsToo: true);
         Root.AddHandler(UIElement.PointerReleasedEvent, new PointerEventHandler(Root_PointerReleased), handledEventsToo: true);
         Root.PointerExited += (_, _) => SetStartZoneHover(false);
         Root.PointerCaptureLost += (_, _) => EndStartZonePress();
@@ -178,11 +183,7 @@ internal sealed partial class TaskbarWindow : Window
         _thumbnails.Root.PointerEntered += (_, _) => _hideTimer!.Stop();
         _thumbnails.Root.PointerExited += (_, _) => _hideTimer!.Start();
         DispatcherQueue dispatcher = DispatcherQueue.GetForCurrentThread();
-        _hoverTimer = CreateTimer(dispatcher, s_previewDelay, () =>
-        {
-            if (_hovered is { } hovered && hovered.Button.Windows.Count > 0 && CanPreview(hovered.Button))
-                ShowThumbnails(hovered.Button, hovered.Element);
-        });
+        _hoverTimer = CreateTimer(dispatcher, s_previewDelay, ShowHoveredThumbnails);
         _hideTimer = CreateTimer(dispatcher, TimeSpan.FromMilliseconds(400), _thumbnails.Hide);
 
         _slideTimer = CreateTimer(dispatcher, TimeSpan.FromMilliseconds(16), SlideStep);
@@ -1058,10 +1059,37 @@ internal sealed partial class TaskbarWindow : Window
         _hideTimer.Stop();
         if (!CanPreview(button) || _thumbnails.Button == button)
             return;
-        // Once previews are open, they follow the pointer along the taskbar after a short pause, as in Explorer:
-        // crossing a neighbour on the way up to the previews doesn't switch them.
-        _hoverTimer.Interval = _thumbnails.Button is null ? s_previewDelay : s_previewSwitchDelay;
-        _hoverTimer.Start();
+        if (_thumbnails.Button is null)
+        {
+            _hoverTimer.Interval = s_previewDelay;
+            _hoverTimer.Start();
+        }
+        // Once previews are open, they follow the pointer along the taskbar straight away. Heading up to them, a
+        // neighbour crossed on the way only takes them over after a pause, as in Explorer.
+        else if (_pointerTrail.TryPeek(out var from) && TaskbarLayout.IsHeadingUp(from.Position, e.GetCurrentPoint(Root).Position))
+        {
+            _hoverTimer.Interval = s_previewSwitchDelay;
+            _hoverTimer.Start();
+        }
+        else
+        {
+            ShowHoveredThumbnails();
+        }
+    }
+
+    private void ShowHoveredThumbnails()
+    {
+        if (_hovered is { } hovered && hovered.Button.Windows.Count > 0 && CanPreview(hovered.Button))
+            ShowThumbnails(hovered.Button, hovered.Element);
+    }
+
+    /// <summary>Keeps the last tenth of a second or so of the pointer's way over the taskbar.</summary>
+    private void RecordPointer(object sender, PointerRoutedEventArgs e)
+    {
+        long now = Environment.TickCount64;
+        _pointerTrail.Enqueue((e.GetCurrentPoint(Root).Position, now));
+        while (now - _pointerTrail.Peek().Time > 150)
+            _pointerTrail.Dequeue();
     }
 
     private void TaskItem_PointerExited(object sender, PointerRoutedEventArgs e)

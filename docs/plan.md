@@ -243,6 +243,8 @@ Tick items off as they land. The feature details are in [design.md](design.md).
 - [x] Desktop icons move freely on a grid, as on Explorer's desktop: dragged anywhere, places remembered for every
       icon, dropped files and New items where that happened, Auto arrange icons, Sort by packs again, arrow keys
       across the grid; tests for the grid
+- [x] Open previews follow the pointer along the taskbar at once; the 200 ms pause is only for a pointer heading up
+      to them across a neighbouring button (tested)
 
 ## Later / not planned yet
 

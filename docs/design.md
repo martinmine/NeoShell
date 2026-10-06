@@ -424,7 +424,9 @@ have their icons (loaded in the background) and open on click.
 - Hovering a button (500 ms) opens a popup with one live DWM thumbnail per window (`DwmRegisterThumbnail` on the
   popup's HWND, `DwmUpdateThumbnailProperties` to place each one over a XAML placeholder), title and close button.
   It closes 400 ms after the pointer leaves both the button and the popup; once open, it follows the pointer along
-  the taskbar.
+  the taskbar straight away. Only a pointer heading up off the taskbar (steeper than ~27°, over its last 150 ms,
+  `TaskbarLayout.IsHeadingUp`, tested) takes 200 ms to move it to a button it enters, so a neighbour crossed on the
+  way up to the previews doesn't take them over (Explorer pauses 200 ms on every button).
 - The popup slides up out of the taskbar (200 ms) and back into it on closing, and slides sideways to the next button
   (`WindowSlide`, as Start): it's the window that moves, since DWM draws the thumbnails into the window. It sits
   just below the taskbar in the topmost band (`PinnedWindow.SetLayer(Topmost, above)`), so the taskbar covers it.
