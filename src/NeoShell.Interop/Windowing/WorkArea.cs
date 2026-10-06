@@ -8,8 +8,9 @@ namespace NeoShell.Interop.Windowing;
 public static unsafe class WorkArea
 {
     /// <summary>
-    /// Sets the work area (where windows maximize) of the monitor that contains <paramref name="area"/>. As the shell
-    /// NeoShell does this itself; alongside Explorer, <see cref="AppBar"/> asks Explorer to.
+    /// Sets the work area (where windows maximize) of the monitor that contains <paramref name="area"/>, and fits the
+    /// maximized windows there to it, as Explorer does. As the shell NeoShell does this itself; alongside Explorer,
+    /// <see cref="AppBar"/> asks Explorer to.
     /// </summary>
     /// <param name="waitForWindows">
     /// Returns once every window has been told. Never on the UI thread: apps that answer by calling the shell
@@ -19,7 +20,9 @@ public static unsafe class WorkArea
     public static void Set(RectInt32 area, bool waitForWindows)
     {
         User32.RECT rect = User32.RECT.From(area);
-        if (!User32.SystemParametersInfo(User32.SPI_SETWORKAREA, 0, &rect, waitForWindows ? User32.SPIF_SENDCHANGE : 0))
+        // A nonzero uiParam (undocumented; Explorer passes TRUE) makes Windows maximize the maximized windows again
+        // for the new work area: elevated ones too, hung ones once they answer, cloaked ones once they show.
+        if (!User32.SystemParametersInfo(User32.SPI_SETWORKAREA, 1, &rect, waitForWindows ? User32.SPIF_SENDCHANGE : 0))
             throw new Win32Exception(Marshal.GetLastPInvokeError());
         if (!waitForWindows)
             User32.SendNotifyMessage(User32.HWND_BROADCAST, WindowMessages.SettingChange, (nint)User32.SPI_SETWORKAREA, 0);

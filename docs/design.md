@@ -245,10 +245,29 @@ Shell mode only, like the wallpaper: alongside Explorer, Explorer's desktop has 
     what the taskbar, the widget sidebar and other apps' app bars (see "App bars" under System tray) reserve per
     monitor, and sets each change from the thread pool, one at a time, each going out with the latest reservation:
     `SPIF_SENDCHANGE` waits for every window, and apps that answer by calling the shell (re-adding tray icons) would
-    wait for the UI thread in turn (startup hung that way). App bars' changes go out at once, without waiting, as
-    Explorer sets them (a bar may read the work area right after `ABM_SETPOS`). `ShellWorkArea.Changed` tells the
-    sidebar and the app bars of each change. Windows doesn't resize maximized windows for a new work area; NeoShell
-    doesn't either (yet).
+    wait for the UI thread in turn (startup hung that way). What's reserved during one turn of the UI thread goes out
+    as one change, after it, and only when the area differs from the last one sent (Explorer defers its changes the
+    same way, `DeferWorkAreaChangesGuard`): a taskbar made again (alignment, search button, auto-hide) gives its strip
+    back and takes it again, which would otherwise make maximized windows grow under it and shrink back. App bars'
+    changes go out at once, without waiting, as Explorer sets them (a bar may read the work area right after
+    `ABM_SETPOS`). `ShellWorkArea.Changed` tells the sidebar and the app bars of each change.
+  - **Maximized windows follow the work area** (`WorkArea.Set`). Explorer doesn't move them itself: cdb on
+    explorer 26200 showed no `SetWindowPos`/`ShowWindow`/`SetWindowPlacement` from it; `CTray::RecomputeAllWorkareas`
+    → `MonitorEnumProc` → `CTray::SetWorkArea` calls `SystemParametersInfoW(SPI_SETWORKAREA, uiParam = TRUE, rect,
+    0)` and then, unless it's starting up, `SendNotifyMessage(HWND_BROADCAST, WM_SETTINGCHANGE, SPI_SETWORKAREA, 0)`.
+    The nonzero `uiParam` (undocumented) has win32k maximize every maximized window again for the new work area
+    (each gets `WM_GETMINMAXINFO` and `WM_WINDOWPOSCHANGING` with `SWP_STATECHANGED` (0x8000) |
+    `SWP_FRAMECHANGED` | `SWP_NOZORDER` | `SWP_NOACTIVATE`, then `WM_SETTINGCHANGE`); with 0, from any process and
+    whatever the flags, nothing moves. NeoShell passes 1 too, so every source (taskbar, auto-hide, sidebar shown,
+    hidden or resized, app bars, NeoShell starting and exiting) behaves as Explorer's. Measured on the VM under both
+    shells, the same: elevated windows (Task Manager) follow, about 0.1 s after the others (UIPI doesn't apply in
+    the kernel); a hung window follows once it answers, without holding up the caller; a cloaked one
+    (`DWMWA_CLOAK`, as on another virtual desktop) is skipped and fitted when it's uncloaked; a minimized one keeps
+    its maximized state and maximizes to the new area when restored; a borderless window maximized to the whole
+    monitor (full screen) stays so; conhost and WinForms windows the same. Other monitors weren't tried (one monitor).
+    The order: Explorer's auto-hide slides the taskbar away (about 270 ms) and then sets the work area, so windows
+    grow once it's gone; turned off, the taskbar slides in over the windows and they shrink as it lands. An app bar's
+    `ABM_SETPOS` returns after the windows were resized (about 140 ms with five maximized windows).
 - Rect calculation (unit tested) from monitor bounds and DPI.
 - Recreated on `WM_DISPLAYCHANGE`, on `WM_DPICHANGED` to a DPI other than the monitor's, and on settings changes.
 - Full-screen apps: while the foreground window covers its monitor (or the app marked it with

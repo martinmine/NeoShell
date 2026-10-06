@@ -177,8 +177,10 @@ internal sealed class Sidebar : IDisposable
 
         foreach (WidgetFrame frame in _window.Frames)
             frame.Widget.Close();
-        _window.Shut();
+        // Forgotten first: giving its space back raises ShellWorkArea.Changed, which would place it (and take it) again.
+        SidebarWindow window = _window;
         _window = null;
+        window.Shut();
     }
 
     private WidgetFrame CreateFrame(WidgetSettings widget, bool floating)
