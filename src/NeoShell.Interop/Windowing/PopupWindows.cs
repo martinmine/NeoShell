@@ -17,6 +17,8 @@ public static unsafe class PopupWindows
     private static readonly Dictionary<nint, WindowSubclass> s_concealed = [];
     // Where concealed popups are partly shown (sliding), held there against WinUI's moves until shown in full.
     private static readonly Dictionary<nint, int> s_held = [];
+    // Where concealed popups' left edges are held against WinUI's moves until they're hidden.
+    private static readonly Dictionary<nint, int> s_heldLeft = [];
     // Set while Place moves a popup: an offset only applies to the moves WinUI makes.
     private static bool s_placing;
 
@@ -109,6 +111,7 @@ public static unsafe class PopupWindows
     {
         Cloak(popup, true);
         s_held.Remove(popup);
+        s_heldLeft.Remove(popup);
         foreach (nint gone in s_concealed.Keys.Where(w => !Exists(w)).ToList())
             s_concealed.Remove(gone);
         if (s_concealed.ContainsKey(popup))
@@ -121,13 +124,42 @@ public static unsafe class PopupWindows
                 return null;
             if ((position->flags & User32.SWP_SHOWWINDOW) != 0)
                 Cloak(popup, true);
-            // Closed while sliding: the next opening is placed by WinUI afresh.
+            // Closed: the next opening is placed by WinUI afresh.
             if ((position->flags & User32.SWP_HIDEWINDOW) != 0)
+            {
                 s_held.Remove(popup);
-            if (!s_placing && (position->flags & User32.SWP_NOMOVE) == 0 && s_held.TryGetValue(popup, out int y))
-                position->y = y;
+                s_heldLeft.Remove(popup);
+            }
+            if (!s_placing && (position->flags & User32.SWP_NOMOVE) == 0)
+            {
+                if (s_held.TryGetValue(popup, out int y))
+                    position->y = y;
+                if (s_heldLeft.TryGetValue(popup, out int x))
+                    position->x = x;
+            }
             return null;
         });
+    }
+
+    /// <summary>
+    /// Moves a concealed popup's left edge to <paramref name="x"/> (screen pixels) and keeps it there against WinUI's
+    /// moves until it's hidden: WinUI keeps popups inside the monitor's work area, which leaves out the widget sidebar.
+    /// </summary>
+    public static void HoldLeft(nint popup, int x)
+    {
+        if (!s_concealed.ContainsKey(popup) || !User32.GetWindowRect(popup, out User32.RECT rect))
+            return;
+
+        s_heldLeft[popup] = x;
+        s_placing = true;
+        try
+        {
+            User32.SetWindowPos(popup, 0, x, rect.top, 0, 0, User32.SWP_NOSIZE | User32.SWP_NOZORDER | User32.SWP_NOACTIVATE);
+        }
+        finally
+        {
+            s_placing = false;
+        }
     }
 
     private static void Cloak(nint popup, bool cloak)
