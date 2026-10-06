@@ -10,8 +10,10 @@ using NeoShell.Interop.Shell;
 using NeoShell.Interop.Windowing;
 using NeoShell.Logging;
 using NeoShell.Settings;
+using Windows.ApplicationModel.DataTransfer;
 using Windows.Foundation;
 using Windows.Graphics;
+using Windows.Storage;
 using Windows.System;
 using Windows.UI.Core;
 using DispatcherQueuePriority = Microsoft.UI.Dispatching.DispatcherQueuePriority;
@@ -59,6 +61,8 @@ internal sealed partial class DesktopIconsView : UserControl
     private readonly DisplayMonitor _monitor;
     private MarqueeDrag? _marquee;
     private bool _dragged;
+    private IconPress? _press;
+    private DesktopDragDrop? _dragDrop;
 
     /// <param name="hwnd">The wallpaper window: owner of the shell's menus and dialogs.</param>
     public DesktopIconsView(DesktopIcons icons, nint hwnd, DisplayMonitor monitor)
@@ -75,8 +79,14 @@ internal sealed partial class DesktopIconsView : UserControl
             icons.Scale = XamlRoot.RasterizationScale;
             Apply();
             _ = icons.RefreshAsync();
+            StartDragDrop();
         };
-        Unloaded += (_, _) => icons.Refreshed -= Apply;
+        Unloaded += (_, _) =>
+        {
+            icons.Refreshed -= Apply;
+            _dragDrop?.Dispose();
+            _dragDrop = null;
+        };
         // Handled events too: the grid's scroll viewer takes presses on the empty space between and around icons.
         Root.AddHandler(PointerPressedEvent, new PointerEventHandler(Root_PointerPressed), handledEventsToo: true);
         Root.AddHandler(PointerMovedEvent, new PointerEventHandler(Root_PointerMoved), handledEventsToo: true);
@@ -120,12 +130,21 @@ internal sealed partial class DesktopIconsView : UserControl
             IconGrid.SelectedItems.Clear();
     }
 
-    /// <summary>A press on the empty desktop starts a selection rectangle; with Ctrl it adds to the selection.</summary>
+    /// <summary>
+    /// A press on an icon may start dragging it (and the rest of the selection); a press on the empty desktop starts
+    /// a selection rectangle, which adds to the selection with Ctrl held.
+    /// </summary>
     private void Root_PointerPressed(object sender, PointerRoutedEventArgs e)
     {
         PointerPoint point = e.GetCurrentPoint(Root);
-        if (!point.Properties.IsLeftButtonPressed || IconAt(e.OriginalSource) is not null || IsOnScrollBar(e.OriginalSource))
+        _press = null;
+        if (!point.Properties.IsLeftButtonPressed || IsOnScrollBar(e.OriginalSource))
             return;
+        if (IconAt(e.OriginalSource) is { } icon)
+        {
+            _press = new IconPress(e.Pointer.PointerId, point.Position, icon);
+            return;
+        }
 
         _dragged = false;
         HashSet<DesktopIcon> kept = IsDown(VirtualKey.Control) ? [.. IconGrid.SelectedItems.Cast<DesktopIcon>()] : [];
@@ -135,13 +154,17 @@ internal sealed partial class DesktopIconsView : UserControl
 
     private void Root_PointerMoved(object sender, PointerRoutedEventArgs e)
     {
+        Point position = e.GetCurrentPoint(Root).Position;
+        if (_press is { } press && e.Pointer.PointerId == press.PointerId && IsDrag(press.Start, position))
+        {
+            _press = null;
+            BeginDrag(press.Icon, e);
+            return;
+        }
+
         if (_marquee is not { } marquee || e.Pointer.PointerId != marquee.PointerId)
             return;
-
-        // A small wobble while clicking isn't a drag.
-        const double threshold = 4;
-        Point position = e.GetCurrentPoint(Root).Position;
-        if (!_dragged && Math.Abs(position.X - marquee.Start.X) < threshold && Math.Abs(position.Y - marquee.Start.Y) < threshold)
+        if (!_dragged && !IsDrag(marquee.Start, position))
             return;
 
         _dragged = true;
@@ -167,6 +190,7 @@ internal sealed partial class DesktopIconsView : UserControl
 
     private void Root_PointerReleased(object sender, PointerRoutedEventArgs e)
     {
+        _press = null;
         if (_marquee is not { } marquee || e.Pointer.PointerId != marquee.PointerId)
             return;
 
@@ -198,7 +222,185 @@ internal sealed partial class DesktopIconsView : UserControl
         return false;
     }
 
+    /// <summary>A small wobble while clicking isn't a drag.</summary>
+    private static bool IsDrag(Point start, Point position)
+    {
+        const double threshold = 4;
+        return Math.Abs(position.X - start.X) >= threshold || Math.Abs(position.Y - start.Y) >= threshold;
+    }
+
     private sealed record MarqueeDrag(uint PointerId, Point Start, HashSet<DesktopIcon> Kept);
+
+    private sealed record IconPress(uint PointerId, Point Start, DesktopIcon Icon);
+
+    /// <summary>
+    /// Lets files be dragged in from other apps onto the desktop and its icons; the shell handles the drop, as on
+    /// Explorer's desktop. Native OLE drag and drop rather than WinUI's: the shell needs the drag's own data object.
+    /// </summary>
+    private void StartDragDrop()
+    {
+        if (_dragDrop is not null)
+            return;
+        try
+        {
+            _dragDrop = new DesktopDragDrop(_hwnd, (x, y) => IconAtScreen(x, y)?.Item);
+            _dragDrop.TargetChanged += item =>
+            {
+                foreach (DesktopIcon icon in _icons.Icons)
+                    icon.IsDropTarget = item is not null && icon.Item.ParsingName == item.ParsingName;
+            };
+            _dragDrop.ItemsDropped += (_, _) => _icons.QueueRefresh();
+        }
+        catch (Exception ex)
+        {
+            Log.Error("Could not take drops on the desktop", ex);
+        }
+    }
+
+    /// <summary>
+    /// Drags the icon, with the rest of the selection if it's selected, out to wherever it's let go: another app, an
+    /// Explorer window, a folder on the desktop. A drag of an icon that isn't selected selects it first, as in Explorer.
+    /// WinUI's drag, with the files as storage items: OLE's own drag loop gets no mouse input in a WinUI app, which
+    /// takes the mouse's input as pointer messages. System folders (This PC, the Recycle Bin) only move on the desktop.
+    /// </summary>
+    private async void BeginDrag(DesktopIcon icon, PointerRoutedEventArgs e)
+    {
+        if (IconGrid.ContainerFromItem(icon) is not UIElement container)
+            return;
+
+        if (!IconGrid.SelectedItems.Contains(icon))
+        {
+            IconGrid.SelectedItems.Clear();
+            IconGrid.SelectedItems.Add(icon);
+        }
+        IReadOnlyList<DesktopItem> items = Selection;
+
+        TypedEventHandler<UIElement, DragStartingEventArgs> starting = async (_, args) =>
+        {
+            DragOperationDeferral deferral = args.GetDeferral();
+            try
+            {
+                args.AllowedOperations = DataPackageOperation.Copy | DataPackageOperation.Move | DataPackageOperation.Link;
+                // System folders have none, and drag only within the desktop.
+                if (await StorageItemsAsync(items) is { Count: > 0 } storageItems)
+                    args.Data.SetStorageItems(storageItems);
+            }
+            catch (Exception ex)
+            {
+                // An async event handler: anything thrown here would end the app.
+                Log.Error("Could not start dragging the desktop's items", ex);
+                args.Cancel = true;
+            }
+            finally
+            {
+                deferral.Complete();
+            }
+        };
+        container.DragStarting += starting;
+        _dragDrop?.BeginOwnDrag(items);
+        try
+        {
+            await container.StartDragAsync(e.GetCurrentPoint(container));
+        }
+        catch (OperationCanceledException)
+        {
+            // WinUI didn't start the drag; an exception here would end the app (async void).
+        }
+        finally
+        {
+            container.DragStarting -= starting;
+            _dragDrop?.EndOwnDrag();
+            IconGrid.Focus(FocusState.Pointer);
+        }
+    }
+
+    // The desktop's own icons dragged over the desktop: WinUI's drag reaches only WinUI's drop events in its own
+    // process, so they're passed on to the shell's targets here. Drags from other apps go to the OLE target instead.
+
+    private void Root_DragOver(object sender, DragEventArgs e)
+    {
+        if (_dragDrop?.OwnItems is null)
+            return;
+        (int x, int y) = ToScreen(e.GetPosition(Root));
+        e.AcceptedOperation = Operation(_dragDrop.OwnDragOver(x, y));
+    }
+
+    private void Root_DragLeave(object sender, DragEventArgs e) => _dragDrop?.OwnDragLeave();
+
+    private void Root_Drop(object sender, DragEventArgs e)
+    {
+        if (_dragDrop?.OwnItems is null)
+            return;
+        (int x, int y) = ToScreen(e.GetPosition(Root));
+        e.AcceptedOperation = Operation(_dragDrop.OwnDrop(x, y));
+    }
+
+    private static DataPackageOperation Operation(DropEffect effect) =>
+        effect.HasFlag(DropEffect.Move) ? DataPackageOperation.Move
+        : effect.HasFlag(DropEffect.Copy) ? DataPackageOperation.Copy
+        : effect.HasFlag(DropEffect.Link) ? DataPackageOperation.Link
+        : DataPackageOperation.None;
+
+    /// <summary>
+    /// The items' files and folders as storage items. The storage API won't open anything in a hidden folder, such as
+    /// the shortcuts on the public Desktop: those go as copies (all a user can do with them in Explorer too), made in
+    /// a folder of NeoShell's own. A streamed file in their place hangs WinUI when it's added to the drag.
+    /// </summary>
+    private static async Task<IReadOnlyList<IStorageItem>> StorageItemsAsync(IReadOnlyList<DesktopItem> items)
+    {
+        var result = new List<IStorageItem>();
+        string? copies = null;
+        foreach (string path in items.Select(item => item.Path).OfType<string>())
+        {
+            try
+            {
+                if (Directory.Exists(path))
+                {
+                    result.Add(await StorageFolder.GetFolderFromPathAsync(path));
+                    continue;
+                }
+                try
+                {
+                    result.Add(await StorageFile.GetFileFromPathAsync(path));
+                }
+                catch (UnauthorizedAccessException)
+                {
+                    copies ??= NewDragCopiesFolder();
+                    string copy = Path.Combine(copies, Path.GetFileName(path));
+                    await Task.Run(() => File.Copy(path, copy));
+                    result.Add(await StorageFile.GetFileFromPathAsync(copy));
+                }
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                Log.Warn($"Can't drag {path}: {ex.Message}");
+            }
+        }
+        return result;
+    }
+
+    /// <summary>An empty folder for copies of dragged files; the last drag's copies are deleted.</summary>
+    private static string NewDragCopiesFolder()
+    {
+        string folder = Path.Combine(Path.GetTempPath(), "NeoShell", "Dragged");
+        if (Directory.Exists(folder))
+            Directory.Delete(folder, recursive: true);
+        Directory.CreateDirectory(folder);
+        return folder;
+    }
+
+    /// <summary>The icon at a point on the screen (physical pixels).</summary>
+    private DesktopIcon? IconAtScreen(int x, int y)
+    {
+        if (XamlRoot is null)
+            return null;
+        double scale = XamlRoot.RasterizationScale;
+        var point = new Point((x - _monitor.Bounds.X) / scale, (y - _monitor.Bounds.Y) / scale);
+        return VisualTreeHelper.FindElementsInHostCoordinates(point, IconGrid)
+            .OfType<GridViewItem>()
+            .Select(container => container.Content as DesktopIcon)
+            .FirstOrDefault(icon => icon is not null);
+    }
 
     private void IconGrid_DoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
     {
@@ -568,7 +770,7 @@ internal sealed partial class DesktopIconsView : UserControl
     /// </summary>
     private void AfterMenuCloses(Action action) => DispatcherQueue.Post(DispatcherQueuePriority.Low, action);
 
-    /// <summary>A point on this view in screen coordinates (physical pixels), for the shell's own menus.</summary>
+    /// <summary>A point on this view in screen coordinates (physical pixels), for the shell's menus and drop targets.</summary>
     private (int X, int Y) ToScreen(Point point)
     {
         double scale = XamlRoot.RasterizationScale;

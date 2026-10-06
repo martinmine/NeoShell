@@ -165,6 +165,25 @@ Shell mode only, like the wallpaper: alongside Explorer, Explorer's desktop has 
   `WallpaperWindow`. Double-click or Enter opens; Delete, F2, F5, Ctrl+C/X/V and Alt+Enter work as in Explorer; a
   click on the empty desktop clears the selection. Dragging from the empty desktop draws a selection rectangle (accent
   coloured) and selects every icon it touches; with Ctrl held it adds to the selection.
+- **Drag and drop** as on Explorer's desktop (`DesktopDragDrop`, Interop). Whatever is dropped on an icon that takes
+  drops (`SFGAO_DROPTARGET`: a folder, the Recycle Bin, an app) or on the desktop itself goes to the shell's own
+  `IDropTarget` for it (`GetUIObjectOf` for an icon, `CreateViewObject` for the desktop: the Desktop folder), so
+  moving, copying and linking by the keys held, confirmations and progress are Explorer's. The icon under a drag is
+  highlighted.
+  - From other apps: a native OLE drop target, registered on WinUI's content window
+    (`Microsoft.UI.Content.DesktopChildSiteBridge`) — OLE looks only at the window under the pointer, so one on the
+    top-level window is never asked. The shell's targets need the drag's own data object, which WinUI's drop events
+    don't give. `IDropTargetHelper` draws the source's drag image over the desktop.
+  - Out to other apps: WinUI's drag (`StartDragAsync` on the icon's container, the files and folders as storage
+    items, copy, move and link allowed), once the pointer has moved 4 epx with the button down on an icon; an icon
+    that isn't selected is selected first. OLE's own drag loop (`SHDoDragDrop`) can't be used: WinUI turns on mouse
+    in pointer, and the loop never sees the mouse move or the button go up. The storage API won't open anything in
+    a hidden folder, so the public Desktop's shortcuts go as copies made in `%TEMP%\NeoShell\Dragged` (a streamed
+    file instead hangs WinUI as it's added to the drag). System folders drag only within the desktop. A throwing
+    async `DragStarting` handler ends the app, and an empty storage item list throws.
+  - The desktop's own icons over the desktop: WinUI's drag reaches only WinUI's drop events in its own process, not
+    OLE targets, so those events pass it on to the same logic with the shell's data object for the items
+    (`GetUIObjectOf(IDataObject)`) in place of the drag's.
 - **Menus**: Explorer's full menu (what its "Show more options" shows) in one WinUI menu, without that item.
   - `ShellMenu` (Interop) builds the shell's own `IContextMenu` (`GetUIObjectOf` for icons, `CreateViewObject` for
     the desktop, `CMF_NODEFAULT` there as Explorer does), fills the submenus filled on opening (New, Send to, Open

@@ -40,4 +40,10 @@ internal static unsafe partial class Ole32
         Marshal.ThrowExceptionForHR(CoCreateInstance(clsid, 0, context, typeof(T).GUID, out nint instance));
         return Com.ComPointer.TakeOwnership<T>(instance);
     }
+
+    [LibraryImport("ole32.dll")]
+    public static partial int RegisterDragDrop(nint hwnd, nint dropTarget);
+
+    [LibraryImport("ole32.dll")]
+    public static partial int RevokeDragDrop(nint hwnd);
 }

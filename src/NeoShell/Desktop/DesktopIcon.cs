@@ -15,6 +15,7 @@ internal sealed class DesktopIcon(DesktopEntry entry) : INotifyPropertyChanged
     private ImageSource? _image;
     private ImageSource? _overlay;
     private double _size;
+    private bool _isDropTarget;
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
@@ -62,6 +63,13 @@ internal sealed class DesktopIcon(DesktopEntry entry) : INotifyPropertyChanged
     }
 
     public double OverlaySize => Math.Min(_size, MaxOverlaySize);
+
+    /// <summary>A drag is over the icon and would drop on it.</summary>
+    public bool IsDropTarget
+    {
+        get => _isDropTarget;
+        set => Set(ref _isDropTarget, value);
+    }
 
     private void Set<T>(ref T field, T value, [CallerMemberName] string name = "")
     {

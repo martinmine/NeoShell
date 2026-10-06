@@ -235,9 +235,15 @@ Tick items off as they land. The feature details are in [design.md](design.md).
 - Not run live: Now playing with media playing (nothing plays on the VM), the weather from the computer's location
   (location is off on the VM), a second monitor
 
+## 18. Requested features (3)
+
+- [x] Desktop drag and drop with other apps, as Explorer's desktop: icons drag out to any app (WinUI's drag with the
+      files as storage items), and files dragged in from other apps, or the desktop's own icons, drop on the desktop
+      or on an icon that takes drops (a folder, the Recycle Bin, an app) through the shell's own drop targets
+
 ## Later / not planned yet
 
 - Notifications: toast images, buttons and inline replies (not exposed to listeners); tray balloons as toasts
 
 - Jump lists: pinned entries, Pin to / Remove from this list
-- Desktop icons: moving icons to free positions, dragging files onto the desktop and its icons
+- Desktop icons: moving icons to free positions

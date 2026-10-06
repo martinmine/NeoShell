@@ -26,7 +26,15 @@
     </UserControl.Resources>
 
     <!-- Transparent rather than null so the empty desktop gets clicks and right-clicks. -->
-    <Grid x:Name="Root" Background="Transparent" ContextRequested="Root_ContextRequested" Tapped="Root_Tapped">
+    <Grid
+        x:Name="Root"
+        Background="Transparent"
+        AllowDrop="True"
+        ContextRequested="Root_ContextRequested"
+        Tapped="Root_Tapped"
+        DragOver="Root_DragOver"
+        DragLeave="Root_DragLeave"
+        Drop="Root_Drop">
         <Grid.Resources>
             <SolidColorBrush x:Key="MarqueeFillBrush" Color="{ThemeResource SystemAccentColor}" Opacity="0.3" />
             <SolidColorBrush x:Key="MarqueeStrokeBrush" Color="{ThemeResource SystemAccentColorLight1}" />
@@ -76,29 +84,39 @@
             </GridView.ItemContainerStyle>
             <GridView.ItemTemplate>
                 <DataTemplate x:DataType="local:DesktopIcon">
-                    <StackPanel
-                        Spacing="4"
-                        AutomationProperties.AutomationId="DesktopIcon"
-                        AutomationProperties.Name="{x:Bind Name, Mode=OneWay}">
-                        <Grid Width="{x:Bind Size, Mode=OneWay}" Height="{x:Bind Size, Mode=OneWay}" HorizontalAlignment="Center">
-                            <Image Source="{x:Bind Image, Mode=OneWay}" Stretch="Uniform" />
-                            <Image
-                                Source="{x:Bind Overlay, Mode=OneWay}"
-                                Width="{x:Bind OverlaySize, Mode=OneWay}"
-                                Height="{x:Bind OverlaySize, Mode=OneWay}"
-                                HorizontalAlignment="Left"
-                                VerticalAlignment="Bottom" />
-                        </Grid>
-                        <!-- White text with a shadow under it, so names read on light and dark wallpapers. -->
-                        <Grid>
-                            <TextBlock
-                                Text="{x:Bind Name, Mode=OneWay}"
-                                Style="{StaticResource DesktopLabelStyle}"
-                                Foreground="#C0000000"
-                                Margin="1,1,-1,-1" />
-                            <TextBlock Text="{x:Bind Name, Mode=OneWay}" Style="{StaticResource DesktopLabelStyle}" Foreground="White" />
-                        </Grid>
-                    </StackPanel>
+                    <Grid>
+                        <!-- The highlight of the icon a drag would drop on: over the item's padding, as the selection's. -->
+                        <Border
+                            Margin="-2,-4"
+                            CornerRadius="4"
+                            Background="#5080C0FF"
+                            BorderBrush="#A0A0D0FF"
+                            BorderThickness="1"
+                            Visibility="{x:Bind IsDropTarget, Mode=OneWay}" />
+                        <StackPanel
+                            Spacing="4"
+                            AutomationProperties.AutomationId="DesktopIcon"
+                            AutomationProperties.Name="{x:Bind Name, Mode=OneWay}">
+                            <Grid Width="{x:Bind Size, Mode=OneWay}" Height="{x:Bind Size, Mode=OneWay}" HorizontalAlignment="Center">
+                                <Image Source="{x:Bind Image, Mode=OneWay}" Stretch="Uniform" />
+                                <Image
+                                    Source="{x:Bind Overlay, Mode=OneWay}"
+                                    Width="{x:Bind OverlaySize, Mode=OneWay}"
+                                    Height="{x:Bind OverlaySize, Mode=OneWay}"
+                                    HorizontalAlignment="Left"
+                                    VerticalAlignment="Bottom" />
+                            </Grid>
+                            <!-- White text with a shadow under it, so names read on light and dark wallpapers. -->
+                            <Grid>
+                                <TextBlock
+                                    Text="{x:Bind Name, Mode=OneWay}"
+                                    Style="{StaticResource DesktopLabelStyle}"
+                                    Foreground="#C0000000"
+                                    Margin="1,1,-1,-1" />
+                                <TextBlock Text="{x:Bind Name, Mode=OneWay}" Style="{StaticResource DesktopLabelStyle}" Foreground="White" />
+                            </Grid>
+                        </StackPanel>
+                    </Grid>
                 </DataTemplate>
             </GridView.ItemTemplate>
         </GridView>

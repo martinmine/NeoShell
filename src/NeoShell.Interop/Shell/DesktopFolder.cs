@@ -53,6 +53,9 @@ public sealed class DesktopItem
 
     public bool HasProperties => Has(DesktopFolder.SFGAO_HASPROPSHEET);
 
+    /// <summary>Takes drops: a folder, the Recycle Bin, an app (opens what's dropped)...</summary>
+    public bool IsDropTarget => Has(DesktopFolder.SFGAO_DROPTARGET);
+
     private bool Has(uint attribute) => (Attributes & attribute) != 0;
 
     /// <summary>A native copy of <see cref="IdList"/>, to free with <see cref="Marshal.FreeCoTaskMem"/>.</summary>
@@ -76,11 +79,12 @@ public static unsafe class DesktopFolder
     internal const uint SFGAO_CANRENAME = 0x10;
     internal const uint SFGAO_CANDELETE = 0x20;
     internal const uint SFGAO_HASPROPSHEET = 0x40;
+    internal const uint SFGAO_DROPTARGET = 0x100;
     internal const uint SFGAO_LINK = 0x10000;
     internal const uint SFGAO_STREAM = 0x400000;
     internal const uint SFGAO_FOLDER = 0x2000_0000;
     private const uint AttributeMask = SFGAO_CANCOPY | SFGAO_CANMOVE | SFGAO_CANRENAME | SFGAO_CANDELETE
-        | SFGAO_HASPROPSHEET | SFGAO_LINK | SFGAO_STREAM | SFGAO_FOLDER;
+        | SFGAO_HASPROPSHEET | SFGAO_DROPTARGET | SFGAO_LINK | SFGAO_STREAM | SFGAO_FOLDER;
 
     private const uint SHCONTF_FOLDERS = 0x20;
     private const uint SHCONTF_NONFOLDERS = 0x40;
