@@ -222,6 +222,7 @@ Tick items off as they land. The feature details are in [design.md](design.md).
 - [x] Sidebar menu: hide the panel behind the widgets (window cut to its cards), add widget
 - [x] Wireless devices widget: the WirelessStatus app's devices (Bluetooth, Razer, Audeze Maxwell), its protocol
       tests brought over; read again on device changes — rows with devices checked with made-up ones (none on the VM)
+- [x] About Windows widget: the flag on the left; edition, version, build, architecture and install date on the right
 - [x] Fix: exit crashed now and then as the shell after a widget was added (WinUI handling a move of a closing
       window); exit crashed after the taskbar's backdrop submenu was used (a backdrop shared by a menu and its
       submenu leaked a controller). Both found from crash dumps.

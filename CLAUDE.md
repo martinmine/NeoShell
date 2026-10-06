@@ -73,7 +73,7 @@ src/NeoShell/                 WinUI app
   Snap/                       Win+Z Snap layouts, window snapping by dragging and Win+arrows (shell mode)
   Capture/                    Screenshots: Win+PrtScn, Win+Shift+S snip (shell mode)
   Widgets/                    Widget sidebar, floating widgets, and the widgets (profile, resources, pictures, media,
-                              weather, notes, wireless devices)
+                              weather, notes, wireless devices, about Windows)
   Settings/                   Settings record + JSON load/save (%LOCALAPPDATA%\NeoShell\settings.json)
 src/NeoShell.Interop/
   Native/                     LibraryImport: User32, Shell32, Dwmapi, Kernel32, Advapi32, PowrProf, Comctl32, Pdh, Hid
@@ -143,7 +143,7 @@ the desktop and back. Full spec in docs/design.md ("Widgets").
   right-click menu, resize edge, drop slot), one `FloatingWidgetWindow` per floating widget, the drag/dock logic and
   the shared services (`ResourceMonitor`, `WirelessMonitor`). `WidgetFrame` is the card around a widget: hover
   settings/close buttons and the drag gesture. Each widget is a `WidgetView` subclass (`ProfileWidget`,
-  `ResourcesWidget`, `PicturesWidget`, `MediaWidget`, `WeatherWidget`, `NotesWidget`, `WirelessWidget`).
+  `ResourcesWidget`, `PicturesWidget`, `MediaWidget`, `WeatherWidget`, `NotesWidget`, `WirelessWidget`, `WindowsWidget`).
 - **State.** `ShellSettings.Widgets` lists every widget (`WidgetSettings`: id, kind, X/Y while floating, floating size,
   the kind's options; unset options take defaults). Docked ones show in list order. Only `Sidebar` writes the list;
   a view saves its own options through `SaveSettings`, and `Sidebar` keeps the stored position and size when it does.
@@ -182,7 +182,7 @@ the desktop and back. Full spec in docs/design.md ("Widgets").
 
 - Unit tests (xunit) cover non-UI logic: window filtering, grouping, NOTIFYICONDATA parsing, search ranking,
   indexer query building, startup entries, settings, wallpaper style mapping, AppBar rects, desktop icon
-  filtering, sorting and grid places, snap zones and keys, thumbnail toolbar data and image lists, widget placement and order, MET forecast parsing, wireless device protocols.
+  filtering, sorting and grid places, snap zones and keys, thumbnail toolbar data and image lists, widget placement and order, MET forecast parsing, wireless device protocols, Windows product name.
 - When testing the UI live, drive it through UI Automation (set `AutomationProperties.AutomationId` on interactive
   controls). Never use global keystrokes like SendKeys: they go to whichever window has focus.
 - Always stop a running NeoShell with `/exit` (or its taskbar menu), never by killing the process. A kill leaves the

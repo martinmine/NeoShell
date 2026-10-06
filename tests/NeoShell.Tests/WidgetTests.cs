@@ -219,6 +219,24 @@ public sealed class WidgetTests
         Assert.Equal(expected, MetWeather.Emoji(symbol));
     }
 
+    [Theory]
+    [InlineData("Windows 10 Pro", "26200", "Windows 11 Pro")]
+    [InlineData("Windows 10 Enterprise LTSC 2024", "26100", "Windows 11 Enterprise LTSC 2024")]
+    [InlineData("Windows 10 Home", "19045", "Windows 10 Home")]
+    [InlineData("Windows Server 2025 Datacenter", "26100", "Windows Server 2025 Datacenter")]
+    public void Windows_11_is_named_by_its_build_not_the_registry(string registryName, string build, string expected)
+    {
+        Assert.Equal(expected, WindowsVersion.ProductName(registryName, build));
+    }
+
+    [Theory]
+    [InlineData(System.Runtime.InteropServices.Architecture.X64, "64-bit (x64)")]
+    [InlineData(System.Runtime.InteropServices.Architecture.Arm64, "64-bit (ARM64)")]
+    public void Architecture_is_written_as_settings_writes_it(System.Runtime.InteropServices.Architecture architecture, string expected)
+    {
+        Assert.Equal(expected, WindowsVersion.ArchitectureName(architecture));
+    }
+
     // Sets the thread's culture for one test.
     private sealed class CultureScope : IDisposable
     {

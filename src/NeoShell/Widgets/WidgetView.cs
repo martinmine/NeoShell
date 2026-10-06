@@ -43,6 +43,7 @@ internal partial class WidgetView : UserControl
         WidgetKind.Weather => "Weather",
         WidgetKind.Notes => "Notes",
         WidgetKind.Wireless => "Wireless devices",
+        WidgetKind.Windows => "About Windows",
         _ => kind.ToString(),
     };
 
@@ -56,6 +57,7 @@ internal partial class WidgetView : UserControl
         WidgetKind.Weather => "\uE706",
         WidgetKind.Notes => "\uE70B",
         WidgetKind.Wireless => "\uE957",
+        WidgetKind.Windows => "\uE770",
         _ => "\uE74C",
     };
 

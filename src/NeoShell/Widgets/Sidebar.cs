@@ -181,6 +181,7 @@ internal sealed class Sidebar : IDisposable
             WidgetKind.Media => new MediaWidget(widget),
             WidgetKind.Weather => new WeatherWidget(widget),
             WidgetKind.Wireless => new WirelessWidget(widget, _wireless),
+            WidgetKind.Windows => new WindowsWidget(widget),
             _ => new NotesWidget(widget),
         };
         // The widget's copy may have an old position and size: it was made before the widget was last dragged or resized.

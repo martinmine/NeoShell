@@ -16,7 +16,7 @@ public enum DesktopSortOrder { Name, Size, ItemType, DateModified }
 /// <summary>A cell of the desktop's icon grid: columns from the left, rows from the top.</summary>
 public readonly record struct GridCell(int Column, int Row);
 
-public enum WidgetKind { Profile, Resources, Pictures, Media, Weather, Notes, Wireless }
+public enum WidgetKind { Profile, Resources, Pictures, Media, Weather, Notes, Wireless, Windows }
 
 /// <summary>
 /// One widget: in the sidebar, in the order of <see cref="ShellSettings.Widgets"/>, or floating on the desktop. Its

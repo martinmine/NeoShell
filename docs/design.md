@@ -1012,6 +1012,10 @@ Small widgets about the computer and its user, as Windows Vista's sidebar gadget
   at once, every 5 minutes (its setting), and 2 s after the last of a burst of `WM_DEVICECHANGE` (a receiver plugged
   in or out, from the taskbars' windows). A row per device: its kind's icon, name, battery bar (red at 10% or less
   while not charging), a charging mark and the level, or dimmed and "Unavailable" when out of reach.
+- **About Windows**: Windows' flag (four white panes, as tall as the text) on the left; on the right the
+  edition, version, OS build with its revision, architecture and install date, read once from
+  `HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion`. That key's ProductName still says "Windows 10" on Windows 11,
+  so builds from 22000 are named "Windows 11", as winver does. One at a time.
 - **Notes**: plain text, straight on the card (no box or underline, focused or not), saved half a second after typing stops, to `notes\<id>.txt` next to the settings; text size
   in its settings. Closing a note keeps its file.
 
