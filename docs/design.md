@@ -167,6 +167,31 @@ loaded):
   under a second. Not run: actually ejecting a device (each would remove a virtual controller, disk or the NIC from
   the running VM).
 
+### AutoPlay (not implemented; findings)
+
+Studied on this VM with an ISO mounted by `Mount-DiskImage` (works without admin, counts as a DVD drive):
+- **Explorer's behaviour.** A toast "AutoPlay" / "DVD Drive (F:) NEOPICS" / "Select what happens with removable
+  drives." (body text from twinui's string table, `Select what happens with %1.` with the content type: "removable
+  drives", "CD audio", "image files"…). It's a banner only: it doesn't stay in the notification center, and
+  `UserNotificationListener` never lists it. Clicking it opens a white flyout at the top right of the screen with
+  the drive's name, "Choose what to do with removable drives." and the handlers (here Configure storage settings,
+  Open folder to view files, Take no action). Defaults are kept in `HKCU\...\Explorer\AutoplayHandlers`.
+- **Who does what.** The Shell Hardware Detection service only reports the arrival. The AutoPlay work runs inside
+  the shell process: `windows.storage` registers for hardware notifications only in a process whose explorer
+  server mode is 3 (explorer.exe's desktop process), on its change notification thread. On arrival it calls
+  `shell32!CMountPoint::DoAutorun` → `CAutoPlayParams::PromptUser`, which creates the AutoPlay UI in-process
+  (`HKLM\...\Explorer\AutoplayExtensions\ShellUI` = twinui's `CAutoPlayUI`). twinui then shows the toast and,
+  when it's clicked, the flyout.
+- **Without Explorer** no process is in that mode, so nothing reacts to inserted media: no toast and no AutoPlay.
+- **Tried in NeoShell (reverted).** Putting NeoShell's process in the same mode (`windows.storage!SetExplorerServerMode(3)`,
+  then its change notification server, ordinal 1002) does bring the arrival into NeoShell. shell32 and twinui then
+  run, but twinui's toast fails with `E_ACCESSDENIED`: it needs a window in the immersive notification band
+  (`CreateWindowInBand`), and only Explorer is allowed that. The prompt is then left waiting with nothing on
+  screen until the media is removed. Replacing the toast and flyout would mean driving twinui's private windows and
+  objects, which is too fragile, so this was dropped. A sound alternative is NeoShell's own AutoPlay: drive arrival
+  (`WM_DEVICECHANGE`/`SHChangeNotifyRegister`), the handler lists and defaults from the registry, its own toast and
+  flyout, and the handlers started through `IHWEventHandler`/the registered verbs.
+
 ### Switch to Explorer
 
 Start menu button → confirmation dialog → delete the per-user `Winlogon\Shell` value (HKCU only) → start
