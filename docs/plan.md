@@ -249,6 +249,7 @@ Tick items off as they land. The feature details are in [design.md](design.md).
 - [x] Thumbnail toolbars as the shell (`ITaskbarList3::ThumbBar*`): the buttons under a window's preview, with their
       images, tooltips and states, following the app's updates; clicks go to the app (tested with VLC; tests for
       the shared data and the image list format)
+- [x] Fix: right-clicking the desktop or an icon left the wait cursor (spinner) over the menu until the pointer moved
 - [x] Open previews follow the pointer along the taskbar at once; the 200 ms pause is only for a pointer heading up
       to them across a neighbouring button (tested)
 

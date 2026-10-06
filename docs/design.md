@@ -202,6 +202,9 @@ Shell mode only, like the wallpaper: alongside Explorer, Explorer's desktop has 
     with) by sending `WM_INITMENUPOPUP` through `IContextMenu3`, and reads the `HMENU` into items: label (access
     keys and shortcut text removed), verb, state, the item's bitmap and submenus. NeoShell shows them as
     `MenuFlyout` items; the handler's image, else a glyph for standard verbs (cut, copy, delete...).
+  - Building the menu, the handlers show the wait cursor and then put back the UI thread's cursor from before, which
+    is the wait cursor too (WinUI shows its own over its windows); `ShellMenu` sets the arrow once it's built, or the
+    spinner stayed over the menu until the pointer moved.
   - The chosen command is invoked by its ID once the WinUI menu has closed, so it behaves exactly as in Explorer
     (Recycle Bin, confirmations, progress, installed apps' commands). The `ShellMenu` is released after that.
   - Icons: the shell's menu as is (Open, Open with, Send to, Give access to, Cut, Copy, Create shortcut, Delete,

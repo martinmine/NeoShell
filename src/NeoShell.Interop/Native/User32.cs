@@ -458,6 +458,14 @@ internal static unsafe partial class User32
     public const uint TPM_RETURNCMD = 0x0100;
     public const uint TPM_RIGHTBUTTON = 0x0002;
 
+    public const int IDC_ARROW = 32512;
+
+    [LibraryImport("user32.dll", EntryPoint = "LoadCursorW")]
+    public static partial nint LoadCursor(nint instance, nint name);
+
+    [LibraryImport("user32.dll")]
+    public static partial nint SetCursor(nint cursor);
+
     [LibraryImport("user32.dll")]
     public static partial nint CreatePopupMenu();
 

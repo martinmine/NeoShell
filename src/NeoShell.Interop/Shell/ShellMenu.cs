@@ -48,7 +48,18 @@ public sealed unsafe class ShellMenu : IDisposable
         _handle = User32.CreatePopupMenu();
         if (KeyboardState.IsShiftDown())
             flags |= Shell32.CMF_EXTENDEDVERBS;
-        Items = menu.QueryContextMenu(_handle, 0, FirstCommand, LastCommand, flags) >= 0 ? Read(_handle) : [];
+        try
+        {
+            Items = menu.QueryContextMenu(_handle, 0, FirstCommand, LastCommand, flags) >= 0 ? Read(_handle) : [];
+        }
+        finally
+        {
+            // The shell's handlers show the wait cursor while they fill their menus and then put back the thread's
+            // cursor from before, which on the UI thread already is the wait cursor (WinUI shows its own over its
+            // windows): the spinner stayed over NeoShell's menu until the pointer moved. Menus open over the desktop,
+            // which shows the arrow.
+            User32.SetCursor(User32.LoadCursor(0, User32.IDC_ARROW));
+        }
     }
 
     public IReadOnlyList<ShellMenuItem> Items { get; }
