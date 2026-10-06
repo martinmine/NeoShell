@@ -6,6 +6,9 @@ namespace NeoShell.Interop.Windowing;
 public enum WindowEvent
 {
     Foreground = 0x0003,
+    /// <summary>The user started moving or sizing the window (its modal move loop).</summary>
+    MoveSizeStart = 0x000A,
+    MoveSizeEnd = 0x000B,
     MinimizeStart = 0x0016,
     MinimizeEnd = 0x0017,
     Destroyed = 0x8001,
@@ -38,9 +41,21 @@ public sealed unsafe class WindowEvents : IDisposable
 
     private readonly List<nint> _hooks = [];
 
+    /// <summary>The events about windows coming and going, the foreground, minimizing, moving and titles.</summary>
     public WindowEvents()
+        : this(s_ranges)
     {
-        foreach ((WindowEvent first, WindowEvent last) in s_ranges)
+    }
+
+    /// <summary>Only the events from <paramref name="first"/> to <paramref name="last"/>.</summary>
+    public WindowEvents(WindowEvent first, WindowEvent last)
+        : this([(first, last)])
+    {
+    }
+
+    private WindowEvents((WindowEvent First, WindowEvent Last)[] ranges)
+    {
+        foreach ((WindowEvent first, WindowEvent last) in ranges)
         {
             nint hook = User32.SetWinEventHook((uint)first, (uint)last, 0, &OnEvent, 0, 0,
                 User32.WINEVENT_OUTOFCONTEXT | User32.WINEVENT_SKIPOWNPROCESS);

@@ -70,7 +70,7 @@ src/NeoShell/                 WinUI app
   QuickSettings/              Quick Settings: tiles, Wi-Fi, Bluetooth, Accessibility, Cast, Project and Sound output pages
   StartMenu/                  StartMenuWindow, app list, search results, power menu
   Switcher/                   Alt+Tab window switcher (shell mode)
-  Snap/                       Win+Z Snap layouts (shell mode)
+  Snap/                       Win+Z Snap layouts, window snapping by dragging and Win+arrows (shell mode)
   Capture/                    Screenshots: Win+PrtScn, Win+Shift+S snip (shell mode)
   Widgets/                    Widget sidebar, floating widgets, and the widgets (profile, resources, pictures, media,
                               weather, notes, wireless devices)
@@ -178,7 +178,7 @@ the desktop and back. Full spec in docs/design.md ("Widgets").
 
 - Unit tests (xunit) cover non-UI logic: window filtering, grouping, NOTIFYICONDATA parsing, search ranking,
   indexer query building, startup entries, settings, wallpaper style mapping, AppBar rects, desktop icon
-  filtering, sorting and grid places, widget placement and order, MET forecast parsing, wireless device protocols.
+  filtering, sorting and grid places, snap zones and keys, widget placement and order, MET forecast parsing, wireless device protocols.
 - When testing the UI live, drive it through UI Automation (set `AutomationProperties.AutomationId` on interactive
   controls). Never use global keystrokes like SendKeys: they go to whichever window has focus.
 - Always stop a running NeoShell with `/exit` (or its taskbar menu), never by killing the process. A kill leaves the

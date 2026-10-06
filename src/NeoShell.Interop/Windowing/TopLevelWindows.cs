@@ -92,6 +92,16 @@ public static unsafe class TopLevelWindows
             User32.SWP_NOZORDER | User32.SWP_NOACTIVATE);
     }
 
+    /// <summary>Moves and sizes the window, invisible borders included (as <see cref="GetBounds"/> measures it).</summary>
+    public static void SetBounds(nint hwnd, RectInt32 bounds) =>
+        User32.SetWindowPos(hwnd, 0, bounds.X, bounds.Y, bounds.Width, bounds.Height, User32.SWP_NOZORDER | User32.SWP_NOACTIVATE);
+
+    /// <summary>Maximizes the window, before returning.</summary>
+    public static void Maximize(nint hwnd) => User32.ShowWindow(hwnd, User32.SW_MAXIMIZE);
+
+    /// <summary>Restores a maximized or minimized window, before returning.</summary>
+    public static void RestoreNow(nint hwnd) => User32.ShowWindow(hwnd, User32.SW_RESTORE);
+
     /// <summary>The monitor the window is mostly on (compare with <see cref="DisplayMonitor.Handle"/>), or 0.</summary>
     public static nint MonitorOf(nint hwnd) => User32.MonitorFromWindow(hwnd, User32.MONITOR_DEFAULTTONULL);
 

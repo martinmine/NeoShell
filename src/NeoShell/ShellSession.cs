@@ -24,9 +24,11 @@ internal sealed class ShellSession : IDisposable
     private readonly PanelKeys _panelKeys = new();
     private readonly AltTabKeys _altTabKeys = new();
     private readonly PeekKeys _peekKeys = new();
+    private readonly SnapKeys _snapKeys = new();
     // What each hotkey does, by its ID less one.
     private readonly List<Action> _hotkeyActions = [];
     private WindowSwitcher? _switcher;
+    private WindowSnapping? _snapping;
     private Hotkeys? _hotkeys;
     private KeyboardHook? _keyboardHook;
 
@@ -46,6 +48,8 @@ internal sealed class ShellSession : IDisposable
         _registration.Complete();
         Log.Info("Shell ready");
 
+        // Without Explorer, Windows snaps no windows: dragged against an edge or with Win+arrows.
+        _snapping = new WindowSnapping(() => _taskbars.Theme);
         RegisterHotkeys();
 
         // Without Explorer, Alt+Tab is Windows' old icon grid; the hook takes it for NeoShell's switcher.
@@ -55,7 +59,8 @@ internal sealed class ShellSession : IDisposable
 
         // The Windows key on its own isn't a hotkey: only a hook sees it pressed and released by itself. Keys pass
         // through unchanged, so Windows still knows the key is down for Win+ shortcuts; only the panels' own
-        // shortcuts, the switcher's keys and Win+Comma's comma are taken (see PanelKeys, AltTabKeys, PeekKeys).
+        // shortcuts, the switcher's keys, Win+Comma's comma and Snap's arrows are taken (see PanelKeys, AltTabKeys,
+        // PeekKeys, SnapKeys).
         try
         {
             _keyboardHook = new KeyboardHook
@@ -81,6 +86,14 @@ internal sealed class ShellSession : IDisposable
                         _dispatcher.Post(() => _taskbars.PeekAtDesktop(on));
                     }
                     if (peekKey)
+                        return true;
+                    bool snapKey = _snapKeys.OnKey(key, down, out SnapKey? arrow);
+                    if (arrow is { } pressedArrow)
+                    {
+                        KeyboardHook.MaskModifierKeys();
+                        _dispatcher.Post(() => _snapping?.SnapForeground(pressedArrow));
+                    }
+                    if (snapKey)
                         return true;
                     if (!_panelKeys.OnKey(key, down, out PanelShortcut? shortcut))
                         return false;
@@ -123,6 +136,7 @@ internal sealed class ShellSession : IDisposable
         _keyboardHook?.Dispose();
         _hotkeys?.Dispose();
         _switcher?.Close();
+        _snapping?.Dispose();
     }
 
     /// <summary>

@@ -838,6 +838,30 @@ Windows', its shortcut as key caps (`ShortcutKeys`), and a footer with a link to
   the zone of the work area exactly, its invisible resize borders outside it (`TopLevelWindows.Place`). Zone edges
   are rounded on their own, so neighbours share them.
 
+### Window snapping (`WindowSnapping`, shell mode)
+
+Windows leaves snapping to Explorer: without it, a window dragged against an edge just moves, and Win+arrows do
+nothing (they stay registered as hotkeys, so the keyboard hook takes them: `SnapKeys`, tested).
+
+- **Dragging.** `EVENT_SYSTEM_MOVESIZESTART`/`END` (WinEvents) bracket the app's own move loop; in between the pointer
+  is polled every 30 ms. A window whose size changes is being resized, not moved, and doesn't snap. The zone under
+  the pointer (`WindowSnap.AtPointer`, tested): against the left or right edge a half, within an eighth of the work
+  area's shorter side from a corner a quarter, against the top edge maximized (a quarter near its corners). The edges
+  are the work area's, not the screen's: during a move Windows keeps the pointer inside the work area, so it stops at
+  the taskbar's and the widget sidebar's edges. While the pointer is in a zone, `SnapPreview` shows it: an acrylic,
+  rounded outline 8 epx inside the zone, just behind the dragged window (`PinnedLayer.Normal` below it). Let go, the
+  window fills the zone (`TopLevelWindows.Place`, as Win+Z) or is maximized.
+- **Its own size back.** The bounds a window had before it was snapped are kept; dragged out of its zone (not just
+  clicked on its title bar), it gets that size back under the pointer, at the same share of its width as where it was
+  grabbed (`WindowSnap.Unsnapped`, tested). A maximized window dragged is restored by Windows itself first. A snapped
+  window stays snapped underneath when maximized, as in Windows; sized by hand, it isn't snapped any more.
+- **Win+arrows** (`WindowSnap.AfterKey`, tested), Windows 11's moves: Left/Right snap to that half, cross over to the
+  other quarter, and from the other half give the window its own bounds back; Up goes from a half to its top quarter
+  and from a bottom quarter to the half, and maximizes a window that isn't snapped; Down undoes those, restores a
+  maximized window and minimizes what's left. Once per press.
+- Not done: Snap Assist (offering the other windows for the rest of the screen), snap groups, the layouts flyout at
+  the top edge, Win+Shift+arrows and moving across monitors with Win+Left/Right.
+
 ## Screenshots (`Capture/`)
 
 - Pictures are copied from the screen DC (`BitBlt` with `CAPTUREBLT`, opaque), put on the clipboard as a bottom-up
