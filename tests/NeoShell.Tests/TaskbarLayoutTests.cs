@@ -2,24 +2,12 @@ using NeoShell.Interop.Native;
 using NeoShell.Interop.Windowing;
 using NeoShell;
 using NeoShell.Taskbar;
-using Windows.Foundation;
 using Windows.Graphics;
 
 namespace NeoShell.Tests;
 
 public sealed class TaskbarLayoutTests
 {
-    [Theory]
-    [InlineData(100, 40, 100, 10, true)]   // straight up
-    [InlineData(100, 40, 130, 20, true)]   // up and across, steeply
-    [InlineData(100, 30, 160, 20, false)]  // along the taskbar, rising a little
-    [InlineData(100, 20, 160, 20, false)]  // along the taskbar
-    [InlineData(100, 10, 100, 40, false)]  // down
-    public void Heading_up_means_steeper_than_about_27_degrees(double fromX, double fromY, double toX, double toY, bool up)
-    {
-        Assert.Equal(up, TaskbarLayout.IsHeadingUp(new Point(fromX, fromY), new Point(toX, toY)));
-    }
-
     [Theory]
     [InlineData(96u, 48)]   // 100%
     [InlineData(120u, 60)]  // 125%

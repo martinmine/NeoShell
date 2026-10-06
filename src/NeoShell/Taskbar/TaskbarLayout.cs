@@ -1,5 +1,4 @@
 using NeoShell.Interop.Windowing;
-using Windows.Foundation;
 using Windows.Graphics;
 
 namespace NeoShell.Taskbar;
@@ -50,13 +49,6 @@ public static class TaskbarLayout
     /// </summary>
     public static bool IsStartZone(double x, double startLeft, double startRight, bool leftAligned) =>
         x < startRight && (leftAligned || x >= startLeft - StartZoneLead);
-
-    /// <summary>
-    /// Whether the pointer, moving from one point to another, heads up off the taskbar (to the previews above it)
-    /// rather than along it: steeper than about 27 degrees. Heading up, a neighbouring button it crosses on the way
-    /// doesn't take the previews over straight away.
-    /// </summary>
-    public static bool IsHeadingUp(Point from, Point to) => from.Y - to.Y > 0 && from.Y - to.Y >= Math.Abs(to.X - from.X) / 2;
 
     /// <summary>The monitors that get a taskbar: all of them, or only the primary one.</summary>
     public static IReadOnlyList<DisplayMonitor> MonitorsWithTaskbar(IReadOnlyList<DisplayMonitor> monitors, bool showOnAllDisplays) =>
