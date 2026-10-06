@@ -34,11 +34,14 @@
             <RowDefinition />
         </Grid.RowDefinitions>
 
-        <Grid x:Name="Header" Padding="16,8,8,0">
-            <TextBlock Text="Widgets" VerticalAlignment="Center" Style="{StaticResource BodyStrongTextBlockStyle}" />
+        <!-- Just the add button, which shows only while the pointer is over it (or its menu is open). -->
+        <Grid x:Name="Header" Padding="8,4,8,0">
             <Button
                 x:Name="AddButton"
                 HorizontalAlignment="Right"
+                Opacity="0"
+                PointerEntered="AddButton_PointerEntered"
+                PointerExited="AddButton_PointerExited"
                 AutomationProperties.AutomationId="AddWidgetButton"
                 AutomationProperties.Name="Add widget"
                 ToolTipService.ToolTip="Add widget"
@@ -51,7 +54,8 @@
                         x:Name="AddMenu"
                         Placement="BottomEdgeAlignedRight"
                         MenuFlyoutPresenterStyle="{StaticResource SidebarMenuPresenterStyle}"
-                        Opening="AddMenu_Opening" />
+                        Opening="AddMenu_Opening"
+                        Closed="AddMenu_Closed" />
                 </Button.Flyout>
             </Button>
         </Grid>

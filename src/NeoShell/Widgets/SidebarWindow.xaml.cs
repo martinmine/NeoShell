@@ -291,6 +291,16 @@ internal sealed partial class SidebarWindow : Window
 
     private void AddMenu_Opening(object sender, object e) => FillAddMenu(AddMenu.Items);
 
+    private void AddMenu_Closed(object sender, object e) => AddButton.Opacity = 0;
+
+    private void AddButton_PointerEntered(object sender, PointerRoutedEventArgs e) => AddButton.Opacity = 1;
+
+    private void AddButton_PointerExited(object sender, PointerRoutedEventArgs e)
+    {
+        if (!AddMenu.IsOpen)
+            AddButton.Opacity = 0;
+    }
+
     private void FillAddMenu(IList<MenuFlyoutItemBase> items)
     {
         items.Clear();

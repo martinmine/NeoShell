@@ -55,7 +55,7 @@ public sealed unsafe class PinnedWindow : IDisposable
             _bounds = value;
             if (shrinking)
                 ApplyRegion();
-            Apply();
+            Apply(moving: true);
             if (!shrinking)
                 ApplyRegion();
         }
@@ -129,9 +129,14 @@ public sealed unsafe class PinnedWindow : IDisposable
         return User32.HWND_TOP;
     }
 
-    private void Apply()
+    /// <param name="moving">
+    /// Only moving or resizing: a desktop-level window stays where it is in the z-order, rather than looking for its
+    /// place among every window again on each step of a drag.
+    /// </param>
+    private void Apply(bool moving = false)
     {
-        uint flags = User32.SWP_NOACTIVATE | (_layer == PinnedLayer.Normal ? User32.SWP_NOZORDER : 0);
+        bool keepZOrder = _layer == PinnedLayer.Normal || (moving && _layer == PinnedLayer.Desktop);
+        uint flags = User32.SWP_NOACTIVATE | (keepZOrder ? User32.SWP_NOZORDER : 0);
         User32.SetWindowPos(_hwnd, InsertAfter, _bounds.X, _bounds.Y, _bounds.Width, _bounds.Height, flags);
     }
 

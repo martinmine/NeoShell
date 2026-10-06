@@ -134,6 +134,41 @@ src/NeoShell/bin/Debug/net10.0-windows10.0.26100.0/win-x64/NeoShell.exe /exit   
   handler alone can't do this: WinUI fail-fasts on exceptions in UI callbacks without raising any event.
 - `tools/*.ps1` must work in Windows PowerShell 5.1 (they are run from Task Manager during recovery).
 
+## Widgets (`src/NeoShell/Widgets/`)
+
+A sidebar of widgets on the right of the primary monitor, as Vista's gadgets; widgets can be dragged out to float on
+the desktop and back. Full spec in docs/design.md ("Widgets").
+
+- **Who does what.** `Sidebar` (created by `App`) owns everything: the `SidebarWindow` (docked cards, add button and
+  right-click menu, resize edge, drop slot), one `FloatingWidgetWindow` per floating widget, the drag/dock logic and
+  the shared services (`ResourceMonitor`, `WirelessMonitor`). `WidgetFrame` is the card around a widget: hover
+  settings/close buttons and the drag gesture. Each widget is a `WidgetView` subclass (`ProfileWidget`,
+  `ResourcesWidget`, `PicturesWidget`, `MediaWidget`, `WeatherWidget`, `NotesWidget`, `WirelessWidget`).
+- **State.** `ShellSettings.Widgets` lists every widget (`WidgetSettings`: id, kind, X/Y while floating, floating size,
+  the kind's options; unset options take defaults). Docked ones show in list order. Only `Sidebar` writes the list;
+  a view saves its own options through `SaveSettings`, and `Sidebar` keeps the stored position and size when it does.
+- **Views are disposable.** A new view is made whenever a widget moves between sidebar and desktop, so a view keeps
+  nothing that must survive: options go in its settings, text in a file (notes), samples in a shared service. Stop
+  timers and events in `Close()`.
+- **Adding a widget kind:** a `WidgetKind` value, a `WidgetView` (XAML + code), its title/glyph/`AllowsSeveral` in
+  `WidgetView`, a case in `Sidebar.CreateFrame`; anything that talks to Windows goes in `NeoShell.Interop`.
+- **Windows and layers.** Sidebar and floating widgets sit just above the desktop (`PinnedLayer.Desktop`); moves don't
+  touch the z-order (that walk is too slow per pointer move). The sidebar reserves its space: an app bar alongside
+  Explorer, `ShellWorkArea` as the shell (shared with the taskbar; changes go out off the UI thread).
+- **Pitfalls found the hard way:**
+  - Close widget windows with `Shut()`, never `Close()`: it detaches the subclasses and `WindowClosing.IgnoreMoves`,
+    without which WinUI can crash handling a move of a window it's tearing down.
+  - Resize a floating window through `AppWindow.Resize` as well as `PinnedWindow.Bounds`: WinUI otherwise restores the
+    size it last knew. The widget sits top-aligned in a non-scrolling `ScrollViewer` so it takes its natural height.
+  - A `ShellBackdrop` may serve several popups (a menu and its submenus); it shares one controller among them.
+  - A card being dragged stays in the tree (lifted: no height, invisible) or it loses the pointer; cards keep their gap
+    in their own margin so a lifted card leaves none.
+- **Testing live.** Every interactive control has an AutomationId (`Widget` + Name = title, `WidgetSettingsButton`,
+  `WidgetCloseButton`, `AddWidgetButton`, `Add<Kind>WidgetMenuItem`, `ShowWidgetPanelMenuItem`, `WidgetResizeGrip`,
+  `*ResourceRow*`, `NoteText`…). Widgets behind other windows aren't laid out or rendered: move one into view (its
+  X/Y in settings.json, edited only while NeoShell is stopped) before judging its layout. Drags need real mouse input
+  (`mouse_event`), not UIA.
+
 ## Testing
 
 - Unit tests (xunit) cover non-UI logic: window filtering, grouping, NOTIFYICONDATA parsing, search ranking,

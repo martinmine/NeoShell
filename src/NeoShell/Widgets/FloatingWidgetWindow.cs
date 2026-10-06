@@ -18,7 +18,7 @@ namespace NeoShell.Widgets;
 internal sealed class FloatingWidgetWindow : Window
 {
     private readonly nint _hwnd;
-    private readonly Canvas _root;
+    private readonly Grid _root;
     private readonly FramelessWindow _frameless;
     private readonly PinnedWindow _placement;
     private ShellBackdrop _backdrop;
@@ -32,8 +32,22 @@ internal sealed class FloatingWidgetWindow : Window
     {
         Frame = frame;
         frame.Width = frame.Widget.Settings.FloatingWidth ?? SidebarLayout.FloatingWidth;
-        // A canvas lets the widget take the height it wants; the window then follows (Resize).
-        _root = new Canvas { Children = { frame } };
+        // Its own height, not the window's: the window follows it, also when it gets smaller.
+        frame.VerticalAlignment = VerticalAlignment.Top;
+        // A scroll viewer that doesn't scroll lets the widget take the height it wants; the window then follows (Resize).
+        _root = new Grid
+        {
+            Children =
+            {
+                new ScrollViewer
+                {
+                    Content = frame,
+                    VerticalScrollBarVisibility = ScrollBarVisibility.Hidden,
+                    VerticalScrollMode = ScrollMode.Disabled,
+                    HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+                },
+            },
+        };
         Content = _root;
         if (frame.Widget.CanResize)
             AddResizeGrip();
@@ -60,7 +74,8 @@ internal sealed class FloatingWidgetWindow : Window
         int width = (int)Math.Round(frame.Width * dpi / 96.0);
         _placement = new PinnedWindow(_hwnd, new RectInt32(topLeft.X, topLeft.Y, width, width / 2), PinnedLayer.Desktop);
 
-        frame.SizeChanged += (_, _) => Resize();
+        // After the layout pass that changed it.
+        frame.SizeChanged += (_, _) => DispatcherQueue.TryEnqueue(Resize);
         _root.Loaded += (_, _) => _root.XamlRoot.Changed += (_, _) => Resize();
     }
 
@@ -123,20 +138,25 @@ internal sealed class FloatingWidgetWindow : Window
             Width = (int)Math.Round(Frame.ActualWidth * scale),
             Height = (int)Math.Round(Frame.ActualHeight * scale),
         };
+        // Through the app window too: WinUI's window keeps the size it last knew of otherwise, and puts it back.
+        AppWindow.Resize(new SizeInt32(_placement.Bounds.Width, _placement.Bounds.Height));
     }
 
     // A corner to drag at the bottom right; the window follows the widget's new size.
     private void AddResizeGrip()
     {
         const double size = 16;
-        var grip = new CornerGrip { Width = size, Height = size, Background = new SolidColorBrush(Microsoft.UI.Colors.Transparent) };
+        // The window is the widget's size, so its corner is the widget's.
+        var grip = new CornerGrip
+        {
+            Width = size,
+            Height = size,
+            HorizontalAlignment = HorizontalAlignment.Right,
+            VerticalAlignment = VerticalAlignment.Bottom,
+            Background = new SolidColorBrush(Microsoft.UI.Colors.Transparent),
+        };
         AutomationProperties.SetAutomationId(grip, "WidgetResizeGrip");
         _root.Children.Add(grip);
-        Frame.SizeChanged += (_, _) =>
-        {
-            Canvas.SetLeft(grip, Frame.ActualWidth - size);
-            Canvas.SetTop(grip, Frame.ActualHeight - size);
-        };
 
         grip.PointerPressed += (_, e) =>
         {

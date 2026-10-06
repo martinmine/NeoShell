@@ -832,7 +832,8 @@ Small widgets about the computer and its user, as Windows Vista's sidebar gadget
   other's; the sidebar's height comes from what's reserved there, not from Windows' work area, which follows a moment
   later. While the edge is
   dragged only the window moves; the space is reserved again when it's let go.
-- A header with "Widgets" and an add button whose menu lists every kind; Profile, Resource usage, Now playing and
+- No header text: only an add button at the top right, invisible until the pointer is over it (or its menu is
+  open), whose menu lists every kind; Profile, Resource usage, Now playing and
   Weather show once only (disabled in the menu while shown), Pictures and Notes as often as wanted. Widgets are cards
   in a scrolling column.
 - Hidden or shown from the taskbar's menu ("Show widgets", `ShowWidgetSidebar`); floating widgets stay.
@@ -841,7 +842,10 @@ Small widgets about the computer and its user, as Windows Vista's sidebar gadget
   kept up with layout and scrolling): each widget keeps the backdrop behind it, as floating ones do, and the rest of
   the strip shows the desktop and lets clicks through. The space stays reserved.
 - `FloatingWidgetWindow`: a widget dragged out of the sidebar, a rounded window of its own, 300 epx wide and as tall
-  as the widget (it follows the widget's height and the monitor's scale). Its position is saved in screen pixels;
+  as the widget (it follows the widget's height and the monitor's scale). The widget sits top-aligned in a
+  non-scrolling `ScrollViewer`, so it takes its natural height; the window is resized after the layout pass, through
+  `AppWindow.Resize` as well (WinUI's window otherwise keeps the size it last knew of, and a graph opened in a
+  floating resource widget was cut off). Its position is saved in screen pixels;
   one left on a monitor that's gone comes back at the top right of the primary one (`SidebarLayout.KeepOnScreen`).
 - Both are just above the desktop and below every app's window, even when clicked (`PinnedLayer.Desktop`: just below
   the lowest window that isn't the desktop, hidden, topmost or another of NeoShell's desktop-level windows), stay
@@ -862,7 +866,8 @@ Small widgets about the computer and its user, as Windows Vista's sidebar gadget
 - Pressing anywhere the widget's own controls don't take and moving 4 epx drags it. A widget dragged from the sidebar
   is lifted out of the column (kept in the tree without height, so it keeps the pointer; each card keeps its gap below
   itself rather than the panel's spacing, so a lifted one leaves none). While a widget is over the sidebar, the others
-  make room for it: a card-shaped gap opens where it would go (before the first card whose middle is below the
+  make room for it (moves of a desktop-level window leave its z-order alone, so dragging stays smooth): a
+  card-shaped gap opens where it would go (before the first card whose middle is below the
   pointer, measured as if the gap weren't there), and the cards slide (`RepositionThemeTransition`). Off the sidebar
   the widget follows the pointer in its own window, held where it was grabbed, and stays where it's let go. Let go
   over the sidebar it takes the gap's place; a floating widget first slides into the gap (150 ms).
