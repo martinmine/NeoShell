@@ -263,6 +263,48 @@ Tick items off as they land. The feature details are in [design.md](design.md).
       new view is covered with a picture of the old one until it's ready; dropped on the sidebar, a widget takes its
       place at once (no slide), and the pictures widget keeps its picture
 
+## 19. Explorer parity (2)
+
+Each item is done when it looks and behaves as Explorer's (layout, behaviour, animation), compared side by side.
+
+- [ ] T1 App bar messages from other apps (`SHAppBarMessage` on `Shell_TrayWnd`, `WM_COPYDATA` dwData 0)
+- [ ] T2 Tray balloon notifications (`NIF_INFO`) shown as toasts
+- [ ] T3 Maximized windows follow work area changes (taskbar, sidebar)
+- [ ] T4 Shell service objects (`ShellServiceObjects`, SSODL): Safely Remove Hardware and other built-in tray items
+- [ ] T5 AutoPlay on inserted media and devices
+- [ ] T6 `Progman` / `WorkerW` desktop windows (0x052C), for wallpaper tools
+- [ ] T7 Toast sound and toast activation
+- [ ] T8 Input language indicator and its picker
+- [ ] T9 Badges for packaged apps (`BadgeUpdateManager`)
+- [ ] T10 End task in the task button's menu
+- [ ] T11 Dragging over task buttons: bring the window forward; drop on a pinned app opens with it
+- [ ] T12 Tray icons promoted one by one (`NotifyIconSettings`), dragged between overflow and taskbar
+- [ ] T13 Other privacy indicators (location in use…)
+- [ ] T14 Clock: seconds (`ShowSecondsInSystemClock`); notification count/badge
+- [ ] T15 Taskbar search box style
+- [ ] T16 Start: Recommended with recent files and newly installed apps
+- [ ] T17 Start: folders beside the power button; folders of pins in the pinned grid
+- [ ] T18 Start: app menu (Run as administrator, Open file location, Uninstall, App settings, jump list)
+- [ ] T19 Power menu: Hibernate, Switch user, Update and restart / shut down
+- [ ] T20 Start: account menu on the user picture
+- [ ] T21 Start search: Settings pages, web, filter tabs, best match preview pane with actions
+- [ ] T22 Packaged apps started by NeoShell recorded in Recent
+- [ ] T23 Start: All apps category view
+- [ ] T24 Wallpaper: slideshow, Windows Spotlight, a wallpaper per monitor, `IDesktopWallpaper` in shell mode
+- [ ] T25 Desktop icons on every monitor
+- [ ] T26 Desktop: Undo; "Align icons to grid" off
+- [ ] T27 Snap Assist, snap groups, Snap layouts on the maximize button and at the top edge
+- [ ] T28 Win+Shift+arrows and Win+Left/Right across monitors
+- [ ] T29 Title-bar shake; Ctrl+Alt+Tab
+- [ ] T30 Win+V, Win+Period, Win+H, Win+Shift+R, Copilot key
+- [ ] T31 Snips: freeform, window and full-screen modes, the toolbar, opening in Snipping Tool
+- [ ] T32 Quick Settings: brightness, mobile hotspot, VPN, rotation lock, keyboard layout; night light and nearby
+      sharing working as the shell
+- [ ] T33 Bluetooth page: connect and disconnect paired devices
+- [ ] T34 Accessibility page: switch Colour filters and Mono audio
+- [ ] T35 Focus sessions: hide badges and flashing, end chime
+- [ ] T36 UWP (CoreWindow) apps, Settings among them, in shell mode
+
 ## Later / not planned yet
 
 - Notifications: toast images, buttons and inline replies (not exposed to listeners); tray balloons as toasts
