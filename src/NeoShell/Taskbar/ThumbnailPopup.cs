@@ -5,6 +5,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
+using NeoShell.Interop.Tray;
 using NeoShell.Interop.Windowing;
 using NeoShell.Settings;
 using Windows.Foundation;
@@ -24,6 +25,8 @@ internal sealed class ThumbnailPopup : Window
     private const double MinCellWidth = 120;
     private const double HeaderHeight = 32;
     private const double PreviewHeight = 124;
+    // Under the preview, for the app's thumbnail toolbar.
+    private const double ToolbarHeight = 36;
     private const double Padding = 8;
     private const double Gap = 8;
     private static readonly TimeSpan PeekDelay = TimeSpan.FromMilliseconds(400);
@@ -38,6 +41,8 @@ internal sealed class ThumbnailPopup : Window
     private readonly Grid _root = new() { Padding = new Thickness(Padding) };
     private readonly StackPanel _cells = new() { Orientation = Orientation.Horizontal, Spacing = Gap };
     private readonly List<DwmThumbnail> _thumbnails = [];
+    // The thumbnail toolbars shown, by window, to follow the app's changes while open.
+    private readonly Dictionary<nint, StackPanel> _toolbars = [];
     private readonly FramelessWindow _frameless;
     private readonly PinnedWindow _placement;
     private readonly WindowSlide _slide;
@@ -78,9 +83,11 @@ internal sealed class ThumbnailPopup : Window
         _peekTimer = DispatcherQueue.CreateTimer();
         _peekTimer.IsRepeating = false;
         _peekTimer.Tick += (_, _) => UpdatePeek();
+        _tracker.ThumbBarChanged += OnThumbBarChanged;
 
         Closed += (_, _) =>
         {
+            _tracker.ThumbBarChanged -= OnThumbBarChanged;
             EndPeek();
             _slide.Stop();
             ClearCells();
@@ -109,11 +116,13 @@ internal sealed class ThumbnailPopup : Window
         int count = button.Windows.Count;
         double maxCellWidth = (monitor.WorkArea.Width / scale - 2 * Padding - (count - 1) * Gap) / count;
         double cellWidth = Math.Max(MinCellWidth, Math.Min(CellWidth, maxCellWidth));
+        // All the previews get a toolbar's room if one has a toolbar, so they stay in line.
+        bool toolbars = button.Windows.Any(window => _tracker.ThumbBarOf(window.Handle).Buttons.Any(b => !b.IsHidden));
         foreach (WindowInfo window in button.Windows)
-            _cells.Children.Add(CreateCell(window, cellWidth, theme));
+            _cells.Children.Add(CreateCell(window, cellWidth, theme, toolbars));
 
         int width = (int)Math.Ceiling((2 * Padding + count * cellWidth + (count - 1) * Gap) * scale);
-        int height = (int)Math.Ceiling((2 * Padding + HeaderHeight + PreviewHeight) * scale);
+        int height = (int)Math.Ceiling((2 * Padding + HeaderHeight + PreviewHeight + (toolbars ? ToolbarHeight : 0)) * scale);
         int x = Math.Clamp(anchor.X + anchor.Width / 2 - width / 2, monitor.WorkArea.X, monitor.WorkArea.X + monitor.WorkArea.Width - width);
         int y = anchor.Y - height - (int)(8 * scale);
         var bounds = new RectInt32(x, y, width, height);
@@ -149,7 +158,7 @@ internal sealed class ThumbnailPopup : Window
         });
     }
 
-    private Grid CreateCell(WindowInfo window, double width, ElementTheme theme)
+    private Grid CreateCell(WindowInfo window, double width, ElementTheme theme, bool toolbar)
     {
         // Explorer's plate behind the preview under the pointer. The colours are the Fluent SubtleFillColorSecondary
         // and Tertiary tokens: a brush from the app's resources would follow the app's theme, not the popup's.
@@ -221,6 +230,7 @@ internal sealed class ThumbnailPopup : Window
                 EndPeek();
             TopLevelWindows.Close(window.Handle);
         };
+        close.Tapped += (_, e) => e.Handled = true;
         Grid.SetColumn(close, 2);
         header.Children.Add(close);
         cell.Children.Add(header);
@@ -229,11 +239,67 @@ internal sealed class ThumbnailPopup : Window
         var placeholder = new Border { Margin = new Thickness(6) };
         Grid.SetRow(placeholder, 1);
         cell.Children.Add(placeholder);
+
+        if (toolbar)
+        {
+            cell.RowDefinitions.Add(new RowDefinition { Height = new GridLength(ToolbarHeight) });
+            var buttons = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4, HorizontalAlignment = HorizontalAlignment.Center };
+            Grid.SetRow(buttons, 2);
+            cell.Children.Add(buttons);
+            _toolbars[window.Handle] = buttons;
+            FillToolbar(buttons, window.Handle);
+        }
         var thumbnail = new DwmThumbnail(_hwnd, window.Handle);
         thumbnail.Clip(_thumbnailsBottom);
         _thumbnails.Add(thumbnail);
         placeholder.SizeChanged += (_, _) => PlaceThumbnail(thumbnail, placeholder);
         return cell;
+    }
+
+    /// <summary>
+    /// The app's thumbnail toolbar under its window's preview, as in Explorer: its buttons' images, tooltips and
+    /// states; a click goes to the window as <c>THBN_CLICKED</c>.
+    /// </summary>
+    private void FillToolbar(StackPanel panel, nint window)
+    {
+        panel.Children.Clear();
+        ThumbBar bar = _tracker.ThumbBarOf(window);
+        foreach (ThumbButton thumbButton in bar.Buttons.Where(b => !b.IsHidden))
+        {
+            var button = new Button
+            {
+                Width = 32,
+                Height = 28,
+                Padding = new Thickness(0),
+                Background = new SolidColorBrush(Colors.Transparent),
+                BorderThickness = new Thickness(0),
+                IsEnabled = !thumbButton.Flags.HasFlag(ThumbButtonFlags.Disabled),
+                IsHitTestVisible = !thumbButton.Flags.HasFlag(ThumbButtonFlags.NonInteractive),
+            };
+            if (thumbButton.Image(bar.Images) is { } image)
+                button.Content = new Image { Source = AppIcons.ToImageSource(image), Width = 16, Height = 16 };
+            if (thumbButton.Tooltip.Length > 0)
+                ToolTipService.SetToolTip(button, thumbButton.Tooltip);
+            AutomationProperties.SetName(button, thumbButton.Tooltip.Length > 0 ? thumbButton.Tooltip : $"Button {thumbButton.Id}");
+            AutomationProperties.SetAutomationId(button, "ThumbBarButton");
+            uint id = thumbButton.Id;
+            bool dismiss = thumbButton.Flags.HasFlag(ThumbButtonFlags.DismissOnClick);
+            button.Click += (_, _) =>
+            {
+                TopLevelWindows.ClickThumbButton(window, id);
+                if (dismiss)
+                    Hide();
+            };
+            // Not a tap on the preview, which would switch to the window.
+            button.Tapped += (_, e) => e.Handled = true;
+            panel.Children.Add(button);
+        }
+    }
+
+    private void OnThumbBarChanged(nint window)
+    {
+        if (_toolbars.TryGetValue(window, out StackPanel? panel))
+            FillToolbar(panel, window);
     }
 
     private void PlaceThumbnail(DwmThumbnail thumbnail, FrameworkElement placeholder)
@@ -311,6 +377,7 @@ internal sealed class ThumbnailPopup : Window
         foreach (DwmThumbnail thumbnail in _thumbnails)
             thumbnail.Dispose();
         _thumbnails.Clear();
+        _toolbars.Clear();
         _cells.Children.Clear();
     }
 }

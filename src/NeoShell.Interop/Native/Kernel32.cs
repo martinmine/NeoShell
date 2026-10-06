@@ -83,4 +83,20 @@ internal static unsafe partial class Kernel32
 
     [LibraryImport("kernel32.dll")]
     public static partial nint GlobalFree(nint memory);
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct MEMORY_BASIC_INFORMATION
+    {
+        public nint BaseAddress;
+        public nint AllocationBase;
+        public uint AllocationProtect;
+        public ushort PartitionId;
+        public nuint RegionSize;
+        public uint State;
+        public uint Protect;
+        public uint Type;
+    }
+
+    [LibraryImport("kernel32.dll")]
+    public static partial nuint VirtualQuery(void* address, MEMORY_BASIC_INFORMATION* buffer, nuint length);
 }

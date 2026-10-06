@@ -102,6 +102,7 @@ internal sealed class Taskbars : IDisposable
             Tray = new NotificationArea();
             Tray.IconBounds = icon => PrimaryWindow?.TrayIconBounds(icon);
             Tray.TaskbarListCalled += Tracker.Apply;
+            Tray.ThumbBarCalled += Tracker.Apply;
         }
         // Created up front, so it opens instantly and its app catalog is already loaded.
         _startMenu = new StartMenuWindow(this);

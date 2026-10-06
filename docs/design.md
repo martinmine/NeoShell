@@ -436,7 +436,7 @@ have their icons (loaded in the background) and open on click.
   closes. DWM ignores a second peek while one is on, so moving it ends the first, which crossfades. The taskbar,
   popup and wallpaper windows set `DWMWA_EXCLUDED_FROM_PEEK` to stay visible, as Explorer's do.
 
-### Progress, overlay badges
+### Progress, overlay badges, thumbnail toolbars
 
 Apps call `ITaskbarList3`, which is implemented in `explorerframe.dll` inside the app process: it finds the task
 band through the `TaskbandHWND` window property on `Shell_TrayWnd` and sends it messages (`HrInit` fails with
@@ -450,10 +450,32 @@ that property; alongside Explorer these calls go to Explorer. Messages (`Taskbar
 | `WM_USER+79` | `SetOverlayIcon` | window | `HICON`, 0 removes |
 | `WM_USER+60` | `MarkFullscreenWindow` | flag | window |
 | `WM_USER+85` | overlay description | window | atom (ignored) |
+| `WM_USER+76` | `ThumbBarAddButtons` | window | shared memory: the buttons |
+| `WM_USER+77` | `ThumbBarUpdateButtons` | window | shared memory: the buttons |
+| `WM_USER+78` | `ThumbBarSetImageList` | window | shared memory: the image list |
+| `WM_USER+81` | `SetThumbnailClip` | window | (ignored) |
 
 Apps only start once told their button exists: the `TaskbarButtonCreated` registered message, sent with
 `SendNotifyMessage` when a window is added to the task list (shell mode). The task button shows the first window's
 progress (bar along the bottom; indeterminate, error and paused states) and overlay icon (bottom-right of the icon).
+
+**Thumbnail toolbars** (a player's previous, play/pause and next under its preview; `ThumbBarCall`, `ThumbBar`, unit
+tested). The thumbnail toolbar calls carry their data in shared memory from `SHAllocShared`, its handle duplicated
+into the taskbar's process: `SHLockShared` with NeoShell's own process ID maps it, and it's copied within the message
+(the app frees it afterwards). Only what's mapped is read (`VirtualQuery`): the data's own counts are checked against
+it, as a bad count read past the mapping would end the shell.
+
+- Buttons: a 32-bit count (at most 7), then packed `THUMBBUTTON`s of 540 bytes: mask, ID, image index, the `HICON`
+  as 32 bits (copied at once), 260 characters of tooltip, flags. Adding sets the buttons; updating changes the masked
+  parts of the buttons with the same IDs.
+- The image list: a 32-bit size, then what `ImageList_Write` writes (`ImageListStream`, unit tested): `ILHEAD`, the
+  image strip as a BMP file (any depth, palette or `BI_BITFIELDS`; images left to right, then down), and for
+  `ILC_MASK` the mask as another BMP. `ImageList_Read` would need common controls 6, which NeoShell doesn't load.
+- The previews give every window a row of 32×28 buttons under its preview when one of them has a toolbar: the
+  button's own icon or its image from the list (16 epx), its tooltip, disabled, hidden and non-interactive as asked.
+  They follow the app's updates while open (VLC's play button turning to pause). A click posts `WM_COMMAND` with
+  `THBN_CLICKED` and the ID to the window, as Explorer sends; `THBF_DISMISSONCLICK` closes the previews. A tap on a
+  button doesn't count as a tap on its preview (which would switch to the window).
 
 ### Hotkeys (shell mode only)
 

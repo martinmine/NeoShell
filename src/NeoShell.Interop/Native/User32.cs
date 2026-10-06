@@ -54,6 +54,7 @@ internal static unsafe partial class User32
     public const uint GA_ROOT = 2;
 
     public const uint WM_GETICON = 0x007F;
+    public const uint WM_COMMAND = 0x0111;
     public const uint WM_SYSCOMMAND = 0x0112;
     public const nint SC_CLOSE = 0xF060;
     public const nint ICON_SMALL = 0;

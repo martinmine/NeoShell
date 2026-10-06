@@ -30,6 +30,7 @@ internal sealed class WindowTracker : IDisposable
     private readonly Dictionary<nint, TaskProgress> _progress = [];
     private readonly Dictionary<nint, ImageSource> _overlays = [];
     private readonly HashSet<nint> _markedFullScreen = [];
+    private readonly Dictionary<nint, ThumbBar> _thumbBars = [];
     private ShellHook? _shellHook;
     private WindowEvents? _windowEvents;
     private bool _changeQueued;
@@ -47,6 +48,9 @@ internal sealed class WindowTracker : IDisposable
     }
 
     public event Action? Changed;
+
+    /// <summary>A window's thumbnail toolbar changed (a player's play button became pause), by its handle.</summary>
+    public event Action<nint>? ThumbBarChanged;
 
     /// <summary>
     /// The foreground window changed, moved, resized, or was marked full screen: whether a full-screen app is in front
@@ -94,6 +98,16 @@ internal sealed class WindowTracker : IDisposable
 
     /// <summary>The overlay badge the window's app set through ITaskbarList3, or null.</summary>
     public ImageSource? Overlay(nint hwnd) => _overlays.GetValueOrDefault(hwnd);
+
+    /// <summary>The buttons the window's app put under its preview through ITaskbarList3; empty for none.</summary>
+    public ThumbBar ThumbBarOf(nint hwnd) => _thumbBars.GetValueOrDefault(hwnd) ?? ThumbBar.Empty;
+
+    /// <summary>Applies an app's thumbnail toolbar call.</summary>
+    public void Apply(ThumbBarCall call)
+    {
+        _thumbBars[call.Window] = ThumbBarOf(call.Window).Apply(call);
+        ThumbBarChanged?.Invoke(call.Window);
+    }
 
     /// <summary>Whether the window's app called ITaskbarList2::MarkFullscreenWindow for it.</summary>
     public bool IsMarkedFullScreen(nint hwnd) => _markedFullScreen.Contains(hwnd);
@@ -289,6 +303,7 @@ internal sealed class WindowTracker : IDisposable
         _progress.Remove(hwnd);
         _overlays.Remove(hwnd);
         _markedFullScreen.Remove(hwnd);
+        _thumbBars.Remove(hwnd);
         QueueChanged();
     }
 

@@ -1,3 +1,4 @@
+using NeoShell.Interop.Imaging;
 using NeoShell.Interop.Native;
 using NeoShell.Interop.Windowing;
 using Windows.Graphics;
@@ -63,13 +64,49 @@ public sealed unsafe class TrayHost : IDisposable
     /// </summary>
     public event Action<TaskbarListCall>? TaskbarListCalled;
 
+    /// <summary>An app set up or changed a window's thumbnail toolbar. Raised on the UI thread; icons are copies.</summary>
+    public event Action<ThumbBarCall>? ThumbBarCalled;
+
     private nint? OnTaskbandMessage(uint message, nint wParam, nint lParam)
     {
+        if (ThumbBarCall.KindOf(message) is { } kind)
+        {
+            if (ReadShared(lParam) is { } data && ThumbBarCall.Parse(kind, wParam, data, IconBitmap.FromIcon) is { } thumbBar)
+                ThumbBarCalled?.Invoke(thumbBar);
+            return 0;
+        }
+
         if (TaskbarListCall.Parse(message, wParam, lParam) is not { } call)
             return null;
 
         TaskbarListCalled?.Invoke(call);
         return 0;
+    }
+
+    /// <summary>
+    /// Copies the data of a thumbnail toolbar call. ExplorerFrame passes it in shared memory (<c>SHAllocShared</c>)
+    /// whose handle it duplicated into this process; the app frees it once the message returns. How much of it is
+    /// the call's data the data itself says, so all that's mapped is copied, never read past.
+    /// </summary>
+    private static byte[]? ReadShared(nint handle)
+    {
+        if (handle == 0)
+            return null;
+        void* view = Shlwapi.SHLockShared(handle, (uint)Environment.ProcessId);
+        if (view == null)
+            return null;
+        try
+        {
+            Kernel32.MEMORY_BASIC_INFORMATION region;
+            if (Kernel32.VirtualQuery(view, &region, (nuint)sizeof(Kernel32.MEMORY_BASIC_INFORMATION)) == 0)
+                return null;
+            long mapped = (long)region.BaseAddress + (long)region.RegionSize - (long)view;
+            return mapped > 0 ? new ReadOnlySpan<byte>(view, (int)Math.Min(mapped, 1 << 20)).ToArray() : null;
+        }
+        finally
+        {
+            Shlwapi.SHUnlockShared(view);
+        }
     }
 
     private nint? OnMessage(uint message, nint wParam, nint lParam)

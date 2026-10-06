@@ -148,6 +148,16 @@ public static unsafe class TopLevelWindows
     /// <summary>Minimizes and activates the next window, as clicking the active window's taskbar button does.</summary>
     public static void MinimizeAndActivateNext(nint hwnd) => User32.ShowWindowAsync(hwnd, User32.SW_MINIMIZE);
 
+    /// <summary>
+    /// Tells the window a button of its thumbnail toolbar was clicked, as Explorer does: <c>WM_COMMAND</c> with
+    /// <c>THBN_CLICKED</c> and the button's ID.
+    /// </summary>
+    public static void ClickThumbButton(nint hwnd, uint id)
+    {
+        const uint THBN_CLICKED = 0x1800;
+        User32.PostMessage(hwnd, User32.WM_COMMAND, (nint)((THBN_CLICKED << 16) | (id & 0xFFFF)), 0);
+    }
+
     /// <summary>Asks the window to close, as its title bar's close button would; it may ask to save first.</summary>
     public static void Close(nint hwnd) => User32.PostMessage(hwnd, User32.WM_SYSCOMMAND, User32.SC_CLOSE, 0);
 

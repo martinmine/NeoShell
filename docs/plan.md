@@ -246,6 +246,9 @@ Tick items off as they land. The feature details are in [design.md](design.md).
 - [x] Window snapping as the shell (Windows leaves it to Explorer): drag against the work area's edges to a half, a
       quarter or maximized, with a preview of the zone; a snapped window dragged away gets its size back; Win+arrows
       through the keyboard hook (tests for zones, keys and unsnapping)
+- [x] Thumbnail toolbars as the shell (`ITaskbarList3::ThumbBar*`): the buttons under a window's preview, with their
+      images, tooltips and states, following the app's updates; clicks go to the app (tested with VLC; tests for
+      the shared data and the image list format)
 - [x] Open previews follow the pointer along the taskbar at once; the 200 ms pause is only for a pointer heading up
       to them across a neighbouring button (tested)
 

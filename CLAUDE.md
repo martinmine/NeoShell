@@ -178,7 +178,7 @@ the desktop and back. Full spec in docs/design.md ("Widgets").
 
 - Unit tests (xunit) cover non-UI logic: window filtering, grouping, NOTIFYICONDATA parsing, search ranking,
   indexer query building, startup entries, settings, wallpaper style mapping, AppBar rects, desktop icon
-  filtering, sorting and grid places, snap zones and keys, widget placement and order, MET forecast parsing, wireless device protocols.
+  filtering, sorting and grid places, snap zones and keys, thumbnail toolbar data and image lists, widget placement and order, MET forecast parsing, wireless device protocols.
 - When testing the UI live, drive it through UI Automation (set `AutomationProperties.AutomationId` on interactive
   controls). Never use global keystrokes like SendKeys: they go to whichever window has focus.
 - Always stop a running NeoShell with `/exit` (or its taskbar menu), never by killing the process. A kill leaves the

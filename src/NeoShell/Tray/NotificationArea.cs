@@ -40,6 +40,13 @@ internal sealed class NotificationArea : IDisposable
         remove => _host.TaskbarListCalled -= value;
     }
 
+    /// <summary>Apps' thumbnail toolbars (ITaskbarList3), which reach the shell the same way.</summary>
+    public event Action<ThumbBarCall>? ThumbBarCalled
+    {
+        add => _host.ThumbBarCalled += value;
+        remove => _host.ThumbBarCalled -= value;
+    }
+
     /// <summary>The icons that aren't hidden, in the order they were added.</summary>
     public ObservableCollection<TrayIcon> Icons { get; } = [];
 
