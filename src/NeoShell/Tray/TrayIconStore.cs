@@ -17,11 +17,30 @@ public sealed record TrayIconState(
 {
     /// <summary>Identity: the GUID when the app gave one, else its window and ID.</summary>
     public string Key => Guid is { } guid ? guid.ToString() : $"{Window:X}:{Id}";
+
+    /// <summary>
+    /// One of Windows' own system icons that the taskbar draws itself (the volume service's classic speaker, for one):
+    /// accepted but never shown as a tray icon, as in Explorer.
+    /// </summary>
+    public bool IsSystemIcon => Guid is { } guid && TrayIconStore.SystemIconGuids.Contains(guid);
 }
 
 /// <summary>The tray icons in the order they were added, kept the way Explorer does.</summary>
 public sealed class TrayIconStore
 {
+    /// <summary>
+    /// The system control area icons Explorer's taskbar shows with its own buttons (<c>c_scaidToResourceMap</c> in
+    /// Taskbar.dll): volume, network, power, microphone and Meet Now. The shell service objects still add some of them.
+    /// </summary>
+    public static readonly IReadOnlySet<Guid> SystemIconGuids = new HashSet<Guid>
+    {
+        new("7820ae73-23e3-4229-82c1-e41cb67d5b9c"), // Volume
+        new("7820ae74-23e3-4229-82c1-e41cb67d5b9c"), // Network
+        new("7820ae75-23e3-4229-82c1-e41cb67d5b9c"), // Power
+        new("7820ae82-23e3-4229-82c1-e41cb67d5b9c"), // Microphone
+        new("7820ae83-23e3-4229-82c1-e41cb67d5b9c"), // Meet Now
+    };
+
     private readonly List<TrayIconState> _icons = [];
 
     public IReadOnlyList<TrayIconState> Icons => _icons;

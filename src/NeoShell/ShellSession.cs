@@ -31,6 +31,7 @@ internal sealed class ShellSession : IDisposable
     private WindowSnapping? _snapping;
     private Hotkeys? _hotkeys;
     private KeyboardHook? _keyboardHook;
+    private ShellServiceObjects? _serviceObjects;
 
     /// <param name="endSession">Saves and cleans up before Windows ends the process at sign-out or shutdown.</param>
     public ShellSession(ShellRegistration registration, Taskbars taskbars, Action endSession)
@@ -118,6 +119,11 @@ internal sealed class ShellSession : IDisposable
             Log.Warn("Keyboard hook unavailable; the Windows key won't open Start", ex);
         }
 
+        // Safely Remove Hardware and the objects other components register to run with the shell, as Explorer starts
+        // them once its taskbar is up.
+        _serviceObjects = ShellServiceObjects.Start(ex => Log.Error("Shell service objects failed", ex));
+        Log.Info("Shell service objects started");
+
         if (StartupApps.HaveRunThisSession())
         {
             Log.Info("Startup apps already ran in this session");
@@ -137,6 +143,9 @@ internal sealed class ShellSession : IDisposable
         _hotkeys?.Dispose();
         _switcher?.Close();
         _snapping?.Dispose();
+        // Explorer waits for them however long they take; a shell that's exiting can't.
+        if (_serviceObjects is not null && !_serviceObjects.Stop(TimeSpan.FromSeconds(3)))
+            Log.Warn("Shell service objects didn't close within 3 seconds");
     }
 
     /// <summary>

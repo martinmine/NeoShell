@@ -89,7 +89,8 @@ All shell surfaces (taskbar, Start menu, wallpaper, flyouts) are WinUI `Window`s
 3. Signal the shell-ready events (`Local\ShellDesktopSwitchEvent`, `msgina: ShellReadyEvent`, whichever exist) so
    logon completes. Also set `ARW_HIDE` in `SPI_SETMINIMIZEDMETRICS` (not saved, as Explorer does), otherwise
    minimized windows are drawn as small title bars along the bottom of the screen.
-4. Run startup apps (below), queued at low priority after the tray exists.
+4. Start the shell service objects (below), then run startup apps (below), queued at low priority after the tray
+   exists.
 5. Register hotkeys and the low-level keyboard hook (see Hotkeys).
 6. Handle `WM_QUERYENDSESSION` (always allow) / `WM_ENDSESSION` on the shell window: shut down cleanly before Windows
    ends the process. Settings are already saved on every change.
@@ -113,6 +114,58 @@ chat apps, password managers, GPU/audio/Bluetooth utilities etc. never start and
   StartupHasBeenRun` and `RunStuffHasBeenRun`; NeoShell checks the first and sets both, so a NeoShell restart, or
   Explorer after Switch to Explorer, doesn't launch them again.
 - Parsing and the `StartupApproved` decision are unit tested.
+
+### Shell service objects (shell mode only; `ShellSession`, Interop `Shell/ShellServiceObjects.cs`)
+
+Windows' own tray items that aren't apps come from COM objects Explorer starts with its taskbar: without them there is
+no Safely Remove Hardware icon, no Bluetooth pairing prompts, no Sync Center or offline files, and so on. How Explorer
+does it (Windows 11 25H2, `explorer.exe` and `stobject.dll` read with symbols; checked live with cdb and the modules
+loaded):
+
+- `CTray::_StartSSO1` is one of the taskbar's parallel startup tasks ("SSO1", with `PrelaunchAtLogon`,
+  `DesktopApiSurface`, `TaskbarApiSurface`), run on the taskbar's UI thread once `Shell_TrayWnd` exists. It does
+  `CoCreateInstance(CLSID_SysTray {35CEC8A3-2BE6-11D2-8773-92E220524153}, CLSCTX_INPROC_SERVER, IOleCommandTarget)`
+  and `Exec(CGID_ShellServiceObject {000214D2-0000-0000-C000-000000000046}, SSOCMDID_OPEN = 2, 0, pvaIn, NULL)`.
+  `pvaIn` is a `VT_UI4` startup cookie (task index | 0x10000) that SysTray only posts back to `Shell_TrayWnd` as
+  message 0x574 once it has loaded everything, so Explorer can finish its startup tasks; NeoShell passes none (SysTray
+  then posts nothing). `CTray::_HandleDestroy` (the taskbar's `WM_DESTROY`) sends `Exec(…, SSOCMDID_CLOSE = 3, …)`
+  and releases it.
+- SysTray's `Exec(OPEN)` returns at once: it starts its own thread, "SSO Main" (`SysTrayMain`, `SHCreateThreadWithHandle`
+  without flags; the thread calls `CoInitializeEx(COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE)`). That thread
+  creates the hidden window `SystemTray_Main`, starts KeepAwake, power (battery icon, Windows 11 shows its own) and
+  hot plug (Safely Remove Hardware), then `CShellServiceObjectMgr::LoadObjects`, and runs a message loop. `Exec(CLOSE)`
+  sends `WM_CLOSE` to `SystemTray_Main` and waits for the thread, pumping messages, with no time limit; on its way out
+  the thread closes every object it loaded.
+- `LoadObjects` reads `HKLM\Software\Microsoft\Windows\CurrentVersion\Explorer\ShellServiceObjects\{CLSID}`: an object
+  starts if it has an `AutoStart` value (unless the same key in HKCU has `NoAutoStart`), or HKCU's key has `AutoStart`,
+  **and** its CLSID is in stobject's built-in list of 20 (third-party objects registered there never load). The list
+  includes a flag per object (shared or own thread) and, for Windows To Go, a check that it is running from one.
+  Objects without `AutoStart` load on demand (`SHEnableServiceObject`, e.g. hcproviders.dll after Security and
+  Maintenance asks for it). The old `ShellServiceObjectDelayLoad` key (here only WebCheck) is read by nothing any more.
+- On this VM, Explorer and NeoShell end up with the same objects loaded: SndVolSSO (volume service), dxp (Devices and
+  Printers), Windows.CloudStore, Windows.FileExplorer.Common (OneDrive network states), wpdshserviceobj (portable
+  devices), cscui (offline files), srchadmin (Windows Search), shdocvw (WebCheck), SyncCenter, bthprops (Bluetooth
+  authentication agent, `BluetoothNotificationAreaIconWindowClass`), Actioncenter (Security and Maintenance), and later
+  hcproviders. Not loaded by either: pwsso (Windows To Go only) and hgcpl (HomeGroup: not in stobject's list).
+- Tray icons they add, all with `NIF_GUID` (the "system control area" GUIDs `7820AE7x-23E3-4229-82C1-E41CB67D5B9C`):
+  hot plug `…AE78` (version 4, callback 0x4CA; it acts on `NIN_SELECT` and `WM_CONTEXTMENU`, both opening the eject
+  menu), power `…AE75` (none without a battery), volume `…AE73` and microphone `…AE82` (SndVolSSO). Explorer's
+  `Taskbar.dll` maps volume, network `…AE74`, power, microphone and Meet Now `…AE83` to its own buttons
+  (`c_scaidToResourceMap`) and never shows those as tray icons; NeoShell, which has its own indicators, accepts them
+  but doesn't show them either (`TrayIconState.IsSystemIcon`, unit tested). Without that the classic speaker icon
+  ("Speakers: 75%") showed in the overflow.
+- NeoShell does the same calls, but creates SysTray on an STA thread of its own (pumping messages, so broadcasts to
+  its COM window don't hang) rather than the UI thread: a DLL that hangs while loading can't hold up the shell, and on
+  exit `ShellSession` waits at most 3 s for `CLOSE` (logged if it takes longer; the thread is a background thread and
+  ends with the process). Their code runs in NeoShell's process, as in Explorer's: an object that crashes takes the
+  shell down, and the watchdog then starts Explorer.
+- Compared on this VM (VMware marks its virtual PCI devices ejectable, so the icon shows without removable media):
+  Explorer's and NeoShell's overflow both show "Safely Remove Hardware and Eject Media" with the same glyph, and a left
+  or right click opens the same menu (SysTray draws it: Open Devices and Printers, the disks, USB root hub, the
+  `VIRTMACHINE` group of controllers and the DVD drive, the network adapter) at the same place, its bottom at the
+  pointer. On `/exit` the power, hot plug and volume icons are deleted ~50 ms into shutdown and NeoShell exits in
+  under a second. Not run: actually ejecting a device (each would remove a virtual controller, disk or the NIC from
+  the running VM).
 
 ### Switch to Explorer
 
@@ -575,8 +628,10 @@ Exit NeoShell (alongside Explorer only).
     (HWND/HICON fields are 32-bit handles in both, sign-extended) and the V1/V2/V3/current sizes. Unit tested.
 - Icons are keyed by (`hWnd`, `uID`) or `guidItem` (`TrayIconStore`, unit tested): adding an existing icon or
   changing a missing one fails, as in Explorer; only flagged fields change. `NIS_HIDDEN` is honoured. Icon pixels
-  are copied when they arrive, as the app may destroy its HICON. Tooltips from `szTip` (version 4 icons without
-  `NIF_SHOWTIP` get `NIN_POPUPOPEN`/`NIN_POPUPCLOSE` instead). Balloon notifications become toasts (below).
+  are copied when they arrive, as the app may destroy its HICON. Windows' own volume, network, power, microphone and
+  Meet Now icons (see Shell service objects) are kept but not shown, as in Explorer. Tooltips from `szTip` (version
+  4 icons without `NIF_SHOWTIP` get `NIN_POPUPOPEN`/`NIN_POPUPCLOSE` instead). Balloon notifications become toasts
+  (below).
 - **Balloon notifications** (`NIF_INFO`; `TrayBalloon`, `NotificationArea`, Interop `BalloonIcons`,
   `NotifyIconSettings`). How Explorer does it (Windows 11 25H2, `Taskbar.dll`: `NotificationAreaIconManager2::ModifyIcon`
   → `NotificationAreaIcon2::ShowBalloon` → `BalloonToast2::SendAsync`, read with symbols and Ghidra):

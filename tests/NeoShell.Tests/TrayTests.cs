@@ -297,6 +297,20 @@ public sealed class TrayTests
     }
 
     [Fact]
+    public void Store_accepts_windows_own_system_icons_but_marks_them_not_to_show()
+    {
+        var store = new TrayIconStore();
+        var volume = new Guid("7820ae73-23e3-4229-82c1-e41cb67d5b9c");
+        var hotPlug = new Guid("7820ae78-23e3-4229-82c1-e41cb67d5b9c");
+
+        Assert.True(store.Apply(Data(NotifyIconCommand.Add, id: 1, guid: volume, flags: NotifyIconFlags.Guid)));
+        Assert.True(store.Apply(Data(NotifyIconCommand.Add, id: 2, guid: hotPlug, flags: NotifyIconFlags.Guid)));
+        Assert.True(store.Apply(Data(NotifyIconCommand.Add, id: 3)));
+
+        Assert.Equal([true, false, false], store.Icons.Select(icon => icon.IsSystemIcon));
+    }
+
+    [Fact]
     public void Taskbar_list_progress_state_names_the_window()
     {
         TaskbarListCall call = TaskbarListCall.Parse(0x441, 42, (nint)TaskbarProgressState.Error)!;

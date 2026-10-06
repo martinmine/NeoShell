@@ -272,7 +272,8 @@ Each item is done when it looks and behaves as Explorer's (layout, behaviour, an
 - [x] T2 Tray balloon notifications (`NIF_INFO`) shown as toasts — not run live: an app with a process-wide explicit
       AppUserModelID (Explorer's private resolver finds it; NeoShell names it after its executable)
 - [x] T3 Maximized windows follow work area changes (taskbar, sidebar) — not run live: a second monitor
-- [ ] T4 Shell service objects (`ShellServiceObjects`, SSODL): Safely Remove Hardware and other built-in tray items
+- [x] T4 Shell service objects (`ShellServiceObjects`, SSODL): Safely Remove Hardware and other built-in tray items —
+      not run live: ejecting a device (each ejectable device on the VM is a controller, disk or the NIC in use)
 - [ ] T5 AutoPlay on inserted media and devices
 - [ ] T6 `Progman` / `WorkerW` desktop windows (0x052C), for wallpaper tools
 - [ ] T7 Toast sound and toast activation

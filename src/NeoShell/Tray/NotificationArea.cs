@@ -198,7 +198,7 @@ internal sealed class NotificationArea : IDisposable
     /// <summary>Brings <see cref="Icons"/> in line with the store, updating icons in place.</summary>
     private void Refresh()
     {
-        List<TrayIconState> visible = [.. _store.Icons.Where(icon => !icon.IsHidden)];
+        List<TrayIconState> visible = [.. _store.Icons.Where(icon => !icon.IsHidden && !icon.IsSystemIcon)];
         // Gone icons first, so the icons after them aren't each moved up a place.
         var keys = visible.Select(state => state.Key).ToHashSet();
         for (int i = Icons.Count - 1; i >= 0; i--)

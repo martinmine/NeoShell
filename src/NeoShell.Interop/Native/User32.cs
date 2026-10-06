@@ -174,6 +174,38 @@ internal static unsafe partial class User32
     [LibraryImport("user32.dll", EntryPoint = "SendMessageW")]
     public static partial nint SendMessage(nint hwnd, uint message, nint wParam, nint lParam);
 
+    [StructLayout(LayoutKind.Sequential)]
+    public struct MSG
+    {
+        public nint hwnd;
+        public uint message;
+        public nint wParam;
+        public nint lParam;
+        public uint time;
+        public int ptX;
+        public int ptY;
+        public uint lPrivate;
+    }
+
+    public const uint PM_REMOVE = 0x0001;
+    public const uint QS_ALLINPUT = 0x04FF;
+    public const uint MWMO_INPUTAVAILABLE = 0x0004;
+    public const uint WAIT_OBJECT_0 = 0;
+
+    [LibraryImport("user32.dll", EntryPoint = "PeekMessageW")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static partial bool PeekMessage(out MSG message, nint hwnd, uint filterMin, uint filterMax, uint remove);
+
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static partial bool TranslateMessage(in MSG message);
+
+    [LibraryImport("user32.dll", EntryPoint = "DispatchMessageW")]
+    public static partial nint DispatchMessage(in MSG message);
+
+    [LibraryImport("user32.dll", SetLastError = true)]
+    public static partial uint MsgWaitForMultipleObjectsEx(uint count, nint* handles, uint milliseconds, uint wakeMask, uint flags);
+
     [LibraryImport("user32.dll", EntryPoint = "FindWindowExW", StringMarshalling = StringMarshalling.Utf16)]
     public static partial nint FindWindowEx(nint parent, nint childAfter, string? className, string? windowName);
 
