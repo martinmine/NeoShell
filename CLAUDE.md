@@ -72,13 +72,15 @@ src/NeoShell/                 WinUI app
   Switcher/                   Alt+Tab window switcher (shell mode)
   Snap/                       Win+Z Snap layouts, window snapping by dragging and Win+arrows (shell mode)
   Capture/                    Screenshots: Win+PrtScn, Win+Shift+S snip (shell mode)
+  AutoPlay/                   AutoPlay for inserted media (shell mode): content and choices, toast, Windows 8 flyout
   Widgets/                    Widget sidebar, floating widgets, and the widgets (profile, resources, pictures, media,
                               weather, notes, wireless devices, about Windows)
   Settings/                   Settings record + JSON load/save (%LOCALAPPDATA%\NeoShell\settings.json)
 src/NeoShell.Interop/
-  Native/                     LibraryImport: User32, Shell32, Dwmapi, Kernel32, Advapi32, PowrProf, Comctl32, Pdh, Hid
+  Native/                     LibraryImport: User32, Shell32, Dwmapi, Kernel32, Advapi32, PowrProf, Comctl32, Pdh, Hid,
+                              Wintrust
   Com/                        Core Audio, IShellItem/IShellItemImageFactory, IPropertyStore, ITaskbarList, ISearchQueryHelper,
-                              IQuietHoursSettings
+                              IQuietHoursSettings, IHWEventHandler
   Windowing/                  MessageWindow, WindowSubclass, AppBar, ShellHook, DwmThumbnail, KeyboardHook, WindowInfo
   Imaging/                    IconBitmap (BGRA pixels), ScreenCapture (screen pixels, clipboard, PNG)
   Tray/                       TrayHost (owns Shell_TrayWnd), NOTIFYICONDATA parsing (32/64-bit)
@@ -96,7 +98,7 @@ src/NeoShell.Interop/
   Notifications/              UserNotifications (UserNotificationListener), DoNotDisturb (quiet hours)
   Search/                     IndexSearch (ISearchQueryHelper + OleDb against Search.CollatorDSO)
   Shell/                      AppCatalog (shell:AppsFolder), DesktopFolder, ShellContextMenu, ShellMenu, Launcher, Power,
-                              ShellRegistration, StartupApps
+                              ShellRegistration, StartupApps, VolumeArrivals, AutoPlayVolumes/Handlers, OpticalDrives
 tests/NeoShell.Tests/         xunit tests for logic that runs without UI
 tools/                        start-shell.ps1 (this session), set-shell.ps1, restore-explorer.ps1
 docs/                         design.md, plan.md
@@ -183,7 +185,8 @@ the desktop and back. Full spec in docs/design.md ("Widgets").
 - Unit tests (xunit) cover non-UI logic: window filtering, grouping, NOTIFYICONDATA and app bar message parsing,
   app bar placing, search ranking,
   indexer query building, startup entries, settings, wallpaper style mapping, AppBar rects, desktop icon
-  filtering, sorting and grid places, snap zones and keys, thumbnail toolbar data and image lists, widget placement and order, MET forecast parsing, wireless device protocols, Windows product name.
+  filtering, sorting and grid places, snap zones and keys, thumbnail toolbar data and image lists, widget placement and order, MET forecast parsing, wireless device protocols, Windows product name,
+  AutoPlay content, events, choice lists and saving, autorun.inf parsing, optical drive names.
 - When testing the UI live, drive it through UI Automation (set `AutomationProperties.AutomationId` on interactive
   controls). Never use global keystrokes like SendKeys: they go to whichever window has focus.
 - Always stop a running NeoShell with `/exit` (or its taskbar menu), never by killing the process. A kill leaves the

@@ -76,6 +76,12 @@ internal static unsafe partial class Shell32
     [LibraryImport("shell32.dll", EntryPoint = "SHDefExtractIconW")]
     public static partial int SHDefExtractIcon(char* iconFile, int index, uint flags, nint* largeIcon, nint* smallIcon, uint size);
 
+    /// <summary><c>QUNS_RUNNING_D3D_FULL_SCREEN</c>: a full-screen Direct3D app (a game) is in front.</summary>
+    public const int QUNS_RUNNING_D3D_FULL_SCREEN = 3;
+
+    [LibraryImport("shell32.dll")]
+    public static partial int SHQueryUserNotificationState(out int state);
+
     public const uint CMF_NORMAL = 0x0;
     public const uint CMF_DEFAULTONLY = 0x1;
     public const uint CMF_NODEFAULT = 0x20;
@@ -112,6 +118,7 @@ internal static unsafe partial class Shell32
         public User32.POINT ptInvoke;
     }
 
+    public const uint SEE_MASK_CLASSNAME = 0x0000_0001;
     public const uint SEE_MASK_IDLIST = 0x0000_0004;
     public const uint SEE_MASK_NOASYNC = 0x0000_0100;
     public const uint SEE_MASK_FLAG_NO_UI = 0x0000_0400;

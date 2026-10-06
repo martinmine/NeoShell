@@ -51,6 +51,13 @@ public sealed partial class NotificationCard : UserControl
         set => AppLogo.Source = value;
     }
 
+    /// <summary>Windows' default app glyph in place of a logo, as on its own system toasts (AutoPlay's).</summary>
+    public void ShowDefaultLogo()
+    {
+        AppLogo.Visibility = Visibility.Collapsed;
+        DefaultLogo.Visibility = Visibility.Visible;
+    }
+
     /// <summary>
     /// A tray balloon's picture beside the text, as on Explorer's balloon toasts: a 48 effective pixel place right under
     /// the header, the text centred on it, 16 below it. Toasts only.

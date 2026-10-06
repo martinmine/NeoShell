@@ -72,6 +72,7 @@
             </StackPanel>
             <StackPanel x:Name="AppHeader" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center" Visibility="Collapsed">
                 <Image x:Name="AppLogo" Width="16" Height="16" />
+                <FontIcon x:Name="DefaultLogo" Glyph="&#xECAA;" FontSize="13.5" Width="16" Visibility="Collapsed" />
                 <TextBlock x:Name="AppNameText" VerticalAlignment="Center" Style="{StaticResource CaptionTextBlockStyle}" />
             </StackPanel>
             <Button

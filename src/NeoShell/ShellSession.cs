@@ -1,4 +1,5 @@
 using Microsoft.UI.Dispatching;
+using NeoShell.AutoPlay;
 using NeoShell.Capture;
 using NeoShell.Interop.Shell;
 using NeoShell.Interop.Windowing;
@@ -32,6 +33,7 @@ internal sealed class ShellSession : IDisposable
     private Hotkeys? _hotkeys;
     private KeyboardHook? _keyboardHook;
     private ShellServiceObjects? _serviceObjects;
+    private VolumeAutoPlay? _autoPlay;
 
     /// <param name="endSession">Saves and cleans up before Windows ends the process at sign-out or shutdown.</param>
     public ShellSession(ShellRegistration registration, Taskbars taskbars, Action endSession)
@@ -124,6 +126,9 @@ internal sealed class ShellSession : IDisposable
         _serviceObjects = ShellServiceObjects.Start(ex => Log.Error("Shell service objects failed", ex));
         Log.Info("Shell service objects started");
 
+        // Without Explorer nothing reacts to inserted media.
+        _autoPlay = new VolumeAutoPlay(() => _taskbars.Toasts);
+
         if (StartupApps.HaveRunThisSession())
         {
             Log.Info("Startup apps already ran in this session");
@@ -143,6 +148,7 @@ internal sealed class ShellSession : IDisposable
         _hotkeys?.Dispose();
         _switcher?.Close();
         _snapping?.Dispose();
+        _autoPlay?.Dispose();
         // Explorer waits for them however long they take; a shell that's exiting can't.
         if (_serviceObjects is not null && !_serviceObjects.Stop(TimeSpan.FromSeconds(3)))
             Log.Warn("Shell service objects didn't close within 3 seconds");

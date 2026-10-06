@@ -42,6 +42,12 @@ internal static unsafe partial class Ole32
     }
 
     [LibraryImport("ole32.dll")]
+    public static partial int GetRunningObjectTable(uint reserved, out nint table);
+
+    [LibraryImport("ole32.dll")]
+    public static partial int CreateClassMoniker(in Guid clsid, out nint moniker);
+
+    [LibraryImport("ole32.dll")]
     public static partial int RegisterDragDrop(nint hwnd, nint dropTarget);
 
     [LibraryImport("ole32.dll")]

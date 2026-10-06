@@ -38,4 +38,10 @@ internal static unsafe partial class Advapi32
     /// <summary>Returns a Win32 error code; 0 is success.</summary>
     [LibraryImport("advapi32.dll", EntryPoint = "InitiateShutdownW", StringMarshalling = StringMarshalling.Utf16)]
     public static partial uint InitiateShutdown(string? machine, string? message, uint gracePeriod, uint flags, uint reason);
+
+    /// <summary>Only the key's last write time is asked for here. Returns a Win32 error code; 0 is success.</summary>
+    [LibraryImport("advapi32.dll", EntryPoint = "RegQueryInfoKeyW")]
+    public static partial int RegQueryInfoKey(
+        nint key, char* className, uint* classLength, nint reserved, uint* subKeys, uint* maxSubKeyLength, uint* maxClassLength,
+        uint* values, uint* maxValueNameLength, uint* maxValueLength, uint* securityDescriptor, long* lastWriteTime);
 }

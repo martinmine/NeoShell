@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    AutoPlay's choices, as Explorer's flyout (twinui's DirectUI "AutoPlay" chooser, unchanged since Windows 8): white
+    whatever the theme, the drive's name in large light text, "Choose what to do with …", and a 60 pixel row per
+    choice with its icon on an accent tile. Effective pixels measured on Explorer's at 100 %.
+-->
+<UserControl
+    x:Class="NeoShell.AutoPlay.AutoPlayChooser"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    RequestedTheme="Light">
+    <UserControl.Resources>
+        <!-- A choice: grey under the pointer, where its provider turns black; pressed, it sinks in (Windows 8's tilt). -->
+        <Style x:Key="ChoiceStyle" TargetType="Button">
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="UseSystemFocusVisuals" Value="True" />
+            <Setter Property="FocusVisualPrimaryBrush" Value="Black" />
+            <Setter Property="FocusVisualPrimaryThickness" Value="0,2,0,2" />
+            <Setter Property="FocusVisualSecondaryThickness" Value="0" />
+            <Setter Property="FocusVisualMargin" Value="0" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Grid x:Name="Root" Background="Transparent">
+                            <VisualStateManager.VisualStateGroups>
+                                <VisualStateGroup x:Name="CommonStates">
+                                    <VisualState x:Name="Normal">
+                                        <Storyboard>
+                                            <PointerUpThemeAnimation Storyboard.TargetName="Presenter" />
+                                        </Storyboard>
+                                    </VisualState>
+                                    <VisualState x:Name="PointerOver">
+                                        <VisualState.Setters>
+                                            <Setter Target="Root.Background" Value="#FFDEDEDE" />
+                                            <Setter Target="Presenter.Foreground" Value="Black" />
+                                        </VisualState.Setters>
+                                        <Storyboard>
+                                            <PointerUpThemeAnimation Storyboard.TargetName="Presenter" />
+                                        </Storyboard>
+                                    </VisualState>
+                                    <VisualState x:Name="Pressed">
+                                        <Storyboard>
+                                            <PointerDownThemeAnimation Storyboard.TargetName="Presenter" />
+                                        </Storyboard>
+                                    </VisualState>
+                                </VisualStateGroup>
+                            </VisualStateManager.VisualStateGroups>
+                            <ContentPresenter
+                                x:Name="Presenter"
+                                Content="{TemplateBinding Content}"
+                                HorizontalContentAlignment="Stretch"
+                                Foreground="#FF666666" />
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style x:Key="ChoiceTextStyle" TargetType="TextBlock">
+            <Setter Property="FontFamily" Value="Segoe UI" />
+            <Setter Property="FontSize" Value="14.667" />
+            <Setter Property="FontWeight" Value="SemiLight" />
+            <Setter Property="LineHeight" Value="20" />
+            <Setter Property="LineStackingStrategy" Value="BlockLineHeight" />
+            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+            <Setter Property="TextWrapping" Value="NoWrap" />
+            <!-- DirectUI lays text out on whole pixels, 2 % wider than WinUI's. -->
+            <Setter Property="CharacterSpacing" Value="9" />
+        </Style>
+    </UserControl.Resources>
+    <Border Background="White" BorderBrush="#FFCCCCCC" BorderThickness="1">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="66" />
+                <RowDefinition Height="20" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+            <TextBlock
+                x:Name="TitleText"
+                Margin="18,12,20,0"
+                FontFamily="Segoe UI"
+                FontSize="26.667"
+                FontWeight="Light"
+                CharacterSpacing="5"
+                Foreground="Black"
+                TextTrimming="CharacterEllipsis"
+                AutomationProperties.AutomationId="AutoPlayTitle" />
+            <TextBlock
+                x:Name="DetailText"
+                Grid.Row="1"
+                Margin="20,0"
+                Foreground="Black"
+                Style="{StaticResource ChoiceTextStyle}"
+                AutomationProperties.AutomationId="AutoPlayDetail" />
+            <ScrollViewer x:Name="Scroller" Grid.Row="2" VerticalScrollBarVisibility="Auto">
+                <StackPanel x:Name="ChoicesPanel" Padding="0,10,0,20" XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once" />
+            </ScrollViewer>
+        </Grid>
+    </Border>
+</UserControl>

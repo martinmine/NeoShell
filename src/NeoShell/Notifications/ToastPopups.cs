@@ -97,7 +97,7 @@ internal sealed class ToastPopups : IDisposable
     /// <param name="completed">Tells the app how it went: clicked, or timed out (also when closed).</param>
     public bool ShowBalloon(TrayBalloon balloon, Action<BalloonEvent> completed)
     {
-        HideBalloon(balloon.IconKey);
+        Hide(balloon.IconKey);
         if (_suppressed() || _anchor() is null || !_center.ShowsBanner(balloon.AppId))
             return false;
 
@@ -113,10 +113,30 @@ internal sealed class ToastPopups : IDisposable
         return true;
     }
 
-    /// <summary>Takes an icon's balloon away, if it's up, without telling its app (as Explorer does).</summary>
-    public void HideBalloon(string iconKey)
+    /// <summary>
+    /// Shows one of Windows' own toasts that are only a banner, never kept in the notification center (AutoPlay's),
+    /// in place of the last one with the same key. Returns false when it can't show, as <see cref="ShowBalloon"/>.
+    /// </summary>
+    /// <param name="completed">Clicked, or timed out (also when closed).</param>
+    public bool ShowBanner(string key, ToastInfo info, Action<BalloonEvent> completed)
     {
-        if (_shown.FirstOrDefault(t => t.BalloonKey == iconKey) is { } toast)
+        Hide(key);
+        if (_suppressed() || _anchor() is null || !_center.ShowsBanner(info.AppId))
+            return false;
+
+        var card = new NotificationCard(info, isToast: true);
+        // Windows' system toasts have no logo of their own: the notification UI draws its default app glyph.
+        card.ShowDefaultLogo();
+        Show(card, key, completed);
+        return true;
+    }
+
+    /// <summary>
+    /// Takes a balloon (by its icon's key) or banner away, if it's up, without telling its app (as Explorer does).
+    /// </summary>
+    public void Hide(string key)
+    {
+        if (_shown.FirstOrDefault(t => t.BalloonKey == key) is { } toast)
             Dismiss(toast, result: null);
     }
 

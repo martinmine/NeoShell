@@ -11,6 +11,13 @@ internal static unsafe partial class Shlwapi
     [LibraryImport("shlwapi.dll", StringMarshalling = StringMarshalling.Utf16)]
     public static partial int SHLoadIndirectString(string source, char* output, uint length, nint reserved);
 
+    public const int PERCEIVED_TYPE_IMAGE = 2;
+    public const int PERCEIVED_TYPE_AUDIO = 3;
+    public const int PERCEIVED_TYPE_VIDEO = 4;
+
+    [LibraryImport("shlwapi.dll", StringMarshalling = StringMarshalling.Utf16)]
+    public static partial int AssocGetPerceivedType(string extension, out int type, out int flags, nint typeName);
+
     /// <summary>Maps shared memory from <c>SHAllocShared</c>; <paramref name="processId"/> is the process the handle belongs to.</summary>
     [LibraryImport("shlwapi.dll")]
     public static partial void* SHLockShared(nint data, uint processId);

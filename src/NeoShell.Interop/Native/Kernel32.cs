@@ -104,4 +104,16 @@ internal static unsafe partial class Kernel32
 
     [LibraryImport("kernel32.dll")]
     public static partial nuint VirtualQuery(void* address, MEMORY_BASIC_INFORMATION* buffer, nuint length);
+
+    [LibraryImport("kernel32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static partial bool DeviceIoControl(
+        Microsoft.Win32.SafeHandles.SafeFileHandle device, uint code, void* input, uint inputSize, void* output, uint outputSize,
+        out uint returned, nint overlapped);
+
+    [LibraryImport("kernel32.dll", EntryPoint = "GetVolumeInformationW", StringMarshalling = StringMarshalling.Utf16)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static partial bool GetVolumeInformation(
+        string root, char* name, uint nameLength, uint* serialNumber, uint* maxComponentLength, uint* flags,
+        char* fileSystemName, uint fileSystemNameLength);
 }

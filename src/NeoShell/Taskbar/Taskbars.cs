@@ -95,6 +95,9 @@ internal sealed class Taskbars : IDisposable
     /// <summary>The system tray; only when NeoShell is the shell and no other tray is running.</summary>
     public NotificationArea? Tray { get; private set; }
 
+    /// <summary>Toasts, which NeoShell shows only as the shell.</summary>
+    public ToastPopups? Toasts => _toasts;
+
     public void Show()
     {
         Tracker.Start();
@@ -106,7 +109,7 @@ internal sealed class Taskbars : IDisposable
             Tray.TaskbarListCalled += Tracker.Apply;
             Tray.ThumbBarCalled += Tracker.Apply;
             Tray.BalloonRequested += ShowBalloon;
-            Tray.BalloonWithdrawn += key => _toasts?.HideBalloon(key);
+            Tray.BalloonWithdrawn += key => _toasts?.Hide(key);
             _appBars = new AppBars(Tray, () => PrimaryWindow?.ScreenBounds, () => _windowSettings.AutoHide);
         }
         // Created up front, so it opens instantly and its app catalog is already loaded.

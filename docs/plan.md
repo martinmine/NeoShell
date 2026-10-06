@@ -274,8 +274,11 @@ Each item is done when it looks and behaves as Explorer's (layout, behaviour, an
 - [x] T3 Maximized windows follow work area changes (taskbar, sidebar) — not run live: a second monitor
 - [x] T4 Shell service objects (`ShellServiceObjects`, SSODL): Safely Remove Hardware and other built-in tray items —
       not run live: ejecting a device (each ejectable device on the VM is a controller, disk or the NIC in use)
-- [ ] T5 AutoPlay on inserted media and devices — not done: Windows' AutoPlay UI only runs in Explorer's process
-      (it needs the immersive notification band); NeoShell needs its own (see design.md, "AutoPlay")
+- [x] T5 AutoPlay on inserted media as the shell, NeoShell's own (Windows' runs only in Explorer): content, saved
+      choices, banner toast and Windows 8 flyout as Explorer's, choices remembered and run (tests for content, events,
+      choice lists and saving) — not run live: USB sticks and memory cards, audio CDs, Blu-ray, VCD and blank discs
+      (no hardware; blank media isn't detected), CLSID handlers; not done: WPD devices (phones, MTP cameras) and
+      the "new choices" prompt
 - T6 `Progman` / `WorkerW` desktop windows (0x052C), for wallpaper tools — skipped: not needed for now
 - [ ] T7 Toast sound and toast activation
 - [ ] T8 Input language indicator and its picker
