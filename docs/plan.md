@@ -275,7 +275,7 @@ Each item is done when it looks and behaves as Explorer's (layout, behaviour, an
 - [x] T4 Shell service objects (`ShellServiceObjects`, SSODL): Safely Remove Hardware and other built-in tray items —
       not run live: ejecting a device (each ejectable device on the VM is a controller, disk or the NIC in use)
 - [ ] T5 AutoPlay on inserted media and devices
-- [ ] T6 `Progman` / `WorkerW` desktop windows (0x052C), for wallpaper tools
+- T6 `Progman` / `WorkerW` desktop windows (0x052C), for wallpaper tools — skipped: not needed for now
 - [ ] T7 Toast sound and toast activation
 - [ ] T8 Input language indicator and its picker
 - [ ] T9 Badges for packaged apps (`BadgeUpdateManager`)
