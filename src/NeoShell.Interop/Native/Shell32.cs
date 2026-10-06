@@ -55,6 +55,9 @@ internal static unsafe partial class Shell32
     public static partial int SHGetIDListFromObject([MarshalAs(UnmanagedType.Interface)] Com.IShellItem item, out nint idList);
 
     public const uint SIID_LINK = 29;
+    public const uint SIID_WARNING = 78;
+    public const uint SIID_INFO = 79;
+    public const uint SIID_ERROR = 80;
     public const uint SHGSI_ICONLOCATION = 0x0;
 
     [StructLayout(LayoutKind.Sequential)]

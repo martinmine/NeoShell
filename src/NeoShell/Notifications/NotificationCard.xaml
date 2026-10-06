@@ -24,13 +24,12 @@
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
         <!-- Lighter under the pointer, as Explorer's cards; over the padding too. -->
         <Border
             x:Name="HoverPlate"
-            Grid.RowSpan="4"
+            Grid.RowSpan="3"
             Margin="-12,0,-4,-12"
             Background="{ThemeResource SubtleFillColorSecondaryBrush}"
             IsHitTestVisible="False"
@@ -119,26 +118,43 @@
             </Button>
         </Grid>
 
-        <TextBlock
-            x:Name="TitleText"
-            Grid.Row="1"
-            Margin="0,4,8,0"
-            MaxLines="2"
-            TextWrapping="Wrap"
-            TextTrimming="CharacterEllipsis"
-            IsTextTrimmedChanged="Text_IsTextTrimmedChanged" />
-        <TextBlock
-            x:Name="BodyText"
-            Grid.Row="2"
-            Margin="0,0,8,0"
-            MaxLines="1"
-            TextWrapping="Wrap"
-            TextTrimming="CharacterEllipsis"
-            IsTextTrimmedChanged="Text_IsTextTrimmedChanged"
-            Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+        <!--
+            A tray balloon's picture (its information, warning or error icon) goes beside the text, which centres on it.
+            Explorer draws it 40 epx large in a 48 epx place, 16 from the text.
+        -->
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition />
+            </Grid.ColumnDefinitions>
+            <Image
+                x:Name="PictureImage"
+                Width="40"
+                Height="40"
+                Margin="4,4,20,4"
+                VerticalAlignment="Top"
+                Visibility="Collapsed" />
+            <StackPanel x:Name="TextPanel" Grid.Column="1">
+                <TextBlock
+                    x:Name="TitleText"
+                    Margin="0,4,8,0"
+                    MaxLines="2"
+                    TextWrapping="Wrap"
+                    TextTrimming="CharacterEllipsis"
+                    IsTextTrimmedChanged="Text_IsTextTrimmedChanged" />
+                <TextBlock
+                    x:Name="BodyText"
+                    Margin="0,0,8,0"
+                    MaxLines="1"
+                    TextWrapping="Wrap"
+                    TextTrimming="CharacterEllipsis"
+                    IsTextTrimmedChanged="Text_IsTextTrimmedChanged"
+                    Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+            </StackPanel>
+        </Grid>
         <Button
             x:Name="FooterButton"
-            Grid.Row="3"
+            Grid.Row="2"
             Margin="0,12,0,0"
             Padding="10,4"
             AutomationProperties.AutomationId="NotificationGroupExpandButton"

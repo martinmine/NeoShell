@@ -557,8 +557,48 @@ Exit NeoShell (alongside Explorer only).
 - Icons are keyed by (`hWnd`, `uID`) or `guidItem` (`TrayIconStore`, unit tested): adding an existing icon or
   changing a missing one fails, as in Explorer; only flagged fields change. `NIS_HIDDEN` is honoured. Icon pixels
   are copied when they arrive, as the app may destroy its HICON. Tooltips from `szTip` (version 4 icons without
-  `NIF_SHOWTIP` get `NIN_POPUPOPEN`/`NIN_POPUPCLOSE` instead); balloon notifications are ignored (Explorer turns
-  them into toasts; NeoShell doesn't yet).
+  `NIF_SHOWTIP` get `NIN_POPUPOPEN`/`NIN_POPUPCLOSE` instead). Balloon notifications become toasts (below).
+- **Balloon notifications** (`NIF_INFO`; `TrayBalloon`, `NotificationArea`, Interop `BalloonIcons`,
+  `NotifyIconSettings`). How Explorer does it (Windows 11 25H2, `Taskbar.dll`: `NotificationAreaIconManager2::ModifyIcon`
+  → `NotificationAreaIcon2::ShowBalloon` → `BalloonToast2::SendAsync`, read with symbols and Ghidra):
+  - An empty `szInfo` takes the icon's balloon away (`HideBalloon`), as does deleting the icon; the app hears nothing.
+    Otherwise `NIN_BALLOONSHOW` goes to the app at once, before the toast is even posted, and a new balloon from the
+    same icon replaces its last without a message for the old one. `uTimeout`, `NIF_REALTIME`,
+    `NIIF_RESPECT_QUIET_TIME` and `NIIF_LARGE_ICON` are ignored. (`NIIF_USER` with an `hBalloonIcon` of the wrong
+    size is refused by shell32 itself: `Shell_NotifyIcon` returns FALSE and the tray never sees it.)
+  - It posts a real toast through `ToastNotificationManager`: `<toast bannerOnly="true">` (a banner only: it never
+    stays in the notification center) in the legacy template `ToastImageAndText02` (`…01` without a title,
+    `ToastText02`/`…01` without a picture); the title (if 1–127 characters) is the first text, the text the second
+    (or the first, without a title); `NIIF_NOSOUND` adds `<audio silent="true"/>`. The picture, written to
+    `%TEMP%\{guid}.png`: `NIIF_INFO`/`WARNING`/`ERROR` → the stock icons `SIID_INFO`/`SIID_WARNING`/`SIID_ERROR`
+    (79/78/80), `NIIF_USER` → `hBalloonIcon`, else the tray icon, each reloaded large from its file
+    (`GetIconInfoEx` module and resource, `SHDefExtractIcon` at 256, 196, 128, 64, 48, 32, 24 or 16, the first
+    that loads); `NIIF_NONE` has none.
+  - The app: the AppUserModelID of the icon's window when `IApplicationResolver::GetAppIDForWindow` says it is
+    explicit (and not a system app); otherwise `NotifyIconGeneratedAumid_<ID>`, `<ID>` being the icon's key in
+    `HKCU\Control Panel\NotifyIconSettings` (a random 64-bit number Explorer gives each icon it sees, with its
+    `ExecutablePath` and `UID` or `IconGuid`). For that one it registers `HKCU\Software\Classes\AppUserModelId\<AUMID>`
+    (volatile) with `DisplayName` = the executable's file description (else its file name) and `IconUri` = the tray
+    icon as `%TEMP%\<AUMID>.png`. The notification settings of that AUMID apply (Settings lists it under that name).
+    Seen on this VM: the toast's header still shows the raw `NotifyIconGeneratedAumid_7884…` and no logo.
+  - The toast's events become messages: `Activated` → `NIN_BALLOONUSERCLICK`; `Dismissed` (timed out, or the
+    close button) → `NIN_BALLOONTIMEOUT`, often twice (a time-out raises both `TimedOut` and `UserCanceled`);
+    `NIN_BALLOONHIDE` only when the platform hides it. With Do not disturb on the platform drops the banner:
+    `NIN_BALLOONSHOW`, then `NIN_BALLOONTIMEOUT` ~65 ms later. Version 4 icons get `wParam` 0 (no anchor) and the
+    message and ID in `lParam`; older ones `wParam` = ID, `lParam` = message.
+  - NeoShell (shell mode) shows them itself through `ToastPopups`, as any toast (same window, place, stacking,
+    timing, hover and slide), with the picture 40 epx large in a 48 epx place beside the text, which centres on it
+    (measured on Explorer's: text 80 epx from the left, toast 108 high), and sends the same messages (one
+    `NIN_BALLOONTIMEOUT`). It doesn't post them to the notification platform: nothing but NeoShell would show them,
+    and `UserNotificationListener` can't describe Explorer's generated apps (`AppInfo` throws "not implemented"; the
+    reader skips such notifications). It finds the same app as Explorer (`TrayBalloon.AppIdFor`, unit tested) from
+    the window's own AppUserModelID or packaged app (not one set process-wide with
+    `SetCurrentProcessExplicitAppUserModelID`, which only the private resolver sees), else Explorer's
+    `NotifyIconSettings` key (read only; an icon Explorer never saw gets the executable's implicit AppID), so the
+    user's settings for it apply: no toast with Do not disturb on, banners off for all apps, or the app's
+    notifications or banners off; it then times out at once as Explorer's. Names and logo as Explorer registers them
+    (file description, tray icon) rather than the raw AUMID Explorer's header shows. NeoShell's toasts play no sound
+    yet (T7), so `NIIF_NOSOUND` has nothing to silence.
 - After `Shell_TrayWnd` exists, broadcast `RegisterWindowMessage("TaskbarCreated")` so running apps re-add icons.
 - Remove icons whose owner window has died (`IsWindow` every 5 s and before forwarding input).
 - **Mouse forwarding** with `NOTIFYICON_VERSION_4` semantics: `wParam` = anchor point (x, y), `lParam` low word =
@@ -731,7 +771,8 @@ notification center 12 epx above it and as tall as its notifications need, up to
   from the edge; the newest is lowest and older ones move up, three at most. It leaves after the system's "Dismiss
   notifications after" time (`SPI_GETMESSAGEDURATION`, 5 s by default), later while the pointer is on it. Closing
   it only puts it away (it stays in the notification center, as in Explorer); clicking it opens the app. Alongside
-  Explorer, Explorer shows toasts.
+  Explorer, Explorer shows toasts. Tray icons' balloons show the same way (see System tray), with a picture beside
+  the text, and are never stored.
 
 ## Quick Settings (`QuickSettings/`)
 

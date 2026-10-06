@@ -19,6 +19,15 @@ public enum TrayMouseEvent
     HoverEnd,
 }
 
+/// <summary>What became of an icon's balloon notification, as its app hears it.</summary>
+public enum BalloonEvent : uint
+{
+    Shown = 0x0402,         // NIN_BALLOONSHOW
+    Hidden = 0x0403,        // NIN_BALLOONHIDE
+    TimedOut = 0x0404,      // NIN_BALLOONTIMEOUT: also when closed with its close button
+    Clicked = 0x0405,       // NIN_BALLOONUSERCLICK
+}
+
 /// <summary>Tells a tray icon's app what the user did, in the form the icon's version expects.</summary>
 public static class NotifyIconInput
 {
@@ -54,6 +63,17 @@ public static class NotifyIconInput
         foreach ((nint wParam, nint lParam) in Messages(id, version, mouseEvent, anchor))
             User32.PostMessage(window, callbackMessage, wParam, lParam);
     }
+
+    /// <summary>Tells the app what became of its balloon.</summary>
+    public static void Send(nint window, uint id, uint callbackMessage, uint version, BalloonEvent balloonEvent)
+    {
+        (nint wParam, nint lParam) = Message(id, version, balloonEvent);
+        User32.PostMessage(window, callbackMessage, wParam, lParam);
+    }
+
+    /// <summary>A balloon's message as Explorer sends it: version 4 icons get no anchor (0, 0).</summary>
+    internal static (nint WParam, nint LParam) Message(uint id, uint version, BalloonEvent balloonEvent) =>
+        version >= 4 ? (0, MakeLong((ushort)balloonEvent, (ushort)id)) : ((nint)id, (nint)(uint)balloonEvent);
 
     /// <summary>
     /// The callback messages, as Explorer sends them. Version 4 icons get the anchor in wParam and the message and ID

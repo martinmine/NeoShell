@@ -269,7 +269,8 @@ Each item is done when it looks and behaves as Explorer's (layout, behaviour, an
 
 - [x] T1 App bar messages from other apps (`SHAppBarMessage` on `Shell_TrayWnd`, `WM_COPYDATA` dwData 0) — not
       compared live: `ABM_ACTIVATE` lifting an auto-hide bar; Explorer sends one more `ABN_POSCHANGED` per work area
-- [ ] T2 Tray balloon notifications (`NIF_INFO`) shown as toasts
+- [x] T2 Tray balloon notifications (`NIF_INFO`) shown as toasts — not run live: an app with a process-wide explicit
+      AppUserModelID (Explorer's private resolver finds it; NeoShell names it after its executable)
 - [ ] T3 Maximized windows follow work area changes (taskbar, sidebar)
 - [ ] T4 Shell service objects (`ShellServiceObjects`, SSODL): Safely Remove Hardware and other built-in tray items
 - [ ] T5 AutoPlay on inserted media and devices

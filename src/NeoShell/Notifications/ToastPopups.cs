@@ -2,7 +2,9 @@ using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using NeoShell.Interop.Notifications;
 using NeoShell.Interop.Windowing;
+using NeoShell.Interop.Tray;
 using NeoShell.Logging;
+using NeoShell.Tray;
 using Windows.Graphics;
 using Windows.UI;
 
@@ -16,7 +18,7 @@ namespace NeoShell.Notifications;
 /// <remarks>
 /// The newest at the bottom, the older ones pushed up; each slides in from the screen's edge and out again after
 /// the system's notification time (longer while the pointer is on it). Closing one only puts it away: the
-/// notification stays in the notification center, as Explorer's do.
+/// notification stays in the notification center, as Explorer's do. Tray icons' balloons show the same way.
 /// </remarks>
 internal sealed class ToastPopups : IDisposable
 {
@@ -67,15 +69,62 @@ internal sealed class ToastPopups : IDisposable
         _shown.Clear();
     }
 
-    private sealed record Toast(PanelWindow Window, NotificationCard Card, DispatcherQueueTimer Timer);
+    /// <param name="BalloonKey">For a tray balloon, its icon's key.</param>
+    /// <param name="Completed">For a tray balloon, tells its app how it went.</param>
+    private sealed record Toast(
+        PanelWindow Window, NotificationCard Card, DispatcherQueueTimer Timer, string? BalloonKey, Action<BalloonEvent>? Completed);
 
     private void Show(ToastInfo info)
     {
-        if (_suppressed() || _anchor() is not { } anchor)
+        if (_suppressed() || _anchor() is null)
             return;
 
         var card = new NotificationCard(info, isToast: true);
         SetLogo(card, info.AppId);
+        card.Invoked += _ =>
+        {
+            NotificationPanel.Open(info);
+            _center.Remove([info]);
+        };
+        Show(card, balloonKey: null, completed: null);
+    }
+
+    /// <summary>
+    /// Shows a tray icon's balloon as a toast, in place of the icon's last one if that's still up. Returns false when
+    /// it can't show (Do not disturb, the app's notifications or banners turned off, the notification center open):
+    /// Explorer's toast is then dropped by the notification platform, and its app hears it timed out.
+    /// </summary>
+    /// <param name="completed">Tells the app how it went: clicked, or timed out (also when closed).</param>
+    public bool ShowBalloon(TrayBalloon balloon, Action<BalloonEvent> completed)
+    {
+        HideBalloon(balloon.IconKey);
+        if (_suppressed() || _anchor() is null || !_center.ShowsBanner(balloon.AppId))
+            return false;
+
+        var info = new ToastInfo(0, balloon.AppId, balloon.AppName, DateTimeOffset.Now, balloon.Title, balloon.Body);
+        var card = new NotificationCard(info, isToast: true);
+        if (balloon.Picture is { } picture)
+            card.Picture = AppIcons.ToImageSource(picture);
+        if (balloon.Logo is { } logo)
+            card.Logo = AppIcons.ToImageSource(logo);
+        else
+            SetLogo(card, balloon.AppId);
+        Show(card, balloon.IconKey, completed);
+        return true;
+    }
+
+    /// <summary>Takes an icon's balloon away, if it's up, without telling its app (as Explorer does).</summary>
+    public void HideBalloon(string iconKey)
+    {
+        if (_shown.FirstOrDefault(t => t.BalloonKey == iconKey) is { } toast)
+            Dismiss(toast, result: null);
+    }
+
+    private void Show(NotificationCard card, string? balloonKey, Action<BalloonEvent>? completed)
+    {
+        if (_anchor() is not { } anchor)
+            return;
+
         var window = new PanelWindow(card, activates: false);
         (ElementTheme theme, Color? accent) = _theme();
         window.SetTheme(theme, accent);
@@ -83,7 +132,7 @@ internal sealed class ToastPopups : IDisposable
         DispatcherQueueTimer timer = window.DispatcherQueue.CreateTimer();
         timer.Interval = UserNotifications.PopupDuration;
         timer.IsRepeating = false;
-        var toast = new Toast(window, card, timer);
+        var toast = new Toast(window, card, timer, balloonKey, completed);
         timer.Tick += (_, _) =>
         {
             // Not from under the pointer: it waits until the pointer leaves.
@@ -96,15 +145,10 @@ internal sealed class ToastPopups : IDisposable
                 timer.Start();
         };
         card.CloseRequested += _ => Dismiss(toast);
-        card.Invoked += _ =>
-        {
-            NotificationPanel.Open(info);
-            _center.Remove([info]);
-            Dismiss(toast);
-        };
+        card.Invoked += _ => Dismiss(toast, BalloonEvent.Clicked);
         card.TurnOffRequested += _ =>
         {
-            _center.TurnOff(info.AppId);
+            _center.TurnOff(card.Toast.AppId);
             Dismiss(toast);
         };
         card.SettingsRequested += () => Launcher.OpenSettings(_runMode, "Notifications", "ms-settings:notifications");
@@ -120,7 +164,7 @@ internal sealed class ToastPopups : IDisposable
         window.SlideIn(Stack(new RectInt32(0, 0, width, height), toast), screen.X + screen.Width, s_slideIn);
         Restack(except: toast);
         timer.Start();
-        Log.Info($"Toast from {info.AppId}");
+        Log.Info($"Toast from {card.Toast.AppId}");
     }
 
     private async void SetLogo(NotificationCard card, string appId) => card.Logo = await _center.GetLogoAsync(appId);
@@ -146,12 +190,16 @@ internal sealed class ToastPopups : IDisposable
         return bounds with { X = x, Y = y - bounds.Height };
     }
 
-    private void Dismiss(Toast toast)
+    /// <param name="result">What a tray balloon's app hears; a toast that times out, is closed or is pushed out by
+    /// newer ones times out, as Explorer's do.</param>
+    private void Dismiss(Toast toast, BalloonEvent? result = BalloonEvent.TimedOut)
     {
         if (!_shown.Remove(toast))
             return;
 
         toast.Timer.Stop();
+        if (result is { } balloonEvent)
+            toast.Completed?.Invoke(balloonEvent);
         RectInt32 bounds = toast.Window.ScreenBounds;
         toast.Window.SlideOut(bounds.X + bounds.Width * 2, s_slideOut, toast.Window.Close);
         Restack();
@@ -160,7 +208,8 @@ internal sealed class ToastPopups : IDisposable
     // A toast cleared from the notification center (or by its app) goes too.
     private void OnNotificationsChanged()
     {
-        foreach (Toast toast in _shown.Where(t => !_center.IsStored(t.Card.Toast.Id)).ToList())
+        // Tray balloons aren't stored.
+        foreach (Toast toast in _shown.Where(t => t.BalloonKey is null && !_center.IsStored(t.Card.Toast.Id)).ToList())
             Dismiss(toast);
     }
 }

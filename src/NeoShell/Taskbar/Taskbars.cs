@@ -105,6 +105,8 @@ internal sealed class Taskbars : IDisposable
             Tray.IconBounds = icon => PrimaryWindow?.TrayIconBounds(icon);
             Tray.TaskbarListCalled += Tracker.Apply;
             Tray.ThumbBarCalled += Tracker.Apply;
+            Tray.BalloonRequested += ShowBalloon;
+            Tray.BalloonWithdrawn += key => _toasts?.HideBalloon(key);
             _appBars = new AppBars(Tray, () => PrimaryWindow?.ScreenBounds, () => _windowSettings.AutoHide);
         }
         // Created up front, so it opens instantly and its app catalog is already loaded.
@@ -139,6 +141,13 @@ internal sealed class Taskbars : IDisposable
         _focus?.Dispose();
         Notifications?.Dispose();
         CloseWindows();
+    }
+
+    // A balloon that can't show times out at once, as Explorer's.
+    private void ShowBalloon(TrayBalloon balloon)
+    {
+        if (_toasts?.ShowBalloon(balloon, balloonEvent => Tray?.Send(balloon, balloonEvent)) != true)
+            Tray?.Send(balloon, BalloonEvent.TimedOut);
     }
 
     /// <summary>Opens Start above <paramref name="taskbar"/>, or closes it if it's open.</summary>

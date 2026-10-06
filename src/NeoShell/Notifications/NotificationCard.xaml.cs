@@ -51,6 +51,24 @@ public sealed partial class NotificationCard : UserControl
         set => AppLogo.Source = value;
     }
 
+    /// <summary>
+    /// A tray balloon's picture beside the text, as on Explorer's balloon toasts: a 48 effective pixel place right under
+    /// the header, the text centred on it, 16 below it. Toasts only.
+    /// </summary>
+    public ImageSource? Picture
+    {
+        set
+        {
+            PictureImage.Source = value;
+            PictureImage.Visibility = value is null ? Visibility.Collapsed : Visibility.Visible;
+            if (value is null)
+                return;
+            TextPanel.VerticalAlignment = VerticalAlignment.Center;
+            TitleText.Margin = new Thickness(0, 0, 8, 0);
+            Root.Padding = new Thickness(16, 4, 8, 16);
+        }
+    }
+
     /// <summary>"+3 notifications" or "See fewer" under the card; null for none.</summary>
     public string? FooterText
     {

@@ -1,4 +1,5 @@
 using NeoShell.Interop.Native;
+using Windows.ApplicationModel;
 using Windows.UI.Notifications;
 using Windows.UI.Notifications.Management;
 
@@ -39,7 +40,7 @@ public static class UserNotifications
                 toasts.Add(toast);
                 continue;
             }
-            if (notification.AppInfo is not { } app)
+            if (AppOf(notification) is not { } app)
                 continue;
 
             (string title, string body) = Texts(notification.Notification.Visual);
@@ -63,6 +64,20 @@ public static class UserNotifications
             return User32.SystemParametersInfo(SPI_GETMESSAGEDURATION, 0, &seconds, 0) && seconds > 0
                 ? TimeSpan.FromSeconds(seconds)
                 : TimeSpan.FromSeconds(5);
+        }
+    }
+
+    // Explorer's tray balloons (apps NotifyIconGeneratedAumid_…, banner-only, stored only while their toast shows) have
+    // no app the platform can describe: reading theirs throws "not implemented".
+    private static AppInfo? AppOf(UserNotification notification)
+    {
+        try
+        {
+            return notification.AppInfo;
+        }
+        catch (NotImplementedException)
+        {
+            return null;
         }
     }
 

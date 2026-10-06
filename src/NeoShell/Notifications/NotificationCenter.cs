@@ -154,9 +154,7 @@ internal sealed class NotificationCenter : IDisposable
             Toasts = [.. all.Where(t => ReadSetting(t.AppId, "Enabled") && ReadSetting(t.AppId, "ShowInActionCenter"))];
             Changed?.Invoke();
 
-            if (DoNotDisturb || !ToastsEnabled())
-                return;
-            foreach (ToastInfo toast in arrived.Where(t => ReadSetting(t.AppId, "Enabled") && ReadSetting(t.AppId, "ShowBanner")))
+            foreach (ToastInfo toast in arrived.Where(t => ShowsBanner(t.AppId)))
                 Arrived?.Invoke(toast);
         }
         catch (Exception ex)
@@ -168,6 +166,13 @@ internal sealed class NotificationCenter : IDisposable
             _reading = false;
         }
     }
+
+    /// <summary>
+    /// Whether a new notification of the app pops up as a toast: not while Do not disturb is on, nor when the app's
+    /// notifications or banners, or all banners, are turned off.
+    /// </summary>
+    public bool ShowsBanner(string appId) =>
+        !DoNotDisturb && ToastsEnabled() && ReadSetting(appId, "Enabled") && ReadSetting(appId, "ShowBanner");
 
     // Settings → System → Notifications, per app: on unless set to 0.
     private static bool ReadSetting(string appId, string name)

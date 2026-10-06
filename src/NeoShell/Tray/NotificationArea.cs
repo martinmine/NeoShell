@@ -1,7 +1,9 @@
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml.Media;
 using NeoShell.Interop.Imaging;
+using NeoShell.Interop.Shell;
 using NeoShell.Interop.Tray;
 using NeoShell.Interop.Windowing;
 using NeoShell.Logging;
@@ -83,6 +85,25 @@ internal sealed class NotificationArea : IDisposable
         NotifyIconInput.Send(state.Window, state.Id, state.CallbackMessage, state.Version, mouseEvent, Cursor.Position());
     }
 
+    /// <summary>
+    /// An icon's app asked for a balloon notification. Its app has been told it showed (<c>NIN_BALLOONSHOW</c>, sent
+    /// at once as Explorer does); tell it what became of it with <see cref="Send(TrayBalloon, BalloonEvent)"/>.
+    /// </summary>
+    public event Action<TrayBalloon>? BalloonRequested;
+
+    /// <summary>
+    /// An icon's balloon was taken back (an empty text) or its icon deleted: it goes without a word to the app, as in
+    /// Explorer. Gives the icon's key.
+    /// </summary>
+    public event Action<string>? BalloonWithdrawn;
+
+    /// <summary>Tells a balloon's app what became of it, if its icon is still there.</summary>
+    public void Send(TrayBalloon balloon, BalloonEvent balloonEvent)
+    {
+        if (_store.Icons.FirstOrDefault(icon => icon.Key == balloon.IconKey) is { } state && TopLevelWindows.Exists(state.Window))
+            NotifyIconInput.Send(state.Window, state.Id, state.CallbackMessage, state.Version, balloonEvent);
+    }
+
     public void Dispose()
     {
         _cleanup.Stop();
@@ -91,17 +112,74 @@ internal sealed class NotificationArea : IDisposable
 
     private bool OnCommand(NotifyIconData data)
     {
+        TrayIconState? before = _store.Find(data.Window, data.Id, data.Guid);
         if (!_store.Apply(data))
             return false;
 
-        if (data.Flags.HasFlag(NotifyIconFlags.Icon) && _store.Find(data.Window, data.Id, data.Guid) is { } icon)
+        TrayIconState? icon = _store.Find(data.Window, data.Id, data.Guid);
+        if (data.Flags.HasFlag(NotifyIconFlags.Icon) && icon is not null)
         {
             // Copied now: the app may destroy its icon as soon as this call returns.
             IconBitmap? pixels = icon.IconHandle != 0 ? IconBitmap.FromIcon(icon.IconHandle) : null;
             _images[icon.Key] = pixels is null ? null : AppIcons.ToImageSource(pixels);
         }
+        if (data.Command == NotifyIconCommand.Delete && before is not null)
+            BalloonWithdrawn?.Invoke(before.Key);
+        else if (data.Flags.HasFlag(NotifyIconFlags.Info) && icon is not null)
+            OnBalloon(icon, data);
         Refresh();
         return true;
+    }
+
+    private void OnBalloon(TrayIconState icon, NotifyIconData data)
+    {
+        if (data.Info.Length == 0)
+        {
+            BalloonWithdrawn?.Invoke(icon.Key);
+            return;
+        }
+
+        // Read now, while the app waits: it may destroy its icons as soon as this call returns.
+        TrayBalloon balloon = CreateBalloon(icon, data);
+        NotifyIconInput.Send(icon.Window, icon.Id, icon.CallbackMessage, icon.Version, BalloonEvent.Shown);
+        Log.Info($"Balloon from {balloon.AppName} ({balloon.AppId})");
+        BalloonRequested?.Invoke(balloon);
+    }
+
+    // The picture as Explorer loads it, at 256 pixels (the toast scales it down), and the header's logo for 16
+    // effective pixels, sharp up to 200 %.
+    private static TrayBalloon CreateBalloon(TrayIconState icon, NotifyIconData data)
+    {
+        WindowInfo window = WindowInfo.Read(icon.Window);
+        string path = window.ProcessPath ?? "";
+        string? settingsId = path.Length > 0 ? NotifyIconSettings.FindId(path, icon.Id, icon.Guid) : null;
+        string appId = TrayBalloon.AppIdFor(window.AppUserModelId, settingsId, JumpLists.ImplicitAppId(path));
+        // An app of its own shows as Windows knows it; otherwise Explorer names it after the executable and takes the
+        // tray icon for its logo.
+        string? name = window.AppUserModelId is not null ? ShellItems.GetDisplayName(ShellItems.AppsFolderPath(appId)) : null;
+        IconBitmap? logo = window.AppUserModelId is null ? BalloonIcons.Sharp(icon.IconHandle, 32) : null;
+        (string title, string body) = TrayBalloon.Texts(data.InfoTitle, data.Info);
+        return new TrayBalloon(
+            icon.Key,
+            appId,
+            name ?? FileDescription(path) ?? Path.GetFileName(path),
+            title,
+            body,
+            BalloonIcons.Load(data.InfoFlags, data.BalloonIcon, icon.IconHandle, 256),
+            logo);
+    }
+
+    private static string? FileDescription(string path)
+    {
+        try
+        {
+            string? description = path.Length > 0 ? FileVersionInfo.GetVersionInfo(path).FileDescription : null;
+            return string.IsNullOrWhiteSpace(description) ? null : description;
+        }
+        catch (FileNotFoundException)
+        {
+            return null;
+        }
     }
 
     private RectInt32? OnRectRequest(NotifyIconRectRequest request)

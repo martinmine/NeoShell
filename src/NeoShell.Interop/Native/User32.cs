@@ -399,6 +399,24 @@ internal static unsafe partial class User32
     [return: MarshalAs(UnmanagedType.Bool)]
     public static partial bool GetIconInfo(nint icon, ICONINFO* info);
 
+    [StructLayout(LayoutKind.Sequential)]
+    public struct ICONINFOEX
+    {
+        public uint cbSize;
+        public int fIcon;
+        public uint xHotspot;
+        public uint yHotspot;
+        public nint hbmMask;
+        public nint hbmColor;
+        public ushort wResID;
+        public fixed char szModName[260];
+        public fixed char szResName[260];
+    }
+
+    [LibraryImport("user32.dll", EntryPoint = "GetIconInfoExW")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static partial bool GetIconInfoEx(nint icon, ICONINFOEX* info);
+
     [LibraryImport("user32.dll")]
     public static partial short GetAsyncKeyState(int key);
 

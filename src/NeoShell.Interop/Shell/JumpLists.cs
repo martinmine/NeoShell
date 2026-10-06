@@ -337,7 +337,7 @@ public static unsafe class JumpLists
         return Shlwapi.SHLoadIndirectString(text, buffer, 1024, 0) == 0 ? new string(buffer) : text;
     }
 
-    private static string? KnownFolderPath(Guid folder)
+    internal static string? KnownFolderPath(Guid folder)
     {
         if (Shell32.SHGetKnownFolderPath(folder, 0, 0, out char* path) != 0)
             return null;
