@@ -14,6 +14,8 @@ namespace NeoShell.Interop.Tray;
 public sealed unsafe class TrayHost : IDisposable
 {
     private const uint WM_COPYDATA = 0x004A;
+    private const nint SPI_SETWORKAREA = 0x002F;
+    private const nint AppBarData = 0;
     private const nint TrayData = 1;
     private const nint IconRectRequest = 3;
 
@@ -22,6 +24,7 @@ public sealed unsafe class TrayHost : IDisposable
     private readonly MessageWindow _trayWindow;
     private readonly MessageWindow _notifyWindow;
     private readonly MessageWindow _taskbandWindow;
+    private readonly HashSet<string> _autoHideProperties = [];
 
     /// <param name="onCommand">Applies an icon command; returns whether it succeeded, which the caller sees.</param>
     /// <param name="onRectRequest">The icon's place on screen, or null if it isn't known.</param>
@@ -50,8 +53,30 @@ public sealed unsafe class TrayHost : IDisposable
         User32.SetWindowPos(_trayWindow.Handle, 0, bounds.X, bounds.Y, bounds.Width, bounds.Height,
             User32.SWP_NOZORDER | User32.SWP_NOACTIVATE);
 
+    /// <summary>
+    /// Serves other apps' <c>SHAppBarMessage</c> calls; returns what the caller gets back. Unset, every call fails
+    /// (returns 0). Called on the UI thread while the app waits.
+    /// </summary>
+    public Func<AppBarMessage, nint>? AppBarMessageHandler { get; set; }
+
+    /// <summary>
+    /// Publishes the auto-hide bar on an edge as Explorer does: shell32 answers <c>ABM_GETAUTOHIDEBAR(EX)</c> from
+    /// these properties of <c>Shell_TrayWnd</c> without asking, and only asks when there is none. <paramref name="bar"/>
+    /// 1 means none. <c>ABM_GETAUTOHIDEBAR</c> reads the monitor from <c>LastAutoHideBarStuckMonitor</c>, the
+    /// taskbar's monitor when the last bar was set.
+    /// </summary>
+    public void PublishAutoHideBar(nint taskbarMonitor, nint monitor, AppBarEdge edge, nint bar)
+    {
+        string name = $"WindowOnEdge:{(uint)monitor:x8}:{(uint)edge}";
+        _autoHideProperties.Add(name);
+        User32.SetProp(_trayWindow.Handle, "LastAutoHideBarStuckMonitor", taskbarMonitor);
+        User32.SetProp(_trayWindow.Handle, name, bar);
+    }
+
     public void Dispose()
     {
+        foreach (string name in _autoHideProperties.Append("LastAutoHideBarStuckMonitor"))
+            User32.RemoveProp(_trayWindow.Handle, name);
         User32.RemoveProp(_trayWindow.Handle, "TaskbandHWND");
         _taskbandWindow.Dispose();
         _notifyWindow.Dispose();
@@ -66,6 +91,9 @@ public sealed unsafe class TrayHost : IDisposable
 
     /// <summary>An app set up or changed a window's thumbnail toolbar. Raised on the UI thread; icons are copies.</summary>
     public event Action<ThumbBarCall>? ThumbBarCalled;
+
+    /// <summary>Someone set a work area and told every window (<c>WM_SETTINGCHANGE</c> for <c>SPI_SETWORKAREA</c>).</summary>
+    public event Action? WorkAreaChanged;
 
     private nint? OnTaskbandMessage(uint message, nint wParam, nint lParam)
     {
@@ -111,6 +139,8 @@ public sealed unsafe class TrayHost : IDisposable
 
     private nint? OnMessage(uint message, nint wParam, nint lParam)
     {
+        if (message == WindowMessages.SettingChange && wParam == SPI_SETWORKAREA)
+            WorkAreaChanged?.Invoke();
         if (message != WM_COPYDATA || lParam == 0)
             return null;
 
@@ -124,8 +154,9 @@ public sealed unsafe class TrayHost : IDisposable
                 return NotifyIconRectRequest.Parse(data) is { } request && _onRectRequest(request) is { } bounds
                     ? request.Reply(bounds)
                     : 0;
+            case AppBarData:
+                return AppBarMessage.Parse(data) is { } appBar && AppBarMessageHandler is { } handler ? handler(appBar) : 0;
             default:
-                // dwData 0 is SHAppBarMessage, which Explorer serves for other app bars; NeoShell doesn't (yet).
                 return 0;
         }
     }

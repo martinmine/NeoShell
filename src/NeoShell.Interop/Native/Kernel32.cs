@@ -21,6 +21,11 @@ internal static unsafe partial class Kernel32
     [return: MarshalAs(UnmanagedType.Bool)]
     public static partial bool SetEvent(nint handle);
 
+    public const uint SYNCHRONIZE = 0x00100000;
+
+    [LibraryImport("kernel32.dll", SetLastError = true)]
+    public static partial nint OpenThread(uint access, [MarshalAs(UnmanagedType.Bool)] bool inheritHandle, uint threadId);
+
     [LibraryImport("kernel32.dll", SetLastError = true)]
     public static partial nint OpenProcess(uint access, [MarshalAs(UnmanagedType.Bool)] bool inheritHandle, uint processId);
 

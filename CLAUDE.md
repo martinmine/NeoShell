@@ -180,7 +180,8 @@ the desktop and back. Full spec in docs/design.md ("Widgets").
 
 ## Testing
 
-- Unit tests (xunit) cover non-UI logic: window filtering, grouping, NOTIFYICONDATA parsing, search ranking,
+- Unit tests (xunit) cover non-UI logic: window filtering, grouping, NOTIFYICONDATA and app bar message parsing,
+  app bar placing, search ranking,
   indexer query building, startup entries, settings, wallpaper style mapping, AppBar rects, desktop icon
   filtering, sorting and grid places, snap zones and keys, thumbnail toolbar data and image lists, widget placement and order, MET forecast parsing, wireless device protocols, Windows product name.
 - When testing the UI live, drive it through UI Automation (set `AutomationProperties.AutomationId` on interactive

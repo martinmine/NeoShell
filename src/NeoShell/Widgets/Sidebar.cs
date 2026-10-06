@@ -57,6 +57,7 @@ internal sealed class Sidebar : IDisposable
         _settings.Changed += OnSettingsChanged;
         _taskbars.Updated += OnTaskbarsUpdated;
         _taskbars.DevicesChanged += _wireless.DevicesChanged;
+        ShellWorkArea.Changed += OnWorkAreaChanged;
     }
 
     public void Dispose()
@@ -64,6 +65,7 @@ internal sealed class Sidebar : IDisposable
         _settings.Changed -= OnSettingsChanged;
         _taskbars.Updated -= OnTaskbarsUpdated;
         _taskbars.DevicesChanged -= _wireless.DevicesChanged;
+        ShellWorkArea.Changed -= OnWorkAreaChanged;
         CloseDragOut();
         foreach (FloatingWidgetWindow window in _floating.Values)
             Close(window);
@@ -144,6 +146,14 @@ internal sealed class Sidebar : IDisposable
                 _window.Place(primary, _settings.Current.WidgetSidebarWidth);
             }
         }
+    }
+
+    // As the shell, another app's bar took or gave back space (Explorer tells the sidebar's app bar the same way):
+    // the sidebar keeps to the work area's height. Its own change comes back here too and changes nothing.
+    private void OnWorkAreaChanged(RectInt32 monitor)
+    {
+        if (_window is not null && _window.Monitor.Bounds == monitor)
+            _window.Place(_window.Monitor, _settings.Current.WidgetSidebarWidth);
     }
 
     private static DisplayMonitor? PrimaryMonitor() =>

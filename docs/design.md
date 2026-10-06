@@ -240,12 +240,15 @@ Shell mode only, like the wallpaper: alongside Explorer, Explorer's desktop has 
 - Screen space:
   - Alongside Explorer: registered as an AppBar with `SHAppBarMessage` (`ABM_NEW`, `ABM_QUERYPOS`, `ABM_SETPOS`,
     `ABM_REMOVE`); Explorer places it above its own taskbar and sends `ABN_POSCHANGED` when it must move.
-  - As the shell: `SHAppBarMessage` is served by Explorer's `Shell_TrayWnd`, so it doesn't work. NeoShell sets the
-    monitor's work area itself (`SPI_SETWORKAREA`) and restores it on exit. Serving other apps' AppBar messages
-    belongs with `Shell_TrayWnd` (Tray). `ShellWorkArea` keeps what the taskbar and the widget sidebar reserve and
-    sets each change from the thread pool, one at a time: `SPIF_SENDCHANGE` waits for every window, and apps that
-    answer by calling the shell (re-adding tray icons) would wait for the UI thread in turn (startup hung that way).
-    Windows doesn't resize maximized windows for a new work area; NeoShell doesn't either (yet).
+  - As the shell: `SHAppBarMessage` is served by the shell's own `Shell_TrayWnd`, so the taskbar can't use it.
+    NeoShell sets the monitor's work area itself (`SPI_SETWORKAREA`) and restores it on exit. `ShellWorkArea` keeps
+    what the taskbar, the widget sidebar and other apps' app bars (see "App bars" under System tray) reserve per
+    monitor, and sets each change from the thread pool, one at a time, each going out with the latest reservation:
+    `SPIF_SENDCHANGE` waits for every window, and apps that answer by calling the shell (re-adding tray icons) would
+    wait for the UI thread in turn (startup hung that way). App bars' changes go out at once, without waiting, as
+    Explorer sets them (a bar may read the work area right after `ABM_SETPOS`). `ShellWorkArea.Changed` tells the
+    sidebar and the app bars of each change. Windows doesn't resize maximized windows for a new work area; NeoShell
+    doesn't either (yet).
 - Rect calculation (unit tested) from monitor bounds and DPI.
 - Recreated on `WM_DISPLAYCHANGE`, on `WM_DPICHANGED` to a DPI other than the monitor's, and on settings changes.
 - Full-screen apps: while the foreground window covers its monitor (or the app marked it with
@@ -548,7 +551,7 @@ Exit NeoShell (alongside Explorer only).
     replies 1 or 0, which the app gets back from `Shell_NotifyIcon`.
   - `dwData == 3`: `Shell_NotifyIconGetRect`, asked twice: `dwMessage` 1 → the top-left corner, 2 → the size, each
     as MAKELONG. An icon in the overflow answers with the chevron, as Explorer does.
-  - `dwData == 0` (`SHAppBarMessage` from other app bars) is not served yet; it returns 0.
+  - `dwData == 0`: `SHAppBarMessage` from other apps' app bars (see App bars below).
   - `NOTIFYICONDATA` parsing is done from a byte buffer and handles both 32- and 64-bit callers
     (HWND/HICON fields are 32-bit handles in both, sign-extended) and the V1/V2/V3/current sizes. Unit tested.
 - Icons are keyed by (`hWnd`, `uID`) or `guidItem` (`TrayIconStore`, unit tested): adding an existing icon or
@@ -566,6 +569,62 @@ Exit NeoShell (alongside Explorer only).
 - **Display mode** (setting `TrayMode`, toggled from the taskbar menu): `ShowAll` (every icon in the taskbar) or
   `Overflow` (icons behind a chevron flyout). Primary taskbar only.
 - Alongside Explorer: Explorer owns `Shell_TrayWnd`, so NeoShell shows no tray. Fully supported as the shell.
+
+### App bars (`Tray/AppBars.cs`, `Tray/AppBarLayout.cs`, Interop `Tray/AppBarMessage.cs`)
+
+As the shell NeoShell serves other apps' `SHAppBarMessage` calls (docks, launcher bars, apps asking where the
+taskbar is) as Explorer does. Found with cdb on shell32 (System32 and SysWOW64) and Ghidra with symbols on
+explorer.exe 26200 (`CTray::_OnAppBarMessage`, `_AppBarQueryPos`, `_AppBarSetPos`, `_AppBarSubtractRect(s)`,
+`_AppBarOutsideOf`, `StuckAppChange`, `WorkAreaMayHaveChanged`, `AppBarNotifyAll`, `AppBarSetAutoHideBar`,
+`OnRudeWindowStateChange`), then compared live with a test bar (64-bit and SysWOW64 PowerShell WinForms) running
+the same steps under Explorer and under NeoShell: every reply, rectangle, work area and maximized window matched.
+
+- **Wire format.** shell32 finds `Shell_TrayWnd` and sends `WM_COPYDATA` with `dwData` 0 and 0x40 bytes, the same
+  from 32- and 64-bit callers: `APPBARDATA3264` (`cbSize` = 0x28, `hWnd` as 32 bits, `uCallbackMessage`, `uEdge`,
+  `rc`, `lParam` as 64 bits), `dwMessage` at 0x28, the shared memory handle at 0x30 (64 bits) and at 0x38 the id of
+  the process that handle belongs to (the shell's: shell32 reads it from `Shell_TrayWnd`). A 32-bit caller
+  sign-extends `lParam` and the handle and leaves the padding at 0x2C/0x3C uninitialized. For `ABM_QUERYPOS`,
+  `ABM_SETPOS` and `ABM_GETTASKBARPOS` shell32 copies the `APPBARDATA3264` into `SHAllocShared` memory for the
+  shell; the shell writes `rc` (and `uEdge` for the taskbar position) there with `SHLockShared`, and shell32
+  copies it back to the caller's `APPBARDATA` and frees it. The reply is `SendMessage`'s result. shell32 itself
+  rejects `cbSize` over 0x30, and calls `ChangeWindowMessageFilterEx` for the callback message on `ABM_NEW`/`REMOVE`.
+- **Replies.** `NEW` 1, or 0 for a window already registered; `REMOVE`, `QUERYPOS`, `SETPOS` (even for an
+  unregistered bar: its rectangle comes back unchanged), `GETTASKBARPOS`, `ACTIVATE`, `WINDOWPOSCHANGED` and
+  `SETSTATE` 1; `GETSTATE` 1 (`ABS_AUTOHIDE`) when the taskbar hides itself, else 0 (never `ABS_ALWAYSONTOP`);
+  messages above 12 return 0. `SETSTATE` is accepted but changes nothing in Explorer 26200 (checked live: auto-hide
+  stays off), so NeoShell ignores it too. `GETTASKBARPOS` answers the primary taskbar's shown rectangle and
+  `ABE_BOTTOM`, also when it's auto-hidden.
+- **Placing (`QUERYPOS`).** The proposed rectangle's monitor (`MONITOR_DEFAULTTOPRIMARY`) counts. The bar stays
+  clear of the taskbar there (unless it auto-hides), then of the other bars on that monitor that come first: top
+  and bottom bars always take precedence over left and right ones; otherwise only bars on the edge asked for count:
+  those already outside the bar when it stays on its edge (`_AppBarOutsideOf`, equal counts as outside), all of
+  them when it moves to that edge. Only the facing side is clipped (`left = max(left, other.right)` and so on), so
+  a rectangle can come out empty or crossed (left past right), and one hanging off the screen is left as it is.
+  NeoShell's widget sidebar takes part as a bar on the right. `SETPOS` queries, stores the result and its edge
+  (both only if the rectangle changed), and the monitor's work area is worked out again: the monitor less every
+  placed bar on it, and less the taskbar and the sidebar (`AppBarLayout.FreeArea`, unit tested). The sidebar keeps
+  to the work area's height, so it starts below a top bar.
+- **Notifications** (posted with the bar's callback message): `ABN_POSCHANGED` to the other bars on the monitors a
+  bar left and joined when one moves or is removed, and to every bar whenever a work area is set and broadcast
+  (`WM_SETTINGCHANGE` with `SPI_SETWORKAREA`, from NeoShell (taskbar, sidebar, bars) or any app). Explorer sends
+  that second one twice per broadcast (measured: other bars get 3 per move, the mover 2); NeoShell sends it once
+  (other bars 2, the mover 1). `ABN_STATECHANGE` to every bar when auto-hide is switched; `ABN_FULLSCREENAPP` (1/0)
+  to the bars on a monitor when a full-screen app comes to or leaves it, once per change per bar (Explorer
+  remembers what it told each; nothing on `ABM_NEW`). NeoShell's full-screen test is the taskbar's (the foreground
+  window covering its monitor, or marked with `MarkFullscreenWindow`); Explorer's rude-window manager also counted
+  a covering window that wasn't in front. `ABN_WINDOWARRANGE` goes out around Cascade/Tile, which Windows 11's
+  taskbar menu no longer has, so never.
+- **Gone bars.** As in Explorer, a bar is dropped (and its space given back) when its thread ends
+  (`WindowThread`: a thread-pool wait on the thread handle), and when a notification finds its window gone.
+- **Auto-hide bars** (`GET/SETAUTOHIDEBAR(EX)`): one per edge and monitor; `SET` fails when another live bar has
+  the edge, `SET` off clears the edge whoever has it. The plain messages use the taskbar's monitor, the `EX` ones
+  `MonitorFromRect(rc, MONITOR_DEFAULTTONEAREST)`. Like Explorer, NeoShell also publishes them as properties of
+  `Shell_TrayWnd`: `LastAutoHideBarStuckMonitor` (the taskbar's monitor) and `WindowOnEdge:%08x:%1u` (monitor,
+  edge) = the bar, or 1 for none. shell32 answers `GETAUTOHIDEBAR(EX)` from them without asking and only sends the
+  message when there's none. Explorer's quirk is kept: a bar setting itself again publishes 1, so shell32 then
+  answers 0 for that edge. `ACTIVATE`/`WINDOWPOSCHANGED` from a bar lift the auto-hide bar on its edge to the top
+  of its band (`SetWindowPos(HWND_TOP)`, no activation; not compared live).
+- Alongside Explorer nothing changes: Explorer owns `Shell_TrayWnd` and serves app bars, NeoShell's own included.
 
 ## Indicators (`Tray/`)
 
@@ -1048,7 +1107,8 @@ Widgets              list (id, kind, X/Y and size while floating, the kind's opt
 
 - **xunit** tests in `tests/NeoShell.Tests` for pure logic: taskbar window filter, grouping keys, NOTIFYICONDATA
   parsing (32/64-bit), app search ranking, indexer query building, startup entry parsing and `StartupApproved`,
-  settings round-trip and corrupt-file handling, wallpaper style mapping, AppBar rect calculation, which desktop
+  settings round-trip and corrupt-file handling, wallpaper style mapping, AppBar rect calculation, other apps' app
+  bar messages (32/64-bit) and their placing and work area, which desktop
   items get icons and in which order, Quick Settings' paging, Wi-Fi network list and shortcut keys, the keys the
   hook takes (Start, panels, Alt+Tab, Win+Comma), Win+number's window choice, Snap layouts and screenshot names,
   the shell's work area, the sidebar's and floating widgets' placement and order, the widgets' number and colour

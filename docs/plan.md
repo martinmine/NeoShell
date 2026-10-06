@@ -267,7 +267,8 @@ Tick items off as they land. The feature details are in [design.md](design.md).
 
 Each item is done when it looks and behaves as Explorer's (layout, behaviour, animation), compared side by side.
 
-- [ ] T1 App bar messages from other apps (`SHAppBarMessage` on `Shell_TrayWnd`, `WM_COPYDATA` dwData 0)
+- [x] T1 App bar messages from other apps (`SHAppBarMessage` on `Shell_TrayWnd`, `WM_COPYDATA` dwData 0) — not
+      compared live: `ABM_ACTIVATE` lifting an auto-hide bar; Explorer sends one more `ABN_POSCHANGED` per work area
 - [ ] T2 Tray balloon notifications (`NIF_INFO`) shown as toasts
 - [ ] T3 Maximized windows follow work area changes (taskbar, sidebar)
 - [ ] T4 Shell service objects (`ShellServiceObjects`, SSODL): Safely Remove Hardware and other built-in tray items

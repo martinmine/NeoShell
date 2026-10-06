@@ -341,9 +341,13 @@ internal static unsafe partial class User32
     public static partial bool GetWindowRect(nint hwnd, out RECT rect);
 
     public const uint MONITOR_DEFAULTTONULL = 0;
+    public const uint MONITOR_DEFAULTTONEAREST = 2;
 
     [LibraryImport("user32.dll")]
     public static partial nint MonitorFromWindow(nint hwnd, uint flags);
+
+    [LibraryImport("user32.dll")]
+    public static partial nint MonitorFromRect(RECT* rect, uint flags);
 
     [LibraryImport("user32.dll", EntryPoint = "GetClassNameW")]
     public static partial int GetClassName(nint hwnd, char* name, int maxCount);

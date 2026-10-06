@@ -47,6 +47,23 @@ internal sealed class NotificationArea : IDisposable
         remove => _host.ThumbBarCalled -= value;
     }
 
+    /// <summary>Serves other apps' <c>SHAppBarMessage</c> calls, which reach the shell through the tray window too.</summary>
+    public Func<AppBarMessage, nint>? AppBarMessageHandler
+    {
+        set => _host.AppBarMessageHandler = value;
+    }
+
+    /// <summary>A work area was set and every window told (see <see cref="TrayHost.WorkAreaChanged"/>).</summary>
+    public event Action? WorkAreaChanged
+    {
+        add => _host.WorkAreaChanged += value;
+        remove => _host.WorkAreaChanged -= value;
+    }
+
+    /// <summary>Publishes an edge's auto-hide bar for shell32 (see <see cref="TrayHost.PublishAutoHideBar"/>).</summary>
+    public void PublishAutoHideBar(nint taskbarMonitor, nint monitor, AppBarEdge edge, nint bar) =>
+        _host.PublishAutoHideBar(taskbarMonitor, monitor, edge, bar);
+
     /// <summary>The icons that aren't hidden, in the order they were added.</summary>
     public ObservableCollection<TrayIcon> Icons { get; } = [];
 

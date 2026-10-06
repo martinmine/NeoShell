@@ -23,6 +23,16 @@ public sealed record DisplayMonitor(nint Handle, RectInt32 Bounds, RectInt32 Wor
         return monitors;
     }
 
+    /// <summary>
+    /// The handle of the monitor <paramref name="rect"/> overlaps most; when it overlaps none, 0, or with
+    /// <paramref name="nearest"/> the nearest monitor.
+    /// </summary>
+    public static unsafe nint HandleFromRect(RectInt32 rect, bool nearest = false)
+    {
+        User32.RECT bounds = User32.RECT.From(rect);
+        return User32.MonitorFromRect(&bounds, nearest ? User32.MONITOR_DEFAULTTONEAREST : User32.MONITOR_DEFAULTTONULL);
+    }
+
     [UnmanagedCallersOnly]
     private static unsafe int OnMonitor(nint monitor, nint hdc, User32.RECT* clip, nint data)
     {

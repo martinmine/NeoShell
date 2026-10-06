@@ -34,6 +34,8 @@ internal sealed class Taskbars : IDisposable
     private FocusSession? _focus;
     private ClockFlyout? _clockFlyout;
     private ToastPopups? _toasts;
+    // Other apps' app bars, served with the tray.
+    private AppBars? _appBars;
     private long _lastKeyboardToggle;
     private bool _updateQueued;
     private bool _recreate;
@@ -103,6 +105,7 @@ internal sealed class Taskbars : IDisposable
             Tray.IconBounds = icon => PrimaryWindow?.TrayIconBounds(icon);
             Tray.TaskbarListCalled += Tracker.Apply;
             Tray.ThumbBarCalled += Tracker.Apply;
+            _appBars = new AppBars(Tray, () => PrimaryWindow?.ScreenBounds, () => _windowSettings.AutoHide);
         }
         // Created up front, so it opens instantly and its app catalog is already loaded.
         _startMenu = new StartMenuWindow(this);
@@ -127,6 +130,7 @@ internal sealed class Taskbars : IDisposable
     {
         Settings.Changed -= OnSettingsChanged;
         Tracker.Dispose();
+        _appBars?.Dispose();
         Tray?.Dispose();
         Indicators?.Dispose();
         _startMenu?.Close();
@@ -391,6 +395,13 @@ internal sealed class Taskbars : IDisposable
                 && (Tracker.IsMarkedFullScreen(foreground) || TaskbarLayout.IsFullScreen(bounds, window.Monitor.Bounds));
             window.SetFullScreenWindow(fullScreen ? foreground : 0);
         }
+        // App bars hear of it on every monitor, taskbar or not.
+        if (_appBars is not null)
+        {
+            bool fullScreen = candidate && (Tracker.IsMarkedFullScreen(foreground)
+                || DisplayMonitor.GetAll().Any(m => m.Handle == monitor && TaskbarLayout.IsFullScreen(bounds, m.Bounds)));
+            _appBars.SetFullScreenMonitor(fullScreen ? monitor : 0);
+        }
     }
 
     private void QueueUpdate()
@@ -438,6 +449,7 @@ internal sealed class Taskbars : IDisposable
     {
         CloseWindows();
 
+        bool autoHideChanged = Settings.Current.AutoHide != _windowSettings.AutoHide;
         _windowSettings = Settings.Current;
         IReadOnlyList<DisplayMonitor> monitors =
             TaskbarLayout.MonitorsWithTaskbar(DisplayMonitor.GetAll(), _windowSettings.ShowOnAllDisplays);
@@ -452,6 +464,8 @@ internal sealed class Taskbars : IDisposable
         }
         Log.Info($"Taskbars on {monitors.Count} monitor(s)");
         UpdateFullScreen();
+        if (autoHideChanged)
+            _appBars?.NotifyStateChange();
     }
 
     private void CloseWindows()

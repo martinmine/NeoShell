@@ -105,6 +105,13 @@ public static unsafe class TopLevelWindows
     /// <summary>The monitor the window is mostly on (compare with <see cref="DisplayMonitor.Handle"/>), or 0.</summary>
     public static nint MonitorOf(nint hwnd) => User32.MonitorFromWindow(hwnd, User32.MONITOR_DEFAULTTONULL);
 
+    /// <summary>The monitor the window is mostly on, or the nearest one when it's on none.</summary>
+    public static nint NearestMonitorOf(nint hwnd) => User32.MonitorFromWindow(hwnd, User32.MONITOR_DEFAULTTONEAREST);
+
+    /// <summary>Puts the window on top of its band (topmost or not) without activating it.</summary>
+    public static void BringToTop(nint hwnd) =>
+        User32.SetWindowPos(hwnd, User32.HWND_TOP, 0, 0, 0, 0, User32.SWP_NOMOVE | User32.SWP_NOSIZE | User32.SWP_NOACTIVATE);
+
     /// <summary>
     /// Whether the window is the desktop: the shell window, or Explorer's desktop windows (which cover the screen but
     /// aren't full-screen apps).
