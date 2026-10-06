@@ -64,8 +64,15 @@ internal sealed partial class WidgetFrame : UserControl
         ShowButtons();
     }
 
-    // Kept while the settings are open, though the pointer is over the flyout by then.
-    private void ShowButtons() => Buttons.Opacity = _pointerOver || SettingsFlyout.IsOpen ? 1 : 0;
+    // Kept while the settings are open, though the pointer is over the flyout by then. Hidden, they take no clicks: a
+    // pointer already over a widget as the shell starts brings no PointerEntered, and a click on the top right closed
+    // the widget through its invisible close button.
+    private void ShowButtons()
+    {
+        bool shown = _pointerOver || SettingsFlyout.IsOpen;
+        Buttons.Opacity = shown ? 1 : 0;
+        Buttons.IsHitTestVisible = shown;
+    }
 
     private void SettingsFlyout_Opening(object sender, object e)
     {

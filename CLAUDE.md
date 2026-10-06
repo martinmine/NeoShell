@@ -162,8 +162,9 @@ the desktop and back. Full spec in docs/design.md ("Widgets").
     size it last knew. The widget sits top-aligned in a non-scrolling `ScrollViewer` so it takes its natural height.
   - A `ShellBackdrop` may serve several popups (a menu and its submenus); it shares one controller among them.
   - `PinnedLayer.Desktop` goes just below the lowest *showing* app window: minimized windows (moved to the very
-    bottom, below the wallpaper) and cloaked ones are skipped, or a clicked widget sinks under the wallpaper and looks
-    closed. Test z-order changes with a minimized window around.
+    bottom, below the wallpaper), cloaked ones, sizeless ones (a console's 0x0 `PseudoConsoleWindow`) and anything
+    still below the wallpaper are skipped, or a clicked widget sinks under the wallpaper and looks closed. Test
+    z-order changes with a minimized window around, and with a window pushed below the wallpaper.
   - Keep periodic work off the UI thread (resource sampling reads adapters and GPU engines on the thread pool): any
     hitch shows as a stutter while a widget is dragged.
   - A card being dragged stays in the tree (lifted: no height, invisible) or it loses the pointer; cards keep their gap

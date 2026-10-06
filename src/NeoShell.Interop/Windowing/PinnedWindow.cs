@@ -26,6 +26,9 @@ public enum PinnedLayer
 /// </summary>
 public sealed unsafe class PinnedWindow : IDisposable
 {
+    // The windows at the very bottom (the wallpaper); only touched on the UI thread.
+    private static readonly HashSet<nint> s_bottom = [];
+
     private readonly nint _hwnd;
     private readonly WindowSubclass _subclass;
     private PinnedLayer _layer;
@@ -41,6 +44,8 @@ public sealed unsafe class PinnedWindow : IDisposable
         _layer = layer;
         _bounds = bounds;
         _subclass = new WindowSubclass(hwnd, OnMessage);
+        if (layer == PinnedLayer.Bottom)
+            s_bottom.Add(hwnd);
         Apply();
     }
 
@@ -83,6 +88,10 @@ public sealed unsafe class PinnedWindow : IDisposable
     /// </summary>
     public void SetLayer(PinnedLayer layer, nint above = 0)
     {
+        if (layer == PinnedLayer.Bottom)
+            s_bottom.Add(_hwnd);
+        else
+            s_bottom.Remove(_hwnd);
         _layer = layer;
         _above = layer == PinnedLayer.Topmost ? above : 0;
         if (layer != PinnedLayer.Normal)
@@ -98,7 +107,11 @@ public sealed unsafe class PinnedWindow : IDisposable
             User32.SetWindowPos(_hwnd, above, 0, 0, 0, 0, keepPlace);
     }
 
-    public void Dispose() => _subclass.Dispose();
+    public void Dispose()
+    {
+        s_bottom.Remove(_hwnd);
+        _subclass.Dispose();
+    }
 
     // Below a topmost window is still in the topmost band. The window above may have gone since.
     private nint InsertAfter =>
@@ -113,14 +126,23 @@ public sealed unsafe class PinnedWindow : IDisposable
     /// other desktop-level windows don't count, so the widgets don't push each other around. Neither do windows that
     /// don't show: a minimized window goes to the very bottom, below the wallpaper, and a cloaked one (another virtual
     /// desktop, a suspended Store app) can be anywhere; going below one of those hid the widget under the wallpaper.
+    /// Nor do windows without a size, which show nothing (a console's <c>PseudoConsoleWindow</c>), nor anything still
+    /// below NeoShell's wallpaper: a widget clicked right after the shell started went below such a window, under the
+    /// wallpaper, and looked closed.
     /// </summary>
     private nint AboveDesktop()
     {
         uint ownProcess = (uint)Environment.ProcessId;
+        bool aboveWallpaper = s_bottom.Count == 0;
         for (nint hwnd = User32.GetWindow(_hwnd, User32.GW_HWNDLAST); hwnd != 0; hwnd = User32.GetWindow(hwnd, User32.GW_HWNDPREV))
         {
-            if (hwnd == _hwnd || !User32.IsWindowVisible(hwnd) || User32.IsIconic(hwnd)
-                || TopLevelWindows.IsCloaked(hwnd) || TopLevelWindows.IsDesktop(hwnd))
+            if (s_bottom.Contains(hwnd))
+            {
+                aboveWallpaper = true;
+                continue;
+            }
+            if (!aboveWallpaper || hwnd == _hwnd || !User32.IsWindowVisible(hwnd) || User32.IsIconic(hwnd)
+                || TopLevelWindows.IsCloaked(hwnd) || TopLevelWindows.IsDesktop(hwnd) || HasNoSize(hwnd))
             {
                 continue;
             }
@@ -133,6 +155,9 @@ public sealed unsafe class PinnedWindow : IDisposable
         }
         return User32.HWND_TOP;
     }
+
+    private static bool HasNoSize(nint hwnd) =>
+        !User32.GetWindowRect(hwnd, out User32.RECT rect) || rect.right <= rect.left || rect.bottom <= rect.top;
 
     /// <param name="moving">
     /// Only moving or resizing: a desktop-level window stays where it is in the z-order, rather than looking for its

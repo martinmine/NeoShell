@@ -51,7 +51,8 @@
             Orientation="Horizontal"
             CornerRadius="4"
             Background="{ThemeResource SolidBackgroundFillColorSecondaryBrush}"
-            Opacity="0">
+            Opacity="0"
+            IsHitTestVisible="False">
             <Button
                 x:Name="SettingsButton"
                 AutomationProperties.AutomationId="WidgetSettingsButton"

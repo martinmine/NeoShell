@@ -251,6 +251,10 @@ Tick items off as they land. The feature details are in [design.md](design.md).
       the shared data and the image list format)
 - [x] Fix: right-clicking the desktop or an icon left the wait cursor (spinner) over the menu until the pointer moved
 
+- [x] Fix: a widget clicked soon after the shell started could sink under the wallpaper, as if closed: it went below
+      a console's sizeless window lying under the wallpaper. Such windows, and all below the wallpaper, are skipped
+- [x] Fix: a widget's settings and close buttons took clicks while hidden
+
 ## Later / not planned yet
 
 - Notifications: toast images, buttons and inline replies (not exposed to listeners); tray balloons as toasts
