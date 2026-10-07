@@ -323,7 +323,7 @@ Each item is done when it looks and behaves as Explorer's (layout, behaviour, an
       (Bing content, no public API); not matched: the box's press is animated (133 ms) where Explorer's is instant,
       the label's icon shrinks to 0.8 (Explorer ~0.86), Explorer's labelled buttons narrow before the search collapses
       (NeoShell's don't narrow)
-- [ ] T16 Start: Recommended with recent files and newly installed apps
+- T16 Start: Recommended with recent files and newly installed apps — skipped: not wanted for now
 - [ ] T17 Start: folders beside the power button; folders of pins in the pinned grid
 - [ ] T18 Start: app menu (Run as administrator, Open file location, Uninstall, App settings, jump list)
 - [ ] T19 Power menu: Hibernate, Switch user, Update and restart / shut down
