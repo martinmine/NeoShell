@@ -34,6 +34,12 @@ internal sealed class NotificationCenter : IDisposable
 
     public bool DoNotDisturb { get; private set; }
 
+    /// <summary>
+    /// How many notifications came since a notification center (NeoShell's or Explorer's) was last open, as the
+    /// notification platform counts them for Explorer's bell.
+    /// </summary>
+    public int NewCount { get; private set; }
+
     /// <summary>Raised when notifications come or go.</summary>
     public event Action? Changed;
 
@@ -41,6 +47,9 @@ internal sealed class NotificationCenter : IDisposable
     public event Action<ToastInfo>? Arrived;
 
     public event Action? DoNotDisturbChanged;
+
+    /// <summary>Do not disturb or the count of new notifications changed: what the clock's bell shows.</summary>
+    public event Action? BellChanged;
 
     public void Start()
     {
@@ -105,10 +114,41 @@ internal sealed class NotificationCenter : IDisposable
             Interop.Notifications.DoNotDisturb.Set(on);
             DoNotDisturb = on;
             DoNotDisturbChanged?.Invoke();
+            BellChanged?.Invoke();
         }
         catch (Exception ex)
         {
             Log.Warn("Could not switch Do not disturb", ex);
+        }
+    }
+
+    /// <summary>
+    /// Tells the notification platform the notification center opened or closed, as Explorer's does: either marks
+    /// every notification seen, which clears the count of new ones (Explorer's bell too).
+    /// </summary>
+    public async void SetOpen(bool open)
+    {
+        try
+        {
+            await Task.Run(() => NewNotifications.SetCenterOpen(open));
+        }
+        catch (Exception ex)
+        {
+            Log.Warn("Could not tell the notification platform the notification center " + (open ? "opened" : "closed"), ex);
+        }
+        Read();
+    }
+
+    /// <summary>Tells the notification platform the notification center closed, on this thread.</summary>
+    public static void TellClosed()
+    {
+        try
+        {
+            NewNotifications.SetCenterOpen(false);
+        }
+        catch (Exception ex)
+        {
+            Log.Warn("Could not tell the notification platform the notification center closed", ex);
         }
     }
 
@@ -163,14 +203,18 @@ internal sealed class NotificationCenter : IDisposable
             // Off the UI thread: both are calls into other processes, which can take a while to answer. _known isn't
             // changed meanwhile, as only one reading runs at a time.
             Dictionary<uint, ToastInfo> known = _known ?? [];
-            (bool doNotDisturb, IReadOnlyList<ToastInfo>? all) = await Task.Run(async () =>
-                (Interop.Notifications.DoNotDisturb.Read() == true, await UserNotifications.ReadAsync(known)));
+            (bool doNotDisturb, int? newCount, IReadOnlyList<ToastInfo>? all) = await Task.Run(async () =>
+                (Interop.Notifications.DoNotDisturb.Read() == true, NewNotifications.ReadCount(), await UserNotifications.ReadAsync(known)));
 
+            bool bellChanged = doNotDisturb != DoNotDisturb || (newCount is not null && newCount != NewCount);
+            NewCount = newCount ?? NewCount;
             if (doNotDisturb != DoNotDisturb)
             {
                 DoNotDisturb = doNotDisturb;
                 DoNotDisturbChanged?.Invoke();
             }
+            if (bellChanged)
+                BellChanged?.Invoke();
 
             if (all is null)
                 return;

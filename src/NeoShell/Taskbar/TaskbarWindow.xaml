@@ -483,7 +483,28 @@
                 </Button>
             </StackPanel>
             <!-- Right against the indicators and Show desktop, as on the Windows 11 taskbar. -->
-            <local:Clock x:Name="Clock" VerticalAlignment="Center" />
+            <local:Clock x:Name="Clock" VerticalAlignment="Center" ContextRequested="Clock_ContextRequested">
+                <FlyoutBase.AttachedFlyout>
+                    <MenuFlyout x:Name="ClockMenu" MenuFlyoutPresenterStyle="{StaticResource ShellMenuPresenterStyle}">
+                        <MenuFlyoutItem
+                            AutomationProperties.AutomationId="DateTimeSettingsMenuItem"
+                            Text="Adjust date and time"
+                            Click="DateTimeSettings_Click">
+                            <MenuFlyoutItem.Icon>
+                                <FontIcon Glyph="&#xE713;" />
+                            </MenuFlyoutItem.Icon>
+                        </MenuFlyoutItem>
+                        <MenuFlyoutItem
+                            AutomationProperties.AutomationId="NotificationSettingsMenuItem"
+                            Text="Notifications settings"
+                            Click="NotificationSettings_Click">
+                            <MenuFlyoutItem.Icon>
+                                <FontIcon Glyph="&#xE713;" />
+                            </MenuFlyoutItem.Icon>
+                        </MenuFlyoutItem>
+                    </MenuFlyout>
+                </FlyoutBase.AttachedFlyout>
+            </local:Clock>
             <Button
                 x:Name="ShowDesktopButton"
                 AutomationProperties.AutomationId="ShowDesktopButton"

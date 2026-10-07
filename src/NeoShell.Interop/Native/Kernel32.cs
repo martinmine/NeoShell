@@ -116,4 +116,27 @@ internal static unsafe partial class Kernel32
     public static partial bool GetVolumeInformation(
         string root, char* name, uint nameLength, uint* serialNumber, uint* maxComponentLength, uint* flags,
         char* fileSystemName, uint fileSystemNameLength);
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct SYSTEMTIME
+    {
+        public ushort Year;
+        public ushort Month;
+        public ushort DayOfWeek;
+        public ushort Day;
+        public ushort Hour;
+        public ushort Minute;
+        public ushort Second;
+        public ushort Milliseconds;
+    }
+
+    public const uint TIME_NOSECONDS = 0x2;
+    public const uint LOCALE_SSCRIPTS = 0x6C;
+
+    /// <summary>A null locale is the user's, with their own formats from Region settings.</summary>
+    [LibraryImport("kernel32.dll", StringMarshalling = StringMarshalling.Utf16)]
+    public static partial int GetTimeFormatEx(string? locale, uint flags, in SYSTEMTIME time, string? format, char* buffer, int length);
+
+    [LibraryImport("kernel32.dll", StringMarshalling = StringMarshalling.Utf16)]
+    public static partial int GetLocaleInfoEx(string? locale, uint type, char* data, int length);
 }

@@ -264,8 +264,8 @@ internal sealed partial class TaskbarWindow : Window
         Clock.Clicked += () => owner.ToggleClockFlyout(this);
         if (owner.Notifications is { } notifications)
         {
-            notifications.DoNotDisturbChanged += ShowDoNotDisturb;
-            ShowDoNotDisturb();
+            notifications.BellChanged += ShowNotifications;
+            ShowNotifications();
         }
 
         if (_tray is not null)
@@ -288,7 +288,7 @@ internal sealed partial class TaskbarWindow : Window
                 _tray.ChevronVisibilityChanged -= RefreshTray;
             }
             if (owner.Notifications is { } notifications)
-                notifications.DoNotDisturbChanged -= ShowDoNotDisturb;
+                notifications.BellChanged -= ShowNotifications;
             if (_indicators is not null)
             {
                 _indicators.Changed -= RefreshIndicators;
@@ -447,7 +447,7 @@ internal sealed partial class TaskbarWindow : Window
         InputFlyout.SystemBackdrop = new ShellBackdrop(Backdrop.Acrylic) { Theme = Root.RequestedTheme, Tint = accent };
         OverflowIcons.RequestedTheme = Root.RequestedTheme;
         OverflowFlyout.SystemBackdrop = new ShellBackdrop(Backdrop.Acrylic) { Theme = Root.RequestedTheme, Tint = accent };
-        foreach (MenuFlyout menu in (MenuFlyout[])[TaskbarMenu, NetworkMenu, VolumeMenu, _quickLinks])
+        foreach (MenuFlyout menu in (MenuFlyout[])[TaskbarMenu, NetworkMenu, VolumeMenu, ClockMenu, _quickLinks])
             menu.SystemBackdrop = MenuBackdrop();
     }
 
@@ -465,9 +465,24 @@ internal sealed partial class TaskbarWindow : Window
         SetTheme(_theme, _accent);
     }
 
-    public void UpdateClock() => Clock.Update();
+    public void UpdateClock() => Clock.Apply(_owner.ClockSettings);
 
-    private void ShowDoNotDisturb() => Clock.ShowDoNotDisturb(_owner.Notifications?.DoNotDisturb == true);
+    private void ShowNotifications() =>
+        Clock.ShowNotifications(_owner.Notifications?.DoNotDisturb == true, _owner.Notifications?.NewCount ?? 0);
+
+    // Explorer's clock has a menu of its own, at the right as the other tray menus.
+    private void Clock_ContextRequested(UIElement sender, ContextRequestedEventArgs e)
+    {
+        e.Handled = true;
+        TaskbarFlyouts.ShowAtRight(ClockMenu, Clock);
+    }
+
+    // As the shell, the classic Date and Time dialog.
+    private void DateTimeSettings_Click(object sender, RoutedEventArgs e) =>
+        Launcher.OpenSettings(_owner.RunMode, "Date and time settings", "ms-settings:dateandtime", "timedate.cpl");
+
+    private void NotificationSettings_Click(object sender, RoutedEventArgs e) =>
+        Launcher.OpenSettings(_owner.RunMode, "Notifications settings", "ms-settings:notifications");
 
     /// <summary>
     /// Makes way for a full-screen window on this monitor (the taskbar goes just below it), or with 0 returns to the

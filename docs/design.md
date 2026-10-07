@@ -500,8 +500,9 @@ Shell mode only, like the wallpaper: alongside Explorer, Explorer's desktop has 
 4. Tray area: chevron/overflow, tray icons.
 5. Indicators: privacy (microphone or location in use), the input method (with more than one: an IME's mode, then the language),
    then network, volume and battery as one button (Quick Settings).
-6. Clock: time and short date, and Do not disturb's bell while it's on; tooltip with the full date and the day and
-   time, as Explorer's; click opens the notification center and calendar (see Notifications and calendar).
+6. Clock: time (with seconds by setting) and short date, then the notification bell; tooltips with the full date
+   and the day and time, and the count of new notifications; click opens the notification center and calendar (see
+   Clock and notification bell, and Notifications and calendar).
 7. Show-desktop sliver at the far right edge.
 
 ### Window tracking
@@ -1123,6 +1124,57 @@ The switcher (`InputSwitchPanel` in a flyout at the screen's right edge, as Quic
 - Explorer's switcher slides in faster than its other flyouts, about 67 ms (58 %, 90 %, 99.5 % in successive
   frames), and out in about 100 ms. A NeoShell popup reaches the screen some 40 ms after it starts sliding, so it
   slides in over 100 ms for the same look (`TaskbarFlyouts.ShowAtRight` takes the durations).
+
+### Clock and notification bell (`Taskbar/Clock`, `ClockSettings`, `ClockDisplay`, unit tested)
+
+Explorer's clock area is SystemTray.dll (Client.Core): `ClockSystemTrayIconDataModel2` for the clock,
+`NotificationBadgeSystemTrayIconDataModel` for the bell, read with Ghidra and checked live (Windows 11 25H2).
+
+- **Settings**, all under `HKCU\…\Explorer\Advanced`, followed live (Explorer watches the key; NeoShell's `Taskbars`
+  has a `RegistryWatcher` on it and on the additional clocks):
+  - `ShowSecondsInSystemClock` (Settings → Time & language → Date & time → "Show seconds in system tray clock"),
+    off unless set.
+  - `ShowSystrayDateTimeValueName` ("Show time and date in the System tray"), on unless 0. Off, the time and date
+    go; the bell stays if it's shown, alone in a 30 px box; with neither, nothing is left.
+  - `ShowNotificationIcon` (Settings' "Show notification bell icon"), off unless set.
+  - Additional clocks (`HKCU\Control Panel\TimeDate\AdditionalClocks\1` and `\2`: `Enable`, `DisplayName`,
+    `TzRegKeyName`) add a line each to the tooltip.
+  - `ShowShortenedDateTime` ("Show abbreviated time and date") is behind a feature flag (`SystrayPBDT`) that's off on
+    this build: no such option in Settings and the value does nothing, so NeoShell ignores it. "Show time in
+    Notification Centre" (Date & time) is the notification center's, not the clock's; not done. Group policy
+    `DisableNotificationCenter` (hides the bell) isn't followed.
+- **Time**: `GetTimeFormatEx` with the user's own format, which is Region's *long* time format with
+  `TIME_NOSECONDS` unless seconds are on (Interop `RegionalTime`), not .NET's short time pattern. When the user
+  locale's `LOCALE_SSCRIPTS` is exactly "Latn;", every ':' becomes U+2236 (ratio), which sits centred between the
+  digits. The date is the short date, the tooltip "long date, blank line, `ddd time (Local time)`", then
+  `ddd time (name)` per additional clock, with seconds when the clock has them; the UIA name is "Clock", the time
+  (with colons) and the date. Digits are tabular (the "1" has a
+  foot), so the seconds don't make the text wobble and the date is 2 px wider than with proportional digits.
+- **Ticking**: one timer per update, re-armed each time: with seconds 1000 − ms after the second, otherwise at the
+  next minute. Recorded at 60 fps side by side, NeoShell's second ticks land within 1–3 frames of Explorer's.
+- **Layout** (96 DPI, measured with UI Automation and screenshots): one hover box, 40 px tall, around both parts,
+  3 px wider than them on either side and ending a pixel short of Show desktop (76 px wide for "07/10/2026" without
+  the bell, 104 with it); the text 4 px in from the clock part's left and 2 from its right, right-aligned, a pixel
+  above the middle (time ink 12–19 px, date 28–37 px below the taskbar's top); the bell 24 px wide, 4 px after the
+  clock part, its 16 px glyph centred. One button in NeoShell (Explorer has two, the clock and the bell, sharing
+  the hover box); each part has its own tooltip, and both open the notification center and calendar. Explorer's
+  system XAML rounds text widths up where WinUI rounds them to nearest, so the box can be a pixel narrower and the
+  time a pixel to the right.
+- **Bell** (`ClockDisplay.Bell`): shown when `ShowNotificationIcon` is on, and always while Do not disturb is. Glyphs:
+  U+F2A3 (outline) with no new notifications, U+F2A5 (filled) in the accent's text colour with some (Light 3 in dark,
+  Dark 2 in light: `AccentTextFillColorPrimaryBrush`); with Do not disturb U+F285 / U+F2A8, in the text colour. No
+  animation: the glyph swaps in one frame. Tooltip (and UIA name after "Notifications"): "No new notifications",
+  "1 new notification", "N new notifications", plus " (Do not disturb on)".
+- **New notifications** are the notification platform's count, not NeoShell's: WpnUserService's
+  `IndicatorController` (NotificationController.dll) counts notifications that came since a notification center
+  was last open and publishes it in the WNF state `WNF_SHEL_NOTIFICATIONS` (`0x0D83063EA3BC1035`, a DWORD), which
+  Explorer's bell subscribes to. Opening or closing a notification center calls `INotificationController::
+  SetNocenterStatus` (Explorer passes 1 on open, 0 on close, traced with cdb in WpnUserService); any change marks
+  every notification seen and the count drops to 0. NeoShell reads the state with the notifications once a second
+  (`NewNotifications.ReadCount`) and calls `SetNocenterStatus` as its flyout opens and closes, so either shell's
+  notification center clears both bells. The platform keeps counting without Explorer (checked as the shell).
+- **Menu**: right-click opens Explorer's clock menu, at the right as the other tray menus: "Adjust date and time"
+  (as the shell `timedate.cpl`) and "Notifications settings", each with the settings gear.
 
 ### Threads and placement
 

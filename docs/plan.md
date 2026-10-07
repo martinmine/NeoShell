@@ -311,7 +311,11 @@ Each item is done when it looks and behaves as Explorer's (layout, behaviour, an
       Windows' capability access manager as Explorer (the microphone moved off Core Audio sessions), Explorer's
       tooltips, clicks and menu, in both run modes — not run live: a packaged app using the location, the voice
       assistant; no camera indicator exists in Explorer on 25H2 (and the VM has no camera)
-- [ ] T14 Clock: seconds (`ShowSecondsInSystemClock`); notification count/badge
+- [x] T14 Clock: seconds (`ShowSecondsInSystemClock`); notification count/badge — Explorer's clock settings followed
+      live (seconds, hide the time and date, the notification bell, additional clocks in the tooltip), its time
+      format, tabular digits and layout, the bell's four looks from the platform's new-notification count (shared
+      with Explorer), the clock's menu, in both run modes — not done: "Show abbreviated time and date" (feature-
+      flagged off on this build), "Show time in Notification Centre", the `DisableNotificationCenter` policy
 - [ ] T15 Taskbar search box style
 - [ ] T16 Start: Recommended with recent files and newly installed apps
 - [ ] T17 Start: folders beside the power button; folders of pins in the pinned grid

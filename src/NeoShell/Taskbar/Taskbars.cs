@@ -27,6 +27,9 @@ internal sealed class Taskbars : IDisposable
     private readonly Action _switchToExplorer;
     private readonly ShowDesktop _showDesktop = new();
     private readonly List<TaskbarWindow> _windows = [];
+    // Explorer follows its clock settings as Settings writes them, with no message.
+    private readonly RegistryWatcher _clockSettingsWatcher = new(ClockSettings.ExplorerAdvancedKey);
+    private readonly RegistryWatcher _additionalClocksWatcher = new(ClockSettings.AdditionalClocksKey, subtree: true);
     private ElementTheme _theme = SystemTheme.Read();
     private Color? _accent = SystemTheme.ReadAccent();
     private ShellSettings _windowSettings;
@@ -55,6 +58,8 @@ internal sealed class Taskbars : IDisposable
         Tracker.Changed += RefreshTasks;
         Tracker.ForegroundChanged += UpdateFullScreen;
         Settings.Changed += OnSettingsChanged;
+        _clockSettingsWatcher.Changed += () => _dispatcher.TryEnqueue(UpdateClocks);
+        _additionalClocksWatcher.Changed += () => _dispatcher.TryEnqueue(UpdateClocks);
     }
 
     public RunMode RunMode { get; }
@@ -75,6 +80,9 @@ internal sealed class Taskbars : IDisposable
     public event Action? DevicesChanged;
 
     public SettingsStore Settings { get; }
+
+    /// <summary>What the clocks show: seconds, the time and date at all, the notification bell, other time zones.</summary>
+    public ClockSettings ClockSettings { get; private set; } = ClockSettings.Read();
 
     public AppIcons Icons { get; }
 
@@ -136,6 +144,8 @@ internal sealed class Taskbars : IDisposable
     public void Dispose()
     {
         Settings.Changed -= OnSettingsChanged;
+        _clockSettingsWatcher.Dispose();
+        _additionalClocksWatcher.Dispose();
         Tracker.Dispose();
         _appBars?.Dispose();
         Tray?.Dispose();
@@ -421,6 +431,13 @@ internal sealed class Taskbars : IDisposable
         }
     }
 
+    private void UpdateClocks()
+    {
+        ClockSettings = ClockSettings.Read();
+        foreach (TaskbarWindow window in _windows)
+            window.UpdateClock();
+    }
+
     private void QueueUpdate()
     {
         if (_updateQueued)
@@ -440,6 +457,7 @@ internal sealed class Taskbars : IDisposable
             TimeZoneInfo.ClearCachedData();
             _theme = SystemTheme.Read();
             _accent = SystemTheme.ReadAccent();
+            ClockSettings = ClockSettings.Read();
 
             if (_recreate)
             {

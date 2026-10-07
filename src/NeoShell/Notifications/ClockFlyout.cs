@@ -65,6 +65,9 @@ internal sealed class ClockFlyout : IDisposable
     {
         _center.Changed -= OnNotificationsChanged;
         _center.DoNotDisturbChanged -= OnNotificationsChanged;
+        // At once: NeoShell may be exiting, which would leave the notification platform thinking it's still open.
+        if (IsOpen)
+            NotificationCenter.TellClosed();
         IsOpen = false;
         _notifications.Close();
         _calendar.Close();
@@ -81,6 +84,7 @@ internal sealed class ClockFlyout : IDisposable
         _calendarPanel.Opening();
 
         IsOpen = true;
+        _center.SetOpen(true);
         _previousForeground = TopLevelWindows.GetForeground();
         int offScreen = monitor.Bounds.X + monitor.Bounds.Width;
         (RectInt32 notifications, RectInt32 calendar) = Layout();
@@ -99,6 +103,7 @@ internal sealed class ClockFlyout : IDisposable
             return;
 
         IsOpen = false;
+        _center.SetOpen(false);
         nint foreground = TopLevelWindows.GetForeground();
         if (restoreForeground && IsOwn(foreground) && _previousForeground != 0 && TopLevelWindows.Exists(_previousForeground))
             TopLevelWindows.Activate(_previousForeground);

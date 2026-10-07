@@ -188,7 +188,7 @@ the desktop and back. Full spec in docs/design.md ("Widgets").
   tray icon order and drag targets,
   app bar placing, search ranking,
   indexer query building, startup entries, settings, wallpaper style mapping, AppBar rects, desktop icon
-  filtering, sorting and grid places, snap zones and keys, thumbnail toolbar data and image lists, pinning by drag, widget placement and order, MET forecast parsing, wireless device protocols, Windows product name,
+  filtering, sorting and grid places, snap zones and keys, thumbnail toolbar data and image lists, pinning by drag, clock settings and notification bell, widget placement and order, MET forecast parsing, wireless device protocols, Windows product name,
   AutoPlay content, events, choice lists and saving, autorun.inf parsing, optical drive names, toast sounds,
   input indicator labels and Win+Space keys, task button badges.
 - When testing the UI live, drive it through UI Automation (set `AutomationProperties.AutomationId` on interactive

@@ -6,7 +6,7 @@ namespace NeoShell.Interop.Com;
 // The notification platform's controller in WpnUserService (NotificationController.dll), which Explorer's toasts and
 // notification center (ShellExperienceHost's Windows.UI.ActionCenter) drive: it hands them the toasts and carries out
 // what the user does with them. Undocumented; the method order is MainControllerImpl's vtable (Windows 11 25H2).
-// Only ActivateNotification is called; the methods before it are declared to keep its slot.
+// Only SetNocenterStatus and ActivateNotification are called; the other methods are declared to keep their slots.
 
 internal static class NotificationControllers
 {
@@ -24,7 +24,11 @@ internal partial interface INotificationController
     [PreserveSig] int RegisterToastFilterSink(nint sink, out uint cookie);
     [PreserveSig] int RegisterBadgeSink(nint sink, out uint cookie, uint flags, int kind);
     [PreserveSig] int UnregisterSink(uint cookie);
-    [PreserveSig] int SetNocenterStatus(int status);
+
+    /// <summary>The notification center opened (1) or closed (0); a change marks every notification seen.</summary>
+    [PreserveSig]
+    int SetNocenterStatus(int status);
+
     [PreserveSig] int ToastReportStatus(nint group, nint item, int status);
     [PreserveSig] int DeleteNotifications(nint pairs, uint count);
     [PreserveSig] int ActivateNotificationGroup(nint group);
