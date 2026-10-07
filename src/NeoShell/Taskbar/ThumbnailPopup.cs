@@ -8,6 +8,7 @@ using Microsoft.UI.Xaml.Media;
 using NeoShell.Interop.Tray;
 using NeoShell.Interop.Windowing;
 using NeoShell.Settings;
+using Windows.ApplicationModel.DataTransfer;
 using Windows.Foundation;
 using Windows.Graphics;
 using Windows.UI;
@@ -16,7 +17,8 @@ namespace NeoShell.Taskbar;
 
 /// <summary>
 /// Live previews of a button's windows above the taskbar: hover one to peek at its window, click it to switch to it,
-/// or close it.
+/// or close it. A drag (from another app or the desktop) hovering a preview for a moment switches to its window, so the
+/// drop can go there, as in Explorer (without peeking).
 /// </summary>
 internal sealed class ThumbnailPopup : Window
 {
@@ -48,6 +50,11 @@ internal sealed class ThumbnailPopup : Window
     private readonly WindowSlide _slide;
     private readonly DispatcherQueueTimer _peekTimer;
     private nint _peekTarget;
+    // Each preview's cell and window, for a drag over them: pointer events don't come during a drag.
+    private readonly List<(Grid Cell, nint Window, Brush Hover, Brush Idle)> _cellWindows = [];
+    private readonly DispatcherQueueTimer _dragHoverTimer;
+    private (Grid Cell, nint Window, Brush Hover, Brush Idle)? _dragCell;
+    private bool _dragInside;
     private bool _peeking;
     private bool _visible;
     private int _taskbarTop;
@@ -84,9 +91,30 @@ internal sealed class ThumbnailPopup : Window
         _peekTimer.IsRepeating = false;
         _peekTimer.Tick += (_, _) => UpdatePeek();
         _tracker.ThumbBarChanged += OnThumbBarChanged;
+        _dragHoverTimer = DispatcherQueue.CreateTimer();
+        _dragHoverTimer.IsRepeating = false;
+        _dragHoverTimer.Interval = TaskbarDrop.PreviewHoverDelay;
+        // Nothing can be dropped on a preview; a drag only picks the window to bring forward.
+        _root.AllowDrop = true;
+        _root.DragOver += (_, e) =>
+        {
+            e.AcceptedOperation = DataPackageOperation.None;
+            DragOver(e.GetPosition(_root));
+        };
+        _root.DragLeave += (_, _) => DragLeave();
+        _root.Drop += (_, _) => DragLeave();
+        _dragHoverTimer.Tick += (_, _) =>
+        {
+            if (_dragCell is { } cell)
+            {
+                TopLevelWindows.SwitchTo(cell.Window);
+                Hide();
+            }
+        };
 
         Closed += (_, _) =>
         {
+            _dragHoverTimer.Stop();
             _tracker.ThumbBarChanged -= OnThumbBarChanged;
             EndPeek();
             _slide.Stop();
@@ -100,6 +128,12 @@ internal sealed class ThumbnailPopup : Window
     public TaskButton? Button { get; private set; }
 
     public UIElement Root => _root;
+
+    /// <summary>A drag came over the previews.</summary>
+    public event Action? DragEntered;
+
+    /// <summary>The drag left the previews.</summary>
+    public event Action? DragLeft;
 
     /// <summary>Shows the button's windows centred above <paramref name="anchor"/> (screen pixels).</summary>
     public void Show(TaskButton button, RectInt32 anchor, DisplayMonitor monitor, ElementTheme theme)
@@ -213,6 +247,8 @@ internal sealed class ThumbnailPopup : Window
         };
         Grid.SetColumn(title, 1);
         header.Children.Add(title);
+        _cellWindows.Add((cell, window.Handle, hover, idle));
+
         var close = new Button
         {
             Content = new FontIcon { Glyph = "", FontSize = 10 },
@@ -372,8 +408,53 @@ internal sealed class ThumbnailPopup : Window
             thumbnail.Clip(_thumbnailsBottom);
     }
 
+    private void DragOver(Point point)
+    {
+        if (!_dragInside)
+        {
+            _dragInside = true;
+            DragEntered?.Invoke();
+        }
+        (Grid Cell, nint Window, Brush Hover, Brush Idle)? under = null;
+        foreach (var cell in _cellWindows)
+        {
+            Rect bounds = cell.Cell.TransformToVisual(_root).TransformBounds(new Rect(0, 0, cell.Cell.ActualWidth, cell.Cell.ActualHeight));
+            if (bounds.Contains(point))
+                under = cell;
+        }
+        SetDragCell(under);
+    }
+
+    private void DragLeave()
+    {
+        SetDragCell(null);
+        if (!_dragInside)
+            return;
+        _dragInside = false;
+        DragLeft?.Invoke();
+    }
+
+    private void SetDragCell((Grid Cell, nint Window, Brush Hover, Brush Idle)? cell)
+    {
+        if (cell?.Cell == _dragCell?.Cell)
+            return;
+
+        if (_dragCell is { } previous)
+            previous.Cell.Background = previous.Idle;
+        _dragCell = cell;
+        _dragHoverTimer.Stop();
+        if (cell is { } next)
+        {
+            next.Cell.Background = next.Hover;
+            _dragHoverTimer.Start();
+        }
+    }
+
     private void ClearCells()
     {
+        _dragCell = null;
+        _dragHoverTimer.Stop();
+        _cellWindows.Clear();
         foreach (DwmThumbnail thumbnail in _thumbnails)
             thumbnail.Dispose();
         _thumbnails.Clear();

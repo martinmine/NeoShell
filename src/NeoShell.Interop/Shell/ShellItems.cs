@@ -30,6 +30,13 @@ public static unsafe class ShellItems
         pid = 5,
     };
 
+    // PKEY_Link_Arguments
+    private static readonly Ole32.PROPERTYKEY LinkArgumentsKey = new()
+    {
+        fmtid = new Guid("436F2667-14E2-4FEB-B30A-146C53B5B674"),
+        pid = 100,
+    };
+
     public static string AppsFolderPath(string appUserModelId) => @"shell:AppsFolder\" + appUserModelId;
 
     /// <summary>The name Explorer shows for the item, or null if it doesn't exist.</summary>
@@ -50,6 +57,14 @@ public static unsafe class ShellItems
         {
             Marshal.FreeCoTaskMem((nint)name);
         }
+    }
+
+    /// <summary>A shortcut's target (a file system path) and arguments; null if the file isn't a shortcut to a file.</summary>
+    public static (string Target, string? Arguments)? ReadShortcut(string path)
+    {
+        if (Create(path) is not { } item || GetString(item, LinkTargetPathKey) is not { Length: > 0 } target)
+            return null;
+        return (target, GetString(item, LinkArgumentsKey));
     }
 
     /// <summary>The item's icon at <paramref name="size"/> pixels square, or null.</summary>

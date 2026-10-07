@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using Microsoft.UI;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Windowing;
@@ -21,8 +22,10 @@ using NeoShell.Logging;
 using NeoShell.QuickSettings;
 using NeoShell.Settings;
 using NeoShell.Tray;
+using Windows.ApplicationModel.DataTransfer;
 using Windows.Foundation;
 using Windows.Graphics;
+using Windows.Storage;
 using Windows.UI;
 using AppBar = NeoShell.Interop.Windowing.AppBar;
 
@@ -54,6 +57,12 @@ internal sealed partial class TaskbarWindow : Window
     private TaskButton? _rightPressed;
     private TaskDrag? _drag;
     private readonly List<(UIElement Container, string Property, long Started)> _layoutAnimations = [];
+    // A drag from another app or the desktop (TaskbarDrop): the button it hovers, the app it would pin and the gap
+    // opened for it.
+    private readonly DispatcherQueueTimer _dragHoverTimer;
+    private TaskButton? _dragHovered;
+    private PinnedApp? _dragApp;
+    private DropGap? _dropGap;
     private static readonly TimeSpan s_layoutAnimationDuration = TimeSpan.FromMilliseconds(250);
     // Measured on Explorer: open previews move to another button ~200 ms after the pointer enters it, moving or not.
     private static readonly TimeSpan s_previewDelay = TimeSpan.FromMilliseconds(500);
@@ -192,6 +201,14 @@ internal sealed partial class TaskbarWindow : Window
                 ShowThumbnails(hovered.Button, hovered.Element);
         });
         _hideTimer = CreateTimer(dispatcher, TimeSpan.FromMilliseconds(400), _thumbnails.Hide);
+        _dragHoverTimer = CreateTimer(dispatcher, TaskbarDrop.ButtonHoverDelay, DragHoverElapsed);
+        _thumbnails.DragEntered += () => _hideTimer.Stop();
+        _thumbnails.DragLeft += () => _hideTimer.Start();
+        Root.AllowDrop = true;
+        Root.DragEnter += Root_DragEnter;
+        Root.DragOver += (_, e) => DragOverTaskbar(e);
+        Root.DragLeave += (_, _) => EndDragOver();
+        Root.Drop += Root_Drop;
 
         _slideTimer = CreateTimer(dispatcher, TimeSpan.FromMilliseconds(16), SlideStep);
         _slideTimer.IsRepeating = true;
@@ -267,6 +284,7 @@ internal sealed partial class TaskbarWindow : Window
             _trayHoverTimer.Stop();
             _hoverTimer.Stop();
             _hideTimer.Stop();
+            _dragHoverTimer.Stop();
             _thumbnails.Close();
             // Give the space back first, so windows can use it straight away.
             if (_appBar is not null)
@@ -1500,6 +1518,199 @@ internal sealed partial class TaskbarWindow : Window
         public int Index { get; } = index;
         public int Target { get; set; }
         public bool RefreshPending { get; set; }
+    }
+
+    // Drags from other apps and from the desktop, as over Explorer's taskbar (TaskbarDrop). WinUI's drop events, as
+    // Explorer's XAML taskbar uses: the system draws the drag the same way, the dragged image small with the effect's
+    // glyph and caption. Async void: everything is caught, as an exception would end the app.
+    private async void Root_DragEnter(object sender, DragEventArgs e)
+    {
+        Reveal();
+        _dragApp = null;
+        DragOperationDeferral deferral = e.GetDeferral();
+        try
+        {
+            _dragApp = await AppToPinAsync(e.DataView);
+            DragOverTaskbar(e);
+        }
+        catch (Exception ex)
+        {
+            Log.Warn("Could not read what was dragged over the taskbar", ex);
+        }
+        finally
+        {
+            deferral.Complete();
+        }
+    }
+
+    /// <summary>The app the drag would pin: one program or shortcut to one, not pinned already.</summary>
+    private async Task<PinnedApp?> AppToPinAsync(DataPackageView data)
+    {
+        if (!data.Contains(StandardDataFormats.StorageItems))
+            return null;
+
+        IReadOnlyList<IStorageItem> items = await data.GetStorageItemsAsync();
+        PinnedApp? app = TaskbarDrop.AppToPin([.. items.Select(item => item.Path)], ShellItems.ReadShortcut, ProgramName);
+        return app is not null && !_owner.Settings.Current.PinnedTaskbarApps.Any(pinned => TaskGrouping.SameApp(pinned, app)) ? app : null;
+    }
+
+    private void DragOverTaskbar(DragEventArgs e)
+    {
+        Point point = e.GetPosition(Root);
+        if (_dragApp is not null && e.AllowedOperations.HasFlag(DataPackageOperation.Link) && _drag is null)
+        {
+            // From Start to the tray, the buttons make way for it; over the tray and the clock it can't go.
+            bool overTasks = point.X < RightPanel.TransformToVisual(Root).TransformPoint(default).X;
+            ShowDropGap(overTasks ? point.X - TaskList.TransformToVisual(Root).TransformPoint(default).X : null);
+            e.AcceptedOperation = overTasks ? DataPackageOperation.Link : DataPackageOperation.None;
+            return;
+        }
+
+        // Nothing else can be dropped, but the window of the button under the drag comes forward to take it.
+        SetDragHovered(ButtonAt(point));
+        e.AcceptedOperation = DataPackageOperation.None;
+    }
+
+    private void EndDragOver()
+    {
+        ShowDropGap(null);
+        SetDragHovered(null);
+        _dragApp = null;
+    }
+
+    private void Root_Drop(object sender, DragEventArgs e)
+    {
+        if (_dragApp is { } app && _dropGap is { } gap)
+        {
+            (IReadOnlyList<string> order, IReadOnlyList<PinnedApp> pinned) =
+                TaskbarDrop.Pin([.. _tasks.Select(task => (task.Key, task.Pinned))], app, gap.Index);
+            // The buttons are drawn where they'll be, around the gap the app grows into.
+            _dropGap = null;
+            foreach (UIElement container in gap.Containers)
+            {
+                container.TranslationTransition = null;
+                container.Translation = default;
+            }
+            _owner.TaskOrder = order;
+            _owner.SetPinnedOrder(pinned);
+            e.AcceptedOperation = DataPackageOperation.Link;
+        }
+        EndDragOver();
+    }
+
+    /// <summary>Opens a gap for the dragged app among the buttons at <paramref name="x"/> along the task list, or closes it.</summary>
+    private void ShowDropGap(double? x)
+    {
+        if (x is not { } along)
+        {
+            if (_dropGap is { } open)
+            {
+                _dropGap = null;
+                foreach (UIElement container in open.Containers)
+                    container.Translation = default;
+            }
+            return;
+        }
+
+        if (_dropGap is null)
+        {
+            // Measured where they belong, not where an animation is drawing them.
+            FinishLayoutAnimations();
+            var containers = new List<UIElement>();
+            var slots = new List<(double Left, double Width)>();
+            for (int i = 0; i < _tasks.Count; i++)
+            {
+                if (TaskList.ContainerFromIndex(i) is not FrameworkElement container)
+                    return;
+                containers.Add(container);
+                slots.Add((container.TransformToVisual(TaskList).TransformPoint(default).X, container.ActualWidth));
+            }
+            foreach (UIElement container in containers)
+                container.TranslationTransition = new Vector3Transition { Duration = TimeSpan.FromMilliseconds(150) };
+            _dropGap = new DropGap(containers, slots);
+        }
+
+        DropGap gap = _dropGap;
+        int index = TaskbarDrop.InsertionIndex(gap.Slots, along);
+        if (index == gap.Index)
+            return;
+        gap.Index = index;
+        for (int i = 0; i < gap.Containers.Count; i++)
+            gap.Containers[i].Translation = new Vector3((float)TaskbarDrop.GapOffset(i, index, TaskListBuilder.CombinedButtonWidth), 0, 0);
+    }
+
+    // Pointer events don't come during a drag, so its hover is shown here.
+    private void SetDragHovered(TaskButton? button)
+    {
+        if (button == _dragHovered)
+            return;
+
+        if (_dragHovered is { } previous)
+            previous.IsHovered = false;
+        _dragHovered = button;
+        _dragHoverTimer.Stop();
+        if (button is not null)
+        {
+            button.IsHovered = true;
+            _dragHoverTimer.Start();
+        }
+        if (_thumbnails.Button is { } shown)
+        {
+            if (shown == button)
+                _hideTimer.Stop();
+            else
+                _hideTimer.Start();
+        }
+    }
+
+    // A window comes forward; several show their previews, and hovering one of those brings its window forward.
+    private void DragHoverElapsed()
+    {
+        if (_dragHovered is not { } button || TaskList.ContainerFromItem(button) is not FrameworkElement element)
+            return;
+
+        if (button.Windows.Count == 1)
+        {
+            _thumbnails.Hide();
+            // The drag's input went to its source, so this takes the foreground as Alt+Tab does.
+            TopLevelWindows.SwitchTo(button.Windows[0].Handle);
+        }
+        else if (button.Windows.Count > 1 && _thumbnails.Button != button)
+        {
+            ShowThumbnails(button, element);
+        }
+    }
+
+    private TaskButton? ButtonAt(Point point)
+    {
+        foreach (TaskButton button in _tasks)
+        {
+            if (TaskList.ContainerFromItem(button) is FrameworkElement container
+                && container.TransformToVisual(Root).TransformBounds(new Rect(0, 0, container.ActualWidth, container.ActualHeight)).Contains(point))
+                return button;
+        }
+        return null;
+    }
+
+    /// <summary>A program's name as Explorer gives it when pinned: its file description, else its file name.</summary>
+    private static string ProgramName(string path)
+    {
+        try
+        {
+            if (FileVersionInfo.GetVersionInfo(path).FileDescription is { Length: > 0 } description)
+                return description.Trim();
+        }
+        catch (FileNotFoundException)
+        {
+        }
+        return Path.GetFileNameWithoutExtension(path);
+    }
+
+    private sealed class DropGap(List<UIElement> containers, List<(double Left, double Width)> slots)
+    {
+        public List<UIElement> Containers { get; } = containers;
+        public List<(double Left, double Width)> Slots { get; } = slots;
+        public int Index { get; set; } = -1;
     }
 
     // From the keyboard, at the middle of the taskbar's top edge. Around Start, it's Start's menu.

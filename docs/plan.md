@@ -299,7 +299,10 @@ Each item is done when it looks and behaves as Explorer's (layout, behaviour, an
       in both run modes; desktop apps end through `EndTask` (hung and elevated ones too), UWP apps by their package;
       the separator above Close window, which Explorer doesn't draw, removed — not run live: UWP apps in shell mode
       (they can't show there); not matched: the menu's width and the launch item's icon (existing differences)
-- [ ] T11 Dragging over task buttons: bring the window forward; drop on a pinned app opens with it
+- [x] T11 Dragging over the taskbar, in both run modes: hovering a button brings its window forward (or its previews,
+      and hovering one of those its window), as Explorer; one program or shortcut to one is pinned where it's dropped,
+      the buttons making way; anything else is refused (25H2 opens nothing dropped on a button) — not run live: a
+      second monitor, a centred Explorer taskbar to compare the gap with, drags of packaged apps from Start (not done)
 - [ ] T12 Tray icons promoted one by one (`NotifyIconSettings`), dragged between overflow and taskbar
 - [ ] T13 Other privacy indicators (location in use…)
 - [ ] T14 Clock: seconds (`ShowSecondsInSystemClock`); notification count/badge

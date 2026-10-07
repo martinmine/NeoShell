@@ -641,6 +641,40 @@ have their icons (loaded in the background) and open on click.
   closes. DWM ignores a second peek while one is on, so moving it ends the first, which crossfades. The taskbar,
   popup and wallpaper windows set `DWMWA_EXCLUDED_FROM_PEEK` to stay visible, as Explorer's do.
 
+### Dragging over the taskbar (`TaskbarDrop`, unit tested)
+
+What Explorer's taskbar does with a drag from any app (files from File Explorer or the desktop, text, images),
+measured on 25H2 with `mouse_event` drags and frame recordings, and read from `Taskbar.View.dll`
+(`ExternalTaskListDragDropController`, `TaskbarFrame::OnDragEnter`…: the XAML taskbar's own drop events, which take
+the drag's `DataPackageView`; `Taskbar.dll`'s `CTaskListWnd`/`CTrayDropTarget` OLE targets only draw the drag image):
+
+- **Nothing opens by dropping on a button.** A file over a running or pinned app's button, Start, the empty taskbar,
+  the tray or the clock is refused (⊘, no caption); dropping does nothing. Windows 10's "Open with <app>" is gone.
+- **Hovering a button brings its window forward**, ~410 ms after the drag enters it, moving or not (the hover
+  time); the button shows its hover plate meanwhile. With several windows the previews open instead; hovering a
+  preview ~1.1 s brings that window forward (no peek first) and closes them. A pinned app that isn't running does
+  nothing.
+- **Pinning by drag.** Exactly one program (`.exe`) or a shortcut to one, not pinned already, is "Link" (the system's
+  default caption for the effect, with its glyph) anywhere from Start to the tray: the buttons open a one-button gap
+  where it would go (before the first button whose middle is past the pointer; over Start, first) and it's pinned
+  there on the drop, growing in. Over the tray and the clock it's refused. Anything else (a document, a shortcut to
+  one, a `.bat`, a folder, several files, an app pinned already) is refused everywhere and only hovers buttons; a
+  pinnable drag doesn't bring windows forward. A program is named by its file description (`charmap.exe` →
+  "Character Map"), a shortcut by its file name; a shortcut's arguments go with its program, whose windows then
+  share the button (as Explorer groups them after a restart).
+
+NeoShell does the same with WinUI's drop events on the taskbar's root and on the previews' window, as Explorer's XAML
+taskbar: the system then draws the drag as over Explorer's (the dragged image small, with the effect's glyph and
+caption). An OLE target with `IDropTargetHelper` (as the desktop has) was tried first: it drew the source's big
+image with the classic cursors instead. WinUI's events also see drags of NeoShell's own desktop icons. The dragged
+items are read once on entering (`GetStorageItemsAsync`, under a deferral); a shortcut through its property store
+(`ShellItems.ReadShortcut`). Pointer events don't come during a drag, so the hover plate, hover timers and the
+previews' hide timer are driven from the drag events. The drag's input went to its source, so a window is brought
+forward as Alt+Tab does (`TopLevelWindows.SwitchTo`): a plain `SetForegroundWindow` is refused. The gap moves the
+buttons by `Translation` (150 ms, as reordering); centred, the row recentres once the app is in it. Not compared: a
+centred Explorer taskbar (Explorer's here is left-aligned), a second monitor, and drags of packaged apps from Start
+(Explorer pins those too, by their AppID).
+
 ### Progress, overlay badges, thumbnail toolbars
 
 Apps call `ITaskbarList3`, which is implemented in `explorerframe.dll` inside the app process: it finds the task
