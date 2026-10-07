@@ -52,4 +52,12 @@ internal static unsafe partial class Ole32
 
     [LibraryImport("ole32.dll")]
     public static partial int RevokeDragDrop(nint hwnd);
+
+    public const uint REGCLS_MULTIPLEUSE = 1;
+
+    [LibraryImport("ole32.dll")]
+    public static partial int CoRegisterClassObject(in Guid clsid, nint unknown, uint context, uint flags, out uint cookie);
+
+    [LibraryImport("ole32.dll")]
+    public static partial int CoRevokeClassObject(uint cookie);
 }

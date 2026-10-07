@@ -142,4 +142,22 @@ internal static unsafe partial class Kernel32
 
     [LibraryImport("kernel32.dll", StringMarshalling = StringMarshalling.Utf16)]
     public static partial int GetLocaleInfoEx(string? locale, uint type, char* data, int length);
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct SYSTEM_POWER_STATUS
+    {
+        public byte ACLineStatus;
+        public byte BatteryFlag;
+        public byte BatteryLifePercent;
+        public byte SystemStatusFlag;
+        public uint BatteryLifeTime;
+        public uint BatteryFullLifeTime;
+    }
+
+    [LibraryImport("kernel32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static partial bool GetSystemPowerStatus(out SYSTEM_POWER_STATUS status);
+
+    [LibraryImport("kernel32.dll")]
+    public static partial nint LocalFree(nint memory);
 }

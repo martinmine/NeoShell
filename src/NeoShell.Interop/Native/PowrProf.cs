@@ -54,4 +54,13 @@ internal static unsafe partial class PowrProf
 
     [LibraryImport("powrprof.dll")]
     public static partial uint PowerSettingUnregisterNotification(nint registration);
+
+    [LibraryImport("powrprof.dll")]
+    public static partial uint PowerGetActiveScheme(nint rootPowerKey, out Guid* activeScheme);
+
+    [LibraryImport("powrprof.dll")]
+    public static partial uint PowerReadACValueIndex(nint rootPowerKey, Guid* scheme, in Guid subgroup, in Guid setting, out uint index);
+
+    [LibraryImport("powrprof.dll")]
+    public static partial uint PowerReadDCValueIndex(nint rootPowerKey, Guid* scheme, in Guid subgroup, in Guid setting, out uint index);
 }

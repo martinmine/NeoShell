@@ -1,14 +1,16 @@
 using Microsoft.UI.Dispatching;
-using Microsoft.UI.Xaml.Media.Imaging;
+using NeoShell.Interop.Imaging;
 using NeoShell.Interop.Windowing;
 using NeoShell.Logging;
 using NeoShell.Settings;
+using Windows.Graphics;
 
 namespace NeoShell.Desktop;
 
 /// <summary>
 /// The wallpaper on every monitor, and the desktop icons on the primary one (shell mode only; Explorer draws both
-/// otherwise). Follows changes to the wallpaper, the background colour and the displays.
+/// otherwise). Follows changes to the wallpaper, the background colour and the displays, runs the slideshow and
+/// serves <c>IDesktopWallpaper</c>, as Explorer's desktop does.
 /// </summary>
 /// <param name="closeRequested">Alt+F4 on the desktop.</param>
 internal sealed class Wallpaper(SettingsStore settings, Action closeRequested) : IDisposable
@@ -16,19 +18,46 @@ internal sealed class Wallpaper(SettingsStore settings, Action closeRequested) :
     private readonly DispatcherQueue _dispatcher = DispatcherQueue.GetForCurrentThread();
     private readonly DesktopIcons _icons = new(settings);
     private readonly List<WallpaperWindow> _windows = [];
+    private Slideshow? _slideshow;
+    private WallpaperService? _service;
     private WallpaperSettings? _settings;
-    private BitmapImage? _image;
+    private Dictionary<string, WallpaperImage?> _images = [];
     private bool _updateQueued;
     private bool _displaysChanged;
+    private int _fadeMilliseconds;
     private int _updateVersion;
 
-    public void Show() => QueueUpdate(displaysChanged: true);
+    public void Show()
+    {
+        QueueUpdate(displaysChanged: true);
+
+        _slideshow = new Slideshow(OnSlideshowChanged);
+        _slideshow.Refresh();
+        _service = new WallpaperService(_slideshow);
+        try
+        {
+            _service.Register();
+        }
+        catch (Exception ex)
+        {
+            Log.Error("Could not serve IDesktopWallpaper", ex);
+        }
+    }
 
     public void Dispose()
     {
         _updateVersion++;
+        _service?.Dispose();
+        _slideshow?.Dispose();
         CloseWindows();
         _icons.Dispose();
+    }
+
+    // The slideshow's change comes with a broadcast of its own; the update it queues crossfades.
+    private void OnSlideshowChanged(int fadeMilliseconds)
+    {
+        _fadeMilliseconds = fadeMilliseconds;
+        QueueUpdate(displaysChanged: false);
     }
 
     private nint? OnMessage(uint message, nint wParam, nint lParam)
@@ -63,19 +92,27 @@ internal sealed class Wallpaper(SettingsStore settings, Action closeRequested) :
     {
         _updateQueued = false;
         int version = ++_updateVersion;
+        int fade = _fadeMilliseconds;
+        _fadeMilliseconds = 0;
         try
         {
             WallpaperSettings settings = WallpaperSettings.Read();
             bool settingsChanged = settings != _settings;
             if (settingsChanged)
             {
-                BitmapImage? image = await LoadImageAsync(settings.ImagePath);
+                var images = new Dictionary<string, WallpaperImage?>(StringComparer.OrdinalIgnoreCase);
+                foreach (string path in settings.MonitorImages.Values.Append(settings.ImagePath).OfType<string>())
+                {
+                    if (!images.ContainsKey(path))
+                        images[path] = await LoadImageAsync(path);
+                }
                 if (version != _updateVersion)
                     return; // a newer update or Dispose took over while loading
 
                 _settings = settings;
-                _image = image;
-                Log.Info($"Wallpaper: {settings.ImagePath ?? "none"}, {settings.Style}, background {settings.Background}");
+                _images = images;
+                Log.Info($"Wallpaper: {settings.ImagePath ?? "none"}, {settings.Style}, background {settings.Background}"
+                    + string.Concat(settings.MonitorImages.Select(pair => $", {pair.Key}: {pair.Value}")));
             }
 
             if (_displaysChanged)
@@ -89,7 +126,10 @@ internal sealed class Wallpaper(SettingsStore settings, Action closeRequested) :
             }
 
             foreach (WallpaperWindow window in _windows)
-                window.SetWallpaper(_settings!, _image);
+            {
+                string? path = _settings!.ImageFor(window.Monitor.DevicePath);
+                window.SetWallpaper(_settings, path is null ? null : _images.GetValueOrDefault(path), settingsChanged ? fade : 0);
+            }
         }
         catch (Exception ex)
         {
@@ -121,7 +161,7 @@ internal sealed class Wallpaper(SettingsStore settings, Action closeRequested) :
         _windows.Clear();
     }
 
-    private static async Task<BitmapImage?> LoadImageAsync(string? path)
+    private static async Task<WallpaperImage?> LoadImageAsync(string? path)
     {
         if (path is null)
             return null;
@@ -130,12 +170,9 @@ internal sealed class Wallpaper(SettingsStore settings, Action closeRequested) :
         {
             // Read it all first: Windows rewrites the wallpaper file in place, so don't hold it open.
             byte[] bytes = await File.ReadAllBytesAsync(path);
-            Log.Info($"Wallpaper file read: {bytes.Length} bytes");
-            var image = new BitmapImage();
-            using var stream = new MemoryStream(bytes);
-            await image.SetSourceAsync(stream.AsRandomAccessStream());
-            Log.Info($"Wallpaper decoded: {image.PixelWidth}x{image.PixelHeight}");
-            return image;
+            SizeInt32 size = await Pictures.GetSizeAsync(bytes);
+            Log.Info($"Wallpaper file read: {bytes.Length} bytes, {size.Width}x{size.Height}");
+            return new WallpaperImage(bytes, size);
         }
         catch (Exception ex)
         {
@@ -145,3 +182,6 @@ internal sealed class Wallpaper(SettingsStore settings, Action closeRequested) :
         }
     }
 }
+
+/// <summary>A picture's file contents and its size in pixels; each monitor decodes it at the size it draws it.</summary>
+internal sealed record WallpaperImage(byte[] Bytes, SizeInt32 Size);

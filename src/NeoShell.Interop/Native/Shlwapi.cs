@@ -9,6 +9,9 @@ internal static unsafe partial class Shlwapi
     public static partial nint SHCreateMemStream(byte* data, uint size);
 
     [LibraryImport("shlwapi.dll", StringMarshalling = StringMarshalling.Utf16)]
+    public static partial int StrCmpLogicalW(string first, string second);
+
+    [LibraryImport("shlwapi.dll", StringMarshalling = StringMarshalling.Utf16)]
     public static partial int SHLoadIndirectString(string source, char* output, uint length, nint reserved);
 
     public const int PERCEIVED_TYPE_IMAGE = 2;

@@ -12,6 +12,7 @@ namespace NeoShell.Interop.Shell;
 public static unsafe class ShellItems
 {
     private const uint SIGDN_NORMALDISPLAY = 0;
+    internal const uint SIGDN_FILESYSPATH = 0x80058000;
     internal const uint SIIGBF_BIGGERSIZEOK = 0x01;
     internal const uint SIIGBF_ICONONLY = 0x04;
     private static readonly Guid BHID_PropertyStore = new("0384e1a4-1523-439c-a4c8-ab911052f586");
@@ -93,6 +94,35 @@ public static unsafe class ShellItems
         finally
         {
             Marshal.FreeCoTaskMem(idList);
+        }
+    }
+
+    /// <summary>Compares file names as Explorer sorts them: digits by their value ("img2" before "img10").</summary>
+    public static int CompareNames(string first, string second) => Shlwapi.StrCmpLogicalW(first, second);
+
+    /// <summary>The absolute ID list of a parsing name as bytes, or null if it doesn't exist.</summary>
+    public static byte[]? GetIDList(string parsingName) => Create(parsingName) is { } item ? GetIDList(item) : null;
+
+    /// <summary>The file system path of an absolute ID list, or null if it has none (or the bytes aren't one).</summary>
+    public static string? GetPath(ReadOnlySpan<byte> idList)
+    {
+        // Each item starts with its size and a zero size ends the list: walk it first, so Windows can't read past it.
+        int offset = 0;
+        while (offset + 2 <= idList.Length && BitConverter.ToUInt16(idList[offset..]) is var size and > 0)
+            offset += size;
+        if (offset + 2 > idList.Length)
+            return null;
+
+        nint native = Marshal.AllocCoTaskMem(idList.Length);
+        try
+        {
+            idList.CopyTo(new Span<byte>((void*)native, idList.Length));
+            char* path = stackalloc char[260];
+            return Shell32.SHGetPathFromIDListW(native, path) ? new string(path) : null;
+        }
+        finally
+        {
+            Marshal.FreeCoTaskMem(native);
         }
     }
 

@@ -382,7 +382,16 @@ Each item is done when it looks and behaves as Explorer's (layout, behaviour, an
       not done: Explorer's folders in All (Start Menu subfolders; NeoShell's catalog is flat, so its categories have
       more apps), arrow-key navigation, the page's zoom-out animation; differs: use is measured from UserAssist (starts
       plus minutes in front) where Explorer keeps its own count of the starts it saw
-- [ ] T24 Wallpaper: slideshow, Windows Spotlight, a wallpaper per monitor, `IDesktopWallpaper` in shell mode
+- [x] T24 Wallpaper: slideshow, Windows Spotlight, a wallpaper per monitor, `IDesktopWallpaper` in shell mode —
+      found with Procmon, Ghidra and cdb (shell32's `CDesktopWallpaper`/`CSlideshowWorker`) that Explorer's desktop
+      serves `CLSID_DesktopWallpaper` and runs the slideshow; as the shell NeoShell now serves it (every call answered
+      as Explorer's, compared with a test client against both; "Set as desktop background" works again) and runs the
+      slideshow (Explorer's order, shuffle, midnight-aligned timing, power-plan pause, 1 s linear crossfade measured at
+      60 fps against Explorer's), with a picture per monitor, all in Explorer's own registry values, `slideshow.ini`
+      and transcoded files, so each shell continues the other's (checked both ways) — not done: Windows spotlight
+      beyond showing its current picture (the "Learn about this picture" icon, flyout, Next and the rotation live in
+      Explorer and private UDK/COM interfaces); the slideshow's pause while the display is off; not run live: a second
+      monitor (per-monitor values and the monitor mapping unit tested), a battery
 - [ ] T25 Desktop icons on every monitor
 - [ ] T26 Desktop: Undo; "Align icons to grid" off
 - [ ] T27 Snap Assist, snap groups, Snap layouts on the maximize button and at the top edge

@@ -54,6 +54,19 @@ internal static unsafe partial class Shell32
     [LibraryImport("shell32.dll")]
     public static partial int SHGetIDListFromObject([MarshalAs(UnmanagedType.Interface)] Com.IShellItem item, out nint idList);
 
+    [LibraryImport("shell32.dll", StringMarshalling = StringMarshalling.Utf16)]
+    public static partial int SHParseDisplayName(string name, nint bindContext, out nint idList, uint attributesIn, out uint attributesOut);
+
+    [LibraryImport("shell32.dll")]
+    public static partial int SHCreateShellItemArrayFromIDLists(uint count, nint* idLists, out nint itemArray);
+
+    [LibraryImport("shell32.dll", StringMarshalling = StringMarshalling.Utf16)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static partial bool SHGetPathFromIDListW(nint idList, char* path);
+
+    [LibraryImport("shell32.dll")]
+    public static partial void ILFree(nint idList);
+
     public const uint SIID_LINK = 29;
     public const uint SIID_WARNING = 78;
     public const uint SIID_INFO = 79;

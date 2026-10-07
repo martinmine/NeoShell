@@ -75,6 +75,13 @@ internal static unsafe partial class User32
     public const uint SPI_SETWORKAREA = 0x002F;
     public const uint SPI_GETSTICKYKEYS = 0x003A;
     public const uint SPI_SETSTICKYKEYS = 0x003B;
+    public const uint SPI_SETDESKWALLPAPER = 0x0014;
+    public const int COLOR_BACKGROUND = 1;
+
+    [LibraryImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static partial bool SetSysColors(int count, int* elements, uint* colors);
+
     public const uint SPIF_UPDATEINIFILE = 0x0001;
     public const uint SPIF_SENDCHANGE = 0x0002;
 
@@ -110,6 +117,27 @@ internal static unsafe partial class User32
         public RECT rcMonitor;
         public RECT rcWork;
         public uint dwFlags;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct MONITORINFOEX
+    {
+        public MONITORINFO info;
+        public fixed char szDevice[32];
+    }
+
+    public const uint EDD_GET_DEVICE_INTERFACE_NAME = 0x1;
+    public const uint DISPLAY_DEVICE_ACTIVE = 0x1;
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct DISPLAY_DEVICE
+    {
+        public uint cb;
+        public fixed char DeviceName[32];
+        public fixed char DeviceString[128];
+        public uint StateFlags;
+        public fixed char DeviceID[128];
+        public fixed char DeviceKey[128];
     }
 
     [StructLayout(LayoutKind.Sequential)]
@@ -320,6 +348,14 @@ internal static unsafe partial class User32
     [LibraryImport("user32.dll", EntryPoint = "GetMonitorInfoW")]
     [return: MarshalAs(UnmanagedType.Bool)]
     public static partial bool GetMonitorInfo(nint monitor, MONITORINFO* info);
+
+    [LibraryImport("user32.dll", EntryPoint = "GetMonitorInfoW")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static partial bool GetMonitorInfo(nint monitor, MONITORINFOEX* info);
+
+    [LibraryImport("user32.dll", EntryPoint = "EnumDisplayDevicesW")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static partial bool EnumDisplayDevices(char* device, uint index, DISPLAY_DEVICE* displayDevice, uint flags);
 
     [LibraryImport("user32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
