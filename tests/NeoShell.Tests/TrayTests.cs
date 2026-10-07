@@ -233,6 +233,82 @@ public sealed class TrayTests
         Assert.False(NotifyIconSettings.Matches(Vlc, null, IconGuid, Vlc, 0, null, Folder));
     }
 
+    [Fact]
+    public void NotifyIconSettings_store_paths_under_the_deepest_known_folder()
+    {
+        (Guid, string?)[] folders =
+        [
+            (new("1AC14E77-02E7-4E5D-B744-2EB1AE5198B7"), @"C:\Windows\system32"),
+            (new("F38BF404-1D43-42F2-9305-67DE0B28FC23"), @"C:\Windows"),
+            (new("6D809377-6AF0-444B-8957-A3773F02200E"), null),
+        ];
+
+        Assert.Equal(@"{1AC14E77-02E7-4E5D-B744-2EB1AE5198B7}\Taskmgr.exe", NotifyIconSettings.StoredPath(@"C:\Windows\System32\Taskmgr.exe", folders));
+        Assert.Equal(@"{F38BF404-1D43-42F2-9305-67DE0B28FC23}\explorer.exe", NotifyIconSettings.StoredPath(@"C:\Windows\explorer.exe", folders));
+        Assert.Equal(@"C:\Users\me\AppData\Local\Microsoft\OneDrive\OneDrive.exe",
+            NotifyIconSettings.StoredPath(@"C:\Users\me\AppData\Local\Microsoft\OneDrive\OneDrive.exe", folders));
+    }
+
+    [Fact]
+    public void NotifyIconSettings_order_is_little_endian_64_bit_ids()
+    {
+        ulong[] order = [9806957982799781110, 1, ulong.MaxValue];
+
+        byte[] bytes = NotifyIconSettings.FormatOrder(order);
+
+        Assert.Equal(24, bytes.Length);
+        Assert.Equal(1UL, BinaryPrimitives.ReadUInt64LittleEndian(bytes.AsSpan(8)));
+        Assert.Equal(order, NotifyIconSettings.ParseOrder(bytes));
+    }
+
+    [Fact]
+    public void Icons_sort_by_their_place_in_the_order_and_unknown_ones_first()
+    {
+        (string Name, ulong? Id)[] icons = [("a", 10), ("b", 20), ("new", null), ("c", 30), ("gone", 99)];
+
+        List<(string Name, ulong? Id)> sorted = TrayIconOrder.Sort(icons, icon => icon.Id, [30, 10, 20]);
+
+        // Not in the order (no key, or a key the order lost): place 0, between equals in the order added.
+        Assert.Equal(["new", "c", "gone", "a", "b"], sorted.Select(icon => icon.Name));
+    }
+
+    [Fact]
+    public void Moving_an_icon_puts_it_before_or_after_the_target_or_first()
+    {
+        ulong[] order = [1, 2, 3, 4];
+
+        Assert.Equal([2, 3, 1, 4], TrayIconOrder.Move(order, 1, 3, after: true));
+        Assert.Equal([1, 4, 2, 3], TrayIconOrder.Move(order, 4, 2, after: false));
+        Assert.Equal([5, 1, 2, 3, 4], TrayIconOrder.Move(order, 5, 9, after: true));
+        Assert.Equal(order, TrayIconOrder.Move(order, 2, 2, after: false));
+    }
+
+    [Fact]
+    public void A_drag_finds_the_icon_half_under_it_then_the_chevron()
+    {
+        RectInt32[] taskbar = [new(100, 940, 32, 48), new(132, 940, 32, 48)];
+        RectInt32[] overflow = [new(90, 843, 40, 40), new(130, 843, 40, 40)];
+        RectInt32 chevron = new(68, 940, 32, 48);
+
+        Assert.Equal(new TrayDropTarget(false, 1, false), TrayIconOrder.Find(new(140, 960), taskbar, overflow, chevron));
+        Assert.Equal(new TrayDropTarget(false, 1, true), TrayIconOrder.Find(new(150, 960), taskbar, overflow, chevron));
+        Assert.Equal(new TrayDropTarget(true, 0, true), TrayIconOrder.Find(new(115, 860), taskbar, overflow, chevron));
+        Assert.Null(TrayIconOrder.Find(new(115, 860), taskbar, null, chevron));
+        Assert.Equal(TrayDropTarget.Chevron, TrayIconOrder.Find(new(70, 950), taskbar, overflow, chevron));
+        Assert.Null(TrayIconOrder.Find(new(500, 950), taskbar, overflow, chevron));
+    }
+
+    [Fact]
+    public void A_drag_caption_says_pin_unpin_or_cant_drop()
+    {
+        Assert.Equal(TrayDragCaption.Pin, TrayIconOrder.Caption(fromOverflow: true, new TrayDropTarget(false, 0, false)));
+        Assert.Equal(TrayDragCaption.Unpin, TrayIconOrder.Caption(fromOverflow: false, new TrayDropTarget(true, 0, false)));
+        Assert.Equal(TrayDragCaption.Unpin, TrayIconOrder.Caption(fromOverflow: false, TrayDropTarget.Chevron));
+        Assert.Equal(TrayDragCaption.None, TrayIconOrder.Caption(fromOverflow: true, TrayDropTarget.Chevron));
+        Assert.Equal(TrayDragCaption.None, TrayIconOrder.Caption(fromOverflow: false, new TrayDropTarget(false, 2, true)));
+        Assert.Equal(TrayDragCaption.CantDrop, TrayIconOrder.Caption(fromOverflow: false, null));
+    }
+
     private static NotifyIconData Data(NotifyIconCommand command, nint window = 1, uint id = 1, Guid? guid = null,
         NotifyIconFlags flags = NotifyIconFlags.None, nint icon = 0, string tip = "", bool? hidden = null, uint version = 0, uint callback = 0) =>
         new(command, window, id, guid, flags, callback, icon, tip, hidden, version);

@@ -303,7 +303,10 @@ Each item is done when it looks and behaves as Explorer's (layout, behaviour, an
       and hovering one of those its window), as Explorer; one program or shortcut to one is pinned where it's dropped,
       the buttons making way; anything else is refused (25H2 opens nothing dropped on a button) — not run live: a
       second monitor, a centred Explorer taskbar to compare the gap with, drags of packaged apps from Start (not done)
-- [ ] T12 Tray icons promoted one by one (`NotifyIconSettings`), dragged between overflow and taskbar
+- [x] T12 Tray icons promoted one by one (`NotifyIconSettings`), dragged between overflow and taskbar: Explorer's keys,
+      order and defaults kept and followed live, the hidden icon menu (taskbar menu), drags with Explorer's picture,
+      captions, marker and drop rules; `TrayMode` folded in — not done: moving icons with the keyboard, `Publisher` and
+      `IconSnapshot` values; not run live: a vertical or top taskbar (other chevron glyphs), other DPIs
 - [ ] T13 Other privacy indicators (location in use…)
 - [ ] T14 Clock: seconds (`ShowSecondsInSystemClock`); notification count/badge
 - [ ] T15 Taskbar search box style

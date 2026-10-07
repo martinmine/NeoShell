@@ -39,6 +39,7 @@ internal static unsafe partial class Advapi32
     [LibraryImport("advapi32.dll", EntryPoint = "InitiateShutdownW", StringMarshalling = StringMarshalling.Utf16)]
     public static partial uint InitiateShutdown(string? machine, string? message, uint gracePeriod, uint flags, uint reason);
 
+    public const uint REG_NOTIFY_CHANGE_NAME = 0x1;
     public const uint REG_NOTIFY_CHANGE_LAST_SET = 0x4;
     public const uint REG_NOTIFY_THREAD_AGNOSTIC = 0x1000_0000;
 

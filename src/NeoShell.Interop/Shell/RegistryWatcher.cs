@@ -5,16 +5,19 @@ namespace NeoShell.Interop.Shell;
 
 /// <summary>
 /// Raises <see cref="Changed"/> whenever a value of a key under HKEY_CURRENT_USER is set or deleted, on a thread-pool
-/// thread: for settings Explorer picks up from the registry as they change, without any message.
+/// thread: for settings Explorer picks up from the registry as they change, without any message. With
+/// <c>subtree</c>, values of the keys below it too.
 /// </summary>
 public sealed class RegistryWatcher : IDisposable
 {
     private readonly RegistryKey? _key;
     private readonly AutoResetEvent _signal = new(false);
     private readonly RegisteredWaitHandle? _wait;
+    private readonly bool _subtree;
 
-    public RegistryWatcher(string path)
+    public RegistryWatcher(string path, bool subtree = false)
     {
+        _subtree = subtree;
         _key = Registry.CurrentUser.OpenSubKey(path);
         if (_key is null || !Arm())
             return;
@@ -43,9 +46,10 @@ public sealed class RegistryWatcher : IDisposable
         _signal.Dispose();
     }
 
-    // Thread-agnostic: a request made on a thread-pool thread would otherwise end with the thread.
+    // Thread-agnostic: a request made on a thread-pool thread would otherwise end with the thread. Below the key, keys
+    // added and deleted count too.
     private bool Arm() =>
-        Advapi32.RegNotifyChangeKeyValue(_key!.Handle.DangerousGetHandle(), false,
-            Advapi32.REG_NOTIFY_CHANGE_LAST_SET | Advapi32.REG_NOTIFY_THREAD_AGNOSTIC,
+        Advapi32.RegNotifyChangeKeyValue(_key!.Handle.DangerousGetHandle(), _subtree,
+            Advapi32.REG_NOTIFY_CHANGE_LAST_SET | Advapi32.REG_NOTIFY_THREAD_AGNOSTIC | (_subtree ? Advapi32.REG_NOTIFY_CHANGE_NAME : 0),
             _signal.SafeWaitHandle.DangerousGetHandle(), true) == 0;
 }

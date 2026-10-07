@@ -81,7 +81,11 @@ public sealed record ShellSettings
     public bool AutoHide { get; set; }
     public bool ShowOnAllDisplays { get; set; } = true;
     public bool ShowSearchButton { get; set; } = true;
-    public TrayMode TrayMode { get; set; } = TrayMode.Overflow;
+    /// <summary>
+    /// The tray's former setting, all icons on the taskbar or behind the chevron, which Explorer's per-icon settings
+    /// replace: read once as the shell (<see cref="TrayMode.ShowAll"/> then shows every icon) and cleared.
+    /// </summary>
+    public TrayMode? TrayMode { get; set; }
     public Backdrop TaskbarBackdrop { get; set; } = Backdrop.Acrylic;
     public IReadOnlyList<PinnedApp> PinnedTaskbarApps { get; set; } = [];
     public IReadOnlyList<PinnedApp> PinnedStartApps { get; set; } = [];

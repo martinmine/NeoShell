@@ -104,7 +104,9 @@ internal sealed class Taskbars : IDisposable
         Indicators = new Indicators();
         if (RunMode == RunMode.Shell && !TrayHost.IsTrayRunning())
         {
-            Tray = new NotificationArea();
+            Tray = new NotificationArea(showAll: Settings.Current.TrayMode == TrayMode.ShowAll);
+            if (Settings.Current.TrayMode is not null)
+                Settings.Update(Settings.Current with { TrayMode = null });
             Tray.IconBounds = icon => PrimaryWindow?.TrayIconBounds(icon);
             Tray.TaskbarListCalled += Tracker.Apply;
             Tray.ThumbBarCalled += Tracker.Apply;

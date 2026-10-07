@@ -47,6 +47,13 @@ internal static class TaskbarFlyouts
     // How far below where WinUI places the open menu at the pointer its windows go, in pixels.
     private static int s_pointerOffset;
 
+    /// <summary>
+    /// Where the open flyout's window is on screen, in pixels: its content's place can't be had from WinUI, which
+    /// doesn't know the window has been moved.
+    /// </summary>
+    public static RectInt32? WindowBounds(FlyoutBase flyout) =>
+        flyout.IsOpen && s_windows.TryGetValue(flyout, out nint window) && PopupWindows.IsShown(window) ? PopupWindows.GetBounds(window) : null;
+
     /// <summary>Opens the flyout centred above <paramref name="target"/>, as Explorer opens a jump list.</summary>
     /// <remarks>
     /// WinUI's Top placement puts the flyout's edge, not its middle, at the point it's given, and the width is only

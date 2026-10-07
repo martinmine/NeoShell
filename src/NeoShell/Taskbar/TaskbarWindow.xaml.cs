@@ -90,6 +90,12 @@ internal sealed partial class TaskbarWindow : Window
     private TrayIcon? _trayHovered;
     private bool _trayPopupOpen;
     private (TrayIcon Icon, long Time)? _lastTrayLeftDown;
+    private TrayPress? _trayPress;
+    // As Explorer's tray: how far a press moves to become a drag, the dragged icon left in its place, and how fast a
+    // dropped one grows in (5 frames).
+    private const double TrayDragThreshold = 4;
+    private const double TrayDragPlaceholderOpacity = 0.3;
+    private static readonly TimeSpan TrayDropGrowDuration = TimeSpan.FromMilliseconds(83);
     private nint _fullScreenWindow;
     private readonly bool _autoHide;
     private readonly DispatcherQueueTimer? _autoHideTimer;
@@ -177,6 +183,8 @@ internal sealed partial class TaskbarWindow : Window
         IconPress.Attach(StartButton, (UIElement)StartButton.Content);
         IconPress.Attach(SearchButton, (UIElement)SearchButton.Content);
         IconPress.Attach(OverflowButton, OverflowChevron);
+        // Presses on the taskbar's tray icons reach them while the overflow is open (see OverflowFlyout_Closing).
+        OverflowFlyout.OverlayInputPassThroughElement = TrayIcons;
         // Handled events too: the button under the pointer takes the press for its click.
         TaskList.AddHandler(UIElement.PointerPressedEvent, new PointerEventHandler(TaskList_PointerPressed), handledEventsToo: true);
         TaskList.AddHandler(UIElement.PointerMovedEvent, new PointerEventHandler(TaskList_PointerMoved), handledEventsToo: true);
@@ -263,15 +271,22 @@ internal sealed partial class TaskbarWindow : Window
         if (_tray is not null)
         {
             TrayArea.Visibility = Visibility.Visible;
-            TrayIcons.ItemsSource = OverflowIcons.ItemsSource = _tray.Icons;
-            _tray.Icons.CollectionChanged += OnTrayIconsChanged;
+            TrayIcons.ItemsSource = _tray.PromotedIcons;
+            OverflowIcons.ItemsSource = _tray.OverflowIcons;
+            _tray.PromotedIcons.CollectionChanged += OnTrayIconsChanged;
+            _tray.OverflowIcons.CollectionChanged += OnTrayIconsChanged;
+            _tray.ChevronVisibilityChanged += RefreshTray;
             RefreshTray();
         }
 
         Closed += (_, _) =>
         {
             if (_tray is not null)
-                _tray.Icons.CollectionChanged -= OnTrayIconsChanged;
+            {
+                _tray.PromotedIcons.CollectionChanged -= OnTrayIconsChanged;
+                _tray.OverflowIcons.CollectionChanged -= OnTrayIconsChanged;
+                _tray.ChevronVisibilityChanged -= RefreshTray;
+            }
             if (owner.Notifications is { } notifications)
                 notifications.DoNotDisturbChanged -= ShowDoNotDisturb;
             if (_indicators is not null)
@@ -535,15 +550,17 @@ internal sealed partial class TaskbarWindow : Window
         ShowQuickLinks();
     }
 
-    /// <summary>Shows the tray icons on the taskbar, or behind the chevron, as the tray mode setting says.</summary>
+    /// <summary>Shows the chevron while there are hidden icons, unless the hidden icon menu is turned off.</summary>
     public void RefreshTray()
     {
         if (_tray is null)
             return;
 
-        bool showAll = _owner.Settings.Current.TrayMode == TrayMode.ShowAll;
-        TrayIcons.Visibility = showAll ? Visibility.Visible : Visibility.Collapsed;
-        OverflowButton.Visibility = !showAll && _tray.Icons.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        bool chevron = _tray.ChevronVisible && _tray.OverflowIcons.Count > 0;
+        OverflowButton.Visibility = chevron ? Visibility.Visible : Visibility.Collapsed;
+        // The overflow closes when its last icon leaves, as Explorer's does.
+        if (!chevron)
+            OverflowFlyout.Hide();
     }
 
     /// <summary>
@@ -555,9 +572,9 @@ internal sealed partial class TaskbarWindow : Window
         if (_tray is null)
             return null;
 
-        FrameworkElement? element = TrayIcons.Visibility == Visibility.Visible
+        FrameworkElement? element = _tray.PromotedIcons.Contains(icon)
             ? TrayIcons.ContainerFromItem(icon) as FrameworkElement
-            : OverflowButton;
+            : OverflowButton.Visibility == Visibility.Visible ? OverflowButton : null;
         return element is null ? null : BoundsOnScreen(element);
     }
 
@@ -838,6 +855,7 @@ internal sealed partial class TaskbarWindow : Window
         element.CapturePointer(e.Pointer);
         EndTrayHover();
         _tray.Send(icon, mouseEvent);
+        _trayPress = button.IsLeftButtonPressed ? new TrayPress(icon, element, Cursor.Position(), _tray.OverflowIcons.Contains(icon)) : null;
         e.Handled = true;
     }
 
@@ -846,7 +864,17 @@ internal sealed partial class TaskbarWindow : Window
         if (_tray is null || sender is not FrameworkElement { DataContext: TrayIcon icon } element)
             return;
 
+        // Taken first: letting the pointer go raises PointerCaptureLost, which would end the drag unfinished.
+        TrayPress? press = _trayPress;
+        _trayPress = null;
         element.ReleasePointerCapture(e.Pointer);
+        if (press is { Dragging: true })
+        {
+            // A drag is no click: the app hears nothing more.
+            DropTrayIcon(press);
+            e.Handled = true;
+            return;
+        }
         TrayMouseEvent? mouseEvent = e.GetCurrentPoint(element).Properties.PointerUpdateKind switch
         {
             PointerUpdateKind.LeftButtonReleased => TrayMouseEvent.LeftUp,
@@ -868,6 +896,19 @@ internal sealed partial class TaskbarWindow : Window
     {
         if (sender is not FrameworkElement { DataContext: TrayIcon icon } element)
             return;
+
+        if (_trayPress is { } press && press.Icon == icon)
+        {
+            PointInt32 cursor = Cursor.Position();
+            double threshold = TrayDragThreshold * Root.XamlRoot.RasterizationScale;
+            if (!press.Dragging && (Math.Abs(cursor.X - press.Start.X) > threshold || Math.Abs(cursor.Y - press.Start.Y) > threshold))
+                StartTrayDrag(press);
+            if (press.Dragging)
+            {
+                DragTrayIcon(press, cursor);
+                return;
+            }
+        }
 
         // A captured pointer keeps reporting after leaving the icon; the app only cares about moves over it.
         Point point = e.GetCurrentPoint(element).Position;
@@ -904,8 +945,152 @@ internal sealed partial class TaskbarWindow : Window
     // A right-click on an icon is the app's; the taskbar's own menu must not open too.
     private void TrayIcon_ContextRequested(UIElement sender, ContextRequestedEventArgs e) => e.Handled = true;
 
-    private void ShowAllTrayIcons_Click(object sender, RoutedEventArgs e) =>
-        _owner.Settings.Update(_owner.Settings.Current with { TrayMode = ShowAllTrayIconsItem.IsChecked ? TrayMode.ShowAll : TrayMode.Overflow });
+    private void TrayIcon_PointerCaptureLost(object sender, PointerRoutedEventArgs e)
+    {
+        // Let go over another window (the desktop, say), the icon gets no PointerReleased, only this: still a drop.
+        // With the button still down, something else took the pointer, and the drag is off.
+        if (_trayPress is { Dragging: true } press)
+        {
+            if (Cursor.IsButtonDown())
+                EndTrayDrag(press);
+            else
+                DropTrayIcon(press);
+        }
+        _trayPress = null;
+    }
+
+    // Explorer's "Hidden icon menu" (Settings > Personalization > Taskbar), which Settings can't show without Explorer.
+    private void HiddenIconMenu_Click(object sender, RoutedEventArgs e)
+    {
+        if (_tray is not null)
+            _tray.ChevronVisible = HiddenIconMenuItem.IsChecked;
+    }
+
+    // Dragging tray icons between the taskbar and the overflow and along each, as in Explorer (SystemTray.dll's
+    // DragDropManager): the icon stays in its place, dimmed, while a copy follows the pointer with a caption above it.
+    private void StartTrayDrag(TrayPress press)
+    {
+        press.Dragging = true;
+        EndTrayHover();
+        if (press.Element is Grid { Children: [UIElement hover, UIElement image, ..] })
+        {
+            hover.Opacity = 0;
+            image.Opacity = TrayDragPlaceholderOpacity;
+        }
+        TrayDragImage.Source = press.Icon.Icon;
+        TrayDragPopup.IsOpen = true;
+    }
+
+    private void DragTrayIcon(TrayPress press, PointInt32 cursor)
+    {
+        TrayDropTarget? target = FindTrayDropTarget(cursor);
+        TrayDragCaption caption = TrayIconOrder.Caption(press.FromOverflow, target);
+        TrayDragCaptionBox.Visibility = caption == Tray.TrayDragCaption.None ? Visibility.Collapsed : Visibility.Visible;
+        TrayDragGlyph.Glyph = caption switch
+        {
+            Tray.TrayDragCaption.Pin => "\uE718",
+            Tray.TrayDragCaption.Unpin => "\uE77A",
+            _ => "\uE733",
+        };
+        // The icon's bottom right at the pointer, the caption centred 12 above it (measured on Explorer's).
+        Point point = ToRoot(cursor);
+        TrayDragPopup.HorizontalOffset = point.X - 21;
+        TrayDragPopup.VerticalOffset = point.Y - 58;
+
+        RectInt32? beside = target is { IsChevron: false } on ? TrayIconRects(on.InOverflow)[on.Index] : null;
+        TrayDropMarkerPopup.IsOpen = beside is not null;
+        if (beside is { } rect)
+        {
+            // A line just left of the icon it goes before, or at the right edge of the one it goes after.
+            Point marker = ToRoot(new PointInt32(target!.Value.After ? rect.X + rect.Width : rect.X - 1, rect.Y + rect.Height / 2));
+            TrayDropMarkerPopup.HorizontalOffset = marker.X;
+            TrayDropMarkerPopup.VerticalOffset = marker.Y - 18;
+        }
+    }
+
+    private void DropTrayIcon(TrayPress press)
+    {
+        TrayDropTarget? target = FindTrayDropTarget(Cursor.Position());
+        EndTrayDrag(press);
+        if (target is { } drop && _tray!.Move(press.Icon, drop))
+            DispatcherQueue.TryEnqueue(DispatcherQueuePriority.Low, () => GrowTrayIcon(press.Icon));
+    }
+
+    private void EndTrayDrag(TrayPress press)
+    {
+        _trayPress = null;
+        TrayDragPopup.IsOpen = false;
+        TrayDropMarkerPopup.IsOpen = false;
+        if (press.Element is Grid { Children: [_, UIElement image, ..] })
+            image.Opacity = 1;
+    }
+
+    // A dropped icon grows into its new place, as Explorer's does.
+    private void GrowTrayIcon(TrayIcon icon)
+    {
+        ItemsControl row = _tray!.PromotedIcons.Contains(icon) ? TrayIcons : OverflowIcons;
+        if (row.ContainerFromItem(icon) is not ContentPresenter container || VisualTreeHelper.GetChildrenCount(container) == 0
+            || VisualTreeHelper.GetChild(container, 0) is not Grid { Children: [_, UIElement image, ..] })
+        {
+            return;
+        }
+
+        Visual visual = ElementCompositionPreview.GetElementVisual(image);
+        visual.CenterPoint = new Vector3(8, 8, 0);
+        Vector3KeyFrameAnimation grow = visual.Compositor.CreateVector3KeyFrameAnimation();
+        grow.InsertKeyFrame(0, new Vector3(0, 0, 1));
+        grow.InsertKeyFrame(1, Vector3.One);
+        grow.Duration = TrayDropGrowDuration;
+        visual.StartAnimation("Scale", grow);
+    }
+
+    private TrayDropTarget? FindTrayDropTarget(PointInt32 cursor) => TrayIconOrder.Find(
+        cursor,
+        TrayIconRects(inOverflow: false),
+        TaskbarFlyouts.WindowBounds(OverflowFlyout) is not null ? TrayIconRects(inOverflow: true) : null,
+        OverflowButton.Visibility == Visibility.Visible ? BoundsOnScreen(OverflowButton) : null);
+
+    private List<RectInt32> TrayIconRects(bool inOverflow)
+    {
+        ItemsControl row = inOverflow ? OverflowIcons : TrayIcons;
+        RectInt32? overflow = inOverflow ? TaskbarFlyouts.WindowBounds(OverflowFlyout) : null;
+        return [.. (inOverflow ? _tray!.OverflowIcons : _tray!.PromotedIcons).Select(icon => row.ContainerFromItem(icon) switch
+        {
+            FrameworkElement container when overflow is { } window => BoundsInPopup(container, window),
+            FrameworkElement container => BoundsOnScreen(container),
+            _ => default,
+        })];
+    }
+
+    /// <summary>An element's place on screen, in pixels, in a popup window at <paramref name="window"/>.</summary>
+    private RectInt32 BoundsInPopup(FrameworkElement element, RectInt32 window)
+    {
+        // The flyout's presenter fills the popup's window.
+        UIElement top = element;
+        while (top is not FlyoutPresenter && VisualTreeHelper.GetParent(top) is UIElement parent)
+            top = parent;
+        double scale = Root.XamlRoot.RasterizationScale;
+        Rect rect = element.TransformToVisual(top).TransformBounds(new Rect(0, 0, element.ActualWidth, element.ActualHeight));
+        return new RectInt32(
+            window.X + (int)(rect.X * scale), window.Y + (int)(rect.Y * scale), (int)(rect.Width * scale), (int)(rect.Height * scale));
+    }
+
+    /// <summary>A point on screen in the taskbar window's effective pixels.</summary>
+    private Point ToRoot(PointInt32 point)
+    {
+        double scale = Root.XamlRoot.RasterizationScale;
+        RectInt32 taskbar = _placement.Bounds;
+        return new Point((point.X - taskbar.X) / scale, (point.Y - taskbar.Y) / scale);
+    }
+
+    private sealed class TrayPress(TrayIcon icon, FrameworkElement element, PointInt32 start, bool fromOverflow)
+    {
+        public TrayIcon Icon { get; } = icon;
+        public FrameworkElement Element { get; } = element;
+        public PointInt32 Start { get; } = start;
+        public bool FromOverflow { get; } = fromOverflow;
+        public bool Dragging { get; set; }
+    }
 
     /// <summary>Rebuilds the task buttons from the pinned apps and the tracked windows.</summary>
     public void RefreshTasks()
@@ -1728,7 +1913,20 @@ internal sealed partial class TaskbarWindow : Window
 
     private void OverflowFlyout_Opening(object sender, object e) => TurnOverflowChevron(180);
 
-    private void OverflowFlyout_Closing(FlyoutBase sender, FlyoutBaseClosingEventArgs e) => TurnOverflowChevron(0);
+    private void OverflowFlyout_Closing(FlyoutBase sender, FlyoutBaseClosingEventArgs e)
+    {
+        // A press on an icon on the taskbar, which may start dragging it into the overflow, leaves the overflow open,
+        // as Explorer's (a click closes it when it's let go).
+        if (_tray is not null && Cursor.IsButtonDown() && TrayIconRects(inOverflow: false).Any(rect => Contains(rect, Cursor.Position())))
+        {
+            e.Cancel = true;
+            return;
+        }
+        TurnOverflowChevron(0);
+    }
+
+    private static bool Contains(RectInt32 rect, PointInt32 point) =>
+        point.X >= rect.X && point.X < rect.X + rect.Width && point.Y >= rect.Y && point.Y < rect.Y + rect.Height;
 
     private void TurnOverflowChevron(float degrees)
     {
@@ -1749,8 +1947,8 @@ internal sealed partial class TaskbarWindow : Window
         CombineWhenFullItem.IsChecked = settings.CombineButtons == CombineButtons.WhenFull;
         CombineNeverItem.IsChecked = settings.CombineButtons == CombineButtons.Never;
         AllDisplaysItem.IsChecked = settings.ShowOnAllDisplays;
-        ShowAllTrayIconsItem.Visibility = _tray is not null ? Visibility.Visible : Visibility.Collapsed;
-        ShowAllTrayIconsItem.IsChecked = settings.TrayMode == TrayMode.ShowAll;
+        HiddenIconMenuItem.Visibility = _tray is not null ? Visibility.Visible : Visibility.Collapsed;
+        HiddenIconMenuItem.IsChecked = _tray?.ChevronVisible == true;
         BackdropAcrylicItem.IsChecked = settings.TaskbarBackdrop == Backdrop.Acrylic;
         BackdropMicaItem.IsChecked = settings.TaskbarBackdrop == Backdrop.Mica;
         BackdropTranslucentItem.IsChecked = settings.TaskbarBackdrop == Backdrop.Translucent;

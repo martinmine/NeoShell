@@ -7,7 +7,7 @@ coding rules are in [CLAUDE.md](../CLAUDE.md).
 
 - Display the wallpaper and the desktop icons, with Explorer's context menus for icons and the desktop.
 - A WinUI taskbar with feature parity with the Windows 11 taskbar (exceptions in the system tray area).
-- System tray icons, either all shown or hidden behind an overflow flyout.
+- System tray icons, each on the taskbar or behind the chevron as Explorer keeps it (`NotifyIconSettings`).
 - Network, volume, battery and microphone-in-use indicators; network, volume and battery are one button, as in
   Windows 11, that opens Quick Settings.
 - Quick Settings: tiles (Wi-Fi, Bluetooth, Airplane mode, Accessibility, Energy saver, Live captions, Night light,
@@ -814,7 +814,7 @@ Win+arrows and Ctrl+Shift+Esc; the rest were Explorer's.
 
 ### Taskbar context menu
 
-Task Manager, the taskbar settings toggles (alignment, search button, combine, backdrop, auto-hide, all displays, tray mode),
+Task Manager, the taskbar settings toggles (alignment, search button, combine, backdrop, auto-hide, hidden icon menu, all displays),
 Exit NeoShell (alongside Explorer only).
 
 ## System tray (`Tray/`)
@@ -872,7 +872,7 @@ Exit NeoShell (alongside Explorer only).
     reader skips such notifications). It finds the same app as Explorer (`TrayBalloon.AppIdFor`, unit tested) from
     the window's own AppUserModelID or packaged app (not one set process-wide with
     `SetCurrentProcessExplicitAppUserModelID`, which only the private resolver sees), else Explorer's
-    `NotifyIconSettings` key (read only; an icon Explorer never saw gets the executable's implicit AppID), so the
+    `NotifyIconSettings` key (see Hidden icons below; an icon without one gets the executable's implicit AppID), so the
     user's settings for it apply: no toast with Do not disturb on, banners off for all apps, or the app's
     notifications or banners off; it then times out at once as Explorer's. Names and logo as Explorer registers them
     (file description, tray icon) rather than the raw AUMID Explorer's header shows. A balloon plays the default
@@ -884,8 +884,62 @@ Exit NeoShell (alongside Explorer only).
   get `wParam = uID`, `lParam = mouse message` (version 3 also gets `NIN_SELECT`/`WM_CONTEXTMENU`). Clicks call
   `AllowSetForegroundWindow` for the owner process first. A second press within the double-click time becomes
   `WM_LBUTTONDBLCLK`. Unit tested.
-- **Display mode** (setting `TrayMode`, toggled from the taskbar menu): `ShowAll` (every icon in the taskbar) or
-  `Overflow` (icons behind a chevron flyout). Primary taskbar only.
+- **Hidden icons** (`NotificationArea`, `TrayIconOrder`, Interop `NotifyIconSettings`; primary taskbar only). Each
+  icon is on the taskbar ("promoted") or behind the chevron, one by one, as in Explorer (Windows 11 25H2,
+  Taskbar.dll's `NotifyIconSettingsDatabase` / `NotificationAreaIconManager2` and SystemTray.dll's `DragDropManager`
+  / `ChevronSystemTrayIconDataModel2`, read with symbols and Ghidra, and watched live with test icons):
+  - Explorer's record: `HKCU\Control Panel\NotifyIconSettings` (`Version` 3; below that, or missing, Explorer deletes
+    the whole key on start), a key per icon named by a random 64-bit number (`GetRandom64BitInteger`, a
+    `mt19937_64`). It's created the first time the shell sees an icon (`AddIcon` →
+    `TryGetSettingsForExistingIcon`, else `CreateDefaultSettingsForNewIcon`): `UID`, `ExecutablePath` and
+    `InitialTooltip` for an icon without a GUID; `IconGuid` (`{…}`, upper case), `ExecutablePath` (and `Publisher`,
+    from the signature) for one with. No `IsPromoted`: **a new icon starts behind the chevron**. Its ID goes first in
+    the root's `UIOrderList` (REG_BINARY, the IDs as little-endian 64-bit numbers), one order for all icons, those
+    on the taskbar and those in the overflow alike; each row shows its own in that order, an ID missing from it
+    counting as first (`GetUIOrderForIcon` returns 0). `IconSnapshot` (a PNG of the first icon) is written once by
+    `SetIcon`, for Settings' list. A key matches an icon by executable and GUID, else executable and `UID`.
+    `ExecutablePath` starts with a known folder's GUID for System, SystemX86, Windows and Program Files (x64, x86)
+    — `{6D809377-…}\VideoLAN\VLC\vlc.exe` — and is a plain path elsewhere (OneDrive under AppData, test apps on E:).
+    Windows' own system icons (volume, network…; see Shell service objects) get no key.
+  - `IsPromoted` (DWORD 1/0) shows an icon on the taskbar. Settings > Personalization > Taskbar > "Other system tray
+    icons" lists the keys with a switch each and writes it; each icon watches its own key (a wil registry watcher,
+    `OnRegistrySettingsChanged` → `Promoted`), so a change made there (or anywhere) shows at once.
+  - "Hidden icon menu" (same page): `HKCU\Software\Classes\Local Settings\Software\Microsoft\Windows\CurrentVersion\
+    TrayNotify\SystemTrayChevronVisibility`, on unless 0, watched live. Off, the chevron goes and the icons behind it
+    show nowhere (not on the taskbar). The chevron also goes while the overflow has no icons, and an open overflow
+    closes when its last icon leaves. Glyph by taskbar edge: `E974`/`E972`/`E973`/`E971` (left, top, right, bottom);
+    on a bottom taskbar ChevronUpMed `E971` at 16 epx, 10 by 6 pixels lit at 100 %.
+  - Dragging: a press on an icon (taskbar or overflow) that moves past the drag threshold starts a drag. The icon
+    stays in its place at about 30 % opacity; a copy, 16 epx, follows with its bottom-right corner at the pointer;
+    above it, centred, 12 px up, a 30 by 30 caption (rounded 4, about `#2F2F2F` in the dark theme, a 16 px glyph):
+    a pin (`E718`) over the taskbar's row for an icon from the overflow, an unpin (`E77A`) over the overflow or the
+    chevron for one from the taskbar, none within its own row, and ⊘ ("can't drop here") anywhere else, the gaps
+    between icons and the empty part of the overflow included. On an icon, a 1 by 36 epx line
+    (`ControlStrongStrokeColorDefault`, about 55 % white), vertically centred, marks where it goes: just left of
+    that icon over its left half (`x <= middle`), at its right edge over its right half. Hit testing is by screen
+    rectangles of the icons (the overflow's only while it's open), then the chevron's.
+  - Dropping (`HandleNotifyIconDragDrop` → `NotificationAreaIconManager2::MoveIcon`): on an icon, the dragged one is
+    promoted or not as that row is, and moved before or after it in `UIOrderList` (`NotifyIconSettingsDatabase::
+    MoveIcon`: taken out, put back next to the target, or first if the target isn't in the list); into an empty row
+    the order stays. On the chevron (overflow open or not): demoted and put first in the overflow (before its first
+    icon). On itself or anywhere else: nothing. The moved icon grows into its place from nothing in about 4 frames;
+    the others jump. The overflow stays open throughout, also when the drag starts on the taskbar (a press there
+    doesn't dismiss it), and grows or shrinks (upwards) by rows as icons come and go. The app hears no click.
+    Explorer also moves a focused icon with the keyboard (`MoveIconLeftOrRight`); NeoShell's tray icons don't take
+    the keyboard.
+  - The overflow: 5 icons a row, 40 by 40 cells, 4 from the edge; newest-first in its order; it opens centred over
+    the chevron and doesn't follow it while open.
+  - NeoShell as the shell does all this itself, with the same keys and values, so Explorer and Settings see the same
+    state after it and the other way round, and follows changes to them while running (`RegistryWatcher` on the
+    subtree, and on `TrayNotify`). It skips `Publisher` and `IconSnapshot` (Explorer fills them in when it next sees
+    the icon). Its own process's icons (the shell service objects: Safely Remove Hardware…) are filed under
+    `%windir%\explorer.exe`, as Explorer files them. Settings can't open in shell mode, so the taskbar menu has
+    "Show hidden icon menu"; promoting is by dragging, as in Explorer. The drag picture and the marker are windowed
+    popups of the taskbar; the overflow's icons are hit tested from its popup window's real place (TaskbarFlyouts
+    moves that window behind WinUI's back). A release over another window reaches the icon only as
+    `PointerCaptureLost`, which is then the drop; a press on a taskbar icon cancels the overflow's light dismiss.
+  - NeoShell's former `TrayMode` setting (`ShowAll`: every icon on the taskbar) is read once as the shell and cleared:
+    `ShowAll` promotes every icon Explorer knows and those added in that session.
 - Alongside Explorer: Explorer owns `Shell_TrayWnd`, so NeoShell shows no tray. Fully supported as the shell.
 
 ### App bars (`Tray/AppBars.cs`, `Tray/AppBarLayout.cs`, Interop `Tray/AppBarMessage.cs`)
@@ -1508,7 +1562,7 @@ CombineButtons       Always | WhenFull | Never
 AutoHide             bool
 ShowOnAllDisplays    bool
 ShowSearchButton     bool
-TrayMode             ShowAll | Overflow
+TrayMode             (former; read once, see Hidden icons under System tray)
 TaskbarBackdrop      Acrylic | Mica | Translucent | Transparent
 PinnedTaskbarApps    list
 PinnedStartApps      list

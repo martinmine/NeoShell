@@ -49,6 +49,7 @@
                         PointerMoved="TrayIcon_PointerMoved"
                         PointerEntered="TrayIcon_PointerEntered"
                         PointerExited="TrayIcon_PointerExited"
+                        PointerCaptureLost="TrayIcon_PointerCaptureLost"
                         ContextRequested="TrayIcon_ContextRequested">
                         <Border CornerRadius="4" Background="{ThemeResource SubtleFillColorSecondaryBrush}" Opacity="0" />
                         <Image Width="16" Height="16" Source="{x:Bind Icon, Mode=OneWay}" />
@@ -256,7 +257,10 @@
         </StackPanel>
 
         <StackPanel x:Name="RightPanel" Grid.Column="1" Orientation="Horizontal">
-            <!-- The tray, on the primary taskbar while NeoShell is the shell: all icons, or behind a chevron. -->
+            <!--
+                The tray, on the primary taskbar while NeoShell is the shell: the hidden icons behind the chevron, then
+                the promoted ones. Icons are dragged between the two and along each.
+            -->
             <StackPanel x:Name="TrayArea" Orientation="Horizontal" VerticalAlignment="Center" Visibility="Collapsed">
                 <Button
                     x:Name="OverflowButton"
@@ -266,8 +270,11 @@
                     Width="32"
                     Style="{StaticResource FlatButtonStyle}"
                     Click="OverflowButton_Click">
-                    <!-- Shrinks while pressed (IconPress) and points down while the flyout is open. -->
-                    <FontIcon x:Name="OverflowChevron" Glyph="&#xE70E;" FontSize="12" />
+                    <!--
+                        ChevronUpMed at 16, as Explorer's on a bottom taskbar. Shrinks while pressed (IconPress) and points
+                        down while the flyout is open.
+                    -->
+                    <FontIcon x:Name="OverflowChevron" Glyph="&#xE971;" FontSize="16" />
                     <FlyoutBase.AttachedFlyout>
                         <Flyout x:Name="OverflowFlyout" Opening="OverflowFlyout_Opening" Closing="OverflowFlyout_Closing">
                             <Flyout.FlyoutPresenterStyle>
@@ -467,6 +474,38 @@
                 Click="ShowDesktopButton_Click" />
         </StackPanel>
 
+        <!--
+            A tray icon being dragged: the icon at the pointer's top left, and above it a caption saying what a drop does.
+            Windowed, so they go over the overflow and the desktop. Neither takes the pointer.
+        -->
+        <Popup
+            x:Name="TrayDragPopup"
+            HorizontalAlignment="Left"
+            VerticalAlignment="Top"
+            ShouldConstrainToRootBounds="False"
+            IsHitTestVisible="False">
+            <Canvas Width="30" Height="58" IsHitTestVisible="False">
+                <Border
+                    x:Name="TrayDragCaptionBox"
+                    Width="30"
+                    Height="30"
+                    CornerRadius="4"
+                    Background="{ThemeResource SolidBackgroundFillColorQuarternaryBrush}">
+                    <FontIcon x:Name="TrayDragGlyph" FontSize="16" />
+                </Border>
+                <Image x:Name="TrayDragImage" Canvas.Left="7" Canvas.Top="42" Width="16" Height="16" />
+            </Canvas>
+        </Popup>
+        <!-- Where a dragged tray icon would go: a line between two icons. -->
+        <Popup
+            x:Name="TrayDropMarkerPopup"
+            HorizontalAlignment="Left"
+            VerticalAlignment="Top"
+            ShouldConstrainToRootBounds="False"
+            IsHitTestVisible="False">
+            <Rectangle Width="1" Height="36" Fill="{ThemeResource ControlStrongStrokeColorDefaultBrush}" />
+        </Popup>
+
         <FlyoutBase.AttachedFlyout>
             <!-- Opened at the pointer by Root_ContextRequested (TaskbarFlyouts). -->
             <MenuFlyout x:Name="TaskbarMenu" Opening="TaskbarMenu_Opening" MenuFlyoutPresenterStyle="{StaticResource ShellMenuPresenterStyle}">
@@ -550,10 +589,10 @@
                     Text="Automatically hide the taskbar"
                     Click="AutoHide_Click" />
                 <ToggleMenuFlyoutItem
-                    x:Name="ShowAllTrayIconsItem"
-                    AutomationProperties.AutomationId="ShowAllTrayIconsMenuItem"
-                    Text="Show all tray icons"
-                    Click="ShowAllTrayIcons_Click" />
+                    x:Name="HiddenIconMenuItem"
+                    AutomationProperties.AutomationId="HiddenIconMenuMenuItem"
+                    Text="Show hidden icon menu"
+                    Click="HiddenIconMenu_Click" />
                 <ToggleMenuFlyoutItem
                     x:Name="AllDisplaysItem"
                     AutomationProperties.AutomationId="AllDisplaysMenuItem"
