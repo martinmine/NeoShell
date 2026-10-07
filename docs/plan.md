@@ -334,7 +334,16 @@ Each item is done when it looks and behaves as Explorer's (layout, behaviour, an
       fade-out/fade-in when a folder is made (NeoShell swaps at once), icons on the menu items (T18); not run live:
       the light theme and no-accent colours of the folder panel, the policies, typing a name (set through UI
       Automation instead)
-- [ ] T18 Start: app menu (Run as administrator, Open file location, Uninstall, App settings, jump list)
+- [x] T18 Start: app menu (Run as administrator, Open file location, Uninstall, App settings, jump list) — Explorer's
+      items, order, groups and glyphs (from its `ContextMenuSorter`) in pins, folders, folder tiles, All apps and
+      Recent, the search box's order in search results; Run as administrator, Open file location, Uninstall and File
+      Explorer's verbs from the app's `shell:AppsFolder` menu, as Explorer's; a packaged app's Uninstall asks in
+      Explorer's dialog and removes the package, a desktop app's opens Installed apps; App settings opens the app's
+      page; the jump list below, trimmed at 290 (Edge's Recent and Settings' empty list now as Explorer's, taskbar
+      too); folder items' icons; in both run modes (as the shell: no App settings, Programs and Features for a
+      desktop app's Uninstall, no Run as administrator for packaged apps) — not done: Rate and review / Share
+      (search, Store apps), pinned jump list entries, a URL's short name in Recent; not run live: the light theme,
+      keyboard opening (Shift+F10, menu key), elevation itself (the UAC prompt was shown, then cancelled)
 - [ ] T19 Power menu: Hibernate, Switch user, Update and restart / shut down
 - [ ] T20 Start: account menu on the user picture
 - T21 Start search: Settings pages, web, filter tabs, best match preview pane with actions — skipped: search is

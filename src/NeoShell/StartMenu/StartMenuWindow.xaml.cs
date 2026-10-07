@@ -5,6 +5,7 @@ using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Data;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
@@ -97,6 +98,8 @@ internal sealed partial class StartMenuWindow : Window
     private Storyboard? _folderAnimation;
     private readonly Dictionary<StartPlace, Button> _placeButtons = [];
     private UIElement? _pressedIcon;
+    // The open app menu's commands from Windows, kept until another menu opens: they run through it.
+    private ShellMenu? _appShellMenu;
     private readonly WindowSlide _slide;
     private bool _closing;
 
@@ -630,33 +633,31 @@ internal sealed partial class StartMenuWindow : Window
 
     private void BackButton_Click(object sender, RoutedEventArgs e) => ShowView(HomeView);
 
+    // An app's menu in All apps and Recent.
     private void ItemMenu_Opening(object sender, object e)
+    {
+        var menu = (MenuFlyout)sender;
+        menu.Items.Clear();
+        if (menu.Target?.DataContext is StartItem item)
+            FillAppMenu(menu, item.Target, [], search: false);
+    }
+
+    // Search results: an app's commands in the order Windows' search lists them, without separators or jump list; a
+    // file only opens.
+    private void ResultMenu_Opening(object sender, object e)
     {
         var menu = (MenuFlyout)sender;
         menu.Items.Clear();
         if (menu.Target?.DataContext is not StartItem item)
             return;
 
-        menu.Items.Add(MenuItem("Open", "StartOpenMenuItem", () => Open(item)));
-        if (!item.IsApp)
-            return;
-
-        menu.Items.Add(new MenuFlyoutSeparator());
-        AddPinItems(menu, item.Target);
+        if (item.IsApp)
+            FillAppMenu(menu, item.Target, [], search: true);
+        else
+            menu.Items.Add(MenuItem("Open", "", "StartOpenMenuItem", () => Open(item)));
     }
 
-    private void AddPinItems(MenuFlyout menu, PinnedApp app)
-    {
-        bool onTaskbar = _owner.Settings.Current.PinnedTaskbarApps.Any(p => TaskGrouping.SameApp(p, app));
-        menu.Items.Add(StartPins.Contains(Pins, app)
-            ? MenuItem("Unpin from Start", "StartUnpinMenuItem", () => SetPins(StartPins.Unpin(Pins, app)))
-            : MenuItem("Pin to Start", "StartPinMenuItem", () => SetPins(StartPins.Pin(Pins, app))));
-        menu.Items.Add(onTaskbar
-            ? MenuItem("Unpin from taskbar", "StartUnpinTaskbarMenuItem", () => _owner.Unpin(app))
-            : MenuItem("Pin to taskbar", "StartPinTaskbarMenuItem", () => _owner.Pin(app)));
-    }
-
-    // A pin's menu, as Explorer's: moves within the grid or the folder, and the folder commands, above the usual items.
+    // A pin's menu, as Explorer's: moves within the grid or the folder and the folder commands, then the app's own.
     // The grid and the folder change under an open menu only through it, so the indexes it was opened with hold.
     private void PinMenu_Opening(object sender, object e)
     {
@@ -665,53 +666,292 @@ internal sealed partial class StartMenuWindow : Window
         if (menu.Target?.DataContext is not StartItem item)
             return;
 
+        var commands = new Dictionary<AppCommand, MenuFlyoutItemBase>();
         int inFolder = _folderApps.IndexOf(item);
         if (inFolder >= 0)
         {
             int folder = OpenFolderIndex;
-            menu.Items.Add(MenuItem("Open", "StartOpenMenuItem", () => Open(item)));
-            menu.Items.Add(new MenuFlyoutSeparator());
             if (inFolder > 0)
-                menu.Items.Add(MenuItem("Move left", "StartMoveLeftMenuItem", () => SetPins(StartPins.MoveInFolder(Pins, folder, inFolder, inFolder - 1))));
+                commands[AppCommand.MoveLeft] = Command(AppCommand.MoveLeft, () => SetPins(StartPins.MoveInFolder(Pins, folder, inFolder, inFolder - 1)));
             if (inFolder < _folderApps.Count - 1)
-                menu.Items.Add(MenuItem("Move right", "StartMoveRightMenuItem", () => SetPins(StartPins.MoveInFolder(Pins, folder, inFolder, inFolder + 1))));
-            menu.Items.Add(MenuItem("Remove from app folder", "StartRemoveFromFolderMenuItem", () => TakeOutOfFolder(inFolder, folder + 1)));
-            AddPinItems(menu, item.Target);
+                commands[AppCommand.MoveRight] = Command(AppCommand.MoveRight, () => SetPins(StartPins.MoveInFolder(Pins, folder, inFolder, inFolder + 1)));
+            commands[AppCommand.RemoveFromFolder] = Command(AppCommand.RemoveFromFolder, () => TakeOutOfFolder(inFolder, folder + 1));
+            FillAppMenu(menu, item.Target, commands, search: false);
             return;
         }
 
         int index = _pinned.IndexOf(item);
         if (index < 0)
             return;
-        if (!item.IsFolder)
-        {
-            menu.Items.Add(MenuItem("Open", "StartOpenMenuItem", () => Open(item)));
-            menu.Items.Add(new MenuFlyoutSeparator());
-        }
+        // Move to front only from the third place on: from the second, Move left does the same.
+        if (index > 1)
+            commands[AppCommand.MoveToFront] = Command(AppCommand.MoveToFront, () => SetPins(StartPins.Move(Pins, index, 0)));
         if (index > 0)
-        {
-            menu.Items.Add(MenuItem("Move to front", "StartMoveToFrontMenuItem", () => SetPins(StartPins.Move(Pins, index, 0))));
-            menu.Items.Add(MenuItem("Move left", "StartMoveLeftMenuItem", () => SetPins(StartPins.Move(Pins, index, index - 1))));
-        }
+            commands[AppCommand.MoveLeft] = Command(AppCommand.MoveLeft, () => SetPins(StartPins.Move(Pins, index, index - 1)));
         if (index < _pinned.Count - 1)
-            menu.Items.Add(MenuItem("Move right", "StartMoveRightMenuItem", () => SetPins(StartPins.Move(Pins, index, index + 1))));
+            commands[AppCommand.MoveRight] = Command(AppCommand.MoveRight, () => SetPins(StartPins.Move(Pins, index, index + 1)));
         if (item.IsFolder)
+        {
+            FillAppMenu(menu, null, commands, search: false);
+            return;
+        }
+
+        commands[AppCommand.NewFolder] = Command(AppCommand.NewFolder, () => SetPins(StartPins.NewFolder(Pins, index)));
+        if (MoveToFolderItem(index) is { } moveToFolder)
+            commands[AppCommand.MoveToFolder] = moveToFolder;
+        FillAppMenu(menu, item.Target, commands, search: false);
+    }
+
+    // With one folder, one command naming it; with more, a submenu of them by name (text only, as Explorer's).
+    private MenuFlyoutItemBase? MoveToFolderItem(int index)
+    {
+        int[] folders = [.. Enumerable.Range(0, _pinned.Count).Where(i => _pinned[i].IsFolder)];
+        if (folders.Length == 1)
+        {
+            MenuFlyoutItem item = Command(AppCommand.MoveToFolder, () => SetPins(StartPins.Group(Pins, index, folders[0])));
+            item.Text = $"Move to app folder \"{_pinned[folders[0]].Title}\"";
+            return item;
+        }
+        if (folders.Length == 0)
+            return null;
+
+        (string text, string glyph, string automationId) = s_commands[AppCommand.MoveToFolder];
+        var submenu = new MenuFlyoutSubItem { Text = text, Icon = new FontIcon { Glyph = glyph } };
+        AutomationProperties.SetAutomationId(submenu, automationId);
+        foreach (int folder in folders)
+            submenu.Items.Add(MenuItem(_pinned[folder].Title, "", "StartFolderMenuItem", () => SetPins(StartPins.Group(Pins, index, folder))));
+        return submenu;
+    }
+
+    /// <summary>
+    /// Fills an app's menu, as Explorer's Start does: <paramref name="commands"/> (the moves), pinning to Start and to
+    /// the taskbar, what Windows offers for the app in shell:AppsFolder (Run as administrator, Open file location,
+    /// Uninstall…), App settings for a packaged app, in Explorer's order and groups; then the app's jump list.
+    /// </summary>
+    private void FillAppMenu(MenuFlyout menu, PinnedApp? app, Dictionary<AppCommand, MenuFlyoutItemBase> commands, bool search)
+    {
+        _appShellMenu?.Dispose();
+        _appShellMenu = null;
+        if (app is not null)
+        {
+            if (StartPins.Contains(Pins, app))
+                commands[AppCommand.UnpinFromStart] = Command(AppCommand.UnpinFromStart, () => SetPins(StartPins.Unpin(Pins, app)));
+            else
+                commands[AppCommand.PinToStart] = Command(AppCommand.PinToStart, () => SetPins(StartPins.Pin(Pins, app)));
+            if (OnTaskbar(app))
+                commands[AppCommand.UnpinFromTaskbar] = Command(AppCommand.UnpinFromTaskbar, () => _owner.Unpin(app));
+            else
+                commands[AppCommand.PinToTaskbar] = Command(AppCommand.PinToTaskbar, () => _owner.Pin(app));
+            AddShellCommands(commands, app);
+            // Settings can't show without Explorer, so as the shell there's no page to open.
+            if (IsPackaged(app) && _owner.RunMode == RunMode.AlongsideExplorer)
+                commands[AppCommand.AppSettings] = Command(AppCommand.AppSettings, () => OpenAppSettings(app));
+        }
+        if (search && commands.TryGetValue(AppCommand.OpenFileLocation, out MenuFlyoutItemBase? location) && location is MenuFlyoutItem locationItem)
+            locationItem.Icon = new FontIcon { Glyph = "\uE8B7" };
+
+        HashSet<AppCommand> present = [.. commands.Keys];
+        if (search)
+        {
+            foreach (AppCommand command in StartAppMenu.SearchLayout(present))
+                menu.Items.Add(commands[command]);
+            return;
+        }
+        foreach (AppCommand? command in StartAppMenu.Layout(present))
+            menu.Items.Add(command is { } c ? commands[c] : new MenuFlyoutSeparator());
+        if (app is not null)
+            AddJumpList(menu, app);
+    }
+
+    private bool OnTaskbar(PinnedApp app) => _owner.Settings.Current.PinnedTaskbarApps.Any(p => TaskGrouping.SameApp(p, app));
+
+    private static bool IsPackaged(PinnedApp app) => app.AppUserModelId is { } id && PackagedApps.IsPackagedAppId(id);
+
+    // The verbs Windows gives the app in shell:AppsFolder, run through the folder's own menu, as Explorer's Start does:
+    // it starts a packaged app elevated and finds a shortcut's folder, which NeoShell can't on its own. A packaged
+    // app's Uninstall asks first and removes the package, as Explorer's; a desktop app's opens Installed apps (as the
+    // shell, where Settings can't show, the folder's own Programs and Features).
+    private void AddShellCommands(Dictionary<AppCommand, MenuFlyoutItemBase> commands, PinnedApp app)
+    {
+        // The folder knows apps by AppUserModelID, else by path: in full, or from a known folder (System32's apps).
+        _appShellMenu = ((string?[])[app.AppUserModelId, app.Path, app.Path is { } path ? JumpLists.ImplicitAppId(path) : null])
+            .OfType<string>()
+            .Select(id => ShellMenu.ForApp(_hwnd, id))
+            .FirstOrDefault(shellMenu => shellMenu is not null);
+        if (_appShellMenu is not { } shellMenu)
             return;
 
-        menu.Items.Add(MenuItem("Create a new app folder", "StartNewFolderMenuItem", () => SetPins(StartPins.NewFolder(Pins, index))));
-        var folders = new MenuFlyoutSubItem { Text = "Move to app folder" };
-        AutomationProperties.SetAutomationId(folders, "StartMoveToFolderMenuItem");
-        for (int i = 0; i < _pinned.Count; i++)
+        foreach (ShellMenuItem shellItem in shellMenu.Items)
         {
-            if (_pinned[i].IsFolder)
+            if (StartAppMenu.FromVerb(shellItem.Verb) is not { } command || commands.ContainsKey(command))
+                continue;
+            // The folder elevates a packaged app through Explorer: as the shell, that fails.
+            if (command == AppCommand.RunAsAdministrator && IsPackaged(app) && _owner.RunMode == RunMode.Shell)
+                continue;
+
+            Action run = () =>
             {
-                int folder = i;
-                folders.Items.Add(MenuItem(_pinned[i].Title, "StartFolderMenuItem", () => SetPins(StartPins.Group(Pins, index, folder))));
+                Hide();
+                if (!shellMenu.Invoke(shellItem))
+                    Log.Warn($"{shellItem.Verb} failed for {app.DisplayName}");
+            };
+            if (command == AppCommand.Uninstall && IsPackaged(app))
+                run = () => ConfirmUninstall(app);
+            else if (command == AppCommand.Uninstall && _owner.RunMode == RunMode.AlongsideExplorer)
+                run = () => OpenSettingsPage(app, PackagedApps.OpenInstalledApps);
+
+            MenuFlyoutItem item = Command(command, run);
+            // Explorer's own names for its commands; the others (File Explorer's Manage, Properties…) keep the shell's.
+            if (!s_commands.ContainsKey(command))
+                item.Text = shellItem.Text;
+            commands[command] = item;
+        }
+    }
+
+    private void OpenAppSettings(PinnedApp app) => OpenSettingsPage(app, () => PackagedApps.OpenAppSettings(app.AppUserModelId!));
+
+    private void OpenSettingsPage(PinnedApp app, Action open)
+    {
+        Hide();
+        // Starting Settings waits for it to start.
+        Task.Run(() =>
+        {
+            try
+            {
+                open();
+            }
+            catch (Exception ex)
+            {
+                Log.Warn($"Could not open Settings for {app.DisplayName}", ex);
+            }
+        });
+    }
+
+    // Explorer asks in Start itself, Cancel the default, and removes the package; its pins go with it.
+    private async void ConfirmUninstall(PinnedApp app)
+    {
+        var dialog = new ContentDialog
+        {
+            XamlRoot = Root.XamlRoot,
+            Title = $"Uninstall \"{app.DisplayName}\"?",
+            Content = "This app and its related information will be removed.",
+            PrimaryButtonText = "Uninstall",
+            CloseButtonText = "Cancel",
+            DefaultButton = ContentDialogButton.Close,
+            // Explorer's has an accent edge and doesn't darken Start behind it.
+            BorderBrush = new SolidColorBrush((Color)Application.Current.Resources["SystemAccentColor"]),
+        };
+        // WinUI moves the dialog's smoke layer out into a popup of its own as it opens.
+        dialog.Loaded += (_, _) =>
+        {
+            foreach (Popup popup in VisualTreeHelper.GetOpenPopupsForXamlRoot(Root.XamlRoot))
+            {
+                if (popup.Child is FrameworkElement { Name: "SmokeLayerBackground" } smoke)
+                    smoke.Visibility = Visibility.Collapsed;
+            }
+        };
+        AutomationProperties.SetAutomationId(dialog, "UninstallDialog");
+        if (await dialog.ShowAsync() != ContentDialogResult.Primary)
+            return;
+
+        try
+        {
+            await PackagedApps.UninstallAsync(app.AppUserModelId!);
+            Log.Info($"Uninstalled {app.DisplayName}");
+        }
+        catch (Exception ex)
+        {
+            Log.Warn($"Could not uninstall {app.DisplayName}", ex);
+            return;
+        }
+        if (StartPins.Contains(Pins, app))
+            SetPins(StartPins.Unpin(Pins, app));
+        if (OnTaskbar(app))
+            _owner.Unpin(app);
+        _appsLoadedAt = DateTime.MinValue;
+        LoadAppsIfStale();
+    }
+
+    // The app's jump list below its commands, as in Explorer's Start: its categories (Recent, the app's own), then its
+    // tasks, under headings. Read each time the menu opens: apps change them whenever they like.
+    private void AddJumpList(MenuFlyout menu, PinnedApp app)
+    {
+        string? appId = app.AppUserModelId ?? (app.Path is { } path ? JumpLists.ImplicitAppId(path) : null);
+        if (appId is null)
+            return;
+
+        IReadOnlyList<JumpListCategory> categories;
+        try
+        {
+            categories = JumpLists.Load(appId);
+        }
+        catch (Exception ex)
+        {
+            Log.Warn($"Could not read the jump list of {appId}", ex);
+            return;
+        }
+
+        var headerStyle = (Style)Root.Resources["JumpListHeaderStyle"];
+        int iconSize = (int)Math.Round(16 * Root.XamlRoot.RasterizationScale);
+        foreach (JumpListCategory category in categories)
+        {
+            var header = new MenuFlyoutItem { Text = category.Title, Style = headerStyle };
+            AutomationProperties.SetAutomationId(header, "JumpListHeader");
+            menu.Items.Add(header);
+            foreach (JumpListItem entry in category.Items.Where(entry => entry.Kind != JumpListItemKind.Separator))
+            {
+                var icon = new ImageIcon();
+                // Explorer's menu grows to 290 at most (an item 289 wide makes it at most that here); longer names end
+                // in an ellipsis.
+                var item = new MenuFlyoutItem { Text = entry.Title, Icon = icon, MaxWidth = 289 };
+                item.Resources["MenuFlyoutItemTextTrimming"] = TextTrimming.CharacterEllipsis;
+                AutomationProperties.SetAutomationId(item, "JumpListItem");
+                item.Click += (_, _) => OpenJumpListItem(entry);
+                menu.Items.Add(item);
+                AppIcons.Load(() => JumpLists.GetIcon(entry, iconSize), source => icon.Source = source);
             }
         }
-        if (folders.Items.Count > 0)
-            menu.Items.Add(folders);
-        AddPinItems(menu, item.Target);
+    }
+
+    private void OpenJumpListItem(JumpListItem item)
+    {
+        Hide();
+        try
+        {
+            JumpLists.Open(item, _hwnd);
+        }
+        catch (Exception ex)
+        {
+            Log.Warn($"Could not open the jump list item {item.Title}", ex);
+        }
+    }
+
+    // Explorer's names, glyphs (Segoe Fluent Icons) and, for testing, NeoShell's automation ids of the commands.
+    private static readonly Dictionary<AppCommand, (string Text, string Glyph, string AutomationId)> s_commands = new()
+    {
+        [AppCommand.MoveToFront] = ("Move to front", "\uE1AA", "StartMoveToFrontMenuItem"),
+        [AppCommand.MoveLeft] = ("Move left", "\uE64E", "StartMoveLeftMenuItem"),
+        [AppCommand.MoveRight] = ("Move right", "\uE64D", "StartMoveRightMenuItem"),
+        [AppCommand.NewFolder] = ("Create a new app folder", "\uE8F4", "StartNewFolderMenuItem"),
+        [AppCommand.MoveToFolder] = ("Move to app folder", "\uE8DE", "StartMoveToFolderMenuItem"),
+        [AppCommand.RemoveFromFolder] = ("Remove from app folder", "\uE8DA", "StartRemoveFromFolderMenuItem"),
+        [AppCommand.PinToStart] = ("Pin to Start", "\uE718", "StartPinMenuItem"),
+        [AppCommand.UnpinFromStart] = ("Unpin from Start", "\uE77A", "StartUnpinMenuItem"),
+        [AppCommand.RunAsAdministrator] = ("Run as administrator", "\uE7EF", "StartRunAsMenuItem"),
+        [AppCommand.OpenFileLocation] = ("Open file location", "\uED43", "StartOpenFileLocationMenuItem"),
+        [AppCommand.PinToTaskbar] = ("Pin to taskbar", "\uE718", "StartPinTaskbarMenuItem"),
+        [AppCommand.UnpinFromTaskbar] = ("Unpin from taskbar", "\uE77A", "StartUnpinTaskbarMenuItem"),
+        [AppCommand.AppSettings] = ("App settings", "\uE713", "StartAppSettingsMenuItem"),
+        [AppCommand.Uninstall] = ("Uninstall", "\uE74D", "StartUninstallMenuItem"),
+    };
+
+    // A command's item: Explorer's name and glyph; the shell's verbs Explorer shows without a glyph get none.
+    private static MenuFlyoutItem Command(AppCommand command, Action onClick)
+    {
+        (string text, string glyph, string automationId) = s_commands.TryGetValue(command, out var known)
+            ? known
+            : ("", "", "StartShellVerbMenuItem");
+        return MenuItem(text, glyph, automationId, onClick);
     }
 
     // Pinned and recent apps' icons shrink while pressed.
@@ -1231,9 +1471,9 @@ internal sealed partial class StartMenuWindow : Window
         }
     }
 
-    private static MenuFlyoutItem MenuItem(string text, string automationId, Action onClick)
+    private static MenuFlyoutItem MenuItem(string text, string glyph, string automationId, Action onClick)
     {
-        var item = new MenuFlyoutItem { Text = text };
+        var item = new MenuFlyoutItem { Text = text, Icon = glyph.Length > 0 ? new FontIcon { Glyph = glyph } : null };
         AutomationProperties.SetAutomationId(item, automationId);
         item.Click += (_, _) => onClick();
         return item;

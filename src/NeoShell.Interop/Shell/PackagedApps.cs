@@ -6,6 +6,7 @@ using NeoShell.Interop.Imaging;
 using NeoShell.Interop.Native;
 using Windows.ApplicationModel;
 using Windows.Graphics.Imaging;
+using Windows.Management.Deployment;
 using Windows.Storage;
 using Windows.Storage.Streams;
 
@@ -19,6 +20,7 @@ public static class PackagedApps
 {
     private static readonly Guid CLSID_ApplicationActivationManager = new("45ba127d-10a8-46ea-8ab7-56ea9078943c");
     private static readonly Guid CLSID_PackageDebugSettings = new("b1aec16f-2383-4852-b0e9-8f0b1dc66b4d");
+    private const string SettingsAppId = "windows.immersivecontrolpanel_cw5n1h2txyewy!microsoft.windows.immersivecontrolpanel";
 
     /// <summary>A packaged app's AppUserModelID is <c>&lt;package family name&gt;!&lt;app id&gt;</c>.</summary>
     public static bool IsPackagedAppId(string appUserModelId) => appUserModelId.Contains('!');
@@ -43,6 +45,36 @@ public static class PackagedApps
         string package = AppInfo.GetFromAppUserModelId(appUserModelId).Package.Id.FullName;
         var settings = Ole32.Create<IPackageDebugSettings>(CLSID_PackageDebugSettings, Ole32.CLSCTX_INPROC_SERVER);
         Marshal.ThrowExceptionForHR(settings.TerminateAllProcesses(package));
+    }
+
+    /// <summary>
+    /// Opens the app's page in Settings (Installed apps › the app's advanced options), as Start's App settings does:
+    /// Settings started with the arguments Explorer passes it, a system app's page under System components. Throws
+    /// if Settings can't start; call it off the UI thread.
+    /// </summary>
+    public static void OpenAppSettings(string appUserModelId)
+    {
+        Package package = AppInfo.GetFromAppUserModelId(appUserModelId).Package;
+        string page = package.SignatureKind == PackageSignatureKind.System
+            ? "page=SettingsPageSystemComponents&target=SystemSettings_StorageSense_HiddenSystemComponentsAdvancedPageLink&invoke=true&parameter="
+            : "page=SettingsPageInstalledApps&target=SystemSettings_StorageSense_HiddenAppAdvancedPageLink&invoke=true&parameter=";
+        Activate(SettingsAppId, page + package.Id.FamilyName);
+    }
+
+    /// <summary>
+    /// Opens Settings' Installed apps with its search box ready, where Start's Uninstall takes a desktop app. Throws
+    /// if Settings can't start; call it off the UI thread.
+    /// </summary>
+    public static void OpenInstalledApps() =>
+        Activate(SettingsAppId, "page=SettingsPageInstalledApps&target=SystemSettings_StorageSense_AppSizesListFilter");
+
+    /// <summary>Removes the app's package for the current user, as Start's Uninstall does. Throws if that fails.</summary>
+    public static async Task UninstallAsync(string appUserModelId)
+    {
+        string package = AppInfo.GetFromAppUserModelId(appUserModelId).Package.Id.FullName;
+        DeploymentResult result = await new PackageManager().RemovePackageAsync(package);
+        if (result.ExtendedErrorCode is { } error)
+            throw new COMException(result.ErrorText, error.HResult);
     }
 
     /// <summary>

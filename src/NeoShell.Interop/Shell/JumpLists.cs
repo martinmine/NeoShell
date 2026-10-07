@@ -65,13 +65,17 @@ public static unsafe class JumpLists
             custom = [];
         }
 
-        // Without a list of its own, an app gets its recent files.
-        if (custom.Count == 0)
-            custom = [new DestinationCategory(DestinationCategoryKind.Known, "", 2, [])];
+        // Without categories of its own (none, or only tasks: Edge's), an app gets its recent files, as in Explorer.
+        if (custom.All(category => category.Kind == DestinationCategoryKind.Tasks))
+            custom = [new DestinationCategory(DestinationCategoryKind.Known, "", 2, []), .. custom];
 
         var categories = new List<JumpListCategory>();
         foreach (DestinationCategory category in custom.Where(c => c.Kind != DestinationCategoryKind.Tasks))
         {
+            // A known category other than Frequent (1) or Recent (2), such as Settings' -1, shows nothing.
+            if (category.Kind == DestinationCategoryKind.Known && category.Known is not (1 or 2))
+                continue;
+
             IReadOnlyList<JumpListItem> items = category.Kind == DestinationCategoryKind.Known
                 ? KnownItems(appId, category.Known)
                 : [.. category.Links.Select(ReadLink).OfType<JumpListItem>().Where(item => item.Kind != JumpListItemKind.Separator)];

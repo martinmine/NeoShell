@@ -246,4 +246,72 @@ public sealed class StartMenuTests
         Assert.Equal("5h ago", StartCatalog.LastRunText(now.AddHours(-5).AddMinutes(-10), now));
         Assert.Equal(now.AddDays(-2).ToString("M"), StartCatalog.LastRunText(now.AddDays(-2), now));
     }
+
+    // Menus as text: commands by name, separators as "|".
+    private static string Show(IEnumerable<AppCommand?> layout) =>
+        string.Join(" ", layout.Select(command => command?.ToString() ?? "|"));
+
+    [Fact]
+    public void An_app_menu_keeps_Explorers_order_and_parts_its_groups_with_one_separator_each()
+    {
+        // Edge pinned first: Explorer's menu had exactly this.
+        HashSet<AppCommand> edge = [AppCommand.UnpinFromTaskbar, AppCommand.OpenFileLocation, AppCommand.MoveRight, AppCommand.RunAsAdministrator,
+            AppCommand.UnpinFromStart, AppCommand.NewFolder];
+        Assert.Equal("MoveRight NewFolder UnpinFromStart | RunAsAdministrator OpenFileLocation | UnpinFromTaskbar", Show(StartAppMenu.Layout(edge)));
+
+        // A packaged app in All apps: nothing to move, no file location.
+        HashSet<AppCommand> notepad = [AppCommand.Uninstall, AppCommand.AppSettings, AppCommand.PinToTaskbar, AppCommand.RunAsAdministrator, AppCommand.PinToStart];
+        Assert.Equal("PinToStart | RunAsAdministrator | PinToTaskbar AppSettings Uninstall", Show(StartAppMenu.Layout(notepad)));
+
+        // File Explorer's own commands make a group of their own.
+        HashSet<AppCommand> explorer = [AppCommand.MoveToFront, AppCommand.MoveLeft, AppCommand.UnpinFromStart, AppCommand.Manage, AppCommand.ItemProperties,
+            AppCommand.MapNetworkDrive, AppCommand.DisconnectNetworkDrive, AppCommand.UnpinFromTaskbar];
+        Assert.Equal("MoveToFront MoveLeft UnpinFromStart | Manage ItemProperties MapNetworkDrive DisconnectNetworkDrive | UnpinFromTaskbar",
+            Show(StartAppMenu.Layout(explorer)));
+    }
+
+    [Fact]
+    public void A_folder_menu_has_only_its_moves_and_an_app_in_a_folder_is_taken_out_before_unpinning()
+    {
+        Assert.Equal("MoveLeft MoveRight", Show(StartAppMenu.Layout(new HashSet<AppCommand> { AppCommand.MoveRight, AppCommand.MoveLeft })));
+        Assert.Equal("RemoveFromFolder UnpinFromStart | PinToTaskbar AppSettings",
+            Show(StartAppMenu.Layout(new HashSet<AppCommand> { AppCommand.AppSettings, AppCommand.UnpinFromStart, AppCommand.PinToTaskbar, AppCommand.RemoveFromFolder })));
+        Assert.Empty(StartAppMenu.Layout(new HashSet<AppCommand>()));
+    }
+
+    [Fact]
+    public void Search_results_list_an_apps_commands_in_one_run_in_the_search_boxs_order()
+    {
+        HashSet<AppCommand> commands = [AppCommand.Uninstall, AppCommand.PinToTaskbar, AppCommand.PinToStart, AppCommand.OpenFileLocation, AppCommand.RunAsAdministrator];
+
+        Assert.Equal(
+            [AppCommand.RunAsAdministrator, AppCommand.OpenFileLocation, AppCommand.PinToStart, AppCommand.PinToTaskbar, AppCommand.Uninstall],
+            StartAppMenu.SearchLayout(commands));
+    }
+
+    [Theory]
+    [InlineData("runas", AppCommand.RunAsAdministrator)]
+    [InlineData("RunAs", AppCommand.RunAsAdministrator)]
+    [InlineData("OpenFileLocation", AppCommand.OpenFileLocation)]
+    [InlineData("Uninstall", AppCommand.Uninstall)]
+    [InlineData("connectNetworkDrive", AppCommand.MapNetworkDrive)]
+    [InlineData("disconnectNetworkDrive", AppCommand.DisconnectNetworkDrive)]
+    [InlineData("ItemProperties", AppCommand.ItemProperties)]
+    [InlineData("Manage", AppCommand.Manage)]
+    public void The_app_folders_verbs_become_Starts_commands(string verb, AppCommand expected)
+    {
+        Assert.Equal(expected, StartAppMenu.FromVerb(verb));
+    }
+
+    [Theory]
+    [InlineData("open")]
+    [InlineData("OpenNewWindow")]
+    [InlineData("link")]
+    [InlineData("PinToStartScreen")]
+    [InlineData("taskbarunpin")]
+    [InlineData(null)]
+    public void Verbs_Start_leaves_out_have_no_command(string? verb)
+    {
+        Assert.Null(StartAppMenu.FromVerb(verb));
+    }
 }

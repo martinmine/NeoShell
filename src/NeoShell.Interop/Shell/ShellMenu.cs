@@ -27,7 +27,7 @@ public sealed class ShellMenuItem
 }
 
 /// <summary>
-/// The shell's context menu for desktop items or the desktop background, as Explorer builds it (shell extensions
+/// The shell's context menu for desktop items, the desktop background or an app, as Explorer builds it (shell extensions
 /// and the New, Send to and Open with submenus included), read into <see cref="ShellMenuItem"/>s for NeoShell to show
 /// in its own menu. Keep it until the menu closes: the handlers run the chosen command. UI thread only: handlers
 /// expect an STA and show UI owned by <c>owner</c>.
@@ -36,6 +36,7 @@ public sealed unsafe class ShellMenu : IDisposable
 {
     private const uint FirstCommand = 1;
     private const uint LastCommand = 0x7FFF;
+    private static readonly Guid BHID_SFUIObject = new("3981e225-f559-11d3-8e3a-00c04f6837d5");
 
     private readonly IContextMenu _menu;
     private readonly nint _owner;
@@ -72,10 +73,32 @@ public sealed unsafe class ShellMenu : IDisposable
     public static ShellMenu? ForBackground(nint owner) =>
         ShellContextMenu.CreateForBackground(owner) is { } menu ? new ShellMenu(menu, owner, Shell32.CMF_NODEFAULT) : null;
 
+    /// <summary>
+    /// The menu Windows gives an app in <c>shell:AppsFolder</c>, whose verbs Explorer's Start shows (Run as
+    /// administrator, Open file location, Uninstall…); null if the folder has no such app.
+    /// </summary>
+    /// <param name="appId">The app's parsing name in the folder: an AppUserModelID or a (known-folder) path.</param>
+    public static ShellMenu? ForApp(nint owner, string appId)
+    {
+        if (Shell32.SHCreateItemFromParsingName(ShellItems.AppsFolderPath(appId), 0, typeof(IShellItem).GUID, out IShellItem item) != 0)
+            return null;
+
+        Guid handler = BHID_SFUIObject;
+        Guid iid = typeof(IContextMenu).GUID;
+        nint menu;
+        return item.BindToHandler(0, &handler, &iid, &menu) == 0
+            ? new ShellMenu(ComPointer.TakeOwnership<IContextMenu>(menu), owner, 0)
+            : null;
+    }
+
     /// <summary>Runs the item's command, as chosen at a screen point (physical pixels).</summary>
     /// <returns>Whether the handler ran it.</returns>
     public bool Invoke(ShellMenuItem item, int x, int y) =>
         ShellContextMenu.Invoke(_menu, _owner, item.Command - FirstCommand, new User32.POINT { x = x, y = y });
+
+    /// <summary>Runs the item's command, chosen from a menu of NeoShell's own.</summary>
+    /// <returns>Whether the handler ran it.</returns>
+    public bool Invoke(ShellMenuItem item) => ShellContextMenu.Invoke(_menu, _owner, item.Command - FirstCommand, point: null);
 
     public void Dispose() => User32.DestroyMenu(_handle);
 

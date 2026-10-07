@@ -78,7 +78,7 @@
                             <ColumnDefinition />
                         </Grid.ColumnDefinitions>
                         <Grid.ContextFlyout>
-                            <MenuFlyout Opening="ItemMenu_Opening" />
+                            <MenuFlyout Opening="ResultMenu_Opening" />
                         </Grid.ContextFlyout>
                         <Image Width="24" Height="24" Source="{x:Bind Icon, Mode=OneWay}" />
                         <StackPanel Grid.Column="1" VerticalAlignment="Center">
@@ -154,6 +154,22 @@
                                     Margin="{TemplateBinding Padding}"
                                     Content="{TemplateBinding Content}"
                                     ContentTemplate="{TemplateBinding ContentTemplate}" />
+                            </ControlTemplate>
+                        </Setter.Value>
+                    </Setter>
+                </Style>
+
+                <!-- A category of an app's jump list in its menu: Explorer's headings, 16 in and 32 tall. -->
+                <Style x:Key="JumpListHeaderStyle" TargetType="MenuFlyoutItem">
+                    <Setter Property="IsEnabled" Value="False" />
+                    <Setter Property="Template">
+                        <Setter.Value>
+                            <ControlTemplate TargetType="MenuFlyoutItem">
+                                <TextBlock
+                                    Margin="16,8,12,8"
+                                    Style="{ThemeResource CaptionTextBlockStyle}"
+                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                    Text="{TemplateBinding Text}" />
                             </ControlTemplate>
                         </Setter.Value>
                     </Setter>

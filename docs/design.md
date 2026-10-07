@@ -620,13 +620,18 @@ have their icons (loaded in the background) and open on click.
 - An entry's title is the link's `System.Title`, else its description, resolved with `SHLoadIndirectString` when it's
   a resource reference (`@shell32.dll,-21817`); `System.AppUserModel.IsDestListSeparator` links are separators.
 - **Known categories** come from `IApplicationDocumentLists` (Recent or Frequent, at most 10, as Explorer). An app
-  without a list of its own gets Recent.
+  without categories of its own (no list, or tasks only, as Edge's) gets Recent, as in Explorer's taskbar and Start;
+  a known category other than 1 or 2 shows nothing (Settings writes one of -1, and Explorer shows it no Recent).
+- Not done: a web page's short name (Explorer shows Edge's `https://…/login/device` as "device"; every `SIGDN` and
+  `System.ItemNameDisplay` give the whole URL).
 - **Opening**: a link through its own `IContextMenu` default command, which keeps its arguments, working directory and
   a packaged app's identity, as Explorer does; a recent file with `ShellExecuteEx` on its ID list (the default verb,
   which may not be the app the list belongs to).
 - Icons: a link's icon location (`SHDefExtractIcon`), else its target's icon; `ms-appx:` icons of packaged apps
   aren't read, so those entries show the target's.
-- Pinned entries (kept in `AutomaticDestinations`) aren't shown, and entries can't be pinned or removed.
+- Pinned entries (kept in `AutomaticDestinations`) aren't shown, and entries can't be pinned or removed. Explorer
+  shows them under Pinned, first (File Explorer's are Quick access, then left out of its Frequent), on the taskbar and
+  in Start's app menus alike.
 
 ### Thumbnails
 
@@ -1493,12 +1498,56 @@ Windows', its shortcut as key caps (`ShortcutKeys`), and a footer with a link to
       to take them out; they land before or after the cell under the pointer. A folder stays while it has an app
       (Explorer 25H2 keeps one-app folders, also after Start reopens); taking the last one out removes it and closes
       the panel.
-  - Context menu on every app: Open, Pin to/Unpin from Start, Pin to/Unpin from taskbar. Pinned apps and folders
-    also get Explorer's Move to front / Move left / Move right (a folder's menu has only those); a pinned app also
-    "Create a new app folder" (the app alone in a new folder in its place, not opened) and "Move to app folder ▸"
-    (the folders by name; the app goes last in it); an app in a folder Move left / Move right and "Remove from app
-    folder" (it goes just after the folder). Explorer's icons on these items, and its other items (Run as
-    administrator, App settings, Uninstall, the jump list), are T18's.
+  - **App menus** (right-click, or the menu key, on any app; `StartAppMenu`, unit tested), as Explorer's 25H2 Start
+    (read through UI Automation, which sees inside Start's `CoreWindow` once found from its handle):
+    - No Open item. The commands come in a fixed order, from `StartMenu.dll`'s `ContextMenuSorter` (the list its
+      `GetContextMenuAsync` builds): Move to front, Move left, Move right, Create a new app folder, Move to app folder,
+      Remove from app folder, Pin to / Unpin from Start ┃ Run as administrator, Open file location ┃ File Explorer's
+      Manage, Properties, Map / Disconnect network drive ┃ Pin to / Unpin from taskbar, App settings, Uninstall.
+      A separator parts groups that have something; then the jump list, without one. (The sorter also knows Rate and
+      review and Share, only with extended verbs, Run as different user and Remove from list; NeoShell leaves them
+      out, and Start has no More submenu in 25H2.)
+    - Moves: in the grid Move to front only from the third place (from the second, Move left does it), Move left /
+      right where there's room; a folder's own menu has only those. A pinned app also gets "Create a new app folder"
+      (the app alone in a new folder in its place, not opened) and, with one folder, `Move to app folder "Name"`, with
+      more a "Move to app folder ▸" submenu of the folders' names (text only); the app goes last in it. An app in a
+      folder: Move left / right within it, "Remove from app folder" (it goes just after the folder).
+    - Run as administrator, Open file location, Uninstall and File Explorer's verbs are the app's verbs in
+      `shell:AppsFolder`, as Explorer's are (`AppResolverTransformer::GetVerbs` asks the desktop broker for the
+      item's shell verbs): `ShellMenu.ForApp` binds the folder's item (by AppUserModelID, else full path, else
+      known-folder path such as `{1AC14E77-…}\magnify.exe`; a full System32 path doesn't parse) to its
+      `IContextMenu` (`BHID_SFUIObject`) and the verbs `runas`, `OpenFileLocation`, `Uninstall`, `Manage`,
+      `ItemProperties`, `connectNetworkDrive`, `disconnectNetworkDrive` become items, run through that menu (Start
+      closes first). So they're there exactly when Explorer shows them: no Uninstall for Edge or Settings, no Run as
+      administrator for Settings, no Open file location for packaged apps. Open file location opens the shortcut's
+      folder with it selected; Run as administrator elevates the shortcut, or a full-trust packaged app.
+    - Uninstall: a packaged app gets Explorer's dialog in Start (`InterceptTileUninstallVerb`): a `ContentDialog`
+      'Uninstall "Name"?' / "This app and its related information will be removed.", Uninstall and Cancel (the
+      default), 374 wide, centred in Start, with a 1 px `SystemAccentColor` edge and no smoke over Start (WinUI moves
+      the smoke into a popup of its own, collapsed on `Loaded`); then `PackageManager.RemovePackageAsync` for the
+      user, the app's pins removed and the catalog reloaded. A desktop app's opens Settings the way Explorer's
+      `SettingsUninstallVerb` does: Settings (`SystemSettingsAUMID`) activated with
+      `page=SettingsPageInstalledApps&target=SystemSettings_StorageSense_AppSizesListFilter` (Installed apps, the
+      search box ready).
+    - App settings (packaged apps): Settings activated as Explorer's `SettingsVerb` does,
+      `page=SettingsPageInstalledApps&target=SystemSettings_StorageSense_HiddenAppAdvancedPageLink&invoke=true&parameter=<family name>`,
+      a system app's (`SignatureKind.System`, e.g. Settings) under `SettingsPageSystemComponents` /
+      `…HiddenSystemComponentsAdvancedPageLink`: the app's advanced options page, as from Explorer's Start.
+    - As the shell Settings can't show, so App settings is left out and a desktop app's Uninstall runs the folder's
+      own verb, which opens Programs and Features (in an `explorer.exe /factory` window, which works without the
+      shell); the folder's Run as administrator for a packaged app goes through Explorer and fails there, so it's
+      left out too.
+    - The jump list (`JumpLists`, as the taskbar's) below: each category under a 12 px secondary heading 16 in and
+      32 tall, its entries with their icons; long names end in an ellipsis at Explorer's 290 px menu width.
+    - Search results get the commands of Windows' search box instead: Run as administrator, Open file location (a
+      folder glyph, E8B7), Pin to / Unpin from Start, Pin to / Unpin from taskbar, App settings, Uninstall, in one
+      run without separators or jump list (the search box's Rate and review and Share, for Store apps, aren't done).
+      Files in results keep Open.
+    - Glyphs (Segoe Fluent Icons 16, read from Explorer's menus): Move to front E1AA, Move left E64E, Move right
+      E64D, Create a new app folder E8F4, Move to app folder E8DE, Remove from app folder E8DA, Pin E718, Unpin
+      E77A, Run as administrator E7EF, Open file location ED43, App settings E713, Uninstall E74D; File Explorer's
+      verbs and folder names have none. Items are WinUI's (28 tall from the mouse, 32 apart, separators 35), which
+      measure as Explorer's: menus of the same items come out the same size to the pixel.
 - **App catalog** (`AppCatalog`): enumerate `shell:AppsFolder` (`SHCreateItemFromParsingName` → `BHID_EnumItems`),
   reading display name and parent-relative parsing name — an AUMID, or a path such as `{KnownFolder}\app.exe` that
   is resolved with `SHGetKnownFolderPath` — and, for shortcuts, `System.Link.TargetParsingPath`. Shortcuts may give
