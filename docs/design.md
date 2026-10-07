@@ -1438,8 +1438,10 @@ Windows', its shortcut as key caps (`ShortcutKeys`), and a footer with a link to
   (as the monitor allowed it) is saved on release. 832 by 860 epx by default, at least 480 by 400, at most the
   monitor above the taskbar (`StartMenuLayout`, tests).
 - Home is one scrolling page, as in Windows 11, below the search box:
-  - **Pinned** grid (persisted in settings). Drag to reorder by hand (`GridReorder`, unit tested): the icon follows
-    the pointer and the icons between its old and new place shift one slot. Pinned and recent icons shrink while
+  - **Pinned** grid (`ShellSettings.StartPins`: apps and folders of apps; the former apps-only `PinnedStartApps`
+    is read once into it). Drag to reorder by hand (`GridReorder`, unit tested): a copy of the pin follows the
+    pointer (in a layer above everything, so it can leave a folder's panel) and the icons between its old and new
+    place shift one slot. Pinned and recent icons shrink while
     pressed and a dragged one grows, as on the taskbar. The grid's own drag and drop keeps the
     dropped icon hidden until the drag operation winds down, and its item transitions animate the move as a removal
     and an addition, so both are off. Pinned and Recent are updated in place when Start opens, not refilled (which
@@ -1447,7 +1449,16 @@ Windows', its shortcut as key caps (`ShortcutKeys`), and a footer with a link to
     are added once (`ExplorerStartPinsImported`). Start keeps them encrypted in `start2.bin`, so they're read through
     `StartTileData.dll`'s `IStartLayoutCmdlet::ExportStartLayout` (the object behind `Export-StartLayout`), which
     writes `{"pinnedList":[{"packagedAppId":…},{"desktopAppLink":"%APPDATA%\…\x.lnk"}]}`. A shortcut is matched to
-    the catalog by its `System.AppUserModel.ID`, else its `System.Link.TargetParsingPath`.
+    the catalog by its `System.AppUserModel.ID`, else its `System.Link.TargetParsingPath`. The export flattens
+    folders: a folder's apps are listed in its place, in its order, with nothing to say they were in one (checked
+    with two folders, 25H2), so folders aren't carried over. Inside `start2.bin` they are there: caught in the
+    debugger (`StartMenu!SlimObfuscationManager::Scramble`, called by `StartMenuPersistenceManager::SaveModel` →
+    `StoreFileToDisk`), the plain text is JSON, `{"pinnedList":[{"id":"{guid}","pinType":2,"name":"","items":
+    [{"id":"W~Microsoft.Windows.Explorer"},{"id":"P~Claude_…!Claude"}]},{"id":"P~windows.immersivecontrolpanel_…"}],
+    …}` (an empty name is "Folder"; `W~` a desktop app's AUMID, `P~` a packaged app's). But the file is AES-CBC
+    encrypted with a key Start derives in private code (`StableCryptoFunctions::GetSymmetricKeys`, from the
+    FILETIME in the file's header and fixed seeds); reading it would mean re-implementing a private cipher any
+    update can change, so it isn't done.
   - **Recent**: the six catalog apps started most recently, three columns, with "30m ago" / "5h ago" / the date.
     Read from UserAssist (`HKCU\…\Explorer\UserAssist\{CEBFF5CD-…}\Count`: ROT13 value names, AUMIDs or
     known-folder paths, last run as a FILETIME at offset 60) each time Start opens. `Launcher` starts non-packaged
@@ -1455,7 +1466,39 @@ Windows', its shortcut as key caps (`ShortcutKeys`), and a footer with a link to
     started through the activation manager are not.
   - An **All apps** button opens the alphabetical list with letter headers ("#" first) in place of the page, with a
     Back button (unlike Windows 11, which puts All on the same page).
-  - Context menu on every app: Open, Pin to/Unpin from Start, Pin to/Unpin from taskbar.
+  - **Folders of pins** (Windows 11 23H2+; `StartPins` and `GridReorder`, unit tested), as Explorer's:
+    - Holding an app over the middle of another app or a folder (the pointer within 28 px of the cell's centre,
+      either way; Explorer's zone measured at about +31/-23 px in a 96 px cell) shows the drop will group them; off
+      the middle, the drop goes before or after the cell under the pointer and the cells in between make way. There
+      is no delay: Explorer previews as soon as the pointer is there. An app under the pointer shows the folder to
+      be: the plate fades in, the app's icon shrinks to half and slides into the plate's first place (9 left, 8 up)
+      and its name fades, in 150 ms (Explorer: ~8 frames at 52 fps). Folders don't nest: a dragged folder only
+      moves. Dropped, an app on an app makes a folder in the target's place, the target first; on a folder, it goes
+      last in it. Explorer then fades the old tile out (~230 ms), shows nothing for ~0.6 s and fades the folder in
+      (~350 ms) while it saves and reloads its model; NeoShell swaps it at once.
+    - The tile: a 40 px plate (1 px `CardStrokeColorDefault` edge, `CardBackgroundFillColorDefault`, radius 4)
+      centred where an icon would be, with the first four apps' icons at 16 px two by two, 2 apart, the first 3 in
+      and 4 down from the plate's edge. The name below: "Folder" until renamed (stored as "").
+    - Opening it: a 450 × 378 panel centred in Start, radius 8, a 1 px `SurfaceStrokeColorFlyout` edge and an
+      acrylic of its own (Start's content behind blurred, about 6/7 of Start's colour; NeoShell's in-app
+      `AcrylicBrush` can't see the window's backdrop, so it starts from Start's tint, greyed a little when that's the
+      accent). It grows out of the tile — from 38/450 of its size at the tile's centre to full size in 333 ms,
+      `cubic-bezier(0,0,0,1)`, which fits Explorer's 0.48/0.65/0.84/0.92/0.99 at 33/67/133/200/267 ms — and
+      shrinks back into it in 150 ms, accelerating. The tile is hidden while the panel stands for it; Start isn't
+      dimmed. A click beside the panel, or Esc, closes it (Esc again closes Start). The name is a centred 20 px
+      semibold `TextBox`, 320 × 40, 33 px from the top, flat until hovered or focused; Enter, leaving it or closing
+      the folder renames the folder, and Esc in it puts the name back. The apps are 96 px cells, four to a row, from
+      33, 94 (scrolling after three rows).
+    - Apps are dragged within the panel to reorder them, or out of it onto Start behind it (the panel stays open)
+      to take them out; they land before or after the cell under the pointer. A folder stays while it has an app
+      (Explorer 25H2 keeps one-app folders, also after Start reopens); taking the last one out removes it and closes
+      the panel.
+  - Context menu on every app: Open, Pin to/Unpin from Start, Pin to/Unpin from taskbar. Pinned apps and folders
+    also get Explorer's Move to front / Move left / Move right (a folder's menu has only those); a pinned app also
+    "Create a new app folder" (the app alone in a new folder in its place, not opened) and "Move to app folder ▸"
+    (the folders by name; the app goes last in it); an app in a folder Move left / Move right and "Remove from app
+    folder" (it goes just after the folder). Explorer's icons on these items, and its other items (Run as
+    administrator, App settings, Uninstall, the jump list), are T18's.
 - **App catalog** (`AppCatalog`): enumerate `shell:AppsFolder` (`SHCreateItemFromParsingName` → `BHID_EnumItems`),
   reading display name and parent-relative parsing name — an AUMID, or a path such as `{KnownFolder}\app.exe` that
   is resolved with `SHGetKnownFolderPath` — and, for shortcuts, `System.Link.TargetParsingPath`. Shortcuts may give
@@ -1477,8 +1520,31 @@ Windows', its shortcut as key caps (`ShortcutKeys`), and a footer with a link to
 - **Bottom row**:
   - User name (`GetUserNameEx(NameDisplay)`, else the account name) and picture
     (`HKLM\...\AccountPicture\Users\<SID>\Image96`, else initials).
-  - Settings button → `ms-settings:`; in shell mode Control Panel (`control.exe`), as Settings is a UWP app.
   - Switch to Explorer button (see lifecycle), shell mode only, behind a confirmation dialog that defaults to Cancel.
+  - **Folders beside the power button** (Settings → Personalization → Start → Folders; Interop
+    `Shell/StartPlaces`, unit tested), read each time Start opens: Explorer too shows a change the next time it
+    opens. Settings keeps them in `HKCU\Software\Microsoft\Windows\CurrentVersion\Start\VisiblePlaces`, a
+    REG_BINARY of 16-byte GUIDs in the order they were switched on (empty or missing: none). Start shows them in its
+    own fixed order whatever the order in the value. The MDM policies
+    `HKLM\SOFTWARE\Microsoft\PolicyManager\current\device\Start\AllowPinnedFolder<Name>` (0 hidden, 1 shown,
+    65535 not set; the names are in `StartDocked.dll`) override the choice.
+
+    | Folder | GUID | Glyph | Opens |
+    |---|---|---|---|
+    | Documents | `2D34D5CE-FA5A-4543-82F2-22E6EAF7773C` | E8A5 | `shell:Personal` |
+    | Downloads | `E367B32F-89DE-4355-BFCE-61F37B18A937` | E896 | `shell:Downloads` |
+    | Music | `B00B0620-7F51-4C32-AA1E-34CC547F7315` | EC4F | `shell:My Music` |
+    | Pictures | `383F07A0-E80A-4C80-B05A-86DB845DBC4D` | EB9F | `shell:My Pictures` |
+    | Videos | `42B3A5C5-7D86-42F4-80A4-93FACA7A88B5` | E714 | `shell:My Video` |
+    | Network | `FE758144-080D-42AE-8BDA-34ED97B66394` | EC27 | `shell:NetworkPlacesFolder` |
+    | Personal folder | `74BDB04A-F94A-4F68-8BD6-4398071DA8BC` | EC25 | `shell:UsersFilesFolder` (the profile) |
+    | File Explorer | `148A24BC-D60C-4289-A080-6ED9BBA24882` | EC50 | as Win+E |
+    | Settings | `52730886-51AA-4243-9F7B-2776584659D4` | E713 | `ms-settings:`; in shell mode Control Panel (`control.exe`), as Settings is a UWP app |
+
+    Each is a flat 40 × 40 button with a 16 px glyph (Segoe Fluent Icons, matched against Explorer's pixels) and its
+    name as tooltip. Explorer's buttons, the power button's too, touch, 40 apart, the power glyph's right edge 65 px
+    from Start's. Right-clicking them gives "Personalise this list" (`ms-settings:personalization-start-places`;
+    Control Panel in shell mode). NeoShell's Settings button, always shown before, is now this list's.
   - Power button menu:
     - Lock → `LockWorkStation`
     - Sign out → `ExitWindowsEx(EWX_LOGOFF)`

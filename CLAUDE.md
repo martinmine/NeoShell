@@ -100,7 +100,8 @@ src/NeoShell.Interop/
   Notifications/              UserNotifications (UserNotificationListener), DoNotDisturb (quiet hours), AppBadges (badges)
   Search/                     IndexSearch (ISearchQueryHelper + OleDb against Search.CollatorDSO)
   Shell/                      AppCatalog (shell:AppsFolder), DesktopFolder, ShellContextMenu, ShellMenu, Launcher, Power,
-                              ShellRegistration, StartupApps, VolumeArrivals, AutoPlayVolumes/Handlers, OpticalDrives
+                              ShellRegistration, StartupApps, VolumeArrivals, AutoPlayVolumes/Handlers, OpticalDrives,
+                              StartPlaces
 tests/NeoShell.Tests/         xunit tests for logic that runs without UI
 tools/                        start-shell.ps1 (this session), set-shell.ps1, restore-explorer.ps1
 docs/                         design.md, plan.md
@@ -188,7 +189,7 @@ the desktop and back. Full spec in docs/design.md ("Widgets").
   tray icon order and drag targets,
   app bar placing, search ranking,
   indexer query building, startup entries, settings, wallpaper style mapping, AppBar rects, desktop icon
-  filtering, sorting and grid places, snap zones and keys, the taskbar search setting and its collapse, thumbnail toolbar data and image lists, pinning by drag, clock settings and notification bell, widget placement and order, MET forecast parsing, wireless device protocols, Windows product name,
+  filtering, sorting and grid places, snap zones and keys, Start's pin folders and folder buttons, the taskbar search setting and its collapse, thumbnail toolbar data and image lists, pinning by drag, clock settings and notification bell, widget placement and order, MET forecast parsing, wireless device protocols, Windows product name,
   AutoPlay content, events, choice lists and saving, autorun.inf parsing, optical drive names, toast sounds,
   input indicator labels and Win+Space keys, task button badges.
 - When testing the UI live, drive it through UI Automation (set `AutomationProperties.AutomationId` on interactive

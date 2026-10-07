@@ -31,8 +31,9 @@ internal sealed class StartGroup(string key, IEnumerable<StartItem> items) : Lis
 }
 
 /// <summary>
-/// The Start menu: pinned and recent apps, All apps, search over apps and the Windows Search index, and the user, Settings,
-/// Switch to Explorer and power buttons. Created once and shown above whichever taskbar opened it.
+/// The Start menu: pinned apps and folders of them, recent apps, All apps, search over apps and the Windows Search index,
+/// and the user, Switch to Explorer, the folders chosen for Start and the power button. Created once and shown above
+/// whichever taskbar opened it.
 /// </summary>
 internal sealed partial class StartMenuWindow : Window
 {
@@ -43,6 +44,28 @@ internal sealed partial class StartMenuWindow : Window
     private static readonly TimeSpan s_catalogLifetime = TimeSpan.FromMinutes(2);
     private static readonly TimeSpan s_openDuration = TimeSpan.FromMilliseconds(250);
     private static readonly TimeSpan s_closeDuration = TimeSpan.FromMilliseconds(150);
+    // Explorer's folder panel grows out of the folder's tile over a third of a second, sharply decelerating, and
+    // shrinks back into it in 150 ms; an app held over another shrinks into the folder plate in 150 ms.
+    private static readonly TimeSpan s_folderOpenDuration = TimeSpan.FromMilliseconds(333);
+    private static readonly TimeSpan s_folderCloseDuration = TimeSpan.FromMilliseconds(150);
+    private static readonly TimeSpan s_groupPreviewDuration = TimeSpan.FromMilliseconds(150);
+
+    /// <summary>
+    /// The folders Start can show beside the power button, as Explorer draws them, in its order, and the folder each
+    /// opens in File Explorer (Settings opens as Win+I does, File Explorer as Win+E).
+    /// </summary>
+    private static readonly (StartPlace Place, string Name, string Glyph, string AutomationId, string? Folder)[] s_places =
+    [
+        (StartPlace.Documents, "Documents", "\uE8A5", "DocumentsPlaceButton", "shell:Personal"),
+        (StartPlace.Downloads, "Downloads", "\uE896", "DownloadsPlaceButton", "shell:Downloads"),
+        (StartPlace.Music, "Music", "\uEC4F", "MusicPlaceButton", "shell:My Music"),
+        (StartPlace.Pictures, "Pictures", "\uEB9F", "PicturesPlaceButton", "shell:My Pictures"),
+        (StartPlace.Videos, "Videos", "\uE714", "VideosPlaceButton", "shell:My Video"),
+        (StartPlace.Network, "Network", "\uEC27", "NetworkPlaceButton", "shell:NetworkPlacesFolder"),
+        (StartPlace.PersonalFolder, "Personal folder", "\uEC25", "PersonalFolderPlaceButton", "shell:UsersFilesFolder"),
+        (StartPlace.FileExplorer, "File Explorer", "\uEC50", "FileExplorerPlaceButton", null),
+        (StartPlace.Settings, "Settings", "\uE713", "SettingsButton", null),
+    ];
 
     private readonly Taskbars _owner;
     private readonly nint _hwnd;
@@ -64,9 +87,15 @@ internal sealed partial class StartMenuWindow : Window
     private CancellationTokenSource? _search;
     private (DisplayMonitor Monitor, RectInt32 Taskbar, bool Centered) _anchor;
     private ResizeDrag? _resize;
-    private (uint PointerId, Point Start, StartItem Item)? _pinPressed;
+    private (uint PointerId, Point Start, GridView Grid, StartItem Item)? _pinPressed;
     private PinDrag? _pinDrag;
     private bool _suppressPinClick;
+    private readonly ObservableCollection<StartItem> _folderApps = [];
+    // The open folder's id, and its tile in the grid, hidden while the folder is open.
+    private string? _folderId;
+    private UIElement? _folderTile;
+    private Storyboard? _folderAnimation;
+    private readonly Dictionary<StartPlace, Button> _placeButtons = [];
     private UIElement? _pressedIcon;
     private readonly WindowSlide _slide;
     private bool _closing;
@@ -92,12 +121,16 @@ internal sealed partial class StartMenuWindow : Window
         _slide = new WindowSlide(_placement);
 
         PinnedGrid.ItemsSource = _pinned;
-        // Handled events too: the item under the pointer takes the press for its click.
-        PinnedGrid.AddHandler(UIElement.PointerPressedEvent, new PointerEventHandler(PinnedGrid_PointerPressed), handledEventsToo: true);
-        PinnedGrid.AddHandler(UIElement.PointerMovedEvent, new PointerEventHandler(PinnedGrid_PointerMoved), handledEventsToo: true);
-        PinnedGrid.AddHandler(UIElement.PointerReleasedEvent, new PointerEventHandler(PinnedGrid_PointerReleased), handledEventsToo: true);
-        PinnedGrid.AddHandler(UIElement.PointerCaptureLostEvent, new PointerEventHandler(PinnedGrid_PointerCaptureLost), handledEventsToo: true);
-        foreach (GridView grid in (GridView[])[PinnedGrid, RecentGrid])
+        FolderGrid.ItemsSource = _folderApps;
+        foreach (GridView grid in (GridView[])[PinnedGrid, FolderGrid])
+        {
+            // Handled events too: the item under the pointer takes the press for its click.
+            grid.AddHandler(UIElement.PointerPressedEvent, new PointerEventHandler(PinGrid_PointerPressed), handledEventsToo: true);
+            grid.AddHandler(UIElement.PointerMovedEvent, new PointerEventHandler(PinGrid_PointerMoved), handledEventsToo: true);
+            grid.AddHandler(UIElement.PointerReleasedEvent, new PointerEventHandler(PinGrid_PointerReleased), handledEventsToo: true);
+            grid.AddHandler(UIElement.PointerCaptureLostEvent, new PointerEventHandler(PinGrid_PointerCaptureLost), handledEventsToo: true);
+        }
+        foreach (GridView grid in (GridView[])[PinnedGrid, FolderGrid, RecentGrid])
         {
             grid.AddHandler(UIElement.PointerPressedEvent, new PointerEventHandler(GridItem_PointerPressed), handledEventsToo: true);
             grid.AddHandler(UIElement.PointerReleasedEvent, new PointerEventHandler(GridItem_PointerReleased), handledEventsToo: true);
@@ -108,7 +141,17 @@ internal sealed partial class StartMenuWindow : Window
         _results.Source = _resultGroups;
         ResultsList.ItemsSource = _results.View;
         SwitchToExplorerButton.Visibility = owner.RunMode == RunMode.Shell ? Visibility.Visible : Visibility.Collapsed;
+        AddPlaceButtons();
         ShowUser();
+        // Start's pins were apps only before folders; once, they become pins of their own.
+        if (owner.Settings.Current.PinnedStartApps is { } apps)
+        {
+            owner.Settings.Update(owner.Settings.Current with
+            {
+                StartPins = [.. owner.Settings.Current.StartPins, .. apps.Select(app => new StartPin(app))],
+                PinnedStartApps = null,
+            });
+        }
 
         Activated += (_, e) =>
         {
@@ -148,7 +191,7 @@ internal sealed partial class StartMenuWindow : Window
 
     public bool IsOpen { get; private set; }
 
-    private IReadOnlyList<PinnedApp> PinnedStartApps => _owner.Settings.Current.PinnedStartApps;
+    private IReadOnlyList<StartPin> Pins => _owner.Settings.Current.StartPins;
 
     /// <summary>
     /// Pressing the Start button deactivates Start before the button's click arrives; that click must not reopen it.
@@ -170,8 +213,10 @@ internal sealed partial class StartMenuWindow : Window
         Root.RequestedTheme = accent is { } color ? SystemTheme.ThemeOn(color) : theme;
         _backdrop.Theme = Root.RequestedTheme;
         _backdrop.Tint = accent;
+        FolderPanel.Background = FolderPanelBrush(accent, Root.RequestedTheme);
         ShowPinned();
         ShowRecent();
+        ShowPlaces();
         LoadAppsIfStale();
 
         _anchor = (monitor, taskbar, centered);
@@ -199,6 +244,27 @@ internal sealed partial class StartMenuWindow : Window
     }
 
     public void Hide() => Hide(restoreForeground: true);
+
+    // An open folder's panel has an acrylic of its own: what's behind it in Start blurred, under a shade a little
+    // darker than Start (measured on Explorer's: about six sevenths of Start's colour). In-app acrylic can't see the
+    // window's backdrop, only Start's content, so it starts from Start's tint; an accent is greyed a little, as
+    // Start's own acrylic greys it with what's behind the window.
+    private static AcrylicBrush FolderPanelBrush(Color? accent, ElementTheme theme)
+    {
+        Color tint = accent is { } color ? Mix(Shade(color, 0.72), Color.FromArgb(255, 0x40, 0x40, 0x40), 0.15)
+            : theme == ElementTheme.Light ? Shade(Color.FromArgb(255, 0xF3, 0xF3, 0xF3), 0.95)
+            : Shade(Color.FromArgb(255, 0x20, 0x20, 0x20), 0.86);
+        return new AcrylicBrush { TintColor = tint, TintOpacity = 0.85, TintLuminosityOpacity = 0.85, FallbackColor = tint };
+    }
+
+    private static Color Shade(Color color, double factor) =>
+        Color.FromArgb(255, (byte)(color.R * factor), (byte)(color.G * factor), (byte)(color.B * factor));
+
+    private static Color Mix(Color color, Color with, double amount) => Color.FromArgb(
+        255,
+        (byte)(color.R + (with.R - color.R) * amount),
+        (byte)(color.G + (with.G - color.G) * amount),
+        (byte)(color.B + (with.B - color.B) * amount));
 
     private RectInt32 BoundsFor(double width, double height) =>
         StartMenuLayout.Bounds(_anchor.Monitor.Bounds, _anchor.Taskbar, _anchor.Centered, width, height, _anchor.Monitor.Dpi / 96.0);
@@ -266,6 +332,7 @@ internal sealed partial class StartMenuWindow : Window
     // What Start shows when it opens next; changed once it's out of sight.
     private void ResetContent()
     {
+        CloseFolder(animate: false);
         SearchBox.Text = "";
         ShowView(HomeView);
         HomeView.ChangeView(null, 0, null, disableAnimation: true);
@@ -280,8 +347,12 @@ internal sealed partial class StartMenuWindow : Window
 
     private void ShowPinned()
     {
-        Sync(_pinned, [.. PinnedStartApps.Select(app => new StartItem(app, "App", isApp: true, _owner.Icons))]);
+        Sync(_pinned, [.. Pins.Select(pin => pin.Folder is { } folder
+            ? new StartItem(folder, _owner.Icons)
+            : new StartItem(pin.App!, "App", isApp: true, _owner.Icons))]);
         NoPinnedText.Visibility = _pinned.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        if (_folderId is not null)
+            ShowFolderApps();
     }
 
     // Windows records each start, by Explorer or by NeoShell, in UserAssist; reading it is quick enough for each open.
@@ -305,7 +376,7 @@ internal sealed partial class StartMenuWindow : Window
     // drag looks like the move went wrong. Items that are still there stay.
     private static void Sync(ObservableCollection<StartItem> items, IReadOnlyList<StartItem> wanted)
     {
-        static bool Same(StartItem a, StartItem b) => a.Target == b.Target && a.Subtitle == b.Subtitle;
+        static bool Same(StartItem a, StartItem b) => a.Target == b.Target && a.Subtitle == b.Subtitle && a.Folder == b.Folder;
 
         for (int i = items.Count - 1; i >= 0; i--)
         {
@@ -326,7 +397,8 @@ internal sealed partial class StartMenuWindow : Window
     }
 
     // Start and the taskbar begin with the pins the user made in Explorer, once; after that NeoShell's pins are its
-    // own. Start does it for both, as matching a pin to an app needs Start's catalog.
+    // own. Start does it for both, as matching a pin to an app needs Start's catalog. Explorer's export lists a folder's
+    // apps in the folder's place without the folder, so they come over as apps of their own (see design.md).
     private async void ImportExplorerPins()
     {
         _importingPins = true;
@@ -338,7 +410,7 @@ internal sealed partial class StartMenuWindow : Window
         ShellSettings settings = _owner.Settings.Current;
         _owner.Settings.Update(settings with
         {
-            PinnedStartApps = StartCatalog.AddImported(settings.PinnedStartApps, start),
+            StartPins = StartPins.AddImported(settings.StartPins, start),
             PinnedTaskbarApps = StartCatalog.AddImported(settings.PinnedTaskbarApps, taskbar),
             ExplorerStartPinsImported = true,
             ExplorerTaskbarPinsImported = true,
@@ -402,7 +474,7 @@ internal sealed partial class StartMenuWindow : Window
 
     private void RefreshIcons()
     {
-        foreach (StartItem item in _pinned.Concat(_recent).Concat(_apps).Concat(_resultItems))
+        foreach (StartItem item in _pinned.Concat(_folderApps).Concat(_recent).Concat(_apps).Concat(_resultItems))
             item.RefreshIcon();
     }
 
@@ -516,15 +588,19 @@ internal sealed partial class StartMenuWindow : Window
     {
         if (e.Key == VirtualKey.Escape)
         {
-            Hide();
+            // An open folder closes first, then Start.
+            if (_folderId is not null)
+                CloseFolder(animate: true);
+            else
+                Hide();
             e.Handled = true;
         }
     }
 
-    // Typing anywhere in Start types into the search box.
+    // Typing anywhere in Start types into the search box, unless a folder is being renamed.
     private void Root_CharacterReceived(UIElement sender, CharacterReceivedRoutedEventArgs e)
     {
-        if (char.IsControl(e.Character) || ReferenceEquals(FocusManager.GetFocusedElement(Root.XamlRoot), SearchBox))
+        if (char.IsControl(e.Character) || FocusManager.GetFocusedElement(Root.XamlRoot) is TextBox)
             return;
 
         SearchBox.Focus(FocusState.Keyboard);
@@ -535,7 +611,12 @@ internal sealed partial class StartMenuWindow : Window
 
     private void Item_Click(object sender, ItemClickEventArgs e)
     {
-        if (e.ClickedItem is StartItem item && !(ReferenceEquals(sender, PinnedGrid) && _suppressPinClick))
+        if (e.ClickedItem is not StartItem item || ((ReferenceEquals(sender, PinnedGrid) || ReferenceEquals(sender, FolderGrid)) && _suppressPinClick))
+            return;
+
+        if (item.IsFolder)
+            OpenFolder(_pinned.IndexOf(item));
+        else
             Open(item);
     }
 
@@ -560,16 +641,77 @@ internal sealed partial class StartMenuWindow : Window
         if (!item.IsApp)
             return;
 
-        PinnedApp app = item.Target;
-        bool onStart = PinnedStartApps.Any(p => TaskGrouping.SameApp(p, app));
-        bool onTaskbar = _owner.Settings.Current.PinnedTaskbarApps.Any(p => TaskGrouping.SameApp(p, app));
         menu.Items.Add(new MenuFlyoutSeparator());
-        menu.Items.Add(onStart
-            ? MenuItem("Unpin from Start", "StartUnpinMenuItem", () => SetPinnedStartApps([.. PinnedStartApps.Where(p => !TaskGrouping.SameApp(p, app))]))
-            : MenuItem("Pin to Start", "StartPinMenuItem", () => SetPinnedStartApps([.. PinnedStartApps, app])));
+        AddPinItems(menu, item.Target);
+    }
+
+    private void AddPinItems(MenuFlyout menu, PinnedApp app)
+    {
+        bool onTaskbar = _owner.Settings.Current.PinnedTaskbarApps.Any(p => TaskGrouping.SameApp(p, app));
+        menu.Items.Add(StartPins.Contains(Pins, app)
+            ? MenuItem("Unpin from Start", "StartUnpinMenuItem", () => SetPins(StartPins.Unpin(Pins, app)))
+            : MenuItem("Pin to Start", "StartPinMenuItem", () => SetPins(StartPins.Pin(Pins, app))));
         menu.Items.Add(onTaskbar
             ? MenuItem("Unpin from taskbar", "StartUnpinTaskbarMenuItem", () => _owner.Unpin(app))
             : MenuItem("Pin to taskbar", "StartPinTaskbarMenuItem", () => _owner.Pin(app)));
+    }
+
+    // A pin's menu, as Explorer's: moves within the grid or the folder, and the folder commands, above the usual items.
+    // The grid and the folder change under an open menu only through it, so the indexes it was opened with hold.
+    private void PinMenu_Opening(object sender, object e)
+    {
+        var menu = (MenuFlyout)sender;
+        menu.Items.Clear();
+        if (menu.Target?.DataContext is not StartItem item)
+            return;
+
+        int inFolder = _folderApps.IndexOf(item);
+        if (inFolder >= 0)
+        {
+            int folder = OpenFolderIndex;
+            menu.Items.Add(MenuItem("Open", "StartOpenMenuItem", () => Open(item)));
+            menu.Items.Add(new MenuFlyoutSeparator());
+            if (inFolder > 0)
+                menu.Items.Add(MenuItem("Move left", "StartMoveLeftMenuItem", () => SetPins(StartPins.MoveInFolder(Pins, folder, inFolder, inFolder - 1))));
+            if (inFolder < _folderApps.Count - 1)
+                menu.Items.Add(MenuItem("Move right", "StartMoveRightMenuItem", () => SetPins(StartPins.MoveInFolder(Pins, folder, inFolder, inFolder + 1))));
+            menu.Items.Add(MenuItem("Remove from app folder", "StartRemoveFromFolderMenuItem", () => TakeOutOfFolder(inFolder, folder + 1)));
+            AddPinItems(menu, item.Target);
+            return;
+        }
+
+        int index = _pinned.IndexOf(item);
+        if (index < 0)
+            return;
+        if (!item.IsFolder)
+        {
+            menu.Items.Add(MenuItem("Open", "StartOpenMenuItem", () => Open(item)));
+            menu.Items.Add(new MenuFlyoutSeparator());
+        }
+        if (index > 0)
+        {
+            menu.Items.Add(MenuItem("Move to front", "StartMoveToFrontMenuItem", () => SetPins(StartPins.Move(Pins, index, 0))));
+            menu.Items.Add(MenuItem("Move left", "StartMoveLeftMenuItem", () => SetPins(StartPins.Move(Pins, index, index - 1))));
+        }
+        if (index < _pinned.Count - 1)
+            menu.Items.Add(MenuItem("Move right", "StartMoveRightMenuItem", () => SetPins(StartPins.Move(Pins, index, index + 1))));
+        if (item.IsFolder)
+            return;
+
+        menu.Items.Add(MenuItem("Create a new app folder", "StartNewFolderMenuItem", () => SetPins(StartPins.NewFolder(Pins, index))));
+        var folders = new MenuFlyoutSubItem { Text = "Move to app folder" };
+        AutomationProperties.SetAutomationId(folders, "StartMoveToFolderMenuItem");
+        for (int i = 0; i < _pinned.Count; i++)
+        {
+            if (_pinned[i].IsFolder)
+            {
+                int folder = i;
+                folders.Items.Add(MenuItem(_pinned[i].Title, "StartFolderMenuItem", () => SetPins(StartPins.Group(Pins, index, folder))));
+            }
+        }
+        if (folders.Items.Count > 0)
+            menu.Items.Add(folders);
+        AddPinItems(menu, item.Target);
     }
 
     // Pinned and recent apps' icons shrink while pressed.
@@ -599,48 +741,47 @@ internal sealed partial class StartMenuWindow : Window
     private static UIElement? ItemIcon(DependencyObject container) =>
         (container as ContentControl)?.ContentTemplateRoot is FrameworkElement root ? root.FindName("ItemIcon") as UIElement : null;
 
-    // Reordering is done by hand rather than with the grid's own drag and drop, which keeps the dropped icon hidden
-    // until its drag operation has wound down: it vanishes and comes back. Here the icon follows the pointer, the
-    // icons in between shift a slot to make room (GridReorder), and the drop is a move that shows no change.
-    private void PinnedGrid_PointerPressed(object sender, PointerRoutedEventArgs e)
+    // Pins are dragged by hand rather than with the grid's own drag and drop, which keeps the dropped icon hidden
+    // until its drag operation has wound down: it vanishes and comes back. Here a copy of the pin follows the pointer
+    // (above everything, so it can leave a folder's panel), the pins in between shift a slot to make room
+    // (GridReorder), and the drop is a move that shows no change. Held over the middle of another app or a folder,
+    // an app is grouped with it instead, as in Explorer; an app dragged out of a folder's panel goes into the grid.
+    private void PinGrid_PointerPressed(object sender, PointerRoutedEventArgs e)
     {
+        var grid = (GridView)sender;
         _suppressPinClick = false;
-        if (_pinDrag is not null || !e.GetCurrentPoint(PinnedGrid).Properties.IsLeftButtonPressed)
+        if (_pinDrag is not null || !e.GetCurrentPoint(grid).Properties.IsLeftButtonPressed)
             return;
 
-        for (var element = e.OriginalSource as DependencyObject; element is not null && element != PinnedGrid; element = VisualTreeHelper.GetParent(element))
+        for (var element = e.OriginalSource as DependencyObject; element is not null && element != grid; element = VisualTreeHelper.GetParent(element))
         {
             if (element is GridViewItem { Content: StartItem item })
             {
-                _pinPressed = (e.Pointer.PointerId, e.GetCurrentPoint(PinnedGrid).Position, item);
+                _pinPressed = (e.Pointer.PointerId, e.GetCurrentPoint(Root).Position, grid, item);
                 return;
             }
         }
     }
 
-    private void PinnedGrid_PointerMoved(object sender, PointerRoutedEventArgs e)
+    private void PinGrid_PointerMoved(object sender, PointerRoutedEventArgs e)
     {
-        if (_pinPressed is not { } pressed || pressed.PointerId != e.Pointer.PointerId)
+        if (_pinPressed is not { } pressed || pressed.PointerId != e.Pointer.PointerId || !ReferenceEquals(sender, pressed.Grid))
             return;
 
-        Point position = e.GetCurrentPoint(PinnedGrid).Position;
+        Point position = e.GetCurrentPoint(Root).Position;
         double dx = position.X - pressed.Start.X;
         double dy = position.Y - pressed.Start.Y;
-        if (_pinDrag is null && (Math.Sqrt(dx * dx + dy * dy) < GridReorder.Threshold || !StartPinDrag(pressed.Item, e.Pointer)))
+        if (_pinDrag is null && (Math.Sqrt(dx * dx + dy * dy) < GridReorder.Threshold || !StartPinDrag(pressed.Grid, pressed.Item, pressed.Start, e.Pointer)))
             return;
 
         PinDrag drag = _pinDrag!;
-        (double X, double Y) slot = drag.Slots[drag.Index];
-        drag.Target = GridReorder.TargetIndex(drag.Slots, (slot.X + dx, slot.Y + dy));
-        for (int i = 0; i < drag.Containers.Count; i++)
-        {
-            (double x, double y) = i == drag.Index ? (dx, dy) : GridReorder.MakeWayOffset(drag.Slots, drag.Index, drag.Target, i);
-            drag.Containers[i].Translation = new Vector3((float)x, (float)y, 0);
-        }
+        Canvas.SetLeft(drag.Copy, position.X - drag.Grab.X);
+        Canvas.SetTop(drag.Copy, position.Y - drag.Grab.Y);
+        AimPinDrag(drag, position);
         e.Handled = true;
     }
 
-    private void PinnedGrid_PointerReleased(object sender, PointerRoutedEventArgs e)
+    private void PinGrid_PointerReleased(object sender, PointerRoutedEventArgs e)
     {
         _pinPressed = null;
         if (_pinDrag is null)
@@ -648,82 +789,404 @@ internal sealed partial class StartMenuWindow : Window
 
         // The grid would otherwise take the release as a click on the app.
         _suppressPinClick = true;
-        EndPinDrag(drop: true);
-        PinnedGrid.ReleasePointerCapture(e.Pointer);
+        // Released before the drop: a drop that closes the folder makes the grid holding the capture unreachable,
+        // and a capture released after that stays with the window, which then takes no more pointer input.
+        PinDrag drag = _pinDrag;
+        _pinDrag = null;
+        ((UIElement)sender).ReleasePointerCapture(e.Pointer);
+        EndPinDrag(drag, drop: true);
         e.Handled = true;
     }
 
-    private void PinnedGrid_PointerCaptureLost(object sender, PointerRoutedEventArgs e)
+    private void PinGrid_PointerCaptureLost(object sender, PointerRoutedEventArgs e)
     {
         _pinPressed = null;
-        if (_pinDrag is not null)
-            EndPinDrag(drop: false);
+        if (_pinDrag is { } drag)
+        {
+            _pinDrag = null;
+            EndPinDrag(drag, drop: false);
+        }
     }
 
-    private bool StartPinDrag(StartItem item, Pointer pointer)
+    private bool StartPinDrag(GridView grid, StartItem item, Point start, Pointer pointer)
     {
-        int index = _pinned.IndexOf(item);
-        var containers = new List<UIElement>();
-        var slots = new List<(double X, double Y)>();
-        for (int i = 0; i < _pinned.Count; i++)
-        {
-            if (PinnedGrid.ContainerFromIndex(i) is not UIElement container)
-                return false;
-            containers.Add(container);
-            Point corner = container.TransformToVisual(PinnedGrid).TransformPoint(default);
-            slots.Add((corner.X, corner.Y));
-        }
-        if (index < 0 || !PinnedGrid.CapturePointer(pointer))
+        ObservableCollection<StartItem> items = grid == PinnedGrid ? _pinned : _folderApps;
+        int index = items.IndexOf(item);
+        if (index < 0 || Containers(grid, items.Count) is not { } containers || !grid.CapturePointer(pointer))
             return false;
 
+        UIElement dragged = containers[index];
+        Point corner = dragged.TransformToVisual(Root).TransformPoint(default);
+        var copy = new ContentControl
+        {
+            ContentTemplate = (DataTemplate)Root.Resources["PinTemplate"],
+            Content = item,
+            IsHitTestVisible = false,
+        };
+        copy.Loaded += (_, _) =>
+        {
+            if (ItemIcon(copy) is { } icon)
+                IconPress.Scale(icon, IconPress.Dragged);
+        };
+        Canvas.SetLeft(copy, corner.X);
+        Canvas.SetTop(copy, corner.Y);
+        DragLayer.Children.Add(copy);
+        dragged.Opacity = 0;
         foreach (UIElement container in containers)
             container.TranslationTransition = new Vector3Transition { Duration = TimeSpan.FromMilliseconds(150) };
-        containers[index].TranslationTransition = null;
-        Canvas.SetZIndex(containers[index], 1);
-        if (ItemIcon(containers[index]) is { } icon)
-            IconPress.Scale(icon, IconPress.Dragged);
-        _pinDrag = new PinDrag(containers, slots, index) { Target = index };
+
+        _pinDrag = new PinDrag(grid, containers, [.. containers.Select(c => Corner(c, grid))], index, copy, new Point(start.X - corner.X, start.Y - corner.Y))
+        {
+            Target = index,
+            CanGroup = grid == PinnedGrid && !item.IsFolder,
+            GridCentres = grid == FolderGrid && Containers(PinnedGrid, _pinned.Count) is { } pins ? [.. pins.Select(c => Centre(c, PinnedGrid))] : [],
+        };
         return true;
     }
 
-    private void EndPinDrag(bool drop)
+    // Where the pin would go if dropped now, shown by the pins making way, or by the app it would be grouped with.
+    private void AimPinDrag(PinDrag drag, Point position)
     {
-        PinDrag drag = _pinDrag!;
-        _pinDrag = null;
+        Point panel = FolderPanel.TransformToVisual(Root).TransformPoint(default);
+        drag.Outside = drag.Grid == FolderGrid && !new Rect(panel, FolderPanel.ActualSize.ToSize()).Contains(position);
+        drag.GroupWith = -1;
+        if (drag.Outside)
+        {
+            // Out of the folder's panel, into the grid behind it; the folder's apps stay as they are.
+            Point point = Root.TransformToVisual(PinnedGrid).TransformPoint(position);
+            drag.Target = drag.GridCentres.Count == 0 ? 0 : GridReorder.DropTarget(drag.GridCentres, (point.X, point.Y), -1, _ => false).Index;
+        }
+        else
+        {
+            Point point = Root.TransformToVisual(drag.Grid).TransformPoint(position);
+            (int target, bool group) = GridReorder.DropTarget(
+                [.. drag.Slots.Zip(drag.Containers, (slot, c) => (slot.X + c.ActualSize.X / 2, slot.Y + c.ActualSize.Y / 2))],
+                (point.X, point.Y), drag.Index, _ => drag.CanGroup);
+            drag.Target = group ? drag.Index : target;
+            drag.GroupWith = group ? target : -1;
+        }
+
+        UIElement? previewed = drag.GroupWith >= 0 ? drag.Containers[drag.GroupWith] : null;
+        if (previewed != drag.Previewed)
+        {
+            if (drag.Previewed is not null)
+                PreviewGroup(drag.Previewed, on: false, animate: true);
+            if (previewed is not null)
+                PreviewGroup(previewed, on: true, animate: true);
+            drag.Previewed = previewed;
+        }
+        int makeWayFor = drag.Outside ? drag.Index : drag.Target;
+        for (int i = 0; i < drag.Containers.Count; i++)
+        {
+            (double x, double y) = i == drag.Index ? (0, 0) : GridReorder.MakeWayOffset(drag.Slots, drag.Index, makeWayFor, i);
+            drag.Containers[i].Translation = new Vector3((float)x, (float)y, 0);
+        }
+    }
+
+    private void EndPinDrag(PinDrag drag, bool drop)
+    {
         foreach (UIElement container in drag.Containers)
         {
             container.TranslationTransition = null;
             container.Translation = default;
         }
-        Canvas.SetZIndex(drag.Containers[drag.Index], 0);
-        if (ItemIcon(drag.Containers[drag.Index]) is { } icon)
-            IconPress.Scale(icon, 1);
-        if (drop && drag.Target != drag.Index)
+        drag.Containers[drag.Index].Opacity = 1;
+        if (drag.Previewed is not null)
+            PreviewGroup(drag.Previewed, on: false, animate: false);
+        DragLayer.Children.Remove(drag.Copy);
+        if (!drop)
+            return;
+
+        // The pins are already drawn where they belong, so the change shows none.
+        if (drag.Grid == PinnedGrid)
         {
-            // The icons are already drawn where they belong, so the move shows no change.
-            _pinned.Move(drag.Index, drag.Target);
-            _owner.Settings.Update(_owner.Settings.Current with { PinnedStartApps = [.. _pinned.Select(item => item.Target)] });
+            if (drag.GroupWith >= 0)
+                SetPins(StartPins.Group(Pins, drag.Index, drag.GroupWith));
+            else if (drag.Target != drag.Index)
+                SetPins(StartPins.Move(Pins, drag.Index, drag.Target));
+        }
+        else if (OpenFolderIndex is var folder and >= 0)
+        {
+            if (drag.Outside)
+                TakeOutOfFolder(drag.Index, drag.Target);
+            else if (drag.Target != drag.Index)
+                SetPins(StartPins.MoveInFolder(Pins, folder, drag.Index, drag.Target));
         }
     }
 
-    private sealed class PinDrag(List<UIElement> containers, List<(double X, double Y)> slots, int index)
+    /// <summary>
+    /// An app held over another shows it as the folder about to be made, as Explorer does: the folder's plate, the
+    /// app's icon shrunk into the plate's first place, its name gone.
+    /// </summary>
+    private static void PreviewGroup(UIElement container, bool on, bool animate)
     {
+        if ((container as ContentControl)?.ContentTemplateRoot is not FrameworkElement { DataContext: StartItem { IsFolder: false } } root
+            || root.FindName("FolderPlate") is not UIElement plate
+            || root.FindName("AppIcon") is not UIElement icon
+            || root.FindName("ItemLabel") is not UIElement label)
+            return;
+
+        plate.OpacityTransition = animate ? new ScalarTransition { Duration = s_groupPreviewDuration } : null;
+        label.OpacityTransition = animate ? new ScalarTransition { Duration = s_groupPreviewDuration } : null;
+        icon.ScaleTransition = animate ? new Vector3Transition { Duration = s_groupPreviewDuration } : null;
+        icon.TranslationTransition = animate ? new Vector3Transition { Duration = s_groupPreviewDuration } : null;
+        icon.CenterPoint = new Vector3(16, 16, 0);
+        plate.Opacity = on ? 1 : 0;
+        label.Opacity = on ? 0 : 1;
+        // Half size, its centre on the first of the plate's four places: 9 left of and 8 above the icon's centre.
+        icon.Scale = on ? new Vector3(0.5f, 0.5f, 1) : Vector3.One;
+        icon.Translation = on ? new Vector3(-9, -8, 0) : Vector3.Zero;
+    }
+
+    private static List<UIElement>? Containers(GridView grid, int count)
+    {
+        var containers = new List<UIElement>();
+        for (int i = 0; i < count; i++)
+        {
+            if (grid.ContainerFromIndex(i) is not UIElement container)
+                return null;
+            containers.Add(container);
+        }
+        return containers;
+    }
+
+    private static (double X, double Y) Corner(UIElement element, UIElement relativeTo)
+    {
+        Point corner = element.TransformToVisual(relativeTo).TransformPoint(default);
+        return (corner.X, corner.Y);
+    }
+
+    private static (double X, double Y) Centre(UIElement element, UIElement relativeTo)
+    {
+        (double x, double y) = Corner(element, relativeTo);
+        return (x + element.ActualSize.X / 2, y + element.ActualSize.Y / 2);
+    }
+
+    private sealed class PinDrag(GridView grid, List<UIElement> containers, List<(double X, double Y)> slots, int index, ContentControl copy, Point grab)
+    {
+        public GridView Grid { get; } = grid;
         public List<UIElement> Containers { get; } = containers;
         public List<(double X, double Y)> Slots { get; } = slots;
         public int Index { get; } = index;
+        /// <summary>What follows the pointer, and where on it the pointer took hold.</summary>
+        public ContentControl Copy { get; } = copy;
+        public Point Grab { get; } = grab;
+        /// <summary>Whether the pin may be grouped with another: an app in the grid (folders don't nest).</summary>
+        public bool CanGroup { get; init; }
+        /// <summary>For an app of a folder: the grid's cells, for when it's taken out of the panel.</summary>
+        public List<(double X, double Y)> GridCentres { get; init; } = [];
         public int Target { get; set; }
+        public int GroupWith { get; set; } = -1;
+        public bool Outside { get; set; }
+        public UIElement? Previewed { get; set; }
     }
 
-    private void SetPinnedStartApps(IReadOnlyList<PinnedApp> apps)
+    private void SetPins(IReadOnlyList<StartPin> pins)
     {
-        _owner.Settings.Update(_owner.Settings.Current with { PinnedStartApps = apps });
+        _owner.Settings.Update(_owner.Settings.Current with { StartPins = pins });
         ShowPinned();
     }
 
-    private void SettingsButton_Click(object sender, RoutedEventArgs e)
+    // The open folder, found by its id: its place changes as pins move around it.
+    private int OpenFolderIndex => _folderId is null ? -1 : StartPins.IndexOf(Pins, _folderId);
+
+    private void OpenFolder(int index)
+    {
+        if (index < 0 || Pins[index].Folder is not { } folder)
+            return;
+
+        _folderId = folder.Id;
+        FolderNameBox.Text = StartPins.DisplayName(folder);
+        ShowFolderApps();
+        FolderLayer.Visibility = Visibility.Visible;
+        FolderLayer.IsHitTestVisible = true;
+        AnimateFolder(opening: true, null);
+    }
+
+    // The open folder's apps, and its tile hidden while the panel stands for it.
+    private void ShowFolderApps()
+    {
+        int index = OpenFolderIndex;
+        if (index < 0)
+        {
+            CloseFolder(animate: false);
+            return;
+        }
+
+        StartFolder folder = Pins[index].Folder!;
+        Sync(_folderApps, [.. folder.Apps.Select(app => new StartItem(app, "App", isApp: true, _owner.Icons))]);
+        if (FolderNameBox.FocusState == FocusState.Unfocused)
+            FolderNameBox.Text = StartPins.DisplayName(folder);
+        PinnedGrid.UpdateLayout();
+        if (_folderTile is not null)
+            _folderTile.Opacity = 1;
+        _folderTile = PinnedGrid.ContainerFromIndex(index) as UIElement;
+        if (_folderTile is not null)
+            _folderTile.Opacity = 0;
+    }
+
+    private void CloseFolder(bool animate)
+    {
+        if (_folderId is null)
+            return;
+
+        CommitFolderName();
+        _folderId = null;
+        FolderLayer.IsHitTestVisible = false;
+        UIElement? tile = _folderTile;
+        void Closed()
+        {
+            FolderLayer.Visibility = Visibility.Collapsed;
+            _folderApps.Clear();
+            if (tile is not null)
+                tile.Opacity = 1;
+            if (_folderTile == tile)
+                _folderTile = null;
+        }
+
+        if (animate)
+        {
+            AnimateFolder(opening: false, Closed);
+        }
+        else
+        {
+            _folderAnimation?.Stop();
+            Closed();
+        }
+    }
+
+    // The panel grows out of the folder's tile, from the tile's size, and shrinks back into it.
+    private void AnimateFolder(bool opening, Action? done)
+    {
+        _folderAnimation?.Stop();
+        double fromX = 0, fromY = 0;
+        if (_folderTile is not null && ItemIcon(_folderTile) is FrameworkElement icon)
+        {
+            Point tile = icon.TransformToVisual(Root).TransformPoint(new Point(icon.ActualWidth / 2, icon.ActualHeight / 2));
+            fromX = tile.X - Root.ActualWidth / 2;
+            fromY = tile.Y - Root.ActualHeight / 2;
+        }
+        double small = 38 / FolderPanel.Width;
+        // Each key frame needs a curve of its own.
+        KeySpline Curve() => opening
+            ? new KeySpline { ControlPoint1 = new Point(0, 0), ControlPoint2 = new Point(0, 1) }
+            : new KeySpline { ControlPoint1 = new Point(0.4, 0), ControlPoint2 = new Point(1, 1) };
+        TimeSpan duration = opening ? s_folderOpenDuration : s_folderCloseDuration;
+
+        var story = new Storyboard();
+        foreach ((string property, double collapsed, double open) in (ReadOnlySpan<(string, double, double)>)
+            [("ScaleX", small, 1), ("ScaleY", small, 1), ("TranslateX", fromX, 0), ("TranslateY", fromY, 0)])
+        {
+            var animation = new DoubleAnimationUsingKeyFrames();
+            animation.KeyFrames.Add(new DiscreteDoubleKeyFrame { KeyTime = TimeSpan.Zero, Value = opening ? collapsed : open });
+            animation.KeyFrames.Add(new SplineDoubleKeyFrame { KeyTime = duration, Value = opening ? open : collapsed, KeySpline = Curve() });
+            Storyboard.SetTarget(animation, FolderTransform);
+            Storyboard.SetTargetProperty(animation, property);
+            story.Children.Add(animation);
+        }
+        if (done is not null)
+            story.Completed += (_, _) => done();
+        _folderAnimation = story;
+        story.Begin();
+    }
+
+    private void FolderLayer_PointerPressed(object sender, PointerRoutedEventArgs e)
+    {
+        // A click beside the panel closes it, and does nothing else.
+        if (ReferenceEquals(e.OriginalSource, FolderLayer))
+        {
+            CloseFolder(animate: true);
+            e.Handled = true;
+        }
+    }
+
+    /// <summary>An app of the open folder put in the grid at <paramref name="to"/>; the folder closes once it's empty.</summary>
+    private void TakeOutOfFolder(int index, int to)
+    {
+        int folder = OpenFolderIndex;
+        if (_folderApps.Count == 1)
+            CloseFolder(animate: true);
+        SetPins(StartPins.TakeOut(Pins, folder, index, to));
+    }
+
+    private void FolderNameBox_KeyDown(object sender, KeyRoutedEventArgs e)
+    {
+        if (e.Key == VirtualKey.Enter)
+        {
+            CommitFolderName();
+            FolderGrid.Focus(FocusState.Programmatic);
+            e.Handled = true;
+        }
+        else if (e.Key == VirtualKey.Escape && OpenFolderIndex is var index and >= 0)
+        {
+            // Back to the name it had; Start's own Esc handling then closes the folder.
+            FolderNameBox.Text = StartPins.DisplayName(Pins[index].Folder!);
+        }
+    }
+
+    private void FolderNameBox_LostFocus(object sender, RoutedEventArgs e) => CommitFolderName();
+
+    private void CommitFolderName()
+    {
+        int index = OpenFolderIndex;
+        if (index < 0)
+            return;
+
+        StartFolder folder = Pins[index].Folder!;
+        string name = FolderNameBox.Text.Trim();
+        if (name == folder.Name || name == StartPins.DisplayName(folder))
+            FolderNameBox.Text = StartPins.DisplayName(folder);
+        else
+            SetPins(StartPins.Rename(Pins, index, name));
+    }
+
+    private void AddPlaceButtons()
+    {
+        foreach ((StartPlace place, string name, string glyph, string automationId, _) in s_places)
+        {
+            var button = new Button { Content = new FontIcon { Glyph = glyph, FontSize = 16 }, Visibility = Visibility.Collapsed };
+            AutomationProperties.SetAutomationId(button, automationId);
+            AutomationProperties.SetName(button, name);
+            ToolTipService.SetToolTip(button, name);
+            button.Click += (_, _) => OpenPlace(place);
+            PlacesPanel.Children.Add(button);
+            _placeButtons[place] = button;
+        }
+    }
+
+    // Read each time Start opens, so a change made in Settings shows the next time, as in Explorer.
+    private void ShowPlaces()
+    {
+        IReadOnlyList<StartPlace> shown;
+        try
+        {
+            shown = StartPlaces.Load();
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.SecurityException)
+        {
+            Log.Warn("Could not read Start's folders", ex);
+            shown = [];
+        }
+        foreach ((StartPlace place, Button button) in _placeButtons)
+            button.Visibility = shown.Contains(place) ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private void OpenPlace(StartPlace place)
+    {
+        (_, string name, _, _, string? folder) = s_places.First(p => p.Place == place);
+        Hide();
+        if (place == StartPlace.Settings)
+            Launcher.OpenSettings(_owner.RunMode, name, "ms-settings:");
+        else if (place == StartPlace.FileExplorer)
+            Launcher.OpenFileExplorer();
+        else
+            Launcher.Launch(new PinnedApp(name, Path: folder));
+    }
+
+    private void PersonalizePlaces_Click(object sender, RoutedEventArgs e)
     {
         Hide();
-        Launcher.OpenSettings(_owner.RunMode, "Settings", "ms-settings:");
+        Launcher.OpenSettings(_owner.RunMode, "Start folders", "ms-settings:personalization-start-places");
     }
 
     private async void SwitchToExplorerButton_Click(object sender, RoutedEventArgs e)

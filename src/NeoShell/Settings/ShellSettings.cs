@@ -69,6 +69,13 @@ public sealed record WidgetSettings
 /// <summary>A pinned app: launched through its AppUserModelID when it has one, otherwise through its path.</summary>
 public sealed record PinnedApp(string DisplayName, string? AppUserModelId = null, string? Path = null, string? Arguments = null);
 
+/// <summary>A pin in Start's grid: an app, or a folder of apps.</summary>
+public sealed record StartPin(PinnedApp? App = null, StartFolder? Folder = null);
+
+/// <summary>A folder of pinned apps in Start. An empty name shows as "Folder", as in Explorer.</summary>
+/// <param name="Id">Tells the folder apart from others with the same name and apps, as it changes.</param>
+public sealed record StartFolder(string Id, string Name, IReadOnlyList<PinnedApp> Apps);
+
 /// <summary>User settings. Defaults match the Windows 11 taskbar.</summary>
 /// <remarks>
 /// Properties are <c>set</c>, not <c>init</c>: the JSON source generator assigns every init property when it
@@ -92,8 +99,10 @@ public sealed record ShellSettings
     public TrayMode? TrayMode { get; set; }
     public Backdrop TaskbarBackdrop { get; set; } = Backdrop.Acrylic;
     public IReadOnlyList<PinnedApp> PinnedTaskbarApps { get; set; } = [];
-    public IReadOnlyList<PinnedApp> PinnedStartApps { get; set; } = [];
-    /// <summary>Whether Explorer's Start pins have been added to <see cref="PinnedStartApps"/>; done once.</summary>
+    public IReadOnlyList<StartPin> StartPins { get; set; } = [];
+    /// <summary>Start's former pins, apps only, which <see cref="StartPins"/> replaces: read once and cleared.</summary>
+    public IReadOnlyList<PinnedApp>? PinnedStartApps { get; set; }
+    /// <summary>Whether Explorer's Start pins have been added to <see cref="StartPins"/>; done once.</summary>
     public bool ExplorerStartPinsImported { get; set; }
     /// <summary>Whether Explorer's taskbar pins have been added to <see cref="PinnedTaskbarApps"/>; done once.</summary>
     public bool ExplorerTaskbarPinsImported { get; set; }

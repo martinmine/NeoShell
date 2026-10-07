@@ -12,6 +12,58 @@
                     <ResourceDictionary Source="ms-appx:///FlatButtons.xaml" />
                 </ResourceDictionary.MergedDictionaries>
 
+                <!--
+                    A pinned app, or a folder of them: a plate with its first four apps' icons, two by two, as Explorer
+                    draws it (40 square with its edge, the icons 16 with 2 between). An app shows the plate too, its icon shrinking into
+                    the plate's first place, while another app is held over it to make a folder.
+                -->
+                <DataTemplate x:Key="PinTemplate" x:DataType="local:StartItem">
+                    <StackPanel
+                        Width="96"
+                        Height="84"
+                        Padding="4,12,4,4"
+                        Spacing="4"
+                        Background="Transparent"
+                        AutomationProperties.AutomationId="{x:Bind AutomationId}"
+                        AutomationProperties.Name="{x:Bind Title}">
+                        <StackPanel.ContextFlyout>
+                            <MenuFlyout Opening="PinMenu_Opening" />
+                        </StackPanel.ContextFlyout>
+                        <Grid x:Name="ItemIcon" Width="32" Height="32">
+                            <Border
+                                x:Name="FolderPlate"
+                                Margin="-4"
+                                Padding="2,3,2,0"
+                                CornerRadius="4"
+                                BorderThickness="1"
+                                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                Opacity="{x:Bind PlateOpacity}">
+                                <ItemsControl Margin="0,0,-2,-2" ItemsSource="{x:Bind MiniApps}" IsHitTestVisible="False">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <VariableSizedWrapGrid Orientation="Horizontal" MaximumRowsOrColumns="2" ItemWidth="18" ItemHeight="18" />
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="local:StartItem">
+                                            <Image Width="16" Height="16" HorizontalAlignment="Left" VerticalAlignment="Top" Source="{x:Bind Icon, Mode=OneWay}" />
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </Border>
+                            <Image x:Name="AppIcon" Source="{x:Bind Icon, Mode=OneWay}" />
+                        </Grid>
+                        <TextBlock
+                            x:Name="ItemLabel"
+                            Text="{x:Bind Title}"
+                            FontSize="12"
+                            TextAlignment="Center"
+                            TextWrapping="Wrap"
+                            MaxLines="2"
+                            TextTrimming="CharacterEllipsis" />
+                    </StackPanel>
+                </DataTemplate>
 
                 <!-- A row in All apps and in search results. -->
                 <DataTemplate x:Key="ListItemTemplate" x:DataType="local:StartItem">
@@ -159,6 +211,7 @@
                     x:Name="PinnedGrid"
                     AutomationProperties.AutomationId="PinnedApps"
                     AutomationProperties.Name="Pinned"
+                    ItemTemplate="{StaticResource PinTemplate}"
                     SelectionMode="None"
                     IsItemClickEnabled="True"
                     ItemClick="Item_Click"
@@ -174,30 +227,6 @@
                             <Setter Property="Margin" Value="0" />
                         </Style>
                     </GridView.ItemContainerStyle>
-                    <GridView.ItemTemplate>
-                        <DataTemplate x:DataType="local:StartItem">
-                            <StackPanel
-                                Width="96"
-                                Height="84"
-                                Padding="4,12,4,4"
-                                Spacing="4"
-                                Background="Transparent"
-                                AutomationProperties.AutomationId="PinnedApp"
-                                AutomationProperties.Name="{x:Bind Title}">
-                                <StackPanel.ContextFlyout>
-                                    <MenuFlyout Opening="ItemMenu_Opening" />
-                                </StackPanel.ContextFlyout>
-                                <Image x:Name="ItemIcon" Width="32" Height="32" Source="{x:Bind Icon, Mode=OneWay}" />
-                                <TextBlock
-                                    Text="{x:Bind Title}"
-                                    FontSize="12"
-                                    TextAlignment="Center"
-                                    TextWrapping="Wrap"
-                                    MaxLines="2"
-                                    TextTrimming="CharacterEllipsis" />
-                            </StackPanel>
-                        </DataTemplate>
-                    </GridView.ItemTemplate>
                 </GridView>
                 <TextBlock
                     x:Name="NoPinnedText"
@@ -298,6 +327,76 @@
                 Visibility="Collapsed" />
         </Grid>
 
+        <!--
+            An open folder, as Explorer's: a panel of its own acrylic in the middle of Start, 450 by 378 with the name
+            at the top (a box to rename it in) and the apps in rows of four below. It grows out of the folder's tile.
+            A click beside it closes it.
+        -->
+        <Grid
+            x:Name="FolderLayer"
+            Grid.RowSpan="3"
+            Background="Transparent"
+            Visibility="Collapsed"
+            PointerPressed="FolderLayer_PointerPressed">
+            <Border
+                x:Name="FolderPanel"
+                Width="450"
+                Height="378"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center"
+                CornerRadius="8"
+                BorderThickness="1"
+                BorderBrush="{ThemeResource SurfaceStrokeColorFlyoutBrush}"
+                RenderTransformOrigin="0.5,0.5"
+                AutomationProperties.AutomationId="FolderPanel">
+                <Border.RenderTransform>
+                    <CompositeTransform x:Name="FolderTransform" />
+                </Border.RenderTransform>
+                <Grid>
+                    <TextBox
+                        x:Name="FolderNameBox"
+                        Width="320"
+                        Height="40"
+                        Margin="0,32,0,0"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Top"
+                        VerticalContentAlignment="Center"
+                        TextAlignment="Center"
+                        FontSize="20"
+                        FontWeight="SemiBold"
+                        Background="Transparent"
+                        BorderBrush="Transparent"
+                        AutomationProperties.AutomationId="FolderNameBox"
+                        AutomationProperties.Name="Folder name"
+                        KeyDown="FolderNameBox_KeyDown"
+                        LostFocus="FolderNameBox_LostFocus" />
+                    <GridView
+                        x:Name="FolderGrid"
+                        Width="384"
+                        Margin="32,92,32,0"
+                        HorizontalAlignment="Left"
+                        AutomationProperties.AutomationId="FolderApps"
+                        AutomationProperties.Name="Folder"
+                        ItemTemplate="{StaticResource PinTemplate}"
+                        SelectionMode="None"
+                        IsItemClickEnabled="True"
+                        ItemClick="Item_Click">
+                        <GridView.ItemContainerTransitions>
+                            <TransitionCollection />
+                        </GridView.ItemContainerTransitions>
+                        <GridView.ItemContainerStyle>
+                            <Style TargetType="GridViewItem" BasedOn="{StaticResource DefaultGridViewItemStyle}">
+                                <Setter Property="Margin" Value="0" />
+                            </Style>
+                        </GridView.ItemContainerStyle>
+                    </GridView>
+                </Grid>
+            </Border>
+        </Grid>
+
+        <!-- What a dragged pin is drawn as, above everything, so it can leave a folder's panel. -->
+        <Canvas x:Name="DragLayer" Grid.RowSpan="3" IsHitTestVisible="False" />
+
         <!-- Corners to drag for resizing; the bottom stays on the taskbar. -->
         <local:ResizeGrip
             x:Name="LeftGrip"
@@ -329,10 +428,10 @@
             PointerReleased="Grip_PointerReleased"
             PointerCaptureLost="Grip_PointerReleased" />
 
-        <!-- User, Switch to Explorer, Settings, Power. -->
+        <!-- User; Switch to Explorer, the folders chosen for Start (see ShowPlaces), Power. -->
         <Grid
             Grid.Row="2"
-            Padding="64,12,48,12"
+            Padding="64,12,53,12"
             Background="{ThemeResource LayerFillColorDefaultBrush}"
             BorderBrush="{ThemeResource DividerStrokeColorDefaultBrush}"
             BorderThickness="0,1,0,0">
@@ -340,29 +439,36 @@
                 <PersonPicture x:Name="UserPicture" Width="32" Height="32" />
                 <TextBlock x:Name="UserName" VerticalAlignment="Center" FontSize="12" />
             </StackPanel>
+            <!-- Explorer's buttons here touch, 40 apart. -->
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                <StackPanel.Resources>
+                    <Style TargetType="Button" BasedOn="{StaticResource FlatButtonStyle}">
+                        <Setter Property="Margin" Value="0" />
+                    </Style>
+                </StackPanel.Resources>
                 <Button
                     x:Name="SwitchToExplorerButton"
                     AutomationProperties.AutomationId="SwitchToExplorerButton"
                     AutomationProperties.Name="Switch to Explorer"
                     ToolTipService.ToolTip="Switch to Explorer"
-                    Style="{StaticResource FlatButtonStyle}"
                     Click="SwitchToExplorerButton_Click">
                     <FontIcon Glyph="&#xE8AB;" FontSize="16" />
                 </Button>
-                <Button
-                    AutomationProperties.AutomationId="SettingsButton"
-                    AutomationProperties.Name="Settings"
-                    ToolTipService.ToolTip="Settings"
-                    Style="{StaticResource FlatButtonStyle}"
-                    Click="SettingsButton_Click">
-                    <FontIcon Glyph="&#xE713;" FontSize="16" />
-                </Button>
+                <StackPanel x:Name="PlacesPanel" Orientation="Horizontal" Background="Transparent">
+                    <StackPanel.ContextFlyout>
+                        <MenuFlyout>
+                            <MenuFlyoutItem AutomationProperties.AutomationId="PersonalizePlacesMenuItem" Text="Personalise this list" Click="PersonalizePlaces_Click">
+                                <MenuFlyoutItem.Icon>
+                                    <FontIcon Glyph="&#xE771;" />
+                                </MenuFlyoutItem.Icon>
+                            </MenuFlyoutItem>
+                        </MenuFlyout>
+                    </StackPanel.ContextFlyout>
+                </StackPanel>
                 <Button
                     AutomationProperties.AutomationId="PowerButton"
                     AutomationProperties.Name="Power"
-                    ToolTipService.ToolTip="Power"
-                    Style="{StaticResource FlatButtonStyle}">
+                    ToolTipService.ToolTip="Power">
                     <FontIcon Glyph="&#xE7E8;" FontSize="16" />
                     <Button.Flyout>
                         <MenuFlyout Placement="TopEdgeAlignedRight">

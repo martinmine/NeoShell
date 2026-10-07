@@ -37,7 +37,11 @@ public sealed class SettingsStoreTests : IDisposable
             TrayMode = TrayMode.ShowAll,
             TaskbarBackdrop = Backdrop.Translucent,
             PinnedTaskbarApps = [new PinnedApp("Notepad", AppUserModelId: "Microsoft.WindowsNotepad_8wekyb3d8bbwe!App")],
-            PinnedStartApps = [new PinnedApp("Tool", Path: @"C:\Tools\tool.exe", Arguments: "--fast")],
+            StartPins =
+            [
+                new StartPin(new PinnedApp("Tool", Path: @"C:\Tools\tool.exe", Arguments: "--fast")),
+                new StartPin(Folder: new StartFolder("f1", "Games", [new PinnedApp("Solitaire", AppUserModelId: "Microsoft.MicrosoftSolitaireCollection_8wekyb3d8bbwe!App")])),
+            ],
             DesktopIconPositions = new Dictionary<string, GridCell> { ["::{645FF040-5081-101B-9F08-00AA002F954E}"] = new(2, 3) },
             ShowWidgetSidebar = false,
             WidgetSidebarWidth = 400,
@@ -53,11 +57,13 @@ public sealed class SettingsStoreTests : IDisposable
         ShellSettings loaded = _store.Load();
 
         Assert.Equal(
-            settings with { PinnedTaskbarApps = [], PinnedStartApps = [], Widgets = [], DesktopIconPositions = ShellSettings.NoIconPositions },
-            loaded with { PinnedTaskbarApps = [], PinnedStartApps = [], Widgets = [], DesktopIconPositions = ShellSettings.NoIconPositions });
+            settings with { PinnedTaskbarApps = [], StartPins = [], Widgets = [], DesktopIconPositions = ShellSettings.NoIconPositions },
+            loaded with { PinnedTaskbarApps = [], StartPins = [], Widgets = [], DesktopIconPositions = ShellSettings.NoIconPositions });
         Assert.Equal(settings.DesktopIconPositions, loaded.DesktopIconPositions);
         Assert.Equal(settings.PinnedTaskbarApps, loaded.PinnedTaskbarApps);
-        Assert.Equal(settings.PinnedStartApps, loaded.PinnedStartApps);
+        Assert.Equal(settings.StartPins[0], loaded.StartPins[0]);
+        Assert.Equal(settings.StartPins[1].Folder!.Name, loaded.StartPins[1].Folder!.Name);
+        Assert.Equal(settings.StartPins[1].Folder!.Apps, loaded.StartPins[1].Folder!.Apps);
         Assert.Equal(settings.Widgets, loaded.Widgets);
     }
 

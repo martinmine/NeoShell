@@ -324,7 +324,16 @@ Each item is done when it looks and behaves as Explorer's (layout, behaviour, an
       the label's icon shrinks to 0.8 (Explorer ~0.86), Explorer's labelled buttons narrow before the search collapses
       (NeoShell's don't narrow)
 - T16 Start: Recommended with recent files and newly installed apps — skipped: not wanted for now
-- [ ] T17 Start: folders beside the power button; folders of pins in the pinned grid
+- [x] T17 Start: folders beside the power button; folders of pins in the pinned grid — the folders chosen in
+      Settings (`VisiblePlaces`, and the `AllowPinnedFolder…` policies) in Explorer's order, glyphs, spacing and
+      tooltips, opening what Explorer opens, "Personalise this list"; folders of pins made by holding an app on
+      another, Explorer's preview, tile, panel (grows out of the tile and back), rename, drag in, out and within,
+      one-app folders kept and emptied ones removed, the folder commands in the pins' menus (and Move to front/
+      left/right), in both run modes — not done: carrying Explorer's folders over (its export lists their apps
+      without the folder; `start2.bin` has them but is encrypted with a private key derivation), Explorer's
+      fade-out/fade-in when a folder is made (NeoShell swaps at once), icons on the menu items (T18); not run live:
+      the light theme and no-accent colours of the folder panel, the policies, typing a name (set through UI
+      Automation instead)
 - [ ] T18 Start: app menu (Run as administrator, Open file location, Uninstall, App settings, jump list)
 - [ ] T19 Power menu: Hibernate, Switch user, Update and restart / shut down
 - [ ] T20 Start: account menu on the user picture
