@@ -23,7 +23,7 @@ public enum PowerMenu
 /// </summary>
 public sealed record PowerOptions
 {
-    private const string ExplorerPolicies = @"Software\Microsoft\Windows\CurrentVersion\Policies\Explorer";
+    internal const string ExplorerPolicies = @"Software\Microsoft\Windows\CurrentVersion\Policies\Explorer";
     private const string SystemPolicies = @"Software\Microsoft\Windows\CurrentVersion\Policies\System";
     private const string StartPolicies = @"SOFTWARE\Microsoft\PolicyManager\current\device\Start";
     private const ulong WNF_USO_REBOOT_REQUIRED = 0x41891D38A3BC2075;
@@ -70,7 +70,7 @@ public sealed record PowerOptions
             Hibernate = !Mdm("HideHibernate") && FlyoutSetting("ShowHibernateOption", false) && power.SystemS4 != 0
                 && power.HiberFilePresent != 0 && power.HiberFileType == PowrProf.PowerHiberFileTypeFull,
             Lock = !LockDisabled() && FlyoutSetting("ShowLockOption", true),
-            SignOut = Policy(ExplorerPolicies, "StartMenuLogOff") != 1 && Policy(ExplorerPolicies, "NoLogoff") is null or 0,
+            SignOut = SignOutAllowed(),
             SwitchUser = CanSwitchUser(),
             PowerHidden = Policy(ExplorerPolicies, "HidePowerOptions", userToo: false) is { } hide && hide != 0
                 || Policy(ExplorerPolicies, "NoClose") is { } noClose && noClose != 0,
@@ -160,15 +160,18 @@ public sealed record PowerOptions
         return new[] { winlogon, machine, user }.Any(key => key?.GetValue("DisableLockWorkstation") is int value && value != 0);
     }
 
+    internal static bool SignOutAllowed() =>
+        Policy(ExplorerPolicies, "StartMenuLogOff") != 1 && Policy(ExplorerPolicies, "NoLogoff") is null or 0;
+
     // Switching needs fast user switching, the console session (not a remote one) and no HideFastUserSwitching.
-    private static bool CanSwitchUser() =>
+    internal static bool CanSwitchUser() =>
         User32.GetSystemMetrics(User32.SM_REMOTESESSION) == 0
         && User32.GetSystemMetrics(User32.SM_REMOTECONTROL) == 0
         && Shlwapi.IsOS(Shlwapi.OS_FASTUSERSWITCHING)
         && Policy(SystemPolicies, "HideFastUserSwitching", userToo: false) is null or 0
         && Kernel32.WTSGetActiveConsoleSessionId() == (uint)System.Diagnostics.Process.GetCurrentProcess().SessionId;
 
-    private static int? Policy(string key, string name, bool userToo = true)
+    internal static int? Policy(string key, string name, bool userToo = true)
     {
         using RegistryKey? machine = Registry.LocalMachine.OpenSubKey(key);
         if (machine?.GetValue(name) is int value)

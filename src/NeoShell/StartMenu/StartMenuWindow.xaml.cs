@@ -71,6 +71,7 @@ internal sealed partial class StartMenuWindow : Window
     private readonly Taskbars _owner;
     private readonly nint _hwnd;
     private readonly ShellBackdrop _backdrop = new(Backdrop.Acrylic);
+    private readonly ShellBackdrop _accountBackdrop = new(Backdrop.Acrylic);
     private readonly FramelessWindow _frameless;
     private readonly PinnedWindow _placement;
     private readonly ObservableCollection<StartItem> _pinned = [];
@@ -102,12 +103,15 @@ internal sealed partial class StartMenuWindow : Window
     private ShellMenu? _appShellMenu;
     private readonly WindowSlide _slide;
     private bool _closing;
+    private bool _accountMenuOpen;
 
     public StartMenuWindow(Taskbars owner)
     {
         _owner = owner;
         InitializeComponent();
         SystemBackdrop = _backdrop;
+        AccountFlyout.SystemBackdrop = _accountBackdrop;
+        MoreOptionsFlyout.SystemBackdrop = _accountBackdrop;
 
         var presenter = OverlappedPresenter.Create();
         presenter.SetBorderAndTitleBar(false, false);
@@ -216,6 +220,10 @@ internal sealed partial class StartMenuWindow : Window
         Root.RequestedTheme = accent is { } color ? SystemTheme.ThemeOn(color) : theme;
         _backdrop.Theme = Root.RequestedTheme;
         _backdrop.Tint = accent;
+        // The account card and its "…" are windows of their own, in Windows' grey acrylic even on an accent-coloured Start.
+        _accountBackdrop.Theme = Root.RequestedTheme;
+        AccountCard.RequestedTheme = Root.RequestedTheme;
+        MoreOptionsPanel.RequestedTheme = Root.RequestedTheme;
         FolderPanel.Background = FolderPanelBrush(accent, Root.RequestedTheme);
         ShowPinned();
         ShowRecent();
@@ -487,10 +495,12 @@ internal sealed partial class StartMenuWindow : Window
         string name = UserAccount.DisplayName;
         UserName.Text = name;
         UserPicture.DisplayName = name;
-        AutomationProperties.SetName(UserPicture, name);
-        // Without a picture, the initials stay.
-        if (await UserAccount.LoadPictureAsync(96) is { } picture)
-            UserPicture.ProfilePicture = picture;
+        AccountName.Text = name;
+        // Explorer's name for the button; the name is its tooltip.
+        AutomationProperties.SetName(UserButton, $"User account for {name}");
+        ToolTipService.SetToolTip(UserButton, name);
+        UserPicture.ProfilePicture = await UserAccount.LoadPictureOrDefaultAsync(32);
+        AccountPicture.ImageSource = await UserAccount.LoadPictureOrDefaultAsync(96);
     }
 
     private async void SearchBox_TextChanged(object sender, TextChangedEventArgs e)
@@ -590,7 +600,9 @@ internal sealed partial class StartMenuWindow : Window
 
     private void Root_KeyDown(object sender, KeyRoutedEventArgs e)
     {
-        if (e.Key == VirtualKey.Escape)
+        // The account card closes itself on Esc and Start stays open, as Explorer's. The card is shut by then; it says
+        // so only afterwards (Closed).
+        if (e.Key == VirtualKey.Escape && !_accountMenuOpen)
         {
             // An open folder closes first, then Start.
             if (_folderId is not null)
@@ -1482,6 +1494,63 @@ internal sealed partial class StartMenuWindow : Window
         }
         if (choices.Count == 0)
             PowerFlyout.Items.Add(new MenuFlyoutItem { Text = "There are currently no power options available.", IsEnabled = false });
+    }
+
+    // Read as it opens, as Explorer's account card: the account, what Windows offers (Sign out, Manage my account)
+    // and the PC's other accounts for "…".
+    private async void AccountFlyout_Opening(object sender, object e)
+    {
+        _accountMenuOpen = true;
+        AccountMenu menu = AccountMenu.Read();
+        AccountKind.Text = menu.MicrosoftAccount ?? "Local account";
+        ManageAccountLink.Content = menu.MicrosoftAccount is null ? "Manage my account" : "My Microsoft account";
+        ManageAccountLink.Visibility = menu.ManageAccount ? Visibility.Visible : Visibility.Collapsed;
+        SignOutButton.Visibility = menu.SignOut ? Visibility.Visible : Visibility.Collapsed;
+        MoreOptionsButton.Visibility = menu.MoreOptions ? Visibility.Visible : Visibility.Collapsed;
+
+        var rows = new List<AccountRow>();
+        foreach (OtherUser user in menu.OtherUsers)
+            rows.Add(new AccountRow(user.Name, user, await UserAccount.LoadPictureOrDefaultAsync(32, user.Sid)));
+        if (menu.SwitchUser)
+            rows.Add(new AccountRow("Switch user", null, null));
+        OtherUsersList.ItemsSource = rows;
+    }
+
+    private void AccountFlyout_Closed(object sender, object e) => _accountMenuOpen = false;
+
+    private void SignOut_Click(object sender, RoutedEventArgs e)
+    {
+        AccountFlyout.Hide();
+        Hide();
+        PowerItems.Run(PowerChoice.SignOut, shift: false);
+    }
+
+    private void ManageAccount_Click(object sender, RoutedEventArgs e)
+    {
+        AccountFlyout.Hide();
+        Hide();
+        Launcher.OpenSettings(_owner.RunMode, "User Accounts", "ms-settings:accounts", "/name Microsoft.UserAccounts");
+    }
+
+    private void AccountRow_Click(object sender, RoutedEventArgs e)
+    {
+        if (((FrameworkElement)sender).DataContext is not AccountRow row)
+            return;
+        MoreOptionsFlyout.Hide();
+        AccountFlyout.Hide();
+        Hide();
+        Log.Info(row.User is { } user ? $"Account: switch to {user.Name}" : "Account: switch user");
+        try
+        {
+            if (row.User is { } other)
+                AccountMenu.SwitchTo(other);
+            else
+                AccountMenu.SwitchToSignIn();
+        }
+        catch (Win32Exception ex)
+        {
+            Log.Warn("Switching accounts failed", ex);
+        }
     }
 
     private static MenuFlyoutItem MenuItem(string text, string glyph, string automationId, Action onClick)

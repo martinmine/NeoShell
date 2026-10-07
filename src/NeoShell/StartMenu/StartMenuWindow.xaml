@@ -447,14 +447,201 @@
         <!-- User; Switch to Explorer, the folders chosen for Start (see ShowPlaces), Power. -->
         <Grid
             Grid.Row="2"
-            Padding="64,12,53,12"
+            Padding="52,12,53,12"
             Background="{ThemeResource LayerFillColorDefaultBrush}"
             BorderBrush="{ThemeResource DividerStrokeColorDefaultBrush}"
             BorderThickness="0,1,0,0">
-            <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
-                <PersonPicture x:Name="UserPicture" Width="32" Height="32" />
-                <TextBlock x:Name="UserName" VerticalAlignment="Center" FontSize="12" />
-            </StackPanel>
+            <!--
+                The user opens Explorer's account card above it: the account, Sign out, and "…" for the PC's other
+                accounts. Filled as it opens (AccountFlyout_Opening); see docs/design.md, "Account menu".
+            -->
+            <Button
+                x:Name="UserButton"
+                Width="Auto"
+                Margin="0"
+                Padding="12,4"
+                HorizontalAlignment="Left"
+                Style="{StaticResource FlatButtonStyle}"
+                AutomationProperties.AutomationId="UserButton">
+                <StackPanel Orientation="Horizontal" Spacing="12">
+                    <PersonPicture x:Name="UserPicture" Width="32" Height="32" />
+                    <TextBlock x:Name="UserName" VerticalAlignment="Center" FontSize="12" />
+                </StackPanel>
+                <Button.Flyout>
+                    <Flyout
+                        x:Name="AccountFlyout"
+                        Placement="Top"
+                        ShouldConstrainToRootBounds="False"
+                        Opening="AccountFlyout_Opening"
+                        Closed="AccountFlyout_Closed">
+                        <Flyout.FlyoutPresenterStyle>
+                            <Style TargetType="FlyoutPresenter" BasedOn="{StaticResource DefaultFlyoutPresenterStyle}">
+                                <Setter Property="Padding" Value="0" />
+                                <Setter Property="MinWidth" Value="0" />
+                                <Setter Property="MinHeight" Value="0" />
+                                <!-- The flyout's own backdrop shows through (Show). -->
+                                <Setter Property="Background" Value="Transparent" />
+                            </Style>
+                        </Flyout.FlyoutPresenterStyle>
+                        <StackPanel x:Name="AccountCard" Width="360">
+                            <StackPanel.Resources>
+                                <ResourceDictionary>
+                                    <ResourceDictionary.MergedDictionaries>
+                                        <ResourceDictionary Source="ms-appx:///FlatButtons.xaml" />
+                                    </ResourceDictionary.MergedDictionaries>
+                                </ResourceDictionary>
+                            </StackPanel.Resources>
+                            <!-- Microsoft's logo and name, Sign out, "…". -->
+                            <Grid Height="40" Margin="16,8,8,0">
+                                <StackPanel Orientation="Horizontal" Spacing="5" VerticalAlignment="Center">
+                                    <!-- Microsoft's logo as Explorer's SVG draws it: four squares with a little space around them. -->
+                                    <Grid Width="20" Height="20" Padding="1" ColumnSpacing="1" RowSpacing="1">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition />
+                                            <ColumnDefinition />
+                                        </Grid.ColumnDefinitions>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition />
+                                            <RowDefinition />
+                                        </Grid.RowDefinitions>
+                                        <Rectangle Fill="#F25022" />
+                                        <Rectangle Grid.Column="1" Fill="#7FBA00" />
+                                        <Rectangle Grid.Row="1" Fill="#00A4EF" />
+                                        <Rectangle Grid.Row="1" Grid.Column="1" Fill="#FFB900" />
+                                    </Grid>
+                                    <TextBlock
+                                        Text="Microsoft"
+                                        FontSize="14"
+                                        FontWeight="SemiBold"
+                                        Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+                                    <Button
+                                        x:Name="SignOutButton"
+                                        Width="Auto"
+                                        Margin="0"
+                                        Padding="13,0"
+                                        Content="Sign out"
+                                        FontSize="14"
+                                        Style="{StaticResource FlatButtonStyle}"
+                                        AutomationProperties.AutomationId="SignOutButton"
+                                        Click="SignOut_Click" />
+                                    <Button
+                                        x:Name="MoreOptionsButton"
+                                        Margin="0"
+                                        Style="{StaticResource FlatButtonStyle}"
+                                        AutomationProperties.AutomationId="MoreOptionsButton"
+                                        AutomationProperties.Name="More options"
+                                        ToolTipService.ToolTip="More options">
+                                        <FontIcon Glyph="&#xE712;" FontSize="16" />
+                                        <Button.Flyout>
+                                            <Flyout
+                                                x:Name="MoreOptionsFlyout"
+                                                Placement="BottomEdgeAlignedLeft"
+                                                ShouldConstrainToRootBounds="False">
+                                                <Flyout.FlyoutPresenterStyle>
+                                                    <Style TargetType="FlyoutPresenter" BasedOn="{StaticResource DefaultFlyoutPresenterStyle}">
+                                                        <Setter Property="Padding" Value="0" />
+                                                        <Setter Property="MinWidth" Value="0" />
+                                                        <Setter Property="MinHeight" Value="0" />
+                                                        <Setter Property="Background" Value="Transparent" />
+                                                    </Style>
+                                                </Flyout.FlyoutPresenterStyle>
+                                                <StackPanel x:Name="MoreOptionsPanel" Width="241" Padding="4,0,4,4">
+                                                    <StackPanel.Resources>
+                                                        <ResourceDictionary>
+                                                            <ResourceDictionary.MergedDictionaries>
+                                                                <ResourceDictionary Source="ms-appx:///FlatButtons.xaml" />
+                                                            </ResourceDictionary.MergedDictionaries>
+                                                        </ResourceDictionary>
+                                                    </StackPanel.Resources>
+                                                    <TextBlock
+                                                        Margin="12,13,0,8"
+                                                        Text="Other users"
+                                                        FontSize="12"
+                                                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                                        AutomationProperties.HeadingLevel="Level1" />
+                                                    <!-- The other accounts, then Switch user (AccountFlyout_Opening). -->
+                                                    <ItemsControl
+                                                        x:Name="OtherUsersList"
+                                                        IsTabStop="False"
+                                                        XYFocusKeyboardNavigation="Enabled"
+                                                        AutomationProperties.AutomationId="OtherUsersList"
+                                                        AutomationProperties.Name="Other users">
+                                                        <ItemsControl.ItemTemplate>
+                                                            <DataTemplate x:DataType="local:AccountRow">
+                                                                <Button
+                                                                    Width="233"
+                                                                    Height="48"
+                                                                    Margin="0"
+                                                                    Padding="9,0"
+                                                                    HorizontalContentAlignment="Left"
+                                                                    Style="{StaticResource FlatButtonStyle}"
+                                                                    AutomationProperties.AutomationId="{x:Bind AutomationId}"
+                                                                    AutomationProperties.Name="{x:Bind Name}"
+                                                                    ToolTipService.ToolTip="{x:Bind Name}"
+                                                                    Click="AccountRow_Click">
+                                                                    <StackPanel Orientation="Horizontal" Spacing="12">
+                                                                        <Grid Width="30" Height="30">
+                                                                            <Ellipse Visibility="{x:Bind PictureVisibility}">
+                                                                                <Ellipse.Fill>
+                                                                                    <ImageBrush ImageSource="{x:Bind Picture}" />
+                                                                                </Ellipse.Fill>
+                                                                            </Ellipse>
+                                                                            <FontIcon Glyph="{x:Bind Glyph}" FontSize="16" />
+                                                                        </Grid>
+                                                                        <StackPanel VerticalAlignment="Center">
+                                                                            <TextBlock MaxWidth="167" Text="{x:Bind Name}" FontSize="14" TextTrimming="CharacterEllipsis" />
+                                                                            <TextBlock
+                                                                                Text="{x:Bind Subtitle}"
+                                                                                FontSize="12"
+                                                                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                                                                Visibility="{x:Bind SubtitleVisibility}" />
+                                                                        </StackPanel>
+                                                                    </StackPanel>
+                                                                </Button>
+                                                            </DataTemplate>
+                                                        </ItemsControl.ItemTemplate>
+                                                    </ItemsControl>
+                                                </StackPanel>
+                                            </Flyout>
+                                        </Button.Flyout>
+                                    </Button>
+                                </StackPanel>
+                            </Grid>
+                            <!-- The account: picture, name, its email or "Local account", Manage my account. -->
+                            <Grid Margin="16,12,0,18" ColumnSpacing="12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition />
+                                </Grid.ColumnDefinitions>
+                                <!-- Blank until the picture is ready, as Explorer's, rather than initials. -->
+                                <Ellipse Width="58" Height="58" VerticalAlignment="Center">
+                                    <Ellipse.Fill>
+                                        <ImageBrush x:Name="AccountPicture" />
+                                    </Ellipse.Fill>
+                                </Ellipse>
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                    <TextBlock x:Name="AccountName" FontSize="18" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                    <TextBlock
+                                        x:Name="AccountKind"
+                                        FontSize="12"
+                                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                        TextTrimming="CharacterEllipsis" />
+                                    <HyperlinkButton
+                                        x:Name="ManageAccountLink"
+                                        Margin="-1,3,0,0"
+                                        Padding="1"
+                                        BorderThickness="0"
+                                        FontSize="12"
+                                        AutomationProperties.AutomationId="ManageAccountLink"
+                                        Click="ManageAccount_Click" />
+                                </StackPanel>
+                            </Grid>
+                        </StackPanel>
+                    </Flyout>
+                </Button.Flyout>
+            </Button>
             <!-- Explorer's buttons here touch, 40 apart. -->
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                 <StackPanel.Resources>

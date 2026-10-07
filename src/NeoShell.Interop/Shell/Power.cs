@@ -81,7 +81,7 @@ public static unsafe class Power
             && Advapi32.LsaIsUserArsoAllowed(&allowed) >= 0 && allowed != 0;
     }
 
-    private static bool IsDeviceJoined()
+    internal static bool IsDeviceJoined()
     {
         int joined = 0;
         return Dsreg.DsrIsDeviceJoined(&joined, 0) >= 0 && joined != 0;

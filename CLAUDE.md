@@ -191,7 +191,7 @@ the desktop and back. Full spec in docs/design.md ("Widgets").
   indexer query building, startup entries, settings, wallpaper style mapping, AppBar rects, desktop icon
   filtering, sorting and grid places, snap zones and keys, Start's pin folders and folder buttons, the taskbar search setting and its collapse, thumbnail toolbar data and image lists, pinning by drag, clock settings and notification bell, widget placement and order, MET forecast parsing, wireless device protocols, Windows product name,
   AutoPlay content, events, choice lists and saving, autorun.inf parsing, optical drive names, toast sounds,
-  input indicator labels and Win+Space keys, task button badges.
+  input indicator labels and Win+Space keys, task button badges, Start account menu order and "…".
 - When testing the UI live, drive it through UI Automation (set `AutomationProperties.AutomationId` on interactive
   controls). Never use global keystrokes like SendKeys: they go to whichever window has focus.
 - Always stop a running NeoShell with `/exit` (or its taskbar menu), never by killing the process. A kill leaves the

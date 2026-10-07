@@ -1568,8 +1568,11 @@ Windows', its shortcut as key caps (`ShortcutKeys`), and a footer with a link to
   - Runs on a background thread, 150 ms debounce, cancelled by the next keystroke; index failures leave app results.
   - Enter opens the selected result (the best match is selected); arrow keys move the selection.
 - **Bottom row**:
-  - User name (`GetUserNameEx(NameDisplay)`, else the account name) and picture
-    (`HKLM\...\AccountPicture\Users\<SID>\Image96`, else initials).
+  - The user: a flat 94 × 40 button (Explorer's `UserTileButton`, "User account for <name>", the name as tooltip),
+    52 from Start's left edge, padding 12,4: picture 32, 12 apart, name (`GetUserNameEx(NameDisplay)`, else the
+    account name) at 12 px. The picture is `HKLM\...\AccountPicture\Users\<SID>\Image<size>`, else Windows' grey
+    silhouette (`%ProgramData%\Microsoft\User Account Pictures\user-32/40/48/192.png`, `user.png` above), as
+    Explorer's (StartDocked.dll names `user.png`). It opens the **Account menu** (below).
   - Switch to Explorer button (see lifecycle), shell mode only, behind a confirmation dialog that defaults to Cancel.
   - **Folders beside the power button** (Settings → Personalization → Start → Folders; Interop
     `Shell/StartPlaces`, unit tested), read each time Start opens: Explorer too shows a change the next time it
@@ -1601,9 +1604,73 @@ Windows', its shortcut as key caps (`ShortcutKeys`), and a footer with a link to
     to) and Shut down or Restart is offered, its glyph becomes F1B1 with the orange dot. That look is inferred from
     StartDocked's resources and wasn't seen live: the WNF state can't be published without SYSTEM. Its accessible name
     then is `PowerButtonDisplayNameWithUpdate`, a string not found in any resource file, so NeoShell keeps "Power".
-  - **Not here on 25H2:** Sign out, and switching to another account, are in the menu on the user picture (T20 adds
-    both there: Sign out → `Power.SignOut`; Explorer's other accounts are listed below the account card, and its
-    plain "Switch user" (`UserTile_SwitchAccount`) is `Power.SwitchUser`).
+  - **Not here on 25H2:** Sign out, and switching to another account, are in the **Account menu** on the user.
+
+### Account menu (`StartMenuWindow` `AccountFlyout`, Interop `Shell/AccountMenu`)
+
+On 25H2 the user in Start's bottom row opens an account card, not StartDocked's own `UserTileView` menu (Change
+account settings, Lock, Sign out, the other users) that it falls back to without the account control. The card is
+`AccountControl`, a React Native for Windows view (Hermes bytecode in
+`SystemApps\MicrosoftWindows.Client.Photon_cw5n1h2txyewy\Public\wsxpacks\AccountControl\index.windows.bundle`,
+decompiled with hermes-dec; strings in its `assets\strings\<locale>.json`). It gets its actions and the other
+accounts from `WindowsUdk.System.UserProfile.AccountSwitcherAction/AccountSwitcherUser` (windowsudk.shellcommon.dll),
+which wrap `Windows.Internal.Shell.StartUI.UserTileMenu` in windows.internal.shell.broker.dll (read with its PDB in
+Ghidra). NeoShell reads the same things itself each time the card opens (`AccountMenu.Read`).
+
+- **Layout** (measured on Explorer's with UI Automation and screenshots; NeoShell's matches to the pixel): a Flyout,
+  placement Top, centred over the user button and kept on the monitor (a left-aligned Start's card sits at the
+  screen's left edge), 4 above it; 362 × 141 with its border, corner 8, Windows' grey acrylic even on an
+  accent-coloured Start.
+  - Header, 8 below the top, 40 high: Microsoft's logo (20 square, the four squares inset 1 with 1 between, as its
+    SVG) 16 from the left, 5 apart from "Microsoft" (14 px semibold, secondary text). On the right, 8 from the edge
+    and 8 apart: "Sign out" (flat button 78 × 40, 14 px) and "More options" (40 × 40, E712 16 px). Without the
+    second, Sign out moves to the edge.
+  - The account, 12 below: picture 58 (circle) 16 from the left; 12 apart, centred on it: the name (18 px
+    semibold), the Microsoft account's email or "Local account" (12 px secondary), and 3 below a hyperlink
+    "Manage my account" ("My Microsoft account" for a Microsoft account; 12 px, padding 1); 18 below it.
+  - "…" opens a second Flyout, bottom edge aligned left, 4 below the button, 243 × 91: "Other users" (12 px
+    secondary, 16 from the left, 13 down), then 8 below the rows, 4 in from each side: 233 × 48 flat buttons with
+    the picture 30 at 9, the name 12 to its right (14 px; "Signed in" under it at 12 px secondary), the name as
+    tooltip. Signed-in accounts first, then by name (`CompareUsers`; unit tested). A plain "Switch user" row
+    (E748) follows them where Windows offers it.
+  - Hover: the subtle fill on Sign out, "…", the rows and the link, as on the user button.
+  - Opens with the XAML popup transition (a short fade and a 5 px slide), closes at once, as Explorer's.
+    Explorer's card shows its content fading in before its acrylic; WinUI's windowed popup shows the acrylic a few
+    frames before the content.
+  - Esc closes "…" and then the card, leaving Start open; Tab moves between Sign out, "…" and the link.
+- **What shows** (`UserTileCommand::Is…Enabled`):
+  - Sign out: not the `StartMenuLogOff` or `NoLogoff` policy, nor MDM `Start/HideSignOut`.
+  - Manage my account: not a guest, nor the `UseDefaultTile` or `NoControlPanel` policy, nor MDM
+    `Start/HideChangeAccountSettings`.
+  - Plain Switch user: fast user switching as for the power menus, and only on a PC joined to a domain or
+    Microsoft Entra ID (`IsOS(OS_DOMAINMEMBER)` or `DsrIsDeviceJoined`), nor MDM `Start/HideSwitchAccount`. On a
+    workgroup PC Explorer lists the accounts instead.
+  - Other users (`SwitchUserList::PopulateUsers`): Windows' user list for the sign-in screen, without
+    `DontEnumerateForLogon` accounts and this one; NeoShell takes the enabled local accounts (`NetUserEnum`)
+    that `Winlogon\SpecialAccounts\UserList` doesn't hide, named by full name, else account name. On a domain the
+    local ones show only while signed in. Signed in = a session of that account (`WTSEnumerateSessions`).
+  - "…" (`isMoreOptionsButtonVisible`): other accounts to list, or Switch user and Sign out both offered.
+  - A Microsoft account: `NetUserGetInfo` level 24 (`usri24_internet_identity`, the principal name as email).
+- **Actions**:
+  - Sign out → `Power.SignOut` (`ExitWindowsEx(EWX_LOGOFF)`; the broker calls shell32's `LogoffWindowsDialog(0)`,
+    which ends there). Start closes first.
+  - Manage my account → `ms-settings:accounts` (`ManageAccountLink`); as the shell Settings can't start, so it
+    opens Control Panel's User Accounts (`control.exe /name Microsoft.UserAccounts`).
+  - Another account (`UserTileSwitchUser::SwitchTo`): writes its SID to
+    `HKLM\...\Authentication\LogonUI\UserSwitch` `UserSID` and `Enabled` = 1, which LogonUI reads to choose it on
+    the sign-in screen (Authenticated Users may set values there; .NET needs `ReadWriteSubTree` to write). Signed
+    in: `WinStationConnectAndLockDesktop(server, its session)` (winsta.dll, not in the SDK) goes straight to its
+    lock screen. Otherwise, or if that fails: `Power.SwitchUser` (`WTSDisconnectSession`; the broker calls shell32's
+    `DisconnectWindowsDialog`, which does the same). The broker signs out instead when
+    `IsLogoffRequiredForUserSwitching` (low-resource devices, `RtlQueryResourcePolicy` < 11, under a hypervisor
+    without its feature bit); not mirrored.
+  - Plain Switch user: `Enabled` = 1, then the same disconnect.
+  - Verified with cdb breakpoints in a medium-IL NeoShell that skipped the call: Sign out passed
+    `ExitWindowsEx(0, 0x80000000)`; a local test account not signed in got `UserSID`/`Enabled` written and
+    `WTSDisconnectSession(0, 0xFFFFFFFF, FALSE)`.
+- **Not done**: a Microsoft account's extras (Microsoft 365 / Copilot / Game Pass subscription and OneDrive storage
+  cards, "View my benefits", the offline banner), which the account control fetches online; a work account's
+  (Entra ID) tenant name in place of Microsoft's logo.
 
 ### Power menus (`PowerItems`, Interop `Shell/PowerOptions`, `Shell/Power`)
 

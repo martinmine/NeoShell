@@ -118,4 +118,27 @@ public sealed class PowerTests
     {
         Assert.Equal(expected, PowerItems.Estimate(low, high));
     }
+
+    [Fact]
+    public void Other_accounts_list_signed_in_ones_first_then_by_name()
+    {
+        OtherUser[] users =
+        [
+            new("S-1-5-21-1-1003", "zoe", null),
+            new("S-1-5-21-1-1004", "Bob", 3),
+            new("S-1-5-21-1-1005", "anna", null),
+            new("S-1-5-21-1-1006", "Al", 2),
+        ];
+        Assert.Equal(["Al", "Bob", "anna", "zoe"], AccountMenu.Order(users).Select(u => u.Name));
+    }
+
+    [Fact]
+    public void More_options_shows_for_other_accounts_or_for_switch_user_beside_sign_out()
+    {
+        var other = new OtherUser("S-1-5-21-1-1003", "Test User", null);
+        Assert.False(new AccountMenu { SignOut = true }.MoreOptions);
+        Assert.True(new AccountMenu { OtherUsers = [other] }.MoreOptions);
+        Assert.True(new AccountMenu { SignOut = true, SwitchUser = true }.MoreOptions);
+        Assert.False(new AccountMenu { SwitchUser = true }.MoreOptions);
+    }
 }

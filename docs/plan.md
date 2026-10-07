@@ -354,7 +354,15 @@ Each item is done when it looks and behaves as Explorer's (layout, behaviour, an
       button's update dot (`WNF_USO_REBOOT_REQUIRED` can't be faked), real updates, and the calls themselves
       (stopped at a cdb breakpoint); not done: Start's confirmation when other users are signed in, USO's
       `EnhancedShutdownEnabled` path
-- [ ] T20 Start: account menu on the user picture
+- [x] T20 Start: account menu on the user picture — Explorer's 25H2 account card (its React Native account control,
+      decompiled, and windows.internal.shell.broker's user tile commands, read with its PDB): Microsoft's logo, Sign
+      out, "…" with the other accounts (signed-in first, "Signed in") and, on joined PCs, Switch user; the picture,
+      name, "Local account" or the Microsoft account's email, Manage my account (Settings → Accounts; User Accounts
+      as the shell); switching to an account as Explorer does (`UserSwitch` key, then its session's lock screen or the
+      sign-in screen); the default silhouette for accounts without a picture; layout, hover, placement, Esc and
+      animation compared side by side, in both run modes — not done: a Microsoft account's subscription and storage
+      cards, a work account's tenant name; not run live: a Microsoft or work account, switching to a signed-in
+      account, the joined-PC Switch user, and the calls themselves (stopped at a cdb breakpoint)
 - T21 Start search: Settings pages, web, filter tabs, best match preview pane with actions — skipped: search is
       good as it is
 - [ ] T22 Packaged apps started by NeoShell recorded in Recent
