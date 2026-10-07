@@ -168,6 +168,13 @@ public static unsafe class TopLevelWindows
     /// <summary>Asks the window to close, as its title bar's close button would; it may ask to save first.</summary>
     public static void Close(nint hwnd) => User32.PostMessage(hwnd, User32.WM_SYSCOMMAND, User32.SC_CLOSE, 0);
 
+    /// <summary>
+    /// Ends the window's process at once, without asking it to close: Explorer's "End task". The window manager
+    /// (CSRSS) ends it, so hung and elevated apps end too. Only that process: its children keep running. Blocks
+    /// while CSRSS works, so call it off the UI thread.
+    /// </summary>
+    public static void EndTask(nint hwnd) => User32.EndTask(hwnd, shutDown: false, force: true);
+
     /// <summary>Minimizes without activating the next window, so nothing flickers to the front.</summary>
     public static void Minimize(nint hwnd) => Show(hwnd, User32.SW_SHOWMINNOACTIVE, User32.SC_MINIMIZE);
 

@@ -544,8 +544,29 @@ Shell mode only, like the wallpaper: alongside Explorer, Explorer's desktop has 
 - No tooltip: hovering shows the thumbnails instead.
 - Middle click or Shift+click: launch a new instance. Shift is read with `GetAsyncKeyState`: the taskbar never has
   focus, so its thread's key state doesn't see it.
-- Right click menu: the app's jump list (below), then app name (launch), Pin to taskbar / Unpin, Close window / Close
-  all windows (`SC_CLOSE`).
+- Right click menu: the app's jump list (below), then app name (launch), Pin to taskbar / Unpin, End task (below),
+  Close window / Close all windows (`SC_CLOSE`). No separator between these system items, as in Explorer (only one
+  under the jump list).
+- **End task** (`TaskEnding`, tested), Settings > System > For developers > End task: `TaskbarEndTask` under
+  `HKCU\…\Explorer\Advanced\TaskbarDeveloperSettings`. Explorer's jump list (JumpViewUI.dll,
+  `TaskbarJumpListFrameViewModel::Initialize`) reads it with `RegGetValueW` each time a menu opens, so a change
+  applies at once; only a DWORD of exactly 1 turns it on. Shown only on buttons with windows (where Close window
+  is), just above it, never for the AppID `Microsoft.Windows.Explorer` (File Explorer's windows live in the shell's
+  process). Text "End task", or "End all tasks" with several windows (`JumpView_EndTaskAction`/`…AllAction`), glyph
+  U+F140 (`VerbGlyphs::SegoeMDL2Assets::EndTask`, a circle with a slash), always enabled.
+  A click goes to the jump view broker (windows.internal.shell.broker.dll `CJumpViewBroker::EndTask`), by AppID:
+  - If the immersive shell knows applications with that AppID (`SID_ImmersiveApplicationArrayService`, i.e. UWP
+    CoreWindow apps such as Calculator, whose windows are ApplicationFrameHost's frames), it ends them with
+    `IImmersiveAppCrusher`. NeoShell ends the package with `IPackageDebugSettings::TerminateAllProcesses`
+    (`PackagedApps.EndAll`), for windows of class `ApplicationFrameWindow`; ApplicationFrameHost and the other apps
+    it hosts keep running.
+  - Otherwise (desktop apps, packaged ones such as Paint too) it sends `WM_COPYDATA` (7) to `Shell_TrayWnd`, and
+    Taskbar.dll's `CTaskBand::HandleJumpViewEndTask` calls `EndTask(hwnd, FALSE, TRUE)` for each of the group's
+    windows on a thread of its own (`_EndTaskThreadProc`). user32's `EndTask` asks CSRSS to end the window's
+    process: at once, no `WM_CLOSE` first, no prompt, no error shown. NeoShell does the same on the thread pool.
+  Measured with a test app: the window's process ends within ~0.2 s, hung or not, without `WM_CLOSE`; its child
+  processes keep running; an elevated app (Task Manager) ends too, from a medium-integrity caller, since CSRSS ends
+  it (no UAC prompt).
 - Pressed, the icon shrinks to 0.8 (only the icon, as in Explorer); dragged, it grows to 1.2 and loses its plate and
   pill (`IconPress`, a `ScaleTransition` on the icon). The Start and Search buttons' icons shrink too.
 - Drag to reorder (by hand, `TaskReorder`: the button slides along the row and its neighbours make way). The order

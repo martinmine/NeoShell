@@ -295,7 +295,10 @@ Each item is done when it looks and behaves as Explorer's (layout, behaviour, an
       live; the overlay icon moved to the badge's corner — not run live: NeoShell in the light theme (it crashes on
       start in light mode, an existing backdrop bug); not matched: "99+" sits 1 px left and the playing glyph 1 px
       right of Explorer's (text rendering)
-- [ ] T10 End task in the task button's menu
+- [x] T10 End task in the task button's menu: as Explorer offers it with the developer setting on (followed live),
+      in both run modes; desktop apps end through `EndTask` (hung and elevated ones too), UWP apps by their package;
+      the separator above Close window, which Explorer doesn't draw, removed — not run live: UWP apps in shell mode
+      (they can't show there); not matched: the menu's width and the launch item's icon (existing differences)
 - [ ] T11 Dragging over task buttons: bring the window forward; drop on a pinned app opens with it
 - [ ] T12 Tray icons promoted one by one (`NotifyIconSettings`), dragged between overflow and taskbar
 - [ ] T13 Other privacy indicators (location in use…)

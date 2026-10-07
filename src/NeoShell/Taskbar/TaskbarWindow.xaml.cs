@@ -1263,8 +1263,14 @@ internal sealed partial class TaskbarWindow : Window
             : MenuItem("Pin to taskbar", "", "TaskPinMenuItem", () => _owner.Pin(button.App)));
         if (button.Windows.Count > 0)
         {
+            // No separator above these: Explorer lists them straight after Pin to taskbar.
             IReadOnlyList<WindowInfo> windows = button.Windows;
-            menu.Items.Add(new MenuFlyoutSeparator());
+            if (TaskEnding.IsOffered(button.App))
+            {
+                string? appId = button.App.AppUserModelId;
+                menu.Items.Add(MenuItem(windows.Count == 1 ? "End task" : "End all tasks", "", "TaskEndTaskMenuItem",
+                    () => TaskEnding.End(windows, appId)));
+            }
             menu.Items.Add(MenuItem(windows.Count == 1 ? "Close window" : "Close all windows", "", "TaskCloseMenuItem", () =>
             {
                 foreach (WindowInfo window in windows)

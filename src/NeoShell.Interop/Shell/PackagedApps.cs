@@ -18,6 +18,7 @@ namespace NeoShell.Interop.Shell;
 public static class PackagedApps
 {
     private static readonly Guid CLSID_ApplicationActivationManager = new("45ba127d-10a8-46ea-8ab7-56ea9078943c");
+    private static readonly Guid CLSID_PackageDebugSettings = new("b1aec16f-2383-4852-b0e9-8f0b1dc66b4d");
 
     /// <summary>A packaged app's AppUserModelID is <c>&lt;package family name&gt;!&lt;app id&gt;</c>.</summary>
     public static bool IsPackagedAppId(string appUserModelId) => appUserModelId.Contains('!');
@@ -31,6 +32,17 @@ public static class PackagedApps
         var manager = Ole32.Create<IApplicationActivationManager>(CLSID_ApplicationActivationManager, Ole32.CLSCTX_LOCAL_SERVER | Ole32.CLSCTX_INPROC_SERVER);
         Marshal.ThrowExceptionForHR(manager.ActivateApplication(appUserModelId, arguments, 0, out uint processId));
         return processId;
+    }
+
+    /// <summary>
+    /// Ends every process of the app's package at once, as Explorer's "End task" ends a UWP app (its windows belong
+    /// to ApplicationFrameHost, which hosts other apps' too). Throws if that fails; call it off the UI thread.
+    /// </summary>
+    public static void EndAll(string appUserModelId)
+    {
+        string package = AppInfo.GetFromAppUserModelId(appUserModelId).Package.Id.FullName;
+        var settings = Ole32.Create<IPackageDebugSettings>(CLSID_PackageDebugSettings, Ole32.CLSCTX_INPROC_SERVER);
+        Marshal.ThrowExceptionForHR(settings.TerminateAllProcesses(package));
     }
 
     /// <summary>

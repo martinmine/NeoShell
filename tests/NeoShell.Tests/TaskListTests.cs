@@ -190,4 +190,29 @@ public sealed class TaskListTests
         Assert.Equal(1, TaskActivation.LastActiveWindow([1, 2], [9], 9));
         Assert.Equal(0, TaskActivation.LastActiveWindow([], [9], 9));
     }
+
+    [Theory]
+    [InlineData(1, null, true)]
+    [InlineData(1, Terminal, true)]
+    [InlineData(null, null, false)]  // never set: off
+    [InlineData(0, null, false)]
+    [InlineData(2, null, false)]     // Explorer wants exactly 1
+    [InlineData("1", null, false)]   // not a DWORD
+    [InlineData(1, "Microsoft.Windows.Explorer", false)]
+    [InlineData(1, "microsoft.windows.explorer", false)]
+    public void End_task_is_offered_when_the_developer_setting_is_1_but_never_for_file_explorer(
+        object? setting, string? appId, bool offered)
+    {
+        Assert.Equal(offered, TaskEnding.IsOffered(setting, appId));
+    }
+
+    [Fact]
+    public void End_task_ends_a_uwp_apps_package_rather_than_its_frame_host()
+    {
+        const string calculator = "Microsoft.WindowsCalculator_8wekyb3d8bbwe!App";
+        Assert.True(TaskEnding.EndsPackage([Window(1, appId: calculator, className: "ApplicationFrameWindow")], calculator));
+        // A packaged desktop app (Terminal, Paint) ends by its windows, as Explorer's taskbar does.
+        Assert.False(TaskEnding.EndsPackage([Window(1, appId: Terminal, className: "CASCADIA_HOSTING_WINDOW_CLASS")], Terminal));
+        Assert.False(TaskEnding.EndsPackage([Window(1)], null));
+    }
 }

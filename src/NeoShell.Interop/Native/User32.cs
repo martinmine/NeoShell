@@ -167,6 +167,10 @@ internal static unsafe partial class User32
     [LibraryImport("user32.dll", EntryPoint = "DefWindowProcW")]
     public static partial nint DefWindowProc(nint hwnd, uint message, nint wParam, nint lParam);
 
+    [LibraryImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static partial bool EndTask(nint hwnd, [MarshalAs(UnmanagedType.Bool)] bool shutDown, [MarshalAs(UnmanagedType.Bool)] bool force);
+
     [LibraryImport("user32.dll", EntryPoint = "PostMessageW", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     public static partial bool PostMessage(nint hwnd, uint message, nint wParam, nint lParam);
