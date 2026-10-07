@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Media;
 using NeoShell.Settings;
 
@@ -31,6 +32,21 @@ internal sealed class StartItem(PinnedApp target, string subtitle, bool isApp, A
     public StartFolder? Folder { get; }
 
     public bool IsFolder => Folder is not null;
+
+    /// <summary>For an app of All apps, its id in Explorer's Start, by which "New" is cleared once it's opened.</summary>
+    public string? TileId { get; init; }
+
+    /// <summary>All apps shows "New" (in the accent colour) or "System" under the name.</summary>
+    public bool IsNew { get; init; }
+
+    public bool IsSystem { get; init; }
+
+    public Visibility NewVisibility => IsNew && !IsSystem ? Visibility.Visible : Visibility.Collapsed;
+
+    public Visibility SystemVisibility => IsSystem ? Visibility.Visible : Visibility.Collapsed;
+
+    /// <summary>A tile's name takes two lines, or one above "New" or "System".</summary>
+    public int NameLines => IsNew || IsSystem ? 1 : 2;
 
     public string AutomationId => Folder is null ? "PinnedApp" : "PinnedFolder";
 

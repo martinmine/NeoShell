@@ -92,51 +92,204 @@
                     </Grid>
                 </DataTemplate>
 
-                <!-- A recent app: as Windows shows them, a bigger icon and when it was last started. -->
-                <DataTemplate x:Key="RecentItemTemplate" x:DataType="local:StartItem">
-                    <Grid
-                        Padding="12,0"
-                        ColumnSpacing="12"
-                        Background="Transparent"
-                        AutomationProperties.AutomationId="RecentApp"
-                        AutomationProperties.Name="{x:Bind Title}">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition />
-                        </Grid.ColumnDefinitions>
-                        <Grid.ContextFlyout>
+                <!--
+                    An app of All apps as a tile (Grid view, an open category): as Explorer's, its name below the icon, on
+                    one line above "New" (accent) or "System" and on two otherwise.
+                -->
+                <DataTemplate x:Key="AppTileTemplate" x:DataType="local:StartItem">
+                    <Button
+                        Width="96"
+                        Height="84"
+                        Margin="0"
+                        Padding="2,12,2,0"
+                        HorizontalContentAlignment="Stretch"
+                        VerticalContentAlignment="Top"
+                        AutomationProperties.AutomationId="AllAppsTile"
+                        AutomationProperties.Name="{x:Bind Title}"
+                        Click="AllAppsItem_Click">
+                        <Button.ContextFlyout>
                             <MenuFlyout Opening="ItemMenu_Opening" />
-                        </Grid.ContextFlyout>
-                        <Image x:Name="ItemIcon" Width="32" Height="32" Source="{x:Bind Icon, Mode=OneWay}" />
-                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                            <TextBlock Text="{x:Bind Title}" FontSize="12" TextTrimming="CharacterEllipsis" />
+                        </Button.ContextFlyout>
+                        <StackPanel>
+                            <Image x:Name="ItemIcon" Width="32" Height="32" Margin="0,0,0,4" Source="{x:Bind Icon, Mode=OneWay}" />
                             <TextBlock
-                                Text="{x:Bind Subtitle}"
+                                Text="{x:Bind Title}"
                                 FontSize="12"
-                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                TextAlignment="Center"
+                                TextWrapping="Wrap"
+                                MaxLines="{x:Bind NameLines}"
                                 TextTrimming="CharacterEllipsis" />
+                            <TextBlock
+                                Text="New"
+                                FontSize="12"
+                                TextAlignment="Center"
+                                Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"
+                                Visibility="{x:Bind NewVisibility}" />
+                            <TextBlock
+                                Text="System"
+                                FontSize="12"
+                                TextAlignment="Center"
+                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                Visibility="{x:Bind SystemVisibility}" />
                         </StackPanel>
+                    </Button>
+                </DataTemplate>
+
+                <!-- An app of All apps as a row (List view): Explorer's 40 tall rows, the icon 12 in, the name 20 after it. -->
+                <DataTemplate x:Key="AppRowTemplate" x:DataType="local:StartItem">
+                    <Button
+                        Height="40"
+                        Margin="0"
+                        Padding="12,0"
+                        HorizontalAlignment="Stretch"
+                        HorizontalContentAlignment="Left"
+                        AutomationProperties.AutomationId="AllAppsRow"
+                        AutomationProperties.Name="{x:Bind Title}"
+                        Click="AllAppsItem_Click">
+                        <Button.ContextFlyout>
+                            <MenuFlyout Opening="ItemMenu_Opening" />
+                        </Button.ContextFlyout>
+                        <StackPanel Orientation="Horizontal" Spacing="20">
+                            <Image x:Name="ItemIcon" Width="24" Height="24" Source="{x:Bind Icon, Mode=OneWay}" />
+                            <StackPanel VerticalAlignment="Center">
+                                <TextBlock Text="{x:Bind Title}" FontSize="12" TextTrimming="CharacterEllipsis" />
+                                <TextBlock
+                                    Text="New"
+                                    FontSize="12"
+                                    Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"
+                                    Visibility="{x:Bind NewVisibility}" />
+                                <TextBlock
+                                    Text="System"
+                                    FontSize="12"
+                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                    Visibility="{x:Bind SystemVisibility}" />
+                            </StackPanel>
+                        </StackPanel>
+                    </Button>
+                </DataTemplate>
+
+                <!--
+                    A category card: a 156 square card with the first apps two by two in 68 squares (or, with more than four,
+                    three and the next ones' icons in the fourth), and the category's name below, which opens it.
+                -->
+                <DataTemplate x:Key="CategoryTemplate" x:DataType="local:StartCategory">
+                    <Grid
+                        Width="156"
+                        Height="192"
+                        HorizontalAlignment="Left"
+                        VerticalAlignment="Top"
+                        AutomationProperties.AutomationId="CategoryCard"
+                        AutomationProperties.Name="{x:Bind AutomationName}">
+                        <Border
+                            Height="156"
+                            VerticalAlignment="Top"
+                            CornerRadius="8"
+                            BorderThickness="1"
+                            Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                            BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" />
+                        <ItemsControl Margin="10" VerticalAlignment="Top" IsTabStop="False" ItemsSource="{x:Bind Cells}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <VariableSizedWrapGrid Orientation="Horizontal" MaximumRowsOrColumns="2" ItemWidth="68" ItemHeight="68" />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="local:CategoryCell">
+                                    <Button
+                                        Width="68"
+                                        Height="68"
+                                        Margin="0"
+                                        AutomationProperties.AutomationId="{x:Bind AutomationId}"
+                                        AutomationProperties.Name="{x:Bind Name}"
+                                        ToolTipService.ToolTip="{x:Bind ToolTip}"
+                                        Click="CategoryCell_Click">
+                                        <Button.ContextFlyout>
+                                            <MenuFlyout Opening="CategoryCellMenu_Opening" />
+                                        </Button.ContextFlyout>
+                                        <Grid>
+                                            <Image Width="32" Height="32" Source="{x:Bind App.Icon, Mode=OneWay}" Visibility="{x:Bind AppVisibility}" />
+                                            <!-- 16 icons 2 apart, in Explorer's 34 square. -->
+                                            <ItemsControl
+                                                Width="36"
+                                                Height="36"
+                                                Margin="2,2,0,0"
+                                                IsHitTestVisible="False"
+                                                ItemsSource="{x:Bind Overflow}"
+                                                Visibility="{x:Bind OverflowVisibility}">
+                                                <ItemsControl.ItemsPanel>
+                                                    <ItemsPanelTemplate>
+                                                        <VariableSizedWrapGrid Orientation="Horizontal" MaximumRowsOrColumns="2" ItemWidth="18" ItemHeight="18" />
+                                                    </ItemsPanelTemplate>
+                                                </ItemsControl.ItemsPanel>
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate x:DataType="local:StartItem">
+                                                        <Image Width="16" Height="16" HorizontalAlignment="Left" VerticalAlignment="Top" Source="{x:Bind Icon, Mode=OneWay}" />
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                        </Grid>
+                                    </Button>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <Button
+                            Height="32"
+                            Margin="0,160,0,0"
+                            HorizontalAlignment="Stretch"
+                            VerticalAlignment="Top"
+                            Content="{x:Bind Name}"
+                            FontSize="12"
+                            AutomationProperties.AutomationId="CategoryButton"
+                            AutomationProperties.Name="{x:Bind Name}"
+                            Click="CategoryButton_Click" />
                     </Grid>
                 </DataTemplate>
 
-                <!-- A row in All: icon and name only. -->
-                <DataTemplate x:Key="AppItemTemplate" x:DataType="local:StartItem">
-                    <Grid
-                        Padding="4,2"
-                        ColumnSpacing="12"
-                        Background="Transparent"
-                        AutomationProperties.AutomationId="StartListItem"
-                        AutomationProperties.Name="{x:Bind Title}">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition />
-                        </Grid.ColumnDefinitions>
-                        <Grid.ContextFlyout>
-                            <MenuFlyout Opening="ItemMenu_Opening" />
-                        </Grid.ContextFlyout>
-                        <Image Width="24" Height="24" Source="{x:Bind Icon, Mode=OneWay}" />
-                        <TextBlock Grid.Column="1" VerticalAlignment="Center" Text="{x:Bind Title}" TextTrimming="CharacterEllipsis" />
-                    </Grid>
+                <!-- A letter's apps in the name views, under a header as wide as the rows, which opens the letters. -->
+                <DataTemplate x:Key="LetterGridGroupTemplate" x:DataType="local:StartGroup">
+                    <StackPanel>
+                        <Button
+                            Height="40"
+                            Margin="20,9,28,4"
+                            Padding="12,0"
+                            HorizontalAlignment="Stretch"
+                            HorizontalContentAlignment="Left"
+                            AutomationProperties.AutomationId="LetterHeader"
+                            AutomationProperties.Name="{x:Bind HeaderName}"
+                            Click="LetterHeader_Click">
+                            <Grid>
+                                <TextBlock Text="{x:Bind Key}" Visibility="{x:Bind TextVisibility}" />
+                                <FontIcon Glyph="{x:Bind Key}" FontSize="16" HorizontalAlignment="Left" Visibility="{x:Bind GlyphVisibility}" />
+                            </Grid>
+                        </Button>
+                        <ItemsControl IsTabStop="False" ItemsSource="{x:Bind Items}" ItemTemplate="{StaticResource AppTileTemplate}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <VariableSizedWrapGrid Orientation="Horizontal" ItemWidth="96" ItemHeight="84" />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                        </ItemsControl>
+                    </StackPanel>
+                </DataTemplate>
+
+                <DataTemplate x:Key="LetterListGroupTemplate" x:DataType="local:StartGroup">
+                    <StackPanel>
+                        <Button
+                            Height="40"
+                            Margin="20,9,28,4"
+                            Padding="12,0"
+                            HorizontalAlignment="Stretch"
+                            HorizontalContentAlignment="Left"
+                            AutomationProperties.AutomationId="LetterHeader"
+                            AutomationProperties.Name="{x:Bind HeaderName}"
+                            Click="LetterHeader_Click">
+                            <Grid>
+                                <TextBlock Text="{x:Bind Key}" Visibility="{x:Bind TextVisibility}" />
+                                <FontIcon Glyph="{x:Bind Key}" FontSize="16" HorizontalAlignment="Left" Visibility="{x:Bind GlyphVisibility}" />
+                            </Grid>
+                        </Button>
+                        <ItemsControl Margin="20,0,28,0" IsTabStop="False" ItemsSource="{x:Bind Items}" ItemTemplate="{StaticResource AppRowTemplate}" />
+                    </StackPanel>
                 </DataTemplate>
 
                 <DataTemplate x:Key="GroupHeaderTemplate" x:DataType="local:StartGroup">
@@ -204,120 +357,143 @@
         </Grid>
 
         <!--
-            Home, as in Windows 11: pinned apps, then recent apps, on one scrolling page. Pinned apps start 8 further left
-            than the rest, as in Explorer, so that's the padding; more would clip them.
+            Home, as Explorer's 25H2 Start with Recommended off: pinned apps, then All with its three views, on one
+            scrolling page; Settings' Pinned and All switch each off. Pinned apps start 8 further left than the rest, as
+            in Explorer, so that's the padding; more would clip them.
         -->
-        <ScrollViewer x:Name="HomeView" Grid.Row="1" Padding="32,0,24,16">
+        <ScrollViewer x:Name="HomeView" Grid.Row="1" Margin="0,8,0,0" Padding="32,0,24,16">
             <StackPanel>
-                <Grid Margin="32,20,24,12">
-                    <TextBlock Text="Pinned" Style="{ThemeResource BodyStrongTextBlockStyle}" VerticalAlignment="Center" />
-                    <Button
-                        x:Name="AllAppsButton"
-                        AutomationProperties.AutomationId="AllAppsButton"
-                        HorizontalAlignment="Right"
-                        Padding="10,4"
-                        Click="AllAppsButton_Click">
-                        <StackPanel Orientation="Horizontal" Spacing="8">
-                            <TextBlock Text="All apps" FontSize="12" />
-                            <FontIcon Glyph="&#xE76C;" FontSize="10" />
-                        </StackPanel>
-                    </Button>
-                </Grid>
-                <GridView
-                    x:Name="PinnedGrid"
-                    AutomationProperties.AutomationId="PinnedApps"
-                    AutomationProperties.Name="Pinned"
-                    ItemTemplate="{StaticResource PinTemplate}"
-                    SelectionMode="None"
-                    IsItemClickEnabled="True"
-                    ItemClick="Item_Click"
-                    ScrollViewer.VerticalScrollMode="Disabled"
-                    ScrollViewer.VerticalScrollBarVisibility="Disabled">
-                    <!-- Dragged by hand (see PinnedGrid_PointerPressed), without item transitions: the move at the drop
-                         would be animated as a removal and an addition, and the icon vanish and come back. -->
-                    <GridView.ItemContainerTransitions>
-                        <TransitionCollection />
-                    </GridView.ItemContainerTransitions>
-                    <GridView.ItemContainerStyle>
-                        <Style TargetType="GridViewItem" BasedOn="{StaticResource DefaultGridViewItemStyle}">
-                            <Setter Property="Margin" Value="0" />
-                        </Style>
-                    </GridView.ItemContainerStyle>
-                </GridView>
-                <TextBlock
-                    x:Name="NoPinnedText"
-                    Margin="32,8,0,8"
-                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                    Text="Pin apps from All apps to keep them here." />
-
-                <StackPanel x:Name="RecentSection" Visibility="Collapsed">
-                    <TextBlock Margin="32,28,0,15" Text="Recent" Style="{ThemeResource BodyStrongTextBlockStyle}" />
-                    <!--
-                        Laid out as Explorer's: three columns 256 wide with 20 between the items, icons in line with the
-                        heading. The last column's gap may hang off the right edge.
-                    -->
+                <StackPanel x:Name="PinnedSection">
+                    <TextBlock Margin="31,29,0,16" Text="Pinned" Style="{ThemeResource BodyStrongTextBlockStyle}" />
+                    <!-- The grid's 10 below its items aren't Explorer's. -->
                     <GridView
-                        x:Name="RecentGrid"
-                        Margin="20,0,-20,0"
-                        AutomationProperties.AutomationId="RecentApps"
-                        AutomationProperties.Name="Recent"
-                        ItemTemplate="{StaticResource RecentItemTemplate}"
+                        x:Name="PinnedGrid"
+                        Margin="0,0,0,-10"
+                        AutomationProperties.AutomationId="PinnedApps"
+                        AutomationProperties.Name="Pinned"
+                        ItemTemplate="{StaticResource PinTemplate}"
                         SelectionMode="None"
                         IsItemClickEnabled="True"
                         ItemClick="Item_Click"
                         ScrollViewer.VerticalScrollMode="Disabled"
                         ScrollViewer.VerticalScrollBarVisibility="Disabled">
+                        <!-- Dragged by hand (see PinnedGrid_PointerPressed), without item transitions: the move at the drop
+                             would be animated as a removal and an addition, and the icon vanish and come back. -->
+                        <GridView.ItemContainerTransitions>
+                            <TransitionCollection />
+                        </GridView.ItemContainerTransitions>
                         <GridView.ItemContainerStyle>
                             <Style TargetType="GridViewItem" BasedOn="{StaticResource DefaultGridViewItemStyle}">
-                                <Setter Property="Margin" Value="0,0,20,0" />
-                                <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-                                <Setter Property="VerticalContentAlignment" Value="Stretch" />
+                                <Setter Property="Margin" Value="0" />
                             </Style>
                         </GridView.ItemContainerStyle>
-                        <GridView.ItemsPanel>
-                            <ItemsPanelTemplate>
-                                <ItemsWrapGrid Orientation="Horizontal" MaximumRowsOrColumns="3" ItemWidth="256" ItemHeight="56" />
-                            </ItemsPanelTemplate>
-                        </GridView.ItemsPanel>
                     </GridView>
+                    <TextBlock
+                        x:Name="NoPinnedText"
+                        Margin="32,8,0,8"
+                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                        Text="Pin apps from All to keep them here." />
                 </StackPanel>
 
+                <!--
+                    All: Explorer's categories (cards of apps, each opening into a panel), or the apps by name as tiles or
+                    rows under their letters, "Most used" first when Settings asks for it. The view is Explorer's choice
+                    too (AllAppsViewMode).
+                -->
+                <StackPanel x:Name="AllSection">
+                    <Grid x:Name="AllHeading" Height="32" Margin="31,31,28,0">
+                        <TextBlock Text="All" Style="{ThemeResource BodyStrongTextBlockStyle}" VerticalAlignment="Center" />
+                        <DropDownButton
+                            x:Name="ViewButton"
+                            Height="32"
+                            Padding="12,0,10,0"
+                            HorizontalAlignment="Right"
+                            AutomationProperties.AutomationId="AllAppsViewButton">
+                            <DropDownButton.Flyout>
+                                <MenuFlyout x:Name="ViewFlyout" Placement="BottomEdgeAlignedRight">
+                                    <RadioMenuFlyoutItem
+                                        x:Name="CategoryViewMenuItem"
+                                        Text="Category"
+                                        GroupName="AllAppsView"
+                                        AutomationProperties.AutomationId="CategoryViewMenuItem"
+                                        Click="ViewItem_Click" />
+                                    <RadioMenuFlyoutItem
+                                        x:Name="GridViewMenuItem"
+                                        Text="Grid"
+                                        GroupName="AllAppsView"
+                                        AutomationProperties.AutomationId="GridViewMenuItem"
+                                        Click="ViewItem_Click" />
+                                    <RadioMenuFlyoutItem
+                                        x:Name="ListViewMenuItem"
+                                        Text="List"
+                                        GroupName="AllAppsView"
+                                        AutomationProperties.AutomationId="ListViewMenuItem"
+                                        Click="ViewItem_Click" />
+                                </MenuFlyout>
+                            </DropDownButton.Flyout>
+                        </DropDownButton>
+                    </Grid>
+                    <!-- Cards 156 wide, 27 apart, rows 12 apart, four to a row. -->
+                    <ItemsControl
+                        x:Name="CategoryCards"
+                        Margin="32,9,0,0"
+                        IsTabStop="False"
+                        ItemTemplate="{StaticResource CategoryTemplate}"
+                        AutomationProperties.AutomationId="AllAppsCategories"
+                        AutomationProperties.Name="Categories">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <VariableSizedWrapGrid Orientation="Horizontal" MaximumRowsOrColumns="4" ItemWidth="183" ItemHeight="204" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                    </ItemsControl>
+                    <!-- Explorer's first letter sits 10 higher than the gap between its letters gives. -->
+                    <ItemsControl
+                        x:Name="LetterGroups"
+                        Margin="0,-10,0,0"
+                        IsTabStop="False"
+                        AutomationProperties.AutomationId="AllAppsList"
+                        AutomationProperties.Name="All" />
+                </StackPanel>
             </StackPanel>
         </ScrollViewer>
 
-        <!-- All apps, alphabetical. -->
-        <Grid x:Name="AllAppsView" Grid.Row="1" Margin="40,0,40,8" Visibility="Collapsed">
-            <Grid.RowDefinitions>
-                <RowDefinition Height="Auto" />
-                <RowDefinition />
-            </Grid.RowDefinitions>
-            <Grid Margin="24,20,8,12">
-                <TextBlock Text="All apps" Style="{ThemeResource BodyStrongTextBlockStyle}" VerticalAlignment="Center" />
-                <Button
-                    x:Name="BackButton"
-                    AutomationProperties.AutomationId="StartBackButton"
-                    HorizontalAlignment="Right"
-                    Padding="10,4"
-                    Click="BackButton_Click">
-                    <StackPanel Orientation="Horizontal" Spacing="8">
-                        <FontIcon Glyph="&#xE76B;" FontSize="10" />
-                        <TextBlock Text="Back" FontSize="12" />
-                    </StackPanel>
-                </Button>
-            </Grid>
-            <ListView
-                x:Name="AllAppsList"
-                Grid.Row="1"
-                AutomationProperties.AutomationId="AllAppsList"
-                AutomationProperties.Name="All apps"
-                ItemTemplate="{StaticResource AppItemTemplate}"
-                SelectionMode="None"
-                IsItemClickEnabled="True"
-                ItemClick="Item_Click">
-                <ListView.GroupStyle>
-                    <GroupStyle HeaderTemplate="{StaticResource GroupHeaderTemplate}" HeaderContainerStyle="{StaticResource GroupHeaderContainerStyle}" />
-                </ListView.GroupStyle>
-            </ListView>
+        <!--
+            The letters, as Explorer's All zooms out to them from a letter's header: Most used, &, #, A to Z and other
+            scripts, four to a row in 48 squares 4 apart, those without apps dimmed. A letter jumps to its apps.
+        -->
+        <Grid x:Name="LetterView" Grid.Row="1" Visibility="Collapsed" Background="Transparent">
+            <TextBlock Margin="63,37,0,0" VerticalAlignment="Top" Text="All" Style="{ThemeResource BodyStrongTextBlockStyle}" />
+            <Button
+                Height="32"
+                Margin="0,31,52,0"
+                Padding="12,0"
+                HorizontalAlignment="Right"
+                VerticalAlignment="Top"
+                AutomationProperties.AutomationId="LetterBackButton"
+                AutomationProperties.Name="Back"
+                Click="LetterBack_Click">
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                    <FontIcon Glyph="&#xE76B;" FontSize="10" />
+                    <TextBlock Text="Back" />
+                </StackPanel>
+            </Button>
+            <ItemsControl
+                x:Name="LetterGrid"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center"
+                IsTabStop="False"
+                RenderTransformOrigin="0.5,0.5"
+                AutomationProperties.AutomationId="LetterGrid">
+                <ItemsControl.RenderTransform>
+                    <ScaleTransform x:Name="LetterGridScale" />
+                </ItemsControl.RenderTransform>
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <VariableSizedWrapGrid Orientation="Horizontal" MaximumRowsOrColumns="4" ItemWidth="52" ItemHeight="52" />
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+            </ItemsControl>
         </Grid>
 
         <!-- Search results: apps first, then files grouped by kind. -->
@@ -386,6 +562,39 @@
                         AutomationProperties.Name="Folder name"
                         KeyDown="FolderNameBox_KeyDown"
                         LostFocus="FolderNameBox_LostFocus" />
+                    <TextBlock
+                        x:Name="CategoryTitle"
+                        Height="40"
+                        Margin="0,32,0,0"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Top"
+                        Padding="0,6,0,0"
+                        FontSize="20"
+                        FontWeight="SemiBold"
+                        Visibility="Collapsed"
+                        AutomationProperties.AutomationId="CategoryTitle" />
+                    <!-- Four 96 tiles to a row, as the folder's; the scroll bar takes no room from them. -->
+                    <ScrollViewer
+                        x:Name="CategoryAppsView"
+                        Width="400"
+                        Margin="32,92,0,0"
+                        HorizontalAlignment="Left"
+                        Visibility="Collapsed">
+                        <ItemsControl
+                            x:Name="CategoryApps"
+                            Width="384"
+                            HorizontalAlignment="Left"
+                            IsTabStop="False"
+                            ItemTemplate="{StaticResource AppTileTemplate}"
+                            AutomationProperties.AutomationId="CategoryApps"
+                            AutomationProperties.Name="Category">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <VariableSizedWrapGrid Orientation="Horizontal" MaximumRowsOrColumns="4" ItemWidth="96" ItemHeight="84" />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                        </ItemsControl>
+                    </ScrollViewer>
                     <GridView
                         x:Name="FolderGrid"
                         Width="384"

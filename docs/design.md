@@ -1437,21 +1437,25 @@ Windows', its shortcut as key caps (`ShortcutKeys`), and a footer with a link to
   (`PinnedWindow.VisibleBottom`, a window region) so it rises from behind the taskbar whatever is in front of the
   screen's bottom and however see-through the taskbar is; the thumbnails do the same. It's shown once, cut off
   entirely, at startup, so the first opening doesn't slide up a black window before WinUI's first frame. What it shows is
-  reset (search, All apps, scroll) once it's out of sight; opened again while closing, it turns back from where it is.
+  reset (search, an open folder or category, the letters, scroll) once it's out of sight; opened again while closing, it turns back from where it is.
 - Toggling: pressing the Start button deactivates Start before the button's click arrives, so a click within
   400 ms of a deactivation doesn't reopen it.
 - Resizable by dragging a top corner (`ResizeGrip`, with the resize pointer): the bottom stays above the taskbar, a
   centred Start grows on both sides, a left-aligned one only has the top-right grip. Live while dragging; the size
   (as the monitor allowed it) is saved on release. 832 by 860 epx by default, at least 480 by 400, at most the
   monitor above the taskbar (`StartMenuLayout`, tests).
-- Home is one scrolling page, as in Windows 11, below the search box:
+- Home is one scrolling page below the search box, as Explorer's 25H2 Start with Recommended off (Settings →
+  Personalization → Start → Recent off, which T16 skips): **Pinned**, then **All**, each switched off by Settings'
+  Pinned and All (`HKCU\…\CurrentVersion\Start` `ShowPinnedSection`, `ShowAllAppsSection`, 1 when missing; found with
+  Procmon on SystemSettings.exe), followed live through a `RegistryWatcher` on the key. Without Pinned, All's heading
+  takes Pinned's place (its text 93 from Start's top). The page scrolls from 64 below Start's top, as Explorer's.
   - **Pinned** grid (`ShellSettings.StartPins`: apps and folders of apps; the former apps-only `PinnedStartApps`
     is read once into it). Drag to reorder by hand (`GridReorder`, unit tested): a copy of the pin follows the
     pointer (in a layer above everything, so it can leave a folder's panel) and the icons between its old and new
-    place shift one slot. Pinned and recent icons shrink while
+    place shift one slot. Pinned icons shrink while
     pressed and a dragged one grows, as on the taskbar. The grid's own drag and drop keeps the
     dropped icon hidden until the drag operation winds down, and its item transitions animate the move as a removal
-    and an addition, so both are off. Pinned and Recent are updated in place when Start opens, not refilled (which
+    and an addition, so both are off. Pinned is updated in place when Start opens, not refilled (which
     would replay every icon's entrance). The first time the catalog loads, Explorer's Start pins
     are added once (`ExplorerStartPinsImported`). Start keeps them encrypted in `start2.bin`, so they're read through
     `StartTileData.dll`'s `IStartLayoutCmdlet::ExportStartLayout` (the object behind `Export-StartLayout`), which
@@ -1466,11 +1470,13 @@ Windows', its shortcut as key caps (`ShortcutKeys`), and a footer with a link to
     encrypted with a key Start derives in private code (`StableCryptoFunctions::GetSymmetricKeys`, from the
     FILETIME in the file's header and fixed seeds); reading it would mean re-implementing a private cipher any
     update can change, so it isn't done.
-  - **Recent**: the six catalog apps started most recently, three columns, with "30m ago" / "5h ago" / the date.
-    Read from UserAssist (`HKCU\…\Explorer\UserAssist\{CEBFF5CD-…}\Count`: ROT13 value names, AUMIDs or
-    known-folder paths, last run as a FILETIME at offset 60) each time Start opens. `Launcher` starts non-packaged
-    apps with `ShellExecuteEx` + `SEE_MASK_FLAG_LOG_USAGE` so NeoShell's launches are recorded too, and records
-    packaged apps' starts as Explorer does (below).
+  - **No Recent row.** NeoShell's Start had a Recent row of the six apps started last (milestone 5); it's gone (T23).
+    Explorer 25H2's "Recent" section is Recommended renamed (recently added apps, recent files, tips: T16, skipped),
+    and with it off Start shows no recently started apps anywhere. UserAssist
+    (`HKCU\…\Explorer\UserAssist\{CEBFF5CD-…}\Count`: ROT13 value names, AUMIDs or known-folder paths, the run count
+    at offset 4, focus time in ms at 12, last run as a FILETIME at 60) is still read each time Start opens, for All's
+    order of use (below). `Launcher` starts non-packaged apps with `ShellExecuteEx` + `SEE_MASK_FLAG_LOG_USAGE` so
+    NeoShell's launches are recorded too, and records packaged apps' starts as Explorer does (below).
   - **How Explorer records a packaged app's start** (25H2; Procmon on the key, cdb breakpoints on
     `shell32!CUserAssist::FireEvent` in Explorer and Start): Explorer's process writes every value, always through
     shell32's UserAssist object (`CLSID_UserAssist` {DD313E04-FEFF-11D1-8ECD-0000F87A470C}, in-process, interface
@@ -1492,7 +1498,7 @@ Windows', its shortcut as key caps (`ShortcutKeys`), and a footer with a link to
       the app. One start, one count.
     - `IApplicationActivationManager::ActivateApplication` alone records nothing: no property set, no site.
     - NeoShell does the same (`PackagedApps.Activate(…, logUsage: true)` then `UserAssist.RecordLaunch`, for every
-      launch through `Launcher`: Start's pins, All apps, Recent and search, taskbar pins and their menus, Win+1…9,
+      launch through `Launcher`: Start's pins, All and search, taskbar pins and their menus, Win+1…9,
       toasts). The activation manager (twinui.appcore, in-process) takes an `IObjectWithSite` site; NeoShell's
       answers `SID_ExecuteLogUsage` as the broker's does, and UWP activation never asks for it. Compared value by
       value with the same app started from Explorer's Start: the same two values, counts and layout. Alongside
@@ -1500,8 +1506,90 @@ Windows', its shortcut as key caps (`ShortcutKeys`), and a footer with a link to
       process, and Explorer's copy wins; the same holds for desktop apps NeoShell starts with
       `SEE_MASK_FLAG_LOG_USAGE`); as the shell they count as Explorer's do. Explorer's own Start doesn't reorder its
       category folders or drop "New" for an app only NeoShell started: those follow Start's own data, not UserAssist.
-  - An **All apps** button opens the alphabetical list with letter headers ("#" first) in place of the page, with a
-    Back button (unlike Windows 11, which puts All on the same page).
+  - **All** (`AllApps`, unit tested; Interop `Shell/StartAppData`), as Explorer's 25H2 Start, on the page below
+    Pinned. NeoShell's separate All apps page, its button beside Pinned and its Back button are gone (T23). Read
+    from StartMenu.dll (`CategoryProvider`, `AllAppsViewModel`, `AppSortHelper`) and StartTileData.dll with their
+    PDBs in Ghidra, Explorer's Start through UI Automation, and its registry and CloudStore data:
+    - **Heading**: "All" (14 semibold) 31 below Pinned's grid, 32 tall, its text 63 in; at the right (its right edge
+      52 from Start's) a flat `DropDownButton` "View: Category" (14 px, 32 tall; automation name "View selected,
+      Category") with a menu below it, right-aligned: Category, Grid, List, the current one ticked. The view is
+      Explorer's own `HKCU\…\Start\AllAppsViewMode` (0 Category, 1 Grid, 2 List), which NeoShell writes too, so both
+      Starts show the same view; NeoShell follows it live, Explorer reads it as its Start starts.
+    - **Category view**: cards 156 × 192, 27 apart and 12 between rows, four to a row from 64 in, 9 below the
+      heading. A card is a 156 square (radius 8, `CardBackgroundFillColorDefault`, 1 px `CardStrokeColorDefault`) with
+      four 68 places two by two from 10 in, the icon 32 in each, flat buttons with the app's name as tooltip; below it,
+      from 160, a 156 × 32 flat button with the category's name (12 px). With more than four apps the fourth place
+      shows the next four apps' icons (16, 2 apart, a 34 square) and opens the category, as the name does. Explorer's
+      automation names ("Other category with 15 Items, Claude, Visual Studio Code, Microsoft News, and 12 others"). An
+      open category is the folder panel (450 × 378, centred, its own acrylic) with the name as a 20 semibold title
+      instead of the name box, the apps as 96 × 84 tiles four to a row; it grows out of the card, from the card's size,
+      in 333 ms and shrinks back in 150 ms, as a folder (recorded at 60 fps: the same curves as the pin folders').
+      The card isn't hidden behind it. A click beside it or Esc closes it.
+    - **Categories**: Start's `AppCategory` values 0-31 (0 Other, 1 Accessibility, 2 Communication, 3 Games, 4 Travel,
+      5 Security, 6 Personalization, 7 Photo & Video, 8 Social, 9 Utilities & Tools, 10 Kids & Family, 11 Medical,
+      12 Health & Fitness, 13 Productivity, 14 Books & Reference, 15 Developer Tools, 16 Entertainment, 17 Music,
+      18 Personal Finance, 19 Education, 20 Business, 21 Navigation & Maps, 22 Graphics, 23 Multimedia Design, 24
+      Government & politics, 25 News & Weather, 26 Sports, 27 Lifestyle, 28 Shopping, 29 Food & Dining, 30
+      Creativity, 31 Information & Reading; the names are its `AllApps_Category_N` strings). Where an app's comes
+      from: StartTileData asks a web service ("APS") when a tile turns up and saves the answer in
+      `HKCU\…\Start\TileProperties\<tile id>\Category` (a tile id is `P~` + a packaged app's AUMID, or `W~` + a desktop
+      app's AppsFolder id; ids with backslashes are nested keys); StartMenu's `GetCategoryForTile` reads that
+      (feature 55161678; else the mappings below), and an app without a saved category is Other — VS Code here,
+      though Windows' mappings list it under Developer Tools. NeoShell reads the same keys. Only when Start has saved
+      none at all (it never ran for the user) does it fall back, as `ExtendedProperties::FetchCategoryFromLocalMappingsAndStoreInRegistry`
+      does, on Windows' own mappings: `%SystemRoot%\SystemApps\MicrosoftWindows.Client.Core_cw5n1h2txyewy\StartMenu\Assets\AllAppCategoryMappings`,
+      LZMS-compressed with the Compression API's header (`cabinet.dll` `CreateDecompressor(COMPRESS_ALGORITHM_LZMS)`),
+      4.4 MB of JSON `{"13": ["notepad", …], …}` with ~70 000 ids: a packaged app by its package family name, a
+      desktop app by its target's path below `%systemroot%`, `%ProgramW6432%` or `%ProgramFiles(x86)%`
+      (`\system32\narrator.exe`), else by its AUMID (`msedge`). The web service's answers differ (Paint 23 against the
+      file's 7; osk 15 against 1).
+    - **Merging** (`PruneAndCombineCategories`): 7, 23, 22 and 6 always go into Creativity; 2 and 5 into
+      Productivity; 25, 24, 14 and 21 into Information & Reading; 3, 26 and 17 into Entertainment and 28, 12, 29, 11,
+      18 and 4 into Lifestyle only while they have fewer than three apps; then every category but Other with two apps
+      or fewer goes into Other (News & Weather's two apps end up there). (A category of one folder of three or more
+      apps becomes that folder's apps; NeoShell has no folders in All, below.)
+    - **Order**: apps in a category by `Rank` (Start's tile `Relevance` × 1000, rounded) then name
+      (`AppSortHelper::CompareRanks`); categories by the sum of their two first apps' ranks (`RankCategories`,
+      descending). Start's relevance is a decaying count of launches it tracked (StartTileData's
+      `LocalStartVolatileTileProperties`: `Relevance` float, launch count, last launch, launches per day; in the
+      CloudStore value `…\CloudStore\Store\Cache\DefaultAccount\$de${6af0fa78-…}$$windows.data.unifiedtile.localstartvolatiletilepropertiesmap`,
+      Claude 0.183, File Explorer 0.072, Settings 0.056 here). Explorer's figure counts only starts its own shell saw,
+      so NeoShell measures use itself, from UserAssist: an app's starts plus its minutes in front, over every value
+      that is the app. On this machine that gives Explorer's order exactly (categories Other, Productivity, Utilities &
+      Tools, Developer Tools, Creativity, Entertainment, Accessibility; Most used Claude, File Explorer, Settings,
+      Notepad, Terminal, Edge) except for apps started outside Explorer (Camera and Calculator, started by NeoShell,
+      rank above apps Explorer saw started once).
+    - **Grid and List views**: the apps by name under their letters, Explorer's letters in its order: &, #, A to Z,
+      then other scripts under a globe (E12B); accents dropped (É under E). Each letter's header is a flat 728 × 40
+      button 52 in, its letter 12 in at 14 px, 9 below the previous group and 4 above its apps; it zooms out to the
+      letters. Grid tiles are 96 × 84 from 32 in (eight to a row), the icon 32 at 12 down, the name (12 px) on two lines,
+      or on one above "New" or "System"; List rows are 728 × 40 from 52 in, the icon 24 at 12, the name 20 after it
+      at 12 px with "New"/"System" below. **Most used** (Settings → Start → All → "Show most used apps (grid and list
+      views only)", `ShowFrequentList`): a first group, its header "Most used", of the six apps with the highest rank
+      above 0 (`TryAddTileToFrequentApps`).
+    - **New and System** under an app's name (12 px; "New" in `AccentTextFillColorPrimary`, "System" secondary; in
+      the category panel and the name views, and in the cells' automation names): StartMenuProperties.HasNewBadge is
+      `RoamedTileProperties.FirstSeenTime == 0` (windowsudk.shellcommon), and Start sets the first-seen time when the
+      app is started from Start. NeoShell reads Start's roamed tile map from the CloudStore
+      (`…$$windows.data.unifiedtile.roamedtilepropertiesmap\Current` `Data`: a 16-byte header, then Bond compact
+      binary v1: a map of tile id to properties, field 0 `StartTileProperties` with field 10 FirstSeenTime and 20
+      IsUserPinned): an app is new when it has no first-seen time there and hasn't been opened from NeoShell's Start
+      (`ShellSettings.StartAppsOpened`; NeoShell never writes Explorer's store). On this machine that marks the same
+      apps as Explorer's, of those both list. Nothing is new when the map is missing. "System" (`IsSystemComponent`) wins over "New": Start's
+      own lists (`ShellLists::s_packagedAppSystemCategorizationOverrides`, `…unPackaged…`: Store, Game Bar, Phone
+      Link, Get Help, Windows Security, Dev Home, Windows Backup, File Explorer, WSL… yes; Camera, Edge, Media Player
+      Legacy, Remote Desktop no), else a packaged app of `PackageOrigin` Inbox (`SignatureKind.System`), else for a
+      desktop app the app resolver's flag — read here as a program in the Windows folder, plus Windows Tools.
+    - **Letters** (Explorer's `SemanticZoom` zoomed out): the page gives way to "All" (63 in, 93 down) with a "‹ Back"
+      button at the right (69 × 32) and the letters in the middle, four to a row in 48 squares 4 apart: Most used
+      (clock E823), &, #, A-Z, the globe; those without apps dimmed (disabled). A letter goes back to the page
+      scrolled to its group; Back or Esc goes back where it was. Explorer zooms the page out and the letters in from
+      larger (about 250 ms); NeoShell fades the letters in from 1.3× in 250 ms, decelerating, and fades the page back in.
+    - **Not done**: Explorer's folders in All (Start Menu subfolders such as Accessibility, Python 3.13, Windows Kits
+      shown as expandable folder items in Grid and List, and as items of their own categories, with "Python" and
+      "Python 3.13" folder items in Other here): NeoShell's catalog is the flat AppsFolder, so its All lists a
+      folder's apps by themselves and its categories have more apps (Other 40 against Explorer's 15). Also the
+      `HideCategoryView` policy, arrow-key navigation between items as Explorer's, and the page's own zoom-out.
   - **Folders of pins** (Windows 11 23H2+; `StartPins` and `GridReorder`, unit tested), as Explorer's:
     - Holding an app over the middle of another app or a folder (the pointer within 28 px of the cell's centre,
       either way; Explorer's zone measured at about +31/-23 px in a 96 px cell) shows the drop will group them; off

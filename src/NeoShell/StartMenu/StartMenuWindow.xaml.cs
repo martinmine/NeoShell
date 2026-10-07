@@ -29,16 +29,27 @@ namespace NeoShell.StartMenu;
 internal sealed class StartGroup(string key, IEnumerable<StartItem> items) : List<StartItem>(items)
 {
     public string Key { get; } = key;
+
+    /// <summary>Other scripts' heading is Explorer's globe glyph.</summary>
+    public bool IsGlyph => Key == AllApps.OtherScripts;
+
+    public string HeaderName => IsGlyph ? "Other" : Key;
+
+    public Visibility TextVisibility => IsGlyph ? Visibility.Collapsed : Visibility.Visible;
+
+    public Visibility GlyphVisibility => IsGlyph ? Visibility.Visible : Visibility.Collapsed;
+
+    public IReadOnlyList<StartItem> Items => this;
 }
 
 /// <summary>
-/// The Start menu: pinned apps and folders of them, recent apps, All apps, search over apps and the Windows Search index,
-/// and the user, Switch to Explorer, the folders chosen for Start and the power button. Created once and shown above
+/// The Start menu: pinned apps and folders of them, All apps (by category, or by name as a grid or a list), search over
+/// apps and the Windows Search index,
+/// the user, Switch to Explorer, the folders chosen for Start and the power button. Created once and shown above
 /// whichever taskbar opened it.
 /// </summary>
 internal sealed partial class StartMenuWindow : Window
 {
-    private const int MaxRecentApps = 6;
     private const int MaxAppResults = 8;
     private const int MaxFileResults = 20;
     private static readonly TimeSpan s_searchDelay = TimeSpan.FromMilliseconds(150);
@@ -50,6 +61,8 @@ internal sealed partial class StartMenuWindow : Window
     private static readonly TimeSpan s_folderOpenDuration = TimeSpan.FromMilliseconds(333);
     private static readonly TimeSpan s_folderCloseDuration = TimeSpan.FromMilliseconds(150);
     private static readonly TimeSpan s_groupPreviewDuration = TimeSpan.FromMilliseconds(150);
+    // Explorer's All zooms out to its letters and back in about a quarter of a second.
+    private static readonly TimeSpan s_letterZoomDuration = TimeSpan.FromMilliseconds(250);
 
     /// <summary>
     /// The folders Start can show beside the power button, as Explorer draws them, in its order, and the folder each
@@ -75,11 +88,19 @@ internal sealed partial class StartMenuWindow : Window
     private readonly FramelessWindow _frameless;
     private readonly PinnedWindow _placement;
     private readonly ObservableCollection<StartItem> _pinned = [];
-    private readonly ObservableCollection<StartItem> _recent = [];
-    private readonly CollectionViewSource _allApps = new() { IsSourceGrouped = true };
     private readonly CollectionViewSource _results = new() { IsSourceGrouped = true };
     private readonly ObservableCollection<StartGroup> _resultGroups = [];
     private List<StartItem> _apps = [];
+    // The catalog with what All apps needs of each app that changes only when apps do; read with it, off the UI thread.
+    private List<CatalogApp> _catalog = [];
+    // What All shows: rebuilt only when something in it changed, as rebuilding reloads every icon.
+    private List<StartItem> _allAppItems = [];
+    private string _allAppsKey = "";
+    private StartSections _sections = new(true, true, false, AllAppsView.Category);
+    private readonly RegistryWatcher _startSettings = new(StartAppData.StartKey);
+    // The open category, shown in the open folder's panel, and what its panel grows out of.
+    private StartCategory? _openCategory;
+    private FrameworkElement? _categoryCard;
     private List<StartItem> _resultItems = [];
     private DateTime _appsLoadedAt = DateTime.MinValue;
     private nint _previousForeground;
@@ -137,19 +158,21 @@ internal sealed partial class StartMenuWindow : Window
             grid.AddHandler(UIElement.PointerReleasedEvent, new PointerEventHandler(PinGrid_PointerReleased), handledEventsToo: true);
             grid.AddHandler(UIElement.PointerCaptureLostEvent, new PointerEventHandler(PinGrid_PointerCaptureLost), handledEventsToo: true);
         }
-        foreach (GridView grid in (GridView[])[PinnedGrid, FolderGrid, RecentGrid])
+        foreach (GridView grid in (GridView[])[PinnedGrid, FolderGrid])
         {
             grid.AddHandler(UIElement.PointerPressedEvent, new PointerEventHandler(GridItem_PointerPressed), handledEventsToo: true);
             grid.AddHandler(UIElement.PointerReleasedEvent, new PointerEventHandler(GridItem_PointerReleased), handledEventsToo: true);
             grid.AddHandler(UIElement.PointerCaptureLostEvent, new PointerEventHandler(GridItem_PointerReleased), handledEventsToo: true);
         }
-        IconPress.Attach(AllAppsButton, (UIElement)AllAppsButton.Content);
-        RecentGrid.ItemsSource = _recent;
         _results.Source = _resultGroups;
         ResultsList.ItemsSource = _results.View;
         SwitchToExplorerButton.Visibility = owner.RunMode == RunMode.Shell ? Visibility.Visible : Visibility.Collapsed;
         AddPlaceButtons();
+        AddLetterButtons();
         ShowUser();
+        ShowSections(StartAppData.LoadSections());
+        // Settings → Personalization → Start changes Start as it changes, as Explorer's.
+        _startSettings.Changed += () => DispatcherQueue.Post(() => ShowSections(StartAppData.LoadSections()));
         // Start's pins were apps only before folders; once, they become pins of their own.
         if (owner.Settings.Current.PinnedStartApps is { } apps)
         {
@@ -178,6 +201,7 @@ internal sealed partial class StartMenuWindow : Window
             IsOpen = false;
             _slide.Stop();
             owner.Icons.Loaded -= RefreshIcons;
+            _startSettings.Dispose();
             _placement.Dispose();
             _frameless.Dispose();
         };
@@ -226,7 +250,7 @@ internal sealed partial class StartMenuWindow : Window
         MoreOptionsPanel.RequestedTheme = Root.RequestedTheme;
         FolderPanel.Background = FolderPanelBrush(accent, Root.RequestedTheme);
         ShowPinned();
-        ShowRecent();
+        ShowAllApps();
         ShowPlaces();
         ShowPowerButton();
         LoadAppsIfStale();
@@ -353,7 +377,7 @@ internal sealed partial class StartMenuWindow : Window
     private void ShowView(FrameworkElement view)
     {
         HomeView.Visibility = view == HomeView ? Visibility.Visible : Visibility.Collapsed;
-        AllAppsView.Visibility = view == AllAppsView ? Visibility.Visible : Visibility.Collapsed;
+        LetterView.Visibility = view == LetterView ? Visibility.Visible : Visibility.Collapsed;
         SearchView.Visibility = view == SearchView ? Visibility.Visible : Visibility.Collapsed;
     }
 
@@ -365,23 +389,6 @@ internal sealed partial class StartMenuWindow : Window
         NoPinnedText.Visibility = _pinned.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
         if (_folderId is not null)
             ShowFolderApps();
-    }
-
-    // Windows records each start, by Explorer or by NeoShell, in UserAssist; reading it is quick enough for each open.
-    private void ShowRecent()
-    {
-        try
-        {
-            DateTime now = DateTime.Now;
-            Sync(_recent, [.. StartCatalog.Recent(_apps.Select(item => item.Target), UserAssist.Load(), MaxRecentApps)
-                .Select(recent => new StartItem(recent.App, StartCatalog.LastRunText(recent.LastRun, now), isApp: true, _owner.Icons))]);
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.SecurityException)
-        {
-            Log.Warn("Could not read recent apps", ex);
-            _recent.Clear();
-        }
-        RecentSection.Visibility = _recent.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
     }
 
     // Refilling a grid replays every item's entrance animation: all the icons vanish and come back, which after a
@@ -456,21 +463,12 @@ internal sealed partial class StartMenuWindow : Window
         _loadingApps = true;
         try
         {
-            IReadOnlyList<AppCatalogEntry> entries = await Task.Run(AppCatalog.Load);
-            _apps = [.. entries
-                .Select(entry => new StartItem(StartCatalog.ToPinnedApp(entry), "App", isApp: true, _owner.Icons))
-                .OrderBy(item => item.Title, StringComparer.CurrentCultureIgnoreCase)];
-            // "#" sorts before the letters, as in Windows.
-            _allApps.Source = _apps
-                .GroupBy(item => StartCatalog.LetterFor(item.Title))
-                .OrderBy(group => group.Key == "#" ? "" : group.Key, StringComparer.CurrentCultureIgnoreCase)
-                .Select(group => new StartGroup(group.Key, group))
-                .ToList();
-            // Setting the source makes a new view.
-            AllAppsList.ItemsSource = _allApps.View;
+            AppIcons icons = _owner.Icons;
+            _catalog = await Task.Run(() => LoadCatalog(icons));
+            _apps = [.. _catalog.Select(app => app.Item).OrderBy(item => item.Title, StringComparer.CurrentCultureIgnoreCase)];
             _appsLoadedAt = DateTime.UtcNow;
             Log.Info($"App catalog: {_apps.Count} apps");
-            ShowRecent();
+            ShowAllApps();
             if (_owner.Settings.Current is not { ExplorerStartPinsImported: true, ExplorerTaskbarPinsImported: true } && !_importingPins)
                 ImportExplorerPins();
         }
@@ -484,9 +482,267 @@ internal sealed partial class StartMenuWindow : Window
         }
     }
 
+    /// <summary>An app of the catalog, with its category and whether it's part of Windows, as Explorer's Start sees them.</summary>
+    private sealed record CatalogApp(string Id, StartItem Item, int Category, bool IsSystem);
+
+    // Off the UI thread: the AppsFolder, and Explorer's categories (its saved ones, else Windows' mappings, a 4 MB
+    // file) and system packages.
+    private static List<CatalogApp> LoadCatalog(AppIcons icons)
+    {
+        IReadOnlyList<AppCatalogEntry> entries = AppCatalog.Load();
+        IReadOnlyDictionary<string, int> saved = new Dictionary<string, int>();
+        IReadOnlyDictionary<string, int> mappings = new Dictionary<string, int>();
+        IReadOnlySet<string> systemFamilies = new HashSet<string>();
+        try
+        {
+            saved = StartAppData.LoadSavedCategories();
+            // Only read when Explorer's Start has categorized nothing (see AllApps.CategoryFor).
+            if (saved.Count == 0)
+                mappings = StartAppData.LoadCategoryMappings();
+            systemFamilies = StartAppData.LoadSystemPackageFamilies();
+        }
+        catch (Exception ex)
+        {
+            Log.Warn("Could not read Start's app categories", ex);
+        }
+        string[] folders = [.. ((string[])["%SystemRoot%", "%ProgramW6432%", "%ProgramFiles(x86)%"]).Select(Environment.ExpandEnvironmentVariables)];
+        string windows = folders[0];
+        return [.. entries.Select(entry =>
+        {
+            PinnedApp app = StartCatalog.ToPinnedApp(entry);
+            return new CatalogApp(
+                entry.Id,
+                new StartItem(app, "App", isApp: true, icons),
+                AllApps.CategoryFor(entry.Id, app.Path, saved, mappings, folders),
+                AllApps.IsSystem(entry.Id, app.Path, systemFamilies, windows));
+        })];
+    }
+
+    // Settings → Personalization → Start: the sections shown and the view, followed as they change.
+    private void ShowSections(StartSections sections)
+    {
+        _sections = sections;
+        PinnedSection.Visibility = sections.ShowPinned ? Visibility.Visible : Visibility.Collapsed;
+        AllSection.Visibility = sections.ShowAll ? Visibility.Visible : Visibility.Collapsed;
+        // Without Pinned, All's heading takes Pinned's place.
+        AllHeading.Margin = AllHeading.Margin with { Top = sections.ShowPinned ? 31 : 23 };
+        (RadioMenuFlyoutItem item, string name) = sections.View switch
+        {
+            AllAppsView.Grid => (GridViewMenuItem, "Grid"),
+            AllAppsView.List => (ListViewMenuItem, "List"),
+            _ => (CategoryViewMenuItem, "Category"),
+        };
+        item.IsChecked = true;
+        ViewButton.Content = $"View: {name}";
+        AutomationProperties.SetName(ViewButton, $"View selected, {name}");
+        ShowAllApps();
+    }
+
+    private void ViewItem_Click(object sender, RoutedEventArgs e)
+    {
+        AllAppsView view = ReferenceEquals(sender, GridViewMenuItem) ? AllAppsView.Grid : ReferenceEquals(sender, ListViewMenuItem) ? AllAppsView.List : AllAppsView.Category;
+        try
+        {
+            StartAppData.SaveView(view);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.SecurityException)
+        {
+            Log.Warn("Could not save Start's view", ex);
+        }
+        ShowSections(_sections with { View = view });
+    }
+
+    /// <summary>
+    /// All, as Explorer's Start shows it: the category cards, or the apps under their letters (the most used first, when
+    /// Settings asks for them), with "New" under apps Start hasn't seen opened and "System" under Windows' own. Use and
+    /// "New" change as apps are opened, so this is worked out each time Start opens; it's rebuilt only when it changed.
+    /// </summary>
+    private void ShowAllApps()
+    {
+        if (!_sections.ShowAll || _catalog.Count == 0)
+            return;
+
+        IReadOnlySet<string>? seen = null;
+        IReadOnlyList<AppUsage> usage = [];
+        try
+        {
+            seen = StartAppData.LoadSeenTiles();
+            usage = UserAssist.Load();
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.SecurityException or InvalidDataException or IndexOutOfRangeException or ArgumentException)
+        {
+            Log.Warn("Could not read Start's app use", ex);
+        }
+        IReadOnlyDictionary<PinnedApp, double> scores = AllApps.UsageScores(_catalog.Select(app => app.Item.Target), usage);
+        IReadOnlyList<string> opened = _owner.Settings.Current.StartAppsOpened;
+        List<AllAppsEntry> entries = [.. _catalog.Select(app =>
+        {
+            string tile = AllApps.TileId(app.Id);
+            return new AllAppsEntry(app.Item.Target, tile, app.Category, scores.GetValueOrDefault(app.Item.Target), AllApps.IsNew(tile, seen, opened), app.IsSystem);
+        })];
+
+        string key = $"{_sections.View} {_sections.ShowMostUsed} " + string.Join("|", entries.Select(entry =>
+            $"{entry.TileId}:{entry.App.DisplayName}:{entry.Category}:{Math.Round(entry.Usage)}:{entry.IsNew}:{entry.IsSystem}"));
+        if (key == _allAppsKey)
+            return;
+        _allAppsKey = key;
+
+        _allAppItems = [];
+        StartItem Item(AllAppsEntry entry)
+        {
+            var item = new StartItem(entry.App, "App", isApp: true, _owner.Icons) { TileId = entry.TileId, IsNew = entry.IsNew, IsSystem = entry.IsSystem };
+            _allAppItems.Add(item);
+            return item;
+        }
+
+        if (_sections.View == AllAppsView.Category)
+        {
+            LetterGroups.ItemsSource = null;
+            CategoryCards.ItemsSource = AllApps.Categories(entries)
+                .Select(category => new StartCategory(AllApps.CategoryName(category.Category), [.. category.Apps.Select(Item)]))
+                .ToList();
+            return;
+        }
+
+        CategoryCards.ItemsSource = null;
+        List<StartGroup> groups = [];
+        if (_sections.ShowMostUsed && AllApps.MostUsedApps(entries) is { Count: > 0 } mostUsed)
+            groups.Add(new StartGroup(AllApps.MostUsed, mostUsed.Select(Item)));
+        groups.AddRange(AllApps.ByLetter(entries).Select(group => new StartGroup(group.Letter, group.Apps.Select(Item))));
+        LetterGroups.ItemTemplate = (DataTemplate)Root.Resources[_sections.View == AllAppsView.Grid ? "LetterGridGroupTemplate" : "LetterListGroupTemplate"];
+        LetterGroups.ItemsSource = groups;
+    }
+
+    // Like Explorer's Start, an app opened from Start no longer shows "New".
+    private void MarkOpened(PinnedApp app)
+    {
+        if (_catalog.FirstOrDefault(entry => TaskGrouping.SameApp(entry.Item.Target, app)) is not { } opened)
+            return;
+        string tile = AllApps.TileId(opened.Id);
+        ShellSettings settings = _owner.Settings.Current;
+        if (!settings.StartAppsOpened.Contains(tile, StringComparer.OrdinalIgnoreCase))
+            _owner.Settings.Update(settings with { StartAppsOpened = [.. settings.StartAppsOpened, tile] });
+    }
+
+    private void AllAppsItem_Click(object sender, RoutedEventArgs e)
+    {
+        if (((FrameworkElement)sender).DataContext is StartItem item)
+            Open(item);
+    }
+
+    // A card's app opens it; its last place, with more apps' icons, opens the category, as does its name.
+    private void CategoryCell_Click(object sender, RoutedEventArgs e)
+    {
+        if (((FrameworkElement)sender).DataContext is not CategoryCell cell)
+            return;
+        if (cell.App is { } app)
+            Open(app);
+        else
+            OpenCategory(cell.Category, (FrameworkElement)sender);
+    }
+
+    private void CategoryButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (((FrameworkElement)sender).DataContext is StartCategory category)
+            OpenCategory(category, (FrameworkElement)sender);
+    }
+
+    private void CategoryCellMenu_Opening(object sender, object e)
+    {
+        var menu = (MenuFlyout)sender;
+        menu.Items.Clear();
+        if (menu.Target?.DataContext is CategoryCell { App: { } app })
+            FillAppMenu(menu, app.Target, [], search: false);
+    }
+
+    // A category opens in the panel folders open in, growing out of its card: its name and its apps, as tiles.
+    private void OpenCategory(StartCategory category, FrameworkElement source)
+    {
+        FrameworkElement? card = source;
+        while (card is not null && AutomationProperties.GetAutomationId(card) != "CategoryCard")
+            card = VisualTreeHelper.GetParent(card) as FrameworkElement;
+
+        _openCategory = category;
+        ShowPanelContent(category: true);
+        _categoryCard = card;
+        CategoryTitle.Text = category.Name;
+        CategoryApps.ItemsSource = category.Apps;
+        CategoryAppsView.ChangeView(null, 0, null, disableAnimation: true);
+        FolderLayer.Visibility = Visibility.Visible;
+        FolderLayer.IsHitTestVisible = true;
+        AnimateFolder(opening: true, null);
+    }
+
+    private void AddLetterButtons()
+    {
+        foreach (string letter in AllApps.Letters)
+        {
+            object content = letter == AllApps.MostUsed ? new FontIcon { Glyph = "\uE823", FontSize = 20 }
+                : letter == AllApps.OtherScripts ? new FontIcon { Glyph = letter, FontSize = 20 }
+                : new TextBlock { Text = letter, FontSize = 20 };
+            var button = new Button { Width = 48, Height = 48, Margin = new Thickness(0), Padding = new Thickness(0), Content = content, Tag = letter };
+            // A letter without apps is only dimmed, as Explorer's.
+            button.Resources["ButtonBackgroundDisabled"] = new SolidColorBrush(Colors.Transparent);
+            button.Resources["ButtonBorderBrushDisabled"] = new SolidColorBrush(Colors.Transparent);
+            AutomationProperties.SetAutomationId(button, "LetterButton");
+            AutomationProperties.SetName(button, letter == AllApps.OtherScripts ? "Other" : letter);
+            button.Click += (_, _) => ZoomIn(letter);
+            LetterGrid.Items.Add(button);
+        }
+    }
+
+    // A letter's header zooms out to the letters, those with apps lit, as Explorer's All does.
+    private void LetterHeader_Click(object sender, RoutedEventArgs e)
+    {
+        HashSet<string> present = [.. (LetterGroups.ItemsSource as IEnumerable<StartGroup> ?? []).Select(group => group.Key)];
+        foreach (Button button in LetterGrid.Items.OfType<Button>())
+            button.IsEnabled = present.Contains((string)button.Tag);
+
+        ShowView(LetterView);
+        Animate(LetterGrid, LetterGridScale, fromScale: 1.3);
+    }
+
+    private void LetterBack_Click(object sender, RoutedEventArgs e) => ZoomIn(null);
+
+    /// <summary>Back from the letters to All, at <paramref name="letter"/>'s apps when one was picked.</summary>
+    private void ZoomIn(string? letter)
+    {
+        ShowView(HomeView);
+        if (letter is not null && (LetterGroups.ItemsSource as IEnumerable<StartGroup> ?? []).FirstOrDefault(group => group.Key == letter) is { } group
+            && LetterGroups.ContainerFromItem(group) is UIElement container)
+        {
+            HomeView.UpdateLayout();
+            Point top = container.TransformToVisual((UIElement)HomeView.Content).TransformPoint(default);
+            HomeView.ChangeView(null, top.Y, null, disableAnimation: true);
+        }
+        Animate(HomeView, null, fromScale: 1);
+    }
+
+    // Fades in (and for the letters shrinks from larger to their size), decelerating.
+    private static void Animate(UIElement element, ScaleTransform? scale, double fromScale)
+    {
+        var story = new Storyboard();
+        var ease = new CubicEase { EasingMode = EasingMode.EaseOut };
+        var fade = new DoubleAnimation { From = 0, To = 1, Duration = s_letterZoomDuration, EasingFunction = ease };
+        Storyboard.SetTarget(fade, element);
+        Storyboard.SetTargetProperty(fade, "Opacity");
+        story.Children.Add(fade);
+        if (scale is not null)
+        {
+            foreach (string property in (string[])["ScaleX", "ScaleY"])
+            {
+                var grow = new DoubleAnimation { From = fromScale, To = 1, Duration = s_letterZoomDuration, EasingFunction = ease };
+                Storyboard.SetTarget(grow, scale);
+                Storyboard.SetTargetProperty(grow, property);
+                story.Children.Add(grow);
+            }
+        }
+        story.Begin();
+    }
+
     private void RefreshIcons()
     {
-        foreach (StartItem item in _pinned.Concat(_folderApps).Concat(_recent).Concat(_apps).Concat(_resultItems))
+        foreach (StartItem item in _pinned.Concat(_folderApps).Concat(_apps).Concat(_allAppItems).Concat(_resultItems))
             item.RefreshIcon();
     }
 
@@ -604,9 +860,11 @@ internal sealed partial class StartMenuWindow : Window
         // so only afterwards (Closed).
         if (e.Key == VirtualKey.Escape && !_accountMenuOpen)
         {
-            // An open folder closes first, then Start.
-            if (_folderId is not null)
+            // An open folder or category closes first, then the letters, then Start.
+            if (PanelOpen)
                 CloseFolder(animate: true);
+            else if (LetterView.Visibility == Visibility.Visible)
+                ZoomIn(null);
             else
                 Hide();
             e.Handled = true;
@@ -640,13 +898,10 @@ internal sealed partial class StartMenuWindow : Window
     {
         Hide();
         Launcher.Launch(item.Target);
+        MarkOpened(item.Target);
     }
 
-    private void AllAppsButton_Click(object sender, RoutedEventArgs e) => ShowView(AllAppsView);
-
-    private void BackButton_Click(object sender, RoutedEventArgs e) => ShowView(HomeView);
-
-    // An app's menu in All apps and Recent.
+    // An app's menu in All apps.
     private void ItemMenu_Opening(object sender, object e)
     {
         var menu = (MenuFlyout)sender;
@@ -1250,6 +1505,7 @@ internal sealed partial class StartMenuWindow : Window
 
         _folderId = folder.Id;
         FolderNameBox.Text = StartPins.DisplayName(folder);
+        ShowPanelContent(category: false);
         ShowFolderApps();
         FolderLayer.Visibility = Visibility.Visible;
         FolderLayer.IsHitTestVisible = true;
@@ -1278,18 +1534,23 @@ internal sealed partial class StartMenuWindow : Window
             _folderTile.Opacity = 0;
     }
 
+    private bool PanelOpen => _folderId is not null || _openCategory is not null;
+
     private void CloseFolder(bool animate)
     {
-        if (_folderId is null)
+        if (!PanelOpen)
             return;
 
         CommitFolderName();
         _folderId = null;
+        _openCategory = null;
         FolderLayer.IsHitTestVisible = false;
         UIElement? tile = _folderTile;
         void Closed()
         {
             FolderLayer.Visibility = Visibility.Collapsed;
+            ShowPanelContent(category: false);
+            CategoryApps.ItemsSource = null;
             _folderApps.Clear();
             if (tile is not null)
                 tile.Opacity = 1;
@@ -1308,18 +1569,22 @@ internal sealed partial class StartMenuWindow : Window
         }
     }
 
-    // The panel grows out of the folder's tile, from the tile's size, and shrinks back into it.
+    // The panel grows out of the folder's tile, from the tile's size, and shrinks back into it; a category's out of its
+    // card, from the card's size.
     private void AnimateFolder(bool opening, Action? done)
     {
         _folderAnimation?.Stop();
         double fromX = 0, fromY = 0;
-        if (_folderTile is not null && ItemIcon(_folderTile) is FrameworkElement icon)
+        FrameworkElement? origin = _categoryCard ?? (_folderTile is not null ? ItemIcon(_folderTile) as FrameworkElement : null);
+        if (origin is not null)
         {
-            Point tile = icon.TransformToVisual(Root).TransformPoint(new Point(icon.ActualWidth / 2, icon.ActualHeight / 2));
-            fromX = tile.X - Root.ActualWidth / 2;
-            fromY = tile.Y - Root.ActualHeight / 2;
+            // A card's square, not its name below it.
+            double height = _categoryCard is not null ? origin.ActualWidth : origin.ActualHeight;
+            Point centre = origin.TransformToVisual(Root).TransformPoint(new Point(origin.ActualWidth / 2, height / 2));
+            fromX = centre.X - Root.ActualWidth / 2;
+            fromY = centre.Y - Root.ActualHeight / 2;
         }
-        double small = 38 / FolderPanel.Width;
+        double small = (_categoryCard is not null ? _categoryCard.ActualWidth : 38) / FolderPanel.Width;
         // Each key frame needs a curve of its own.
         KeySpline Curve() => opening
             ? new KeySpline { ControlPoint1 = new Point(0, 0), ControlPoint2 = new Point(0, 1) }
@@ -1378,6 +1643,17 @@ internal sealed partial class StartMenuWindow : Window
     }
 
     private void FolderNameBox_LostFocus(object sender, RoutedEventArgs e) => CommitFolderName();
+
+    /// <summary>The panel shows a folder (its name to edit, its apps to drag) or a category (its name, its apps).</summary>
+    private void ShowPanelContent(bool category)
+    {
+        FolderNameBox.Visibility = category ? Visibility.Collapsed : Visibility.Visible;
+        FolderGrid.Visibility = category ? Visibility.Collapsed : Visibility.Visible;
+        CategoryTitle.Visibility = category ? Visibility.Visible : Visibility.Collapsed;
+        CategoryAppsView.Visibility = category ? Visibility.Visible : Visibility.Collapsed;
+        if (!category)
+            _categoryCard = null;
+    }
 
     private void CommitFolderName()
     {

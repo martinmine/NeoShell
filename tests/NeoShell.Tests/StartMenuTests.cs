@@ -95,12 +95,15 @@ public sealed class StartMenuTests
 
     [Theory]
     [InlineData("Notepad", "N")]
-    [InlineData("éclair", "É")]
+    [InlineData("éclair", "E")]
     [InlineData("7-Zip", "#")]
-    [InlineData("", "#")]
-    public void All_apps_letter_is_the_first_letter_or_hash(string name, string expected)
+    [InlineData("& more", "&")]
+    [InlineData("(Beta) tool", "&")]
+    [InlineData("Привет", AllApps.OtherScripts)]
+    [InlineData("", "&")]
+    public void All_apps_letter_is_the_first_Latin_letter_hash_ampersand_or_globe(string name, string expected)
     {
-        Assert.Equal(expected, StartCatalog.LetterFor(name));
+        Assert.Equal(expected, AllApps.LetterFor(name));
     }
 
     [Theory]
@@ -231,35 +234,215 @@ public sealed class StartMenuTests
 
         Assert.Equal("Microsoft.Paint_8wekyb3d8bbwe!App", usage?.Id);
         Assert.Equal(new DateTime(2026, 10, 7, 19, 24, 13, 670, DateTimeKind.Utc), usage?.LastRun);
+        Assert.Equal(8, usage?.Runs);
+        Assert.Equal(TimeSpan.FromMilliseconds(412438), usage?.FocusTime);
     }
 
     [Fact]
-    public void Recent_apps_are_newest_first_listed_once_and_only_from_the_catalog()
+    public void Tile_ids_are_Explorers()
     {
-        var now = new DateTime(2026, 10, 4, 12, 0, 0, DateTimeKind.Utc);
-        AppUsage[] usage =
+        Assert.Equal("P~Microsoft.Paint_8wekyb3d8bbwe!App", AllApps.TileId("Microsoft.Paint_8wekyb3d8bbwe!App"));
+        Assert.Equal("W~MSEdge", AllApps.TileId("MSEdge"));
+        Assert.Equal(@"W~{1AC14E77-02E7-4E5D-B744-2EB1AE5198B7}\narrator.exe", AllApps.TileId(@"{1AC14E77-02E7-4E5D-B744-2EB1AE5198B7}\narrator.exe"));
+    }
+
+    private static readonly string[] s_folders = [@"C:\Windows", @"C:\Program Files", @"C:\Program Files (x86)"];
+
+    [Fact]
+    public void Category_is_the_one_Start_saved_and_without_any_Windows_mapping_by_family_path_or_id()
+    {
+        var saved = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["P~Microsoft.Paint_8wekyb3d8bbwe!App"] = 23,
+            ["W~Microsoft.Windows.ControlPanel"] = 0,
+        };
+        var mappings = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["microsoft.paint_8wekyb3d8bbwe"] = 7,
+            ["microsoft.windowsnotepad_8wekyb3d8bbwe"] = 13,
+            [@"\system32\narrator.exe"] = 1,
+            ["msedge"] = 2,
+            ["microsoft.windows.controlpanel"] = 9,
+        };
+
+        // The web service's answer, saved by Start, wins, even when it's Other; an app Start hasn't categorized is Other.
+        Assert.Equal(23, AllApps.CategoryFor("Microsoft.Paint_8wekyb3d8bbwe!App", null, saved, mappings, s_folders));
+        Assert.Equal(0, AllApps.CategoryFor("Microsoft.Windows.ControlPanel", null, saved, mappings, s_folders));
+        Assert.Equal(AllApps.Other, AllApps.CategoryFor("Microsoft.WindowsNotepad_8wekyb3d8bbwe!App", null, saved, mappings, s_folders));
+
+        // With nothing saved by Start, Windows' mappings.
+        Dictionary<string, int> none = [];
+        Assert.Equal(7, AllApps.CategoryFor("Microsoft.Paint_8wekyb3d8bbwe!App", null, none, mappings, s_folders));
+        Assert.Equal(13, AllApps.CategoryFor("Microsoft.WindowsNotepad_8wekyb3d8bbwe!App", null, none, mappings, s_folders));
+        Assert.Equal(1, AllApps.CategoryFor(@"{1AC14E77-02E7-4E5D-B744-2EB1AE5198B7}\narrator.exe", @"C:\WINDOWS\system32\narrator.exe", none, mappings, s_folders));
+        Assert.Equal(2, AllApps.CategoryFor("MSEdge", @"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe", none, mappings, s_folders));
+        Assert.Equal(AllApps.Other, AllApps.CategoryFor("Contoso.App", @"D:\Contoso\app.exe", none, mappings, s_folders));
+    }
+
+    private static AllAppsEntry Entry(string name, int category, double usage = 0) =>
+        new(new PinnedApp(name, $"Test.{name.Replace(" ", "")}"), $"W~Test.{name}", category, usage);
+
+    private static string Show(IReadOnlyList<(int Category, IReadOnlyList<AllAppsEntry> Apps)> categories) =>
+        string.Join(" | ", categories.Select(c => $"{AllApps.CategoryName(c.Category)}: {string.Join(", ", c.Apps.Select(a => a.App.DisplayName))}"));
+
+    [Fact]
+    public void Categories_merge_as_Explorers_and_small_ones_go_to_Other()
+    {
+        AllAppsEntry[] apps =
         [
-            new("Microsoft.WindowsNotepad_8wekyb3d8bbwe!App", now.AddHours(-3)),
-            new(@"{1AC14E77-02E7-4E5D-B744-2EB1AE5198B7}\charmap.exe", now.AddHours(-1)),
-            new(@"D:\setup.exe", now),
-            new("Microsoft.VisualStudioCode", now.AddHours(-2)),
-            new(@"C:\Tools\VS Code\Code.exe", now.AddMinutes(-90)),
+            // Photo & Video, Multimedia Design, Graphics, Personalization always make Creativity.
+            Entry("Photos", 7), Entry("Clipchamp", 7), Entry("Paint", 23),
+            // Communication and Security always join Productivity.
+            Entry("Edge", 2), Entry("Notepad", 13), Entry("Defender", 5),
+            // Games joins Entertainment while it has fewer than three apps.
+            Entry("Solitaire", 3), Entry("Xbox", 16), Entry("Media Player", 17),
+            // Utilities & Tools has enough apps of its own.
+            Entry("Calculator", 9), Entry("Clock", 9), Entry("Store", 9),
+            // News & Weather goes into Information & Reading, which with two apps goes into Other.
+            Entry("News", 25), Entry("Weather", 25),
+            // Two developer tools aren't enough for a card.
+            Entry("Terminal", 15), Entry("Git Bash", 15),
+            Entry("Claude", 0),
         ];
 
         Assert.Equal(
-            [(s_charmap, now.AddHours(-1)), (s_code, now.AddMinutes(-90))],
-            StartCatalog.Recent(s_catalog, usage, 2));
+            "Creativity: Clipchamp, Paint, Photos | Entertainment: Media Player, Solitaire, Xbox | Other: Claude, Git Bash, News, Terminal, Weather | Productivity: Defender, Edge, Notepad | Utilities & Tools: Calculator, Clock, Store",
+            Show(AllApps.Categories(apps)));
     }
 
     [Fact]
-    public void Last_run_is_minutes_or_hours_ago_then_the_date()
+    public void Games_with_three_apps_keep_their_own_card()
     {
-        var now = new DateTime(2026, 10, 4, 12, 0, 0, DateTimeKind.Local);
+        AllAppsEntry[] apps = [Entry("Chess", 3), Entry("Go", 3), Entry("Solitaire", 3), Entry("Xbox", 16), Entry("Groove", 17), Entry("Movies", 16)];
 
-        Assert.Equal("Just now", StartCatalog.LastRunText(now.AddSeconds(-20), now));
-        Assert.Equal("30m ago", StartCatalog.LastRunText(now.AddMinutes(-30), now));
-        Assert.Equal("5h ago", StartCatalog.LastRunText(now.AddHours(-5).AddMinutes(-10), now));
-        Assert.Equal(now.AddDays(-2).ToString("M"), StartCatalog.LastRunText(now.AddDays(-2), now));
+        Assert.Equal("Entertainment: Groove, Movies, Xbox | Games: Chess, Go, Solitaire", Show(AllApps.Categories(apps)));
+    }
+
+    [Fact]
+    public void Categories_are_ordered_by_their_two_most_used_apps_and_apps_by_use_then_name()
+    {
+        // As Explorer's Start ordered this machine's (2026-10-07): Other first for Claude, Productivity's Explorer and
+        // Notepad, then Utilities & Tools.
+        AllAppsEntry[] apps =
+        [
+            Entry("Claude", 0, 306), Entry("Visual Studio Code", 0, 4.6), Entry("Microsoft News", 0),
+            Entry("File Explorer", 13, 75), Entry("Notepad", 13, 43), Entry("Microsoft Edge", 13, 20.4), Entry("Outlook", 13),
+            Entry("Settings", 9, 62), Entry("Snipping Tool", 9, 10.1), Entry("Microsoft Store", 9, 4.3), Entry("Calculator", 9, 5.1),
+        ];
+
+        Assert.Equal(
+            "Other: Claude, Visual Studio Code, Microsoft News | Productivity: File Explorer, Notepad, Microsoft Edge, Outlook | Utilities & Tools: Settings, Snipping Tool, Calculator, Microsoft Store",
+            Show(AllApps.Categories(apps)));
+    }
+
+    [Fact]
+    public void Most_used_are_the_six_most_used_apps_that_were_used()
+    {
+        AllAppsEntry[] apps =
+        [
+            Entry("A", 0, 1), Entry("B", 0, 9), Entry("C", 0, 0.2), Entry("D", 0, 5), Entry("E", 0, 7), Entry("F", 0, 3),
+            Entry("G", 0, 2), Entry("H", 0, 4),
+        ];
+
+        Assert.Equal(["B", "E", "D", "H", "F", "G"], AllApps.MostUsedApps(apps).Select(app => app.App.DisplayName));
+        Assert.Empty(AllApps.MostUsedApps([Entry("A", 0, 0.4)]));
+    }
+
+    [Fact]
+    public void Letters_go_symbols_digits_then_A_to_Z_then_other_scripts()
+    {
+        AllAppsEntry[] apps = [Entry("Zoom", 0), Entry("7-Zip", 0), Entry("Ägypten", 0), Entry("alpha", 0), Entry("Привет", 0), Entry("&Co", 0)];
+
+        Assert.Equal(
+            ["& &Co", "# 7-Zip", "A Ägypten alpha", "Z Zoom", AllApps.OtherScripts + " Привет"],
+            AllApps.ByLetter(apps).Select(group => group.Letter + " " + string.Join(" ", group.Apps.Select(app => app.App.DisplayName))));
+    }
+
+    [Fact]
+    public void Use_is_starts_plus_minutes_in_front_over_every_value_of_the_app()
+    {
+        AppUsage[] usage =
+        [
+            new("Microsoft.WindowsNotepad_8wekyb3d8bbwe!App", DateTime.UtcNow, 13, TimeSpan.FromMinutes(30)),
+            new(@"{1AC14E77-02E7-4E5D-B744-2EB1AE5198B7}\charmap.exe", DateTime.UtcNow, 2, TimeSpan.FromSeconds(30)),
+            new("Microsoft.VisualStudioCode", DateTime.UtcNow, 1, TimeSpan.Zero),
+            new(@"C:\Tools\VS Code\Code.exe", DateTime.UtcNow, 3, TimeSpan.FromMinutes(1)),
+            new(@"D:\setup.exe", DateTime.UtcNow, 1, TimeSpan.Zero),
+        ];
+
+        IReadOnlyDictionary<PinnedApp, double> scores = AllApps.UsageScores(s_catalog, usage);
+
+        Assert.Equal(43, scores[s_notepad]);
+        Assert.Equal(2.5, scores[s_charmap]);
+        Assert.Equal(5, scores[s_code]);
+    }
+
+    [Fact]
+    public void New_is_what_neither_Explorers_Start_nor_NeoShells_has_seen_opened()
+    {
+        HashSet<string> seen = new(["P~Claude_pzs8sxrjxfjjc!Claude"], StringComparer.OrdinalIgnoreCase);
+
+        Assert.False(AllApps.IsNew("P~CLAUDE_pzs8sxrjxfjjc!Claude", seen, []));
+        Assert.True(AllApps.IsNew("P~Microsoft.WindowsCalculator_8wekyb3d8bbwe!App", seen, []));
+        Assert.False(AllApps.IsNew("P~Microsoft.WindowsCalculator_8wekyb3d8bbwe!App", seen, ["P~Microsoft.WindowsCalculator_8wekyb3d8bbwe!App"]));
+        // Without Explorer's record, nothing is new.
+        Assert.False(AllApps.IsNew("P~Microsoft.WindowsCalculator_8wekyb3d8bbwe!App", null, []));
+    }
+
+    [Fact]
+    public void System_is_Starts_list_else_a_package_or_program_of_Windows()
+    {
+        HashSet<string> system = new(["windows.immersivecontrolpanel_cw5n1h2txyewy", "Microsoft.WindowsCamera_8wekyb3d8bbwe"], StringComparer.OrdinalIgnoreCase);
+
+        const string windows = @"C:\WINDOWS";
+
+        Assert.True(AllApps.IsSystem("windows.immersivecontrolpanel_cw5n1h2txyewy!microsoft.windows.immersivecontrolpanel", null, system, windows));
+        Assert.True(AllApps.IsSystem("Microsoft.WindowsStore_8wekyb3d8bbwe!App", null, system, windows));
+        Assert.False(AllApps.IsSystem("Microsoft.WindowsCamera_8wekyb3d8bbwe!App", null, system, windows));
+        Assert.False(AllApps.IsSystem("Microsoft.Paint_8wekyb3d8bbwe!App", null, system, windows));
+        Assert.True(AllApps.IsSystem("Microsoft.Windows.Explorer", @"C:\Windows\explorer.exe", system, windows));
+        Assert.False(AllApps.IsSystem("MSEdge", @"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe", system, windows));
+        Assert.True(AllApps.IsSystem(@"{1AC14E77-02E7-4E5D-B744-2EB1AE5198B7}\magnify.exe", @"C:\Windows\System32\magnify.exe", system, windows));
+        Assert.False(AllApps.IsSystem(@"{6D809377-6AF0-444B-8957-A3773F02200E}\nodejs\node.exe", @"C:\Program Files\nodejs\node.exe", system, windows));
+        Assert.False(AllApps.IsSystem("Contoso.Tool", @"C:\WindowsApps\tool.exe", system, windows));
+    }
+
+    [Fact]
+    public void Start_tile_store_gives_the_tiles_with_a_first_seen_time()
+    {
+        // Start's roamed tile properties (CloudStore), cut down: Claude seen and pinned, Clipchamp seen, Calculator not.
+        static byte[] Key(string text) => [(byte)text.Length, .. System.Text.Encoding.Unicode.GetBytes(text)];
+        byte[] data =
+        [
+            0x02, 0, 0, 0, 0x3C, 0x9F, 0xD1, 0xC9, 0x8E, 0x56, 0xDD, 0x01, 0, 0, 0, 0,
+            (byte)'C', (byte)'B', 0x01, 0x00,
+            0x0D, 0x12, 0x0A, 0x03,
+            .. Key("P~Claude_pzs8sxrjxfjjc!Claude"),
+            0x0A, 0xC6, 0x0A, 0x90, 0xBF, 0xA5, 0xE1, 0xAC, 0xEE, 0xD4, 0xEE, 0x01, 0xC2, 0x14, 0x01, 0x00, 0xCA, 0x0A, 0x00, 0x00,
+            .. Key("P~Clipchamp.Clipchamp_yxz26nhyzhsrt!App"),
+            0x0A, 0xC6, 0x0A, 0x95, 0xD9, 0xC5, 0xCE, 0xEC, 0xD1, 0xD5, 0xEE, 0x01, 0x00, 0xCA, 0x0A, 0x00, 0x00,
+            .. Key("P~Microsoft.WindowsCalculator_8wekyb3d8bbwe!App"),
+            0x0A, 0xC2, 0x14, 0x01, 0x00, 0xCA, 0x0A, 0x00, 0x00,
+            0x00,
+        ];
+
+        IReadOnlySet<string>? seen = StartAppData.ParseSeenTiles(data);
+
+        Assert.NotNull(seen);
+        Assert.Equal(["P~Claude_pzs8sxrjxfjjc!Claude", "P~Clipchamp.Clipchamp_yxz26nhyzhsrt!App"], seen.Order());
+        Assert.Null(StartAppData.ParseSeenTiles([1, 2, 3]));
+    }
+
+    [Fact]
+    public void Category_mappings_take_an_ids_first_category()
+    {
+        byte[] json = """{ "2": ["msedge", "chrome"], "13": ["Notepad", "msedge"], "x": ["skip"] }"""u8.ToArray();
+
+        IReadOnlyDictionary<string, int> mappings = StartAppData.ParseMappings(json);
+
+        Assert.Equal(2, mappings["MSEdge"]);
+        Assert.Equal(13, mappings["notepad"]);
+        Assert.False(mappings.ContainsKey("skip"));
     }
 
     // Menus as text: commands by name, separators as "|".

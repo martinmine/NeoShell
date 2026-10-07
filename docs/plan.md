@@ -373,7 +373,15 @@ Each item is done when it looks and behaves as Explorer's (layout, behaviour, an
       `UEME_CTLSESSION` stay Explorer's (shell32 keeps them per process; as the shell they count NeoShell's
       starts); Explorer's own Start doesn't reorder its category folders or drop "New" for apps NeoShell starts (it
       keeps its own launch counts)
-- [ ] T23 Start: All apps category view
+- [x] T23 Start: All apps category view — Explorer 25H2's Home with Recommended off: Pinned, then All on the same
+      page (NeoShell's Recent row, All apps button and separate All apps page removed) with Category, Grid and List
+      views in Explorer's `AllAppsViewMode`; Explorer's categories (its saved web-service answers, else Windows'
+      LZMS mappings file), merging and order (StartMenu.dll's `CategoryProvider`, read with its PDB), cards and the
+      category panel; Most used, "New" (from Start's CloudStore tile store, Bond) and "System"; the letters view;
+      Settings' Pinned, All and Most used followed live; compared side by side in both run modes (layout to 1 px) —
+      not done: Explorer's folders in All (Start Menu subfolders; NeoShell's catalog is flat, so its categories have
+      more apps), arrow-key navigation, the page's zoom-out animation; differs: use is measured from UserAssist (starts
+      plus minutes in front) where Explorer keeps its own count of the starts it saw
 - [ ] T24 Wallpaper: slideshow, Windows Spotlight, a wallpaper per monitor, `IDesktopWallpaper` in shell mode
 - [ ] T25 Desktop icons on every monitor
 - [ ] T26 Desktop: Undo; "Align icons to grid" off

@@ -44,35 +44,8 @@ public static class StartCatalog
     public static IReadOnlyList<PinnedApp> AddImported(IReadOnlyList<PinnedApp> pinned, IEnumerable<PinnedApp> imported) =>
         [.. pinned, .. imported.Where(app => !pinned.Any(p => TaskGrouping.SameApp(p, app)))];
 
-    /// <summary>
-    /// The catalog apps started most recently, newest first. An app can be recorded both by its AppUserModelID and
-    /// by its executable; it's listed once.
-    /// </summary>
-    public static IReadOnlyList<(PinnedApp App, DateTime LastRun)> Recent(IEnumerable<PinnedApp> apps, IEnumerable<AppUsage> usage, int count) =>
-        [.. usage
-            .OrderByDescending(entry => entry.LastRun)
-            .Select(entry => (App: AppCatalog.IsAppUserModelId(entry.Id) ? Find(apps, entry.Id, null) : Find(apps, null, AppCatalog.ResolvePath(entry.Id)), entry.LastRun))
-            .Where(recent => recent.App is not null)
-            .DistinctBy(recent => recent.App)
-            .Take(count)
-            .Select(recent => (recent.App!, recent.LastRun))];
-
-    /// <summary>When a recent app was last started, as Windows' Start says it: "Just now", "30m ago", "5h ago", else the date.</summary>
-    public static string LastRunText(DateTime lastRun, DateTime now)
-    {
-        TimeSpan ago = now - lastRun.ToLocalTime();
-        return ago.TotalMinutes < 1 ? "Just now"
-            : ago.TotalHours < 1 ? $"{(int)ago.TotalMinutes}m ago"
-            : ago.TotalDays < 1 ? $"{(int)ago.TotalHours}h ago"
-            : lastRun.ToLocalTime().ToString("M");
-    }
-
     public static string GroupFor(IndexResult result) =>
         result.Kinds.Contains("folder", StringComparer.OrdinalIgnoreCase) ? Folders
         : result.Kinds.Any(s_documentKinds.Contains) ? Documents
         : Other;
-
-    /// <summary>The letter an app is listed under in All apps: its first letter, or # for anything else.</summary>
-    public static string LetterFor(string name) =>
-        name.Length > 0 && char.IsLetter(name[0]) ? char.ToUpper(name[0]).ToString() : "#";
 }

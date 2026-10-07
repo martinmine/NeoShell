@@ -5,9 +5,9 @@ using NeoShell.Interop.Native;
 
 namespace NeoShell.Interop.Shell;
 
-/// <summary>When an app was last started.</summary>
+/// <summary>When an app was last started, how often, and how long it has had the focus.</summary>
 /// <param name="Id">An AppUserModelID, or an executable's path that may start with a known folder, as in the AppsFolder.</param>
-public sealed record AppUsage(string Id, DateTime LastRun);
+public sealed record AppUsage(string Id, DateTime LastRun, int Runs = 0, TimeSpan FocusTime = default);
 
 /// <summary>
 /// The launch history Windows keeps for Start: every app started through the shell with usage logging (Explorer's
@@ -18,7 +18,9 @@ public static class UserAssist
     // The key for executables and AppUserModelIDs; {F4E57C4B-…} beside it counts the shortcuts that started them.
     private const string KeyPath = @"Software\Microsoft\Windows\CurrentVersion\Explorer\UserAssist\{CEBFF5CD-ACE2-4F4F-9178-9926F41749EA}\Count";
 
-    // The value is 72 bytes: session, run count, focus count, focus time, ..., last run as a FILETIME at 60.
+    // The value is 72 bytes: session, run count, focus count, focus time in ms, ..., last run as a FILETIME at 60.
+    private const int RunsOffset = 4;
+    private const int FocusTimeOffset = 12;
     private const int LastRunOffset = 60;
 
     private static readonly Guid CLSID_UserAssist = new("dd313e04-feff-11d1-8ecd-0000f87a470c");
@@ -58,7 +60,10 @@ public static class UserAssist
 
         long fileTime = BitConverter.ToInt64(data, LastRunOffset);
         // Explorer adds entries it only ever showed, with no start.
-        return fileTime > 0 ? new AppUsage(Rot13(valueName), DateTime.FromFileTimeUtc(fileTime)) : null;
+        return fileTime > 0
+            ? new AppUsage(Rot13(valueName), DateTime.FromFileTimeUtc(fileTime), BitConverter.ToInt32(data, RunsOffset),
+                TimeSpan.FromMilliseconds(BitConverter.ToUInt32(data, FocusTimeOffset)))
+            : null;
     }
 
     /// <summary>Value names are ROT13-encoded.</summary>

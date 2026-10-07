@@ -109,6 +109,11 @@ public sealed record ShellSettings
     /// <summary>Start's size in effective pixels, as the user left it by dragging a corner.</summary>
     public double StartMenuWidth { get; set; } = 832;
     public double StartMenuHeight { get; set; } = 860;
+    /// <summary>
+    /// Apps opened from NeoShell's Start, by their id in Explorer's Start: like Explorer's Start, All apps stops
+    /// showing "New" under them. (Explorer's own record is its tile store, which NeoShell only reads.)
+    /// </summary>
+    public IReadOnlyList<string> StartAppsOpened { get; set; } = [];
     /// <summary>The calendar under the notification center folded away to its heading, as the user left it.</summary>
     public bool CalendarCollapsed { get; set; }
     /// <summary>The length of a focus session, as last chosen in the calendar.</summary>
