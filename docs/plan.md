@@ -285,7 +285,11 @@ Each item is done when it looks and behaves as Explorer's (layout, behaviour, an
       (COM activator, protocol, packaged), from a toast or the notification center — not run live: background
       activation and a packaged app's own toast audio file; not matched: ghost toasts pop up, `duration="long"` and
       alarms with buttons time out as other toasts
-- [ ] T8 Input language indicator and its picker
+- [x] T8 Input language indicator and its picker: Explorer's input switcher (InputSwitch.dll) for the input method
+      in front and switching; NeoShell's own switcher flyout and Win+Space (shell mode), the IME mode button —
+      not done: the IME's right-click menu (InputSwitch draws it only in Explorer); not run live: text services
+      other than the Japanese IME (their glyphs paired by meaning), "a different input method for each app
+      window", other DPIs
 - [ ] T9 Badges for packaged apps (`BadgeUpdateManager`)
 - [ ] T10 End task in the task button's menu
 - [ ] T11 Dragging over task buttons: bring the window forward; drop on a pinned app opens with it

@@ -14,6 +14,7 @@ using Microsoft.UI.Input;
 using Microsoft.UI.Composition;
 using Microsoft.UI.Xaml.Hosting;
 using System.Numerics;
+using NeoShell.Interop.Input;
 using NeoShell.Interop.Shell;
 using NeoShell.Interop.Tray;
 using NeoShell.Logging;
@@ -69,6 +70,13 @@ internal sealed partial class TaskbarWindow : Window
     private readonly NotificationArea? _tray;
     private readonly Indicators? _indicators;
     private QuickSettingsPage _quickSettingsPage;
+    // Explorer's input switcher slides in (in about 67 ms) and out faster than its other flyouts. A popup window of
+    // ours shows on screen some 40 ms after it starts to slide, so its slide takes longer for the same look.
+    private static readonly TimeSpan s_inputSwitcherOpening = TimeSpan.FromMilliseconds(100);
+    private static readonly TimeSpan s_inputSwitcherClosing = TimeSpan.FromMilliseconds(100);
+    // Whether the switcher is Win+Space's, which switches when the Windows key is let go of.
+    private bool _inputSwitcherCompact;
+    private InputMethod? _inputMethodToSwitch;
     private readonly DispatcherQueueTimer _trayHoverTimer;
     private TrayIcon? _trayHovered;
     private bool _trayPopupOpen;
@@ -212,6 +220,18 @@ internal sealed partial class TaskbarWindow : Window
             IndicatorArea.Visibility = Visibility.Visible;
             QuickSettings.Attach(_indicators, owner.RunMode, owner.Icons);
             QuickSettings.CloseRequested += QuickSettingsFlyout.Hide;
+            InputSwitcher.MethodChosen += method =>
+            {
+                _inputMethodToSwitch = method;
+                InputFlyout.Hide();
+            };
+            InputSwitcher.SettingsRequested += () =>
+            {
+                InputFlyout.Hide();
+                // As the shell, Windows' classic Text Services and Input Languages: Settings can't start without Explorer.
+                Launcher.OpenSettings(
+                    owner.RunMode, "Keyboard settings", "ms-settings:regionlanguage", "input.dll,,{C07337D3-DB2C-4D0B-9A93-B722A6C106E2}");
+            };
             _indicators.Changed += RefreshIndicators;
             RefreshIndicators();
         }
@@ -390,6 +410,8 @@ internal sealed partial class TaskbarWindow : Window
         // backdrop of their own, acrylic whatever the taskbar's, as Windows' always is.
         QuickSettings.RequestedTheme = Root.RequestedTheme;
         QuickSettingsFlyout.SystemBackdrop = new ShellBackdrop(Backdrop.Acrylic) { Theme = Root.RequestedTheme, Tint = accent };
+        InputSwitcher.RequestedTheme = Root.RequestedTheme;
+        InputFlyout.SystemBackdrop = new ShellBackdrop(Backdrop.Acrylic) { Theme = Root.RequestedTheme, Tint = accent };
         OverflowIcons.RequestedTheme = Root.RequestedTheme;
         OverflowFlyout.SystemBackdrop = new ShellBackdrop(Backdrop.Acrylic) { Theme = Root.RequestedTheme, Tint = accent };
         foreach (MenuFlyout menu in (MenuFlyout[])[TaskbarMenu, NetworkMenu, VolumeMenu, _quickLinks])
@@ -559,6 +581,134 @@ internal sealed partial class TaskbarWindow : Window
         MicrophoneButton.Visibility = apps.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
         MicrophoneIcon.Glyph = microphoneMuted ? IndicatorDisplay.MicrophoneMutedGlyph : IndicatorDisplay.MicrophoneGlyph;
         SetToolTip(MicrophoneButton, IndicatorDisplay.MicrophoneToolTip(apps, microphoneMuted));
+
+        RefreshInputIndicator();
+    }
+
+    private void RefreshInputIndicator()
+    {
+        if (_indicators?.InputMethod is not { } current)
+        {
+            InputButton.Visibility = ImeModeButton.Visibility = Visibility.Collapsed;
+            if (InputFlyout.IsOpen)
+                InputFlyout.Hide();
+            return;
+        }
+
+        InputButton.Visibility = Visibility.Visible;
+        (string? glyph, string language, string keyboard) = IndicatorDisplay.InputLabel(current, _indicators.InputMethodInFront);
+        InputGlyph.Visibility = glyph is null ? Visibility.Collapsed : Visibility.Visible;
+        InputCodes.Visibility = glyph is null ? Visibility.Visible : Visibility.Collapsed;
+        InputGlyph.Glyph = glyph ?? "";
+        InputLanguageText.Text = language;
+        InputKeyboardText.Text = keyboard;
+        InputKeyboardText.Visibility = keyboard.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+        SetToolTip(InputButton, IndicatorDisplay.InputToolTip(current, _indicators.InputMethodInFront));
+
+        ImeModeButton.Visibility = _indicators.ImeMode is null ? Visibility.Collapsed : Visibility.Visible;
+        if (_indicators.ImeMode is { } mode)
+        {
+            ImeModeIcon.Glyph = mode.Glyph;
+            SetToolTip(ImeModeButton, mode.ToolTip);
+        }
+    }
+
+    // As Explorer's: a click opens the switcher with the input method in front chosen, or closes it.
+    private void InputButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (InputFlyout.IsOpen)
+            InputFlyout.Hide();
+        else
+            ShowInputSwitcher(compact: false);
+    }
+
+    private void ShowInputSwitcher(bool compact, bool backwards = false)
+    {
+        if (_indicators is null)
+            return;
+
+        _indicators.RefreshInputMethods();
+        IReadOnlyList<InputMethod> methods = _indicators.EnabledInputMethods;
+        int inFront = _indicators.InputMethodInFront is { } method ? IndexOf(methods, method) : -1;
+        // Win+Space moves on at once: the switcher opens with the next input method chosen.
+        InputSwitcher.Show(methods, compact ? IndicatorDisplay.NextInputMethod(methods.Count, inFront, backwards) : inFront, compact);
+        _inputSwitcherCompact = compact;
+        if (!InputFlyout.IsOpen)
+        {
+            Reveal();
+            TaskbarFlyouts.ShowAtRight(InputFlyout, InputButton, s_inputSwitcherOpening, s_inputSwitcherClosing);
+        }
+    }
+
+    private static int IndexOf(IReadOnlyList<InputMethod> methods, InputMethod method)
+    {
+        for (int i = 0; i < methods.Count; i++)
+        {
+            if (methods[i] == method)
+                return i;
+        }
+        return -1;
+    }
+
+    /// <summary>
+    /// Win+Space as the shell: shows the input methods with the next one chosen, moves on with each Space, and
+    /// switches to the chosen one when the Windows key is let go of, as Explorer's switcher does.
+    /// </summary>
+    public void RunInputSwitch(InputSwitchCommand command)
+    {
+        if (_indicators?.InputMethod is null)
+            return;
+
+        bool backwards = command is InputSwitchCommand.OpenBackwards or InputSwitchCommand.Previous;
+        switch (command)
+        {
+            case InputSwitchCommand.Open or InputSwitchCommand.OpenBackwards:
+                ShowInputSwitcher(compact: true, backwards);
+                break;
+            case InputSwitchCommand.Next or InputSwitchCommand.Previous when InputFlyout.IsOpen:
+                InputSwitcher.Select(IndicatorDisplay.NextInputMethod(_indicators.EnabledInputMethods.Count, InputSwitcher.SelectedIndex, backwards));
+                break;
+            case InputSwitchCommand.Commit when InputFlyout.IsOpen && _inputSwitcherCompact:
+                _inputMethodToSwitch = InputSwitcher.Selected;
+                InputFlyout.Hide();
+                break;
+        }
+    }
+
+    private void InputFlyout_Opened(object sender, object e)
+    {
+        InputOpenPlate.Visibility = Visibility.Visible;
+        // The switcher takes the focus as it opens, and Windows switches the app when it gets it back; but Win+Space's
+        // switcher shows no focus rectangle, as Explorer's.
+        if (_inputSwitcherCompact)
+            InputSwitcher.HideFocusVisual();
+    }
+
+    private void InputFlyout_Closed(object sender, object e)
+    {
+        InputOpenPlate.Visibility = Visibility.Collapsed;
+        _inputSwitcherCompact = false;
+        // Only now: Windows switches the app that has the focus, which the switcher held while it was open.
+        if (_inputMethodToSwitch is { } method)
+        {
+            _inputMethodToSwitch = null;
+            _indicators?.SwitchInputMethod(method);
+        }
+    }
+
+    // Not the taskbar's menu. Explorer opens the IME's menu here, which the input switcher draws in a window only
+    // Explorer may create.
+    private void ImeMode_ContextRequested(UIElement sender, ContextRequestedEventArgs e) => e.Handled = true;
+
+    // Passed on to the IME, as Explorer does: it switches its mode.
+    private void ImeMode_Click(object sender, RoutedEventArgs e)
+    {
+        double scale = Root.XamlRoot.RasterizationScale;
+        Point topLeft = ImeModeButton.TransformToVisual(Root).TransformPoint(default);
+        var bounds = new RectInt32(
+            _shownBounds.X + (int)Math.Round(topLeft.X * scale), _shownBounds.Y + (int)Math.Round(topLeft.Y * scale),
+            (int)Math.Round(ImeModeButton.ActualWidth * scale), (int)Math.Round(ImeModeButton.ActualHeight * scale));
+        _indicators?.ClickImeMode(Cursor.Position(), bounds);
     }
 
     private void QuickSettingsButton_Click(object sender, RoutedEventArgs e) => ShowQuickSettings(QuickSettingsPage.Main);

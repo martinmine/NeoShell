@@ -307,6 +307,61 @@
                     Click="Microphone_Click">
                     <FontIcon x:Name="MicrophoneIcon" Glyph="&#xE720;" FontSize="16" />
                 </Button>
+                <!-- An IME's mode ("あ" or "A") while one is in front: a click switches it. -->
+                <Button
+                    x:Name="ImeModeButton"
+                    AutomationProperties.AutomationId="ImeModeIndicator"
+                    Width="32"
+                    Style="{StaticResource FlatButtonStyle}"
+                    Margin="0"
+                    Visibility="Collapsed"
+                    Click="ImeMode_Click"
+                    ContextRequested="ImeMode_ContextRequested">
+                    <FontIcon x:Name="ImeModeIcon" FontSize="16" />
+                </Button>
+                <!--
+                    The input method in front, while more than one is enabled: the language's letters over the
+                    keyboard's, or a text service's glyph. It opens the input switcher.
+                -->
+                <Button
+                    x:Name="InputButton"
+                    AutomationProperties.AutomationId="InputIndicator"
+                    Width="44"
+                    Margin="0,0,2,0"
+                    HorizontalContentAlignment="Stretch"
+                    VerticalContentAlignment="Stretch"
+                    Style="{StaticResource FlatButtonStyle}"
+                    Visibility="Collapsed"
+                    Click="InputButton_Click">
+                    <Grid>
+                        <!-- While the switcher is open the button keeps its hover plate, as Explorer's does. -->
+                        <Border
+                            x:Name="InputOpenPlate"
+                            CornerRadius="4"
+                            Background="{ThemeResource SubtleFillColorSecondaryBrush}"
+                            Visibility="Collapsed" />
+                        <StackPanel x:Name="InputCodes" Margin="0,0,0,2" VerticalAlignment="Center">
+                            <TextBlock x:Name="InputLanguageText" HorizontalAlignment="Center" FontSize="12" LineHeight="16" />
+                            <TextBlock x:Name="InputKeyboardText" HorizontalAlignment="Center" FontSize="12" LineHeight="16" />
+                        </StackPanel>
+                        <FontIcon x:Name="InputGlyph" Margin="0,0,0,2" FontSize="16" Visibility="Collapsed" />
+                    </Grid>
+                    <FlyoutBase.AttachedFlyout>
+                        <Flyout x:Name="InputFlyout" Opened="InputFlyout_Opened" Closed="InputFlyout_Closed">
+                            <Flyout.FlyoutPresenterStyle>
+                                <Style TargetType="FlyoutPresenter" BasedOn="{StaticResource DefaultFlyoutPresenterStyle}">
+                                    <Setter Property="Padding" Value="0" />
+                                    <Setter Property="MinWidth" Value="0" />
+                                    <Setter Property="MinHeight" Value="0" />
+                                    <Setter Property="MaxWidth" Value="400" />
+                                    <!-- The flyout's own backdrop shows through (SetTheme). -->
+                                    <Setter Property="Background" Value="Transparent" />
+                                </Style>
+                            </Flyout.FlyoutPresenterStyle>
+                            <tray:InputSwitchPanel x:Name="InputSwitcher" />
+                        </Flyout>
+                    </FlyoutBase.AttachedFlyout>
+                </Button>
                 <!--
                     Network, volume and battery are one button, as on the Windows 11 taskbar: it opens Quick Settings.
                     Each icon has its own tooltip and menu.

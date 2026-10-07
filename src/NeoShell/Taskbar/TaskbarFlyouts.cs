@@ -30,6 +30,8 @@ internal static class TaskbarFlyouts
     private static readonly TimeSpan s_duration = TimeSpan.FromMilliseconds(200);
     private static readonly TimeSpan s_closeDuration = TimeSpan.FromMilliseconds(150);
     private static readonly HashSet<FlyoutBase> s_prepared = [];
+    // Flyouts that slide in and out faster or slower than the rest.
+    private static readonly Dictionary<FlyoutBase, (TimeSpan Opening, TimeSpan Closing)> s_durations = [];
     // Where each flyout's left edge goes in the taskbar, given the flyout's width; flyouts WinUI places themselves have none.
     private static readonly Dictionary<FlyoutBase, Func<double, double>> s_lefts = [];
     // Each flyout's popup window, which WinUI keeps between openings.
@@ -109,8 +111,12 @@ internal static class TaskbarFlyouts
     }
 
     /// <summary>Opens the flyout at the right of the screen, the gap away from its edge, as Quick Settings and the calendar.</summary>
-    public static void ShowAtRight(FlyoutBase flyout, FrameworkElement target)
+    /// <param name="opening">How long it slides in, when not as long as the other flyouts.</param>
+    /// <param name="closing">How long it slides out, when not as long as the other flyouts.</param>
+    public static void ShowAtRight(FlyoutBase flyout, FrameworkElement target, TimeSpan? opening = null, TimeSpan? closing = null)
     {
+        if (opening is not null || closing is not null)
+            s_durations[flyout] = (opening ?? s_duration, closing ?? s_closeDuration);
         FrameworkElement taskbar = Taskbar(target);
         s_lefts[flyout] = width => taskbar.ActualWidth - Gap - width;
         double right = target.TransformToVisual(taskbar).TransformPoint(default).X;
@@ -179,7 +185,7 @@ internal static class TaskbarFlyouts
         if (s_slideOut is not { } slide)
             return;
 
-        double progress = Math.Min(1, Stopwatch.GetElapsedTime(slide.Since) / s_closeDuration);
+        double progress = Math.Min(1, Stopwatch.GetElapsedTime(slide.Since) / Durations(slide.Flyout).Closing);
         int y = (int)Math.Round(slide.From + (slide.Edge - slide.From) * Math.Pow(progress, 3));
         PopupWindows.Place(slide.Window, y, slide.Edge);
         if (progress >= 1)
@@ -300,13 +306,16 @@ internal static class TaskbarFlyouts
             return;
         }
 
-        double progress = Math.Min(1, Stopwatch.GetElapsedTime(slide.Since) / s_duration);
+        double progress = Math.Min(1, Stopwatch.GetElapsedTime(slide.Since) / Durations(slide.Flyout).Opening);
         double eased = 1 - Math.Pow(1 - progress, 3);
         int y = (int)Math.Round(slide.Edge + (to - slide.Edge) * eased);
         PopupWindows.Place(slide.Window, y, progress < 1 ? slide.Edge : null);
         if (progress >= 1)
             StopSlide();
     }
+
+    private static (TimeSpan Opening, TimeSpan Closing) Durations(FlyoutBase flyout) =>
+        s_durations.TryGetValue(flyout, out var durations) ? durations : (s_duration, s_closeDuration);
 
     private static void StopSlide()
     {

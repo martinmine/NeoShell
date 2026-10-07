@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using Microsoft.UI.Dispatching;
 using NeoShell.Interop.Audio;
+using NeoShell.Interop.Input;
 using NeoShell.Interop.Network;
 using NeoShell.Interop.Power;
 using NeoShell.Interop.Radios;
@@ -11,7 +12,7 @@ namespace NeoShell.Tray;
 
 /// <summary>
 /// The state behind the taskbar's indicators and Quick Settings: network, volume, microphone, radios, airplane mode,
-/// energy saver and battery. Windows reports changes on its own threads; they arrive here as one
+/// energy saver, battery and the input method. Windows reports changes on its own threads; they arrive here as one
 /// <see cref="Changed"/> on the UI thread per burst.
 /// </summary>
 internal sealed class Indicators : IDisposable
@@ -25,6 +26,9 @@ internal sealed class Indicators : IDisposable
     private readonly RadioSwitches _radios = new();
     private readonly EnergySaver _energySaver = new();
     private readonly BatteryMonitor _battery = new();
+    private readonly InputMethods? _inputMethods;
+    // How many input methods the switcher counted when the list was last read.
+    private int _listedInputMethods = -1;
     private int _updateQueued;
     // Airplane mode has no change notification; it's read again when a radio changes.
     private volatile bool _radiosChanged = true;
@@ -50,6 +54,16 @@ internal sealed class Indicators : IDisposable
         {
             // The audio service can be stopped; the network indicator still works.
             Log.Warn("Audio indicators unavailable", ex);
+        }
+        try
+        {
+            _inputMethods = new InputMethods();
+            _inputMethods.Changed += QueueUpdate;
+        }
+        catch (Exception ex)
+        {
+            // InputSwitch.dll is Windows' own and undocumented; without it there's no input indicator.
+            Log.Warn("Input indicator unavailable", ex);
         }
         Update();
         _ = RefreshRadiosAsync();
@@ -235,6 +249,62 @@ internal sealed class Indicators : IDisposable
         Log.Info($"Microphone {(microphone.IsMuted ? "muted" : "unmuted")}");
     }
 
+    /// <summary>The input method in front; null while only one is enabled, when the taskbar shows none.</summary>
+    public CurrentInputMethod? InputMethod { get; private set; }
+
+    /// <summary>The enabled input methods, in the user's order: read again when their number changes.</summary>
+    public IReadOnlyList<InputMethod> EnabledInputMethods { get; private set; } = [];
+
+    /// <summary>The enabled input method that's in front, when it's known.</summary>
+    public InputMethod? InputMethodInFront { get; private set; }
+
+    /// <summary>The mode of the IME in front; null for a keyboard layout.</summary>
+    public ImeMode? ImeMode { get; private set; }
+
+    /// <summary>Reads the enabled input methods again, as the switcher opens: Windows' list can change without their number.</summary>
+    public void RefreshInputMethods()
+    {
+        if (_inputMethods is null)
+            return;
+
+        try
+        {
+            EnabledInputMethods = Interop.Input.InputMethods.Enabled();
+        }
+        catch (Exception ex)
+        {
+            Log.Warn("Could not list the input methods", ex);
+        }
+        InputMethodInFront = InputMethod is { } current ? IndicatorDisplay.MatchInputMethod(EnabledInputMethods, current) : null;
+    }
+
+    /// <summary>Switches the app in front to the input method, as the switcher's click and Win+Space do.</summary>
+    public void SwitchInputMethod(InputMethod method)
+    {
+        try
+        {
+            _inputMethods?.Activate(method);
+            Log.Info($"Input method: {method.Language}, {method.Keyboard}");
+        }
+        catch (Exception ex) when (ex is System.Runtime.InteropServices.COMException)
+        {
+            Log.Warn($"Could not switch to {method.Language}, {method.Keyboard}", ex);
+        }
+    }
+
+    /// <summary>A click on the IME's mode, in screen pixels: the IME switches its mode.</summary>
+    public void ClickImeMode(Windows.Graphics.PointInt32 pointer, Windows.Graphics.RectInt32 anchor)
+    {
+        try
+        {
+            _inputMethods?.ClickImeMode(pointer, anchor);
+        }
+        catch (Exception ex) when (ex is System.Runtime.InteropServices.COMException)
+        {
+            Log.Warn("The IME didn't take the click on its mode", ex);
+        }
+    }
+
     /// <summary>Names of the apps recording from a microphone; empty while none is.</summary>
     public IReadOnlyList<string> MicrophoneApps { get; private set; } = [];
 
@@ -248,6 +318,7 @@ internal sealed class Indicators : IDisposable
         _microphone?.Dispose();
         _capture?.Dispose();
         _mixer?.Dispose();
+        _inputMethods?.Dispose();
     }
 
     /// <summary>The name the mixer shows: the session's own, else the app's, else the executable's description.</summary>
@@ -300,11 +371,28 @@ internal sealed class Indicators : IDisposable
             }
             Battery = BatteryMonitor.Read();
             MicrophoneApps = [.. (_capture?.ActiveProcessIds() ?? []).Select(AppName).Distinct()];
+            UpdateInputMethod();
             Changed?.Invoke();
         }
         catch (Exception ex)
         {
             Log.Error("Updating the indicators failed", ex);
+        }
+    }
+
+    private void UpdateInputMethod()
+    {
+        int count = _inputMethods?.Count ?? 0;
+        InputMethod = count > 1 ? _inputMethods!.Current : null;
+        ImeMode = InputMethod is { IsTextService: true } ? _inputMethods!.ImeMode : null;
+        if (count != _listedInputMethods)
+        {
+            _listedInputMethods = count;
+            RefreshInputMethods();
+        }
+        else
+        {
+            InputMethodInFront = InputMethod is { } current ? IndicatorDisplay.MatchInputMethod(EnabledInputMethods, current) : null;
         }
     }
 

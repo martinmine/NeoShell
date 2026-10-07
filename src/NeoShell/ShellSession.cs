@@ -25,6 +25,7 @@ internal sealed class ShellSession : IDisposable
     private readonly PanelKeys _panelKeys = new();
     private readonly AltTabKeys _altTabKeys = new();
     private readonly PeekKeys _peekKeys = new();
+    private readonly InputSwitchKeys _inputSwitchKeys = new();
     private readonly SnapKeys _snapKeys = new();
     // What each hotkey does, by its ID less one.
     private readonly List<Action> _hotkeyActions = [];
@@ -62,8 +63,8 @@ internal sealed class ShellSession : IDisposable
 
         // The Windows key on its own isn't a hotkey: only a hook sees it pressed and released by itself. Keys pass
         // through unchanged, so Windows still knows the key is down for Win+ shortcuts; only the panels' own
-        // shortcuts, the switcher's keys, Win+Comma's comma and Snap's arrows are taken (see PanelKeys, AltTabKeys,
-        // PeekKeys, SnapKeys).
+        // shortcuts, the switcher's keys, Win+Comma's comma, Win+Space's space and Snap's arrows are taken (see
+        // PanelKeys, AltTabKeys, PeekKeys, InputSwitchKeys, SnapKeys).
         try
         {
             _keyboardHook = new KeyboardHook
@@ -89,6 +90,16 @@ internal sealed class ShellSession : IDisposable
                         _dispatcher.Post(() => _taskbars.PeekAtDesktop(on));
                     }
                     if (peekKey)
+                        return true;
+                    // Without Explorer nothing answers Win+Space; Alt+Shift still switches, in Windows itself.
+                    bool inputKey = _inputSwitchKeys.OnKey(key, down, out InputSwitchCommand? inputCommand);
+                    if (inputCommand is { } input)
+                    {
+                        if (input is InputSwitchCommand.Open or InputSwitchCommand.OpenBackwards)
+                            KeyboardHook.MaskModifierKeys();
+                        _dispatcher.Post(() => _taskbars.RunInputSwitch(input));
+                    }
+                    if (inputKey)
                         return true;
                     bool snapKey = _snapKeys.OnKey(key, down, out SnapKey? arrow);
                     if (arrow is { } pressedArrow)

@@ -65,7 +65,7 @@ src/NeoShell/                 WinUI app
   Logging/                    Small file logger
   Desktop/                    WallpaperWindow (one per monitor), desktop icons and their menus (primary monitor)
   Taskbar/                    TaskbarWindow, task list + grouping, pinned apps, thumbnail popup, clock
-  Tray/                       Tray area, overflow flyout, network/volume/battery/mic indicators
+  Tray/                       Tray area, overflow flyout, network/volume/battery/mic/input indicators, input switcher
   Notifications/              Notification center + calendar (two panel windows), toasts (shell mode), focus sessions
   QuickSettings/              Quick Settings: tiles, Wi-Fi, Bluetooth, Accessibility, Cast, Project and Sound output pages
   StartMenu/                  StartMenuWindow, app list, search results, power menu
@@ -95,6 +95,7 @@ src/NeoShell.Interop/
   Media/                      NowPlaying (system media transport controls)
   Location/                   DeviceLocation (WinRT Geolocator)
   Wireless/                   WirelessDevices: battery of Bluetooth, Razer and Audeze devices (from WirelessStatus)
+  Input/                      InputMethods: the input method in front and switching (InputSwitch.dll), TSF profiles
   Notifications/              UserNotifications (UserNotificationListener), DoNotDisturb (quiet hours)
   Search/                     IndexSearch (ISearchQueryHelper + OleDb against Search.CollatorDSO)
   Shell/                      AppCatalog (shell:AppsFolder), DesktopFolder, ShellContextMenu, ShellMenu, Launcher, Power,
@@ -186,7 +187,8 @@ the desktop and back. Full spec in docs/design.md ("Widgets").
   app bar placing, search ranking,
   indexer query building, startup entries, settings, wallpaper style mapping, AppBar rects, desktop icon
   filtering, sorting and grid places, snap zones and keys, thumbnail toolbar data and image lists, widget placement and order, MET forecast parsing, wireless device protocols, Windows product name,
-  AutoPlay content, events, choice lists and saving, autorun.inf parsing, optical drive names, toast sounds.
+  AutoPlay content, events, choice lists and saving, autorun.inf parsing, optical drive names, toast sounds,
+  input indicator labels and Win+Space keys.
 - When testing the UI live, drive it through UI Automation (set `AutomationProperties.AutomationId` on interactive
   controls). Never use global keystrokes like SendKeys: they go to whichever window has focus.
 - Always stop a running NeoShell with `/exit` (or its taskbar menu), never by killing the process. A kill leaves the

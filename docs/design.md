@@ -491,7 +491,8 @@ Shell mode only, like the wallpaper: alongside Explorer, Explorer's desktop has 
 2. Search button — opens the Start menu with the search box focused. Can be hidden from the taskbar menu.
 3. Pinned and running apps.
 4. Tray area: chevron/overflow, tray icons.
-5. Indicators: microphone (when active), then network, volume and battery as one button (Quick Settings).
+5. Indicators: microphone (when active), the input method (with more than one: an IME's mode, then the language),
+   then network, volume and battery as one button (Quick Settings).
 6. Clock: time and short date, and Do not disturb's bell while it's on; tooltip with the full date and the day and
    time, as Explorer's; click opens the notification center and calendar (see Notifications and calendar).
 7. Show-desktop sliver at the far right edge.
@@ -694,6 +695,11 @@ Win+arrows and Ctrl+Shift+Esc; the rest were Explorer's.
   shortcut of the page shown closes Quick Settings; another page's switches to it. Win+N (the notification center
   and calendar, toggled) and Win+X (the Quick Link menu) are taken the same way. With Shift or Alt held the letters
   are left alone: Win+Alt+K is the microphone's.
+- Win+Space switches the input method (see Input indicator): nothing answers it without Explorer (Win+Space
+  stays registered, but Explorer's input switcher behind it is gone). The hook takes it (`InputSwitchKeys`, unit
+  tested): each Space while Win is held is swallowed and moves on (back with Shift; not with Ctrl or Alt), the
+  first opens the switcher with Win masked as for Quick Settings' keys, and letting go of Win switches. Alt+Shift
+  needs no shell: Windows switches by itself.
 - Win+Comma peeks at the desktop while Win is held (`PeekKeys`, unit tested, through the hook: a hotkey can't see
   Win let go of): Aero Peek at the taskbar, a window left out of peeking like the wallpaper, so only those show.
   The comma is swallowed and Win masked as for Quick Settings' keys.
@@ -879,6 +885,63 @@ the same steps under Explorer and under NeoShell: every reply, rectangle, work a
   `ms-settings:privacy-microphone` (shell mode: Sound's Recording tab, `mmsys.cpl,,1`).
 - While the default microphone is muted (Win+Alt+K; an `AudioEndpoint` on the capture device follows it), the icon
   is the slashed microphone and the tooltip starts with "Microphone muted".
+
+### Input indicator (`Tray/InputSwitchPanel`, Interop `Input/InputMethods`)
+
+Explorer's taskbar shows the input method of the app in front while more than one is enabled, and opens a switcher
+on a click. It asks Windows' input switcher for both: `InputSwitch.dll`'s `CInputSwitchControl` (CLSID
+`{B9BC2A50-43C3-41AA-A086-5DB14E184BAE}`, `IInputSwitchControl` `…A082…`, callback `IInputSwitchCallback` `…A083…`),
+created by windowsudk.shellcommon's `InputMethodConversionIndicator` with `Init(7)` (client type DESKTOP_XAML; 0
+DESKTOP, 1 TOUCHKEYBOARD, 2 LOGONUI, 3 UAC, 4 SETTINGSPANE, 5 OOBE, 6 OTHER), and SystemTray.dll's
+`LanguageSystemTrayIconDataModel` / `ImeSystemTrayIconDataModel` for the two buttons. The switcher follows the
+foreground window (per-window input methods or not) and switches for it. NeoShell creates the same control:
+- State: `GetProfileCount`, `GetCurrentProfile` (a 0x70-byte struct of `CoTaskMem` strings: HKL; "ENG"; "English
+  (United Kingdom)"; "NO"; "Norwegian keyboard"; a text-service flag at 0x2C; "en-GB"; the icon file at 0x60) and
+  `GetCurrentImeModeItem` (tooltip "Right-click to open IME options", HICON, the mode as a Segoe Fluent Icons glyph
+  at 0x18: U+E986 あ, U+E97E A). `OnUpdateProfile`, `OnImeModeItemUpdate`, `OnProfileCountChange` and
+  `OnContextFlagsChange` come on the creating (UI) thread; `Indicators` reads the state again.
+- Switching: `ActivateInputProfile(tip)` with the language list's tip ("0809:00000414", "0411:{clsid}{profile}").
+  It's scheduled, not immediate: Windows switches the app holding the focus once the shell's popup has given it
+  back. NeoShell's switcher takes the focus while open, so the switch is made from its `Closed` (switching while it
+  was still open lost the switch whenever the focus had moved inside it).
+- The list: the text services framework's enabled profiles (`ITfInputProcessorProfileMgr.EnumProfiles(0)`,
+  `TF_IPP_FLAG_ENABLED`), in the user's order; language name from `Windows.Globalization.Language`, letters from
+  the language's ISO 639-2 code ("ENG", "JPN"), keyboard from the layout's "Layout Display Name" ("Norwegian",
+  "US") or the text service's description ("Microsoft IME"). A layout variant's HKL (0xFnnn device word) maps to
+  its ID through the registry's "Layout Id".
+- `ShowInputSwitch` (Explorer's flyout) and the IME's right-click menu fail with E_ACCESSDENIED in any process but
+  Explorer, as the shell too: InputSwitch creates them in a window band (`CreateWindowInBand`) and XAML island
+  only Explorer may have (client types 2, 3 and 5 show the old Windows 10 list, square and accent-filled). So
+  NeoShell draws the switcher itself; the IME's menu isn't offered (a right-click does nothing, not the taskbar's
+  menu).
+
+The indicator, as Explorer's (measured side by side at 100%):
+- A 44-wide flat button left of Quick Settings' with no gap to the tray icons; its hover plate 44 by 40. A keyboard
+  layout shows the language's letters over the keyboard's ("ENG" / "NO", 12 px, lines 16 apart, centred, the
+  first cap 12 below the plate's top). A text service shows its glyph instead (16 px, Segoe Fluent Icons):
+  windowsudk.shellcommon holds a table of profiles and glyphs; Japanese MS-IME's Ⓙ U+E614 was seen, the others
+  (拼 Pinyin, 五 Wubi, 行 Array, ㄅ Bopomofo, 倉 ChangJie, 易 DaYi, 速 Quick, 한 Korean, 옛 Old Hangul) are paired
+  by meaning. Others show the switcher's letters ("日本") alone.
+- Tooltip: language, keyboard (the list's name), a blank line, "To switch input methods, press Windows key +
+  space." While the switcher is open the button keeps its hover plate.
+- An IME with a mode adds a 32-wide button left of it (no gap) with the mode glyph (16 px); a click is passed on
+  (`ClickImeModeItem(0, pointer, button rect)`: action 0 click, 1 right-click) and the IME switches あ/A.
+
+The switcher (`InputSwitchPanel` in a flyout at the screen's right edge, as Quick Settings, 12 above the taskbar):
+- 360 wide outside its border. Header 42: "Keyboard layout" (14 px, 16 from the left, cap 16 below the top) and
+  Win+Spacebar as two 16-high keycaps (tertiary text and stroke, 11 px). Header and list are a shade lighter than
+  the acrylic (`LayerOnAcrylicFillColorDefault`); the footer is the acrylic itself under a darker line (#1A000000):
+  "More keyboard settings" (12 px, secondary) in a 48-high flat button (Language & region; as the shell Text
+  Services and Input Languages, `control input.dll,,{C07337D3-DB2C-4D0B-9A93-B722A6C106E2}`).
+- Items are WinUI's list items (plate inset 4 by 2, the selection pill): 59 high with letters, 53 with a glyph
+  (Explorer's extra 6 is above the text); letters 13 and text 45 from the plate's left, the title 14 px and the
+  keyboard 12 px secondary beneath, the letters on the title's baseline. The one in front is chosen; a click
+  switches and closes.
+- Win+Space shows the list alone (with the line above the missing footer), the next input method chosen, and no
+  focus rectangle; the indicator keeps its plate.
+- Explorer's switcher slides in faster than its other flyouts, about 67 ms (58 %, 90 %, 99.5 % in successive
+  frames), and out in about 100 ms. A NeoShell popup reaches the screen some 40 ms after it starts sliding, so it
+  slides in over 100 ms for the same look (`TaskbarFlyouts.ShowAtRight` takes the durations).
 
 ### Threads and placement
 
