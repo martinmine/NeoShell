@@ -981,26 +981,26 @@ notification center 12 epx above it and as tall as its notifications need, up to
   the app with the newest notification first (`NotificationDisplay.Group`, unit tested). A group shows its newest
   notification with "+N notifications"; expanded, all of them and "See fewer". Cards show the time (with the date
   for older days), the title (2 lines) and the body (1 line, with Explorer's chevron to show all of a trimmed one),
-  and "â€¦" (turn off the app, notification settings) and Clear under the pointer; the group header has the same.
+  and "…" (turn off the app, notification settings) and Clear under the pointer; the group header has the same.
   "No new notifications" when there are none.
 - **Do not disturb** (Interop `DoNotDisturb`): no public API; it's the notification platform's quiet hours profile,
-  switched through the undocumented `IQuietHoursSettings` (CLSID `f53321fa-â€¦`), as Explorer's bell button does:
-  `Microsoft.QuietHoursProfile.PriorityOnly` is on, `â€¦Unrestricted` off. Read with the notifications, so a change
+  switched through the undocumented `IQuietHoursSettings` (CLSID `f53321fa-…`), as Explorer's bell button does:
+  `Microsoft.QuietHoursProfile.PriorityOnly` is on, `…Unrestricted` off. Read with the notifications, so a change
   made elsewhere shows within a second; the clock shows the bell while it's on, and no toasts pop up.
 - **Calendar** (`CalendarPanel`): today's long date without the year (`NotificationDisplay.DayHeading`, unit tested
   for several cultures) and a button folding the month away (remembered in settings); a `CalendarView` restyled as
   Explorer's (no borders or backgrounds, other months' days dimmed, today in the accent circle), starting the week
-  on Windows' regional first day rather than the display language's; the footer with the focus length (âˆ’/+: 5
+  on Windows' regional first day rather than the display language's; the footer with the focus length (−/+: 5
   minutes at a time to 30, then 15, between 5 and 240; remembered) and Focus.
 - **Focus** (`FocusSession`): Windows' own focus sessions (`Windows.UI.Shell.FocusSessionManager`) are a limited
   access feature only Microsoft's apps can unlock ("Access is denied"), so NeoShell runs its own: Do not disturb for
   the chosen time with a countdown and Stop focus in the footer, then Do not disturb as it was before (also on exit).
   Unlike Windows', it doesn't hide taskbar badges or flashing, and there's no chime at the end.
-- **Toasts** (`ToastPopups`, shell mode only): without Explorer no toasts show at all â€” they belong to the
-  ShellExperienceHost that Explorer runs â€” though the notifications are still stored. Each notification that
+- **Toasts** (`ToastPopups`, shell mode only): without Explorer no toasts show at all — they belong to the
+  ShellExperienceHost that Explorer runs — though the notifications are still stored. Each notification that
   arrives while NeoShell runs (not those already there at start, not while Do not disturb is on or the flyout is
   open) shows as Explorer's: its own acrylic window, 364 epx wide, 16 epx from the screen's right edge and 12 above
-  the taskbar, with the app's icon and name, "â€¦" and close, the title and up to three lines of body. It slides in
+  the taskbar, with the app's icon and name, "…" and close, the title and up to three lines of body. It slides in
   from the edge; the newest is lowest and older ones move up, three at most. It leaves after the system's "Dismiss
   notifications after" time (`SPI_GETMESSAGEDURATION`, 5 s by default), later while the pointer is on it. Closing
   it only puts it away (it stays in the notification center, as in Explorer); clicking it activates the app (see
