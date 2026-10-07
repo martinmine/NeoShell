@@ -150,15 +150,11 @@ public sealed partial class NotificationPanel : UserControl
 
     private void Card_Invoked(NotificationCard card)
     {
-        Open(card.Toast);
-        _center.Remove([card.Toast]);
+        _center.Activate(card.Toast);
         CloseRequested?.Invoke();
     }
 
-    /// <summary>
-    /// Opens a notification's app. The toast's own launch arguments aren't available to a listener (see
-    /// <see cref="UserNotifications"/>), so the app opens as from Start.
-    /// </summary>
+    /// <summary>Opens a notification's app as from Start: when its own activation fails.</summary>
     internal static void Open(ToastInfo toast) => Launcher.Launch(new PinnedApp(toast.AppName, AppUserModelId: toast.AppId));
 
     private void OpenSettings()

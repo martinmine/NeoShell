@@ -1,5 +1,6 @@
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
+using NeoShell.Interop.Audio;
 using NeoShell.Interop.Notifications;
 using NeoShell.Interop.Windowing;
 using NeoShell.Interop.Tray;
@@ -18,7 +19,9 @@ namespace NeoShell.Notifications;
 /// <remarks>
 /// The newest at the bottom, the older ones pushed up; each slides in from the screen's edge and out again after
 /// the system's notification time (longer while the pointer is on it). Closing one only puts it away: the
-/// notification stays in the notification center, as Explorer's do. Tray icons' balloons show the same way.
+/// notification stays in the notification center, as Explorer's do; clicking it activates its app with the toast's own
+/// arguments. Each plays its sound as it starts to slide in (the newest's takes over, and a toast's stops when it
+/// goes). Tray icons' balloons show the same way.
 /// </remarks>
 internal sealed class ToastPopups : IDisposable
 {
@@ -38,6 +41,9 @@ internal sealed class ToastPopups : IDisposable
     private readonly RunMode _runMode;
     // Oldest first.
     private readonly List<Toast> _shown = [];
+    private readonly NotificationSound _sound = new();
+    // The toast whose sound plays, if any.
+    private Toast? _sounding;
 
     /// <param name="anchor">The primary monitor and its taskbar, the toasts go above it.</param>
     /// <param name="suppressed">True while toasts shouldn't show (the notification center is open).</param>
@@ -67,6 +73,7 @@ internal sealed class ToastPopups : IDisposable
             toast.Window.Close();
         }
         _shown.Clear();
+        _sound.Dispose();
     }
 
     /// <param name="BalloonKey">For a tray balloon, its icon's key.</param>
@@ -81,12 +88,8 @@ internal sealed class ToastPopups : IDisposable
 
         var card = new NotificationCard(info, isToast: true);
         SetLogo(card, info.AppId);
-        card.Invoked += _ =>
-        {
-            NotificationPanel.Open(info);
-            _center.Remove([info]);
-        };
-        Show(card, balloonKey: null, completed: null);
+        card.Invoked += _ => _center.Activate(info);
+        Show(card, balloonKey: null, completed: null, NotificationCenter.SoundFor(info));
     }
 
     /// <summary>
@@ -101,7 +104,9 @@ internal sealed class ToastPopups : IDisposable
         if (_suppressed() || _anchor() is null || !_center.ShowsBanner(balloon.AppId))
             return false;
 
-        var info = new ToastInfo(0, balloon.AppId, balloon.AppName, DateTimeOffset.Now, balloon.Title, balloon.Body);
+        // Explorer's toast for it has no audio element, or a silent one for NIIF_NOSOUND.
+        var info = new ToastInfo(
+            0, balloon.AppId, balloon.AppName, DateTimeOffset.Now, balloon.Title, balloon.Body, balloon.Silent ? ToastAudio.None : null);
         var card = new NotificationCard(info, isToast: true);
         if (balloon.Picture is { } picture)
             card.Picture = AppIcons.ToImageSource(picture);
@@ -109,7 +114,7 @@ internal sealed class ToastPopups : IDisposable
             card.Logo = AppIcons.ToImageSource(logo);
         else
             SetLogo(card, balloon.AppId);
-        Show(card, balloon.IconKey, completed);
+        Show(card, balloon.IconKey, completed, NotificationCenter.SoundFor(info));
         return true;
     }
 
@@ -127,7 +132,7 @@ internal sealed class ToastPopups : IDisposable
         var card = new NotificationCard(info, isToast: true);
         // Windows' system toasts have no logo of their own: the notification UI draws its default app glyph.
         card.ShowDefaultLogo();
-        Show(card, key, completed);
+        Show(card, key, completed, NotificationCenter.SoundFor(info));
         return true;
     }
 
@@ -140,10 +145,17 @@ internal sealed class ToastPopups : IDisposable
             Dismiss(toast, result: null);
     }
 
-    private void Show(NotificationCard card, string? balloonKey, Action<BalloonEvent>? completed)
+    private void Show(NotificationCard card, string? balloonKey, Action<BalloonEvent>? completed, ToastSound? sound)
     {
         if (_anchor() is not { } anchor)
             return;
+
+        // First, as the player takes a moment to start: Explorer's sound starts with the slide-in. As in Explorer, only
+        // the newest toast's sound plays: an older one's stops, even for a silent toast.
+        if (sound is not null)
+            _sound.Play(card.Toast.AppId, sound.Source, sound.Loop);
+        else
+            _sound.Stop();
 
         var window = new PanelWindow(card, activates: false);
         (ElementTheme theme, Color? accent) = _theme();
@@ -174,6 +186,7 @@ internal sealed class ToastPopups : IDisposable
         card.SettingsRequested += () => Launcher.OpenSettings(_runMode, "Notifications", "ms-settings:notifications");
 
         _shown.Add(toast);
+        _sounding = sound is null ? null : toast;
         while (_shown.Count > MaxShown)
             Dismiss(_shown[0]);
 
@@ -218,6 +231,11 @@ internal sealed class ToastPopups : IDisposable
             return;
 
         toast.Timer.Stop();
+        if (_sounding == toast)
+        {
+            _sound.Stop();
+            _sounding = null;
+        }
         if (result is { } balloonEvent)
             toast.Completed?.Invoke(balloonEvent);
         RectInt32 bounds = toast.Window.ScreenBounds;

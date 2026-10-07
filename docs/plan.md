@@ -280,7 +280,11 @@ Each item is done when it looks and behaves as Explorer's (layout, behaviour, an
       (no hardware; blank media isn't detected), CLSID handlers; not done: WPD devices (phones, MTP cameras) and
       the "new choices" prompt
 - T6 `Progman` / `WorkerW` desktop windows (0x052C), for wallpaper tools — skipped: not needed for now
-- [ ] T7 Toast sound and toast activation
+- [x] T7 Toast sound and toast activation: the toast's own sound (scheme sounds, files, scenarios, loop, settings),
+      started with the slide-in; a click runs the toast's activation through the notification platform's controller
+      (COM activator, protocol, packaged), from a toast or the notification center — not run live: background
+      activation and a packaged app's own toast audio file; not matched: ghost toasts pop up, `duration="long"` and
+      alarms with buttons time out as other toasts
 - [ ] T8 Input language indicator and its picker
 - [ ] T9 Badges for packaged apps (`BadgeUpdateManager`)
 - [ ] T10 End task in the task button's menu

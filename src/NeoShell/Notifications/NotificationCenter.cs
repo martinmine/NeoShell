@@ -69,6 +69,35 @@ internal sealed class NotificationCenter : IDisposable
         Read();
     }
 
+    /// <summary>
+    /// Delivers a click on the notification to its app as Explorer does: the notification platform activates the app
+    /// with the toast's own arguments and removes the notification. If that fails, the app opens as from Start.
+    /// </summary>
+    public async void Activate(ToastInfo toast)
+    {
+        try
+        {
+            await Task.Run(() => UserNotifications.Activate(toast.AppId, toast.Id));
+            Log.Info($"Activated notification {toast.Id} of {toast.AppId}");
+            return;
+        }
+        catch (Exception ex)
+        {
+            Log.Warn($"Could not activate notification {toast.Id} of {toast.AppId}", ex);
+        }
+        NotificationPanel.Open(toast);
+        Remove([toast]);
+    }
+
+    /// <summary>The sound the toast plays, if any, by the user's settings (see <see cref="ToastSounds"/>).</summary>
+    public static ToastSound? SoundFor(ToastInfo toast)
+    {
+        using RegistryKey? key = Registry.CurrentUser.OpenSubKey(SettingsKey);
+        using RegistryKey? app = key?.OpenSubKey(toast.AppId);
+        bool allowed = key?.GetValue("NOC_GLOBAL_SETTING_ALLOW_NOTIFICATION_SOUND") is not int value || value != 0;
+        return ToastSounds.Choose(toast.Audio, allowed, app?.GetValue("SoundFile") as string);
+    }
+
     public void SetDoNotDisturb(bool on)
     {
         try

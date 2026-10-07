@@ -186,7 +186,7 @@ the desktop and back. Full spec in docs/design.md ("Widgets").
   app bar placing, search ranking,
   indexer query building, startup entries, settings, wallpaper style mapping, AppBar rects, desktop icon
   filtering, sorting and grid places, snap zones and keys, thumbnail toolbar data and image lists, widget placement and order, MET forecast parsing, wireless device protocols, Windows product name,
-  AutoPlay content, events, choice lists and saving, autorun.inf parsing, optical drive names.
+  AutoPlay content, events, choice lists and saving, autorun.inf parsing, optical drive names, toast sounds.
 - When testing the UI live, drive it through UI Automation (set `AutomationProperties.AutomationId` on interactive
   controls). Never use global keystrokes like SendKeys: they go to whichever window has focus.
 - Always stop a running NeoShell with `/exit` (or its taskbar menu), never by killing the process. A kill leaves the

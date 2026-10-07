@@ -11,7 +11,9 @@ namespace NeoShell.Tray;
 /// <param name="AppId">The app it's notified as, whose notification settings apply (see <see cref="AppIdFor"/>).</param>
 /// <param name="Picture">The information, warning, error or app's own icon beside the text, or null.</param>
 /// <param name="Logo">The icon in the header beside the app's name; null to use the app's own logo.</param>
-public sealed record TrayBalloon(string IconKey, string AppId, string AppName, string Title, string Body, IconBitmap? Picture, IconBitmap? Logo)
+/// <param name="Silent">Without a sound (<c>NIIF_NOSOUND</c>); otherwise the default notification sound.</param>
+public sealed record TrayBalloon(
+    string IconKey, string AppId, string AppName, string Title, string Body, IconBitmap? Picture, IconBitmap? Logo, bool Silent)
 {
     public const string GeneratedAppIdPrefix = "NotifyIconGeneratedAumid_";
 

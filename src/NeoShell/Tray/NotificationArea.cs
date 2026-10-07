@@ -166,7 +166,8 @@ internal sealed class NotificationArea : IDisposable
             title,
             body,
             BalloonIcons.Load(data.InfoFlags, data.BalloonIcon, icon.IconHandle, 256),
-            logo);
+            logo,
+            data.InfoFlags.HasFlag(BalloonFlags.NoSound));
     }
 
     private static string? FileDescription(string path)

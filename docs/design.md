@@ -767,8 +767,8 @@ Exit NeoShell (alongside Explorer only).
     `NotifyIconSettings` key (read only; an icon Explorer never saw gets the executable's implicit AppID), so the
     user's settings for it apply: no toast with Do not disturb on, banners off for all apps, or the app's
     notifications or banners off; it then times out at once as Explorer's. Names and logo as Explorer registers them
-    (file description, tray icon) rather than the raw AUMID Explorer's header shows. NeoShell's toasts play no sound
-    yet (T7), so `NIIF_NOSOUND` has nothing to silence.
+    (file description, tray icon) rather than the raw AUMID Explorer's header shows. A balloon plays the default
+    notification sound (see Toast sound in Notifications and calendar), none with `NIIF_NOSOUND`.
 - After `Shell_TrayWnd` exists, broadcast `RegisterWindowMessage("TaskbarCreated")` so running apps re-add icons.
 - Remove icons whose owner window has died (`IsWindow` every 5 s and before forwarding input).
 - **Mouse forwarding** with `NOTIFYICON_VERSION_4` semantics: `wParam` = anchor point (x, y), `lParam` low word =
@@ -907,9 +907,9 @@ notification center 12 epx above it and as tall as its notifications need, up to
   `UserNotificationListener`, which an unpackaged app may use (access is the Privacy setting "Let apps access your
   notifications"), but its `NotificationChanged` event needs package identity, so they're read once a second; an
   unchanged set of IDs changes nothing. The notification platform keeps notifications whether or not a shell runs.
-  The listener gives each one's app (AppUserModelID and name), time and texts â€” not images, buttons or launch
-  arguments, so clicking a notification opens its app as Start would and removes it, rather than delivering the
-  toast's own activation. App icons as the taskbar's (packaged logo, else the `shell:AppsFolder` item's icon).
+  The listener gives each one's app (AppUserModelID and name), time and texts, not the toast's XML (its sound,
+  arguments, images, buttons): a click is carried out by the notification platform itself (see Toast activation),
+  and the sound comes from the app's toast history (see Toast sound). App icons as the taskbar's (packaged logo, else the `shell:AppsFolder` item's icon).
   Per-app settings from `HKCU\...\Notifications\Settings\<AppUserModelID>` (`Enabled`, `ShowBanner`,
   `ShowInActionCenter`) and the global `PushNotifications\ToastEnabled` are honoured. "Turn off all notifications
   for <app>" writes `Enabled = 0` there, Settings' own store; the platform only notices it later (Settings tells it
@@ -940,9 +940,52 @@ notification center 12 epx above it and as tall as its notifications need, up to
   the taskbar, with the app's icon and name, "â€¦" and close, the title and up to three lines of body. It slides in
   from the edge; the newest is lowest and older ones move up, three at most. It leaves after the system's "Dismiss
   notifications after" time (`SPI_GETMESSAGEDURATION`, 5 s by default), later while the pointer is on it. Closing
-  it only puts it away (it stays in the notification center, as in Explorer); clicking it opens the app. Alongside
-  Explorer, Explorer shows toasts. Tray icons' balloons show the same way (see System tray), with a picture beside
-  the text, and are never stored.
+  it only puts it away (it stays in the notification center, as in Explorer); clicking it activates the app (see
+  Toast activation), and it plays the toast's sound (see Toast sound). Alongside Explorer, Explorer shows toasts.
+  Tray icons' balloons show the same way (see System tray), with a picture beside the text, and are never stored.
+- **Toast activation** (`NotificationCenter.Activate`, Interop `UserNotifications.Activate`). Explorer's toast host
+  (ShellExperienceHost's `Windows.UI.ActionCenter.dll`) doesn't start apps itself: it hands the click to the
+  notification platform's controller in WpnUserService (`NotificationController.dll`, `CLSID_MainController`
+  `1ffe4ffd-…`, undocumented `INotificationController` `2537d644-…`), whose `ActivateNotification(AUMID, ID, data)`
+  runs the toast's activation: `NitroActivator` creates an unpackaged app's COM activator (the CLSID from the Start
+  shortcut's `System.AppUserModel.ToastActivatorCLSID`, or `AppUserModelId\<AUMID>\CustomActivator`) and calls
+  `INotificationActivationCallback::Activate(AUMID, launch, inputs)` (first through Explorer's `CLSID_ImmersiveShell`
+  service, for the foreground; without Explorer straight from the service); other activators handle packaged apps
+  (foreground, background), `protocol` launches and system actions; then the notification is removed. An unpackaged
+  app without an activator gets nothing (the toast just goes, as in Explorer). Any user may create the controller,
+  so NeoShell calls the same method with the listener's ID in decimal and no activation data (a click on the body),
+  having let the app take the foreground (`AllowSetForegroundWindow(ASFW_ANY)`: NeoShell had the click). If that
+  fails, the app opens as from Start and the notification is removed. Verified as the shell with a test app with a
+  COM activator (arguments delivered, its window took the foreground), a `protocol` toast (Calculator) and a
+  packaged app's toast (Calculator, posted under its AUMID), from a toast and from the notification center, and
+  alongside Explorer that the same calls behave as its clicks. Buttons, inputs and context menu items aren't shown
+  (out of scope), so only the body's activation is used.
+- **Toast sound** (`ToastSounds`, Interop `ToastAudio`, `NotificationSound`). The controller picks the sound
+  (`SoundPropertiesFactory::Create`) and the toast host plays it (`AudioHelper`, a media player in the alerts
+  category) as the toast starts to show; only the newest toast's sound plays (`ManageToastAudio` stops the others'),
+  and a sound that won't play falls back to `ms-winsoundevent:Notification.Default`. The rules, from the code:
+  - none for a silent toast (`<audio silent="true"/>`), a ghost toast, when Settings' "Allow notifications to play
+    sounds" is off (`Notifications\Settings\NOC_GLOBAL_SETTING_ALLOW_NOTIFICATION_SOUND` = 0) or the app's "Play a
+    sound when a notification arrives" is off (`Settings\<AUMID>\SoundFile` = ""), and of course with no toast (Do
+    not disturb, focus);
+  - else the `src`: `ms-winsoundevent:Notification.*` (the user's sound scheme, `AppEvents\Schemes\Apps\.Default`),
+    or a file (`ms-appx:///` or `ms-appdata:///local/` in the app's package, `file:///`); none means
+    `Notification.Default`;
+  - an `alarm` / `incomingCall` scenario rings `Notification.Looping.Alarm` / `.Call` unless the `src` is already one
+    of those; the scenario counts only for a toast with a button (measured: an alarm without one plays the default);
+  - it loops only with `loop="true"`, for as long as the toast shows (a scenario alone plays its sound once);
+  - an app's `SoundFile` other than `*default*` replaces it all.
+
+  The listener doesn't give the XML, so NeoShell reads it from the app's toast history
+  (`ToastNotificationManager.History.GetHistory(AUMID)`, newest first, which works for any app), matching the
+  notification by its texts; some older entries fail to give their XML (0xC00CE558) and are skipped; not found means
+  the default sound. Played with a WinRT `MediaPlayer` (alerts category, no media session, opened ahead so the first
+  sound isn't late), started before the toast's window is made. Measured with the render endpoint's peak meter
+  against a pixel near the toast's right edge: Explorer's sound starts 35–60 ms before that pixel changes,
+  NeoShell's 0–55 ms before (60–130 ms after, now and then); lengths match (Default 1.16 s, Mail 1.39 s, Reminder
+  1.38 s, Looping.Alarm 5.1 s, an unknown sound the default's). Not matched: a ghost toast (`SuppressPopup`) can't be
+  told from the listener or the history, so it pops up with its sound; `duration="long"` toasts (25 s in Explorer,
+  so a looping sound rings 25 s) and alarms with buttons (which stay until dismissed) time out as any other toast.
 
 ## Quick Settings (`QuickSettings/`)
 
