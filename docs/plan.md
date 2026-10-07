@@ -307,7 +307,10 @@ Each item is done when it looks and behaves as Explorer's (layout, behaviour, an
       order and defaults kept and followed live, the hidden icon menu (taskbar menu), drags with Explorer's picture,
       captions, marker and drop rules; `TrayMode` folded in — not done: moving icons with the keyboard, `Publisher` and
       `IconSnapshot` values; not run live: a vertical or top taskbar (other chevron glyphs), other DPIs
-- [ ] T13 Other privacy indicators (location in use…)
+- [x] T13 Privacy indicator as 25H2's: one button for the microphone and the location (one glyph for both), from
+      Windows' capability access manager as Explorer (the microphone moved off Core Audio sessions), Explorer's
+      tooltips, clicks and menu, in both run modes — not run live: a packaged app using the location, the voice
+      assistant; no camera indicator exists in Explorer on 25H2 (and the VM has no camera)
 - [ ] T14 Clock: seconds (`ShowSecondsInSystemClock`); notification count/badge
 - [ ] T15 Taskbar search box style
 - [ ] T16 Start: Recommended with recent files and newly installed apps

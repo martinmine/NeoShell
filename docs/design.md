@@ -8,8 +8,8 @@ coding rules are in [CLAUDE.md](../CLAUDE.md).
 - Display the wallpaper and the desktop icons, with Explorer's context menus for icons and the desktop.
 - A WinUI taskbar with feature parity with the Windows 11 taskbar (exceptions in the system tray area).
 - System tray icons, each on the taskbar or behind the chevron as Explorer keeps it (`NotifyIconSettings`).
-- Network, volume, battery and microphone-in-use indicators; network, volume and battery are one button, as in
-  Windows 11, that opens Quick Settings.
+- Network, volume and battery indicators, and the privacy indicator (apps using the microphone or the location);
+  network, volume and battery are one button, as in Windows 11, that opens Quick Settings.
 - Quick Settings: tiles (Wi-Fi, Bluetooth, Airplane mode, Accessibility, Energy saver, Live captions, Night light,
   Nearby sharing, Cast, Project), the volume slider with its Sound output page, battery and All settings.
 - A Start menu with search (apps + Windows Search Indexer), Settings, power options (Lock, Sign out, Sleep,
@@ -498,7 +498,7 @@ Shell mode only, like the wallpaper: alongside Explorer, Explorer's desktop has 
 2. Search button — opens the Start menu with the search box focused. Can be hidden from the taskbar menu.
 3. Pinned and running apps.
 4. Tray area: chevron/overflow, tray icons.
-5. Indicators: microphone (when active), the input method (with more than one: an IME's mode, then the language),
+5. Indicators: privacy (microphone or location in use), the input method (with more than one: an IME's mode, then the language),
    then network, volume and battery as one button (Quick Settings).
 6. Clock: time and short date, and Do not disturb's bell while it's on; tooltip with the full date and the day and
    time, as Explorer's; click opens the notification center and calendar (see Notifications and calendar).
@@ -784,8 +784,8 @@ Win+arrows and Ctrl+Shift+Esc; the rest were Explorer's.
     above the Start button; I Settings and Pause System (as the shell their Control Panel applets, `control.exe` and
     `sysdm.cpl`).
   - Alt+D the notification center and calendar; Alt+K mutes the default microphone, or unmutes it (Explorer mutes
-    calls in apps that support it; the endpoint's mute is the nearest without them). The microphone indicator
-    shows it.
+    calls in apps that support it; the endpoint's mute is the nearest without them). Explorer's privacy indicator
+    doesn't show the endpoint's mute (checked on 25H2), so NeoShell's doesn't either.
   - Shift+S the screen snip, PrtScn a screenshot of the whole screen, Z Snap layouts (see Screenshots, Snap
     layouts). A window opened from a hotkey is brought to the front with `SetForegroundWindow` after WinUI shows it:
     WinUI's `Activate` leaves the foreground with the app the keys went to.
@@ -1031,16 +1031,41 @@ the same steps under Explorer and under NeoShell: every reply, rectangle, work a
   a cell with its own tooltip and right-click menu (the cell under the pointer decides; from the keyboard, the
   speaker's). Clicking opens Quick Settings at the screen's right edge; clicking again closes it.
 
-### Microphone in use
+### Privacy indicator (Interop `Privacy/CapabilityUsage`)
 
-- For each active capture endpoint: `IAudioSessionManager2` → `IAudioSessionNotification` for new sessions and
-  `IAudioSessionEvents.OnStateChanged` per session (`CaptureMonitor`). The manager only reports new sessions after
-  its session list has been asked for once.
-- Visible while any capture session is `AudioSessionStateActive` (system sounds session excluded). Tooltip lists the
-  apps (`IAudioSessionControl2.GetProcessId` → file description, else process name). Click opens
-  `ms-settings:privacy-microphone` (shell mode: Sound's Recording tab, `mmsys.cpl,,1`).
-- While the default microphone is muted (Win+Alt+K; an `AudioEndpoint` on the capture device follows it), the icon
-  is the slashed microphone and the tooltip starts with "Microphone muted".
+Windows 11 25H2's taskbar has one privacy button for the microphone and the location (SystemTray.dll,
+`PrivacySystemTrayIconDataModel`; no camera: SystemTray asks only about "microphone" and "location", and has no camera
+strings). Explorer learns who uses them from the capability access manager, not from audio sessions:
+`WindowsUdk.Security.Authorization.AppCapabilityAccess.CapabilityUsageInfo` (windowsudk.shellcommon.dll, in-process,
+activatable by an unpackaged full-trust app; it checks the client for the `shellExperience` capability, which a
+non-AppContainer process passes). It wraps camsvc's `Windows.Internal.CapabilityAccess.Management.CapabilityUsage` and
+its WNF state, so it covers packaged and unpackaged apps (the same records as the consent store's
+`LastUsedTimeStart/Stop`), and for the microphone also the voice assistant (`WNF_AUDC_CAPTURE`). No metadata; from the
+symbols: factory `ICapabilityUsageInfoFactory` `{2135ec12-5eb8-5f7b-89a3-dbe27b6cebc7}` `CreateInstance(HSTRING
+capability)`; `ICapabilityUsageInfo` `{d494ab35-5e4a-5533-a0a6-ac684a2feea2}`: `IsAnyAppUsingCapability`,
+`GetDisplayNamesForAppsUsingCapability` (`IVectorView<String>`), `UsageChanged` (`TypedEventHandler` `{48a0f8bb-b057-
+5aae-8439-e917492e4e88}`). `ICapabilityUsageInfo2.GetMultiLineDescriptionOfUsage`, which Explorer's tooltip uses, is the
+same names joined with line feeds. NeoShell's `CapabilityUsage` creates one per capability and reads the names on the
+thread pool after each `UsageChanged` (it comes on a WNF thread), as `AppBadges` does.
+
+- Measured on this VM (a waveIn recorder for the microphone, a `Geolocator` app for the location, alongside and in
+  shell mode): Explorer shows and hides the button as the usage starts and stops, in the same 150 ms poll as a client
+  of the API, with no delay of its own. The microphone part replaced NeoShell's Core Audio session watch
+  (`CaptureMonitor`): Explorer's tooltip names ("rec") are the API's, not the processes', and the two disagreed.
+- Button: 32 wide, before the input indicator; UIA name "Privacy" in Explorer. Glyph (Segoe Fluent Icons, 16 px) in
+  the accent's text colour (`AccentTextFillColorPrimaryBrush`, (156,235,255) with this VM's blue accent on the dark
+  taskbar): U+E720 microphone, U+E37A location arrow, U+F47F both in one glyph (pixel-identical to Explorer's).
+- Tooltip: "Location in use by:" then each app on its own line, a blank line, then "Microphone in use by:" and its
+  apps; two apps of the same name are both listed. Not affected by the microphone's mute.
+- Click: the glyph decides, as in Explorer's `OnIconClicked`: `ms-settings:privacy-microphone`,
+  `ms-settings:privacy-location`, or `ms-settings:privacy` for both. As the shell: Sound's Recording tab
+  (`mmsys.cpl,,1`) for the microphone, otherwise Control Panel (no privacy or location pages there).
+- Right-click: a menu with a settings gear (U+E713) on each item, "Microphone privacy settings" then "Location privacy
+  settings", for what's in use. Like all of Explorer's tray menus (network and volume included) it opens right-aligned
+  at the tray's right edge, 12 px from the screen's, not above the icon.
+- Explorer hides the microphone part while its call-mute microphone button (`MicrophoneSystemTrayIconDataModel`, apps
+  that support muting calls) is showing; NeoShell has no such button, so it always shows it. The Recall indicator
+  (`RecallPrivacyIndicatorExtension`) isn't on this VM.
 
 ### Input indicator (`Tray/InputSwitchPanel`, Interop `Input/InputMethods`)
 

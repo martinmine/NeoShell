@@ -611,11 +611,20 @@ internal sealed partial class TaskbarWindow : Window
         EnergySaverIndicator.Visibility =
             _indicators.IsEnergySaverOn && _indicators.Battery is null ? Visibility.Visible : Visibility.Collapsed;
 
-        IReadOnlyList<string> apps = _indicators.MicrophoneApps;
-        bool microphoneMuted = _indicators.IsMicrophoneMuted;
-        MicrophoneButton.Visibility = apps.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
-        MicrophoneIcon.Glyph = microphoneMuted ? IndicatorDisplay.MicrophoneMutedGlyph : IndicatorDisplay.MicrophoneGlyph;
-        SetToolTip(MicrophoneButton, IndicatorDisplay.MicrophoneToolTip(apps, microphoneMuted));
+        IReadOnlyList<string> locationApps = _indicators.LocationApps, microphoneApps = _indicators.MicrophoneApps;
+        bool location = locationApps.Count > 0, microphone = microphoneApps.Count > 0;
+        PrivacyButton.Visibility = location || microphone ? Visibility.Visible : Visibility.Collapsed;
+        if (location || microphone)
+        {
+            PrivacyIcon.Glyph = IndicatorDisplay.PrivacyGlyph(location, microphone);
+            SetToolTip(PrivacyButton, IndicatorDisplay.PrivacyToolTip(locationApps, microphoneApps));
+            MicrophonePrivacyMenuItem.Visibility = microphone ? Visibility.Visible : Visibility.Collapsed;
+            LocationPrivacyMenuItem.Visibility = location ? Visibility.Visible : Visibility.Collapsed;
+        }
+        else if (PrivacyMenu.IsOpen)
+        {
+            PrivacyMenu.Hide();
+        }
 
         RefreshInputIndicator();
     }
@@ -800,9 +809,29 @@ internal sealed partial class TaskbarWindow : Window
     private void NetworkSettings_Click(object sender, RoutedEventArgs e) =>
         Launcher.OpenSettings(_owner.RunMode, "Network settings", "ms-settings:network", "ncpa.cpl");
 
+    // The page of what's in use, Privacy's for both, as Explorer's; as the shell, Sound's Recording tab for the
+    // microphone and otherwise Control Panel, which has no privacy or location pages.
+    private void Privacy_Click(object sender, RoutedEventArgs e)
+    {
+        bool location = _indicators?.LocationApps.Count > 0, microphone = _indicators?.MicrophoneApps.Count > 0;
+        Launcher.OpenSettings(_owner.RunMode, "Privacy settings", IndicatorDisplay.PrivacySettingsUri(location, microphone),
+            microphone && !location ? "mmsys.cpl,,1" : "");
+    }
+
+    // Explorer opens it at the right, as Quick Settings, not above the icon.
+    private void Privacy_ContextRequested(UIElement sender, ContextRequestedEventArgs e)
+    {
+        e.Handled = true;
+        TaskbarFlyouts.ShowAtRight(PrivacyMenu, PrivacyButton);
+    }
+
     // As the shell: the Recording tab of Sound, as Control Panel has no microphone privacy page.
-    private void Microphone_Click(object sender, RoutedEventArgs e) =>
+    private void MicrophonePrivacySettings_Click(object sender, RoutedEventArgs e) =>
         Launcher.OpenSettings(_owner.RunMode, "Microphone privacy settings", "ms-settings:privacy-microphone", "mmsys.cpl,,1");
+
+    // As the shell: Control Panel, which has no location page any more.
+    private void LocationPrivacySettings_Click(object sender, RoutedEventArgs e) =>
+        Launcher.OpenSettings(_owner.RunMode, "Location privacy settings", "ms-settings:privacy-location");
 
     private void SoundSettings_Click(object sender, RoutedEventArgs e) =>
         Launcher.OpenSettings(_owner.RunMode, "Sound settings", "ms-settings:sound", "mmsys.cpl");

@@ -19,7 +19,6 @@ internal static class CoreAudio
     public const int AudioSessionStateExpired = 2;
     public const uint DEVICE_STATE_ACTIVE = 0x1;
     public const uint CLSCTX_ALL = 0x17;
-    public const int AudioSessionStateActive = 1;
     public const int S_OK = 0;
 
     // PKEY_Device_FriendlyName

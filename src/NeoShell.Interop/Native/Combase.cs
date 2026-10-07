@@ -12,6 +12,16 @@ internal static partial class Combase
     public static partial int WindowsDeleteString(nint hstring);
 
     [LibraryImport("combase.dll")]
+    private static unsafe partial char* WindowsGetStringRawBuffer(nint hstring, out uint length);
+
+    /// <summary>The HSTRING's text; the HSTRING stays the caller's to delete.</summary>
+    public static unsafe string GetString(nint hstring)
+    {
+        char* buffer = WindowsGetStringRawBuffer(hstring, out uint length);
+        return new string(buffer, 0, (int)length);
+    }
+
+    [LibraryImport("combase.dll")]
     public static partial int RoGetActivationFactory(nint activatableClassId, in Guid iid, out nint factory);
 
     /// <summary>The activation factory of a Windows Runtime class as <typeparamref name="T"/>, or throws.</summary>

@@ -3,12 +3,15 @@ using NeoShell.Interop.Network;
 
 namespace NeoShell.Tray;
 
-/// <summary>Glyphs (Segoe Fluent Icons) and tooltips of the network, volume and microphone indicators.</summary>
+/// <summary>Glyphs (Segoe Fluent Icons) and tooltips of the network, volume, privacy and input indicators.</summary>
 public static class IndicatorDisplay
 {
     public const string MicrophoneGlyph = "";
 
-    public const string MicrophoneMutedGlyph = "";
+    public const string LocationGlyph = "";
+
+    /// <summary>The microphone and the location arrow in one glyph, for the privacy indicator while both are in use.</summary>
+    public const string MicrophoneAndLocationGlyph = "";
 
     public const string AirplaneGlyph ="";
 
@@ -62,12 +65,34 @@ public static class IndicatorDisplay
     /// <summary>A mouse wheel notch is 2%, as on the Windows 11 taskbar.</summary>
     public static float WheelVolume(float volume, int wheelDelta) => Math.Clamp(volume + wheelDelta / 120f * 0.02f, 0, 1);
 
-    /// <param name="muted">The microphone is muted (Win+Alt+K): said first.</param>
-    public static string MicrophoneToolTip(IReadOnlyList<string> apps, bool muted = false) => (muted ? "Microphone muted\n" : "") + apps.Count switch
+    /// <summary>
+    /// The privacy indicator's tooltip, as Explorer's: who uses the location, then who uses the microphone, each name on
+    /// a line of its own (two apps of the same name both listed).
+    /// </summary>
+    public static string PrivacyToolTip(IReadOnlyList<string> locationApps, IReadOnlyList<string> microphoneApps)
     {
-        0 => "",
-        1 => $"{apps[0]} is using your microphone",
-        _ => $"{apps.Count} apps are using your microphone:\n{string.Join("\n", apps)}",
+        var parts = new List<string>();
+        if (locationApps.Count > 0)
+            parts.Add("Location in use by:\n" + string.Join("\n", locationApps));
+        if (microphoneApps.Count > 0)
+            parts.Add("Microphone in use by:\n" + string.Join("\n", microphoneApps));
+        return string.Join("\n\n", parts);
+    }
+
+    /// <summary>The privacy indicator's glyph: Explorer's glyph also decides what its click and menu are about.</summary>
+    public static string PrivacyGlyph(bool location, bool microphone) => (location, microphone) switch
+    {
+        (true, false) => LocationGlyph,
+        (false, true) => MicrophoneGlyph,
+        _ => MicrophoneAndLocationGlyph,
+    };
+
+    /// <summary>The Settings page a click on the privacy indicator opens: the capability's, or Privacy's for both.</summary>
+    public static string PrivacySettingsUri(bool location, bool microphone) => (location, microphone) switch
+    {
+        (true, false) => "ms-settings:privacy-location",
+        (false, true) => "ms-settings:privacy-microphone",
+        _ => "ms-settings:privacy",
     };
 
     public const string InputSwitchHint = "To switch input methods, press Windows key + space.";

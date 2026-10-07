@@ -70,10 +70,20 @@ public sealed class IndicatorTests
     }
 
     [Fact]
-    public void Microphone_tooltip_lists_the_apps()
+    public void Privacy_tooltip_lists_the_apps_location_first()
     {
-        Assert.Equal("Sound Recorder is using your microphone", IndicatorDisplay.MicrophoneToolTip(["Sound Recorder"]));
-        Assert.Equal("2 apps are using your microphone:\nTeams\nOBS", IndicatorDisplay.MicrophoneToolTip(["Teams", "OBS"]));
-        Assert.Equal("Microphone muted\nTeams is using your microphone", IndicatorDisplay.MicrophoneToolTip(["Teams"], muted: true));
+        Assert.Equal("Microphone in use by:\nrec", IndicatorDisplay.PrivacyToolTip([], ["rec"]));
+        Assert.Equal("Microphone in use by:\nrec\nrec", IndicatorDisplay.PrivacyToolTip([], ["rec", "rec"]));
+        Assert.Equal("Location in use by:\nMaps", IndicatorDisplay.PrivacyToolTip(["Maps"], []));
+        Assert.Equal("Location in use by:\nloc\n\nMicrophone in use by:\nrec", IndicatorDisplay.PrivacyToolTip(["loc"], ["rec"]));
+    }
+
+    [Theory]
+    [InlineData(true, false, "ms-settings:privacy-location")]
+    [InlineData(false, true, "ms-settings:privacy-microphone")]
+    [InlineData(true, true, "ms-settings:privacy")]
+    public void Privacy_click_opens_the_capabilitys_settings(bool location, bool microphone, string expected)
+    {
+        Assert.Equal(expected, IndicatorDisplay.PrivacySettingsUri(location, microphone));
     }
 }

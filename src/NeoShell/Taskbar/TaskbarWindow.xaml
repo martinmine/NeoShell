@@ -310,16 +310,40 @@
                     </ItemsControl.ItemsPanel>
                 </ItemsControl>
             </StackPanel>
-            <!-- Microphone (while in use), network and volume, on the primary taskbar. -->
+            <!-- Privacy (while apps use the microphone or the location), network and volume, on the primary taskbar. -->
             <StackPanel x:Name="IndicatorArea" Orientation="Horizontal" VerticalAlignment="Center" Visibility="Collapsed">
+                <!-- Explorer's privacy indicator: the microphone, the location arrow or both, in the accent's text colour. -->
                 <Button
-                    x:Name="MicrophoneButton"
-                    AutomationProperties.AutomationId="MicrophoneIndicator"
+                    x:Name="PrivacyButton"
+                    AutomationProperties.AutomationId="PrivacyIndicator"
                     Width="32"
                     Style="{StaticResource FlatButtonStyle}"
                     Visibility="Collapsed"
-                    Click="Microphone_Click">
-                    <FontIcon x:Name="MicrophoneIcon" Glyph="&#xE720;" FontSize="16" />
+                    Click="Privacy_Click"
+                    ContextRequested="Privacy_ContextRequested">
+                    <FontIcon x:Name="PrivacyIcon" FontSize="16" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
+                    <FlyoutBase.AttachedFlyout>
+                        <MenuFlyout x:Name="PrivacyMenu" MenuFlyoutPresenterStyle="{StaticResource ShellMenuPresenterStyle}">
+                            <MenuFlyoutItem
+                                x:Name="MicrophonePrivacyMenuItem"
+                                AutomationProperties.AutomationId="MicrophonePrivacySettingsMenuItem"
+                                Text="Microphone privacy settings"
+                                Click="MicrophonePrivacySettings_Click">
+                                <MenuFlyoutItem.Icon>
+                                    <FontIcon Glyph="&#xE713;" />
+                                </MenuFlyoutItem.Icon>
+                            </MenuFlyoutItem>
+                            <MenuFlyoutItem
+                                x:Name="LocationPrivacyMenuItem"
+                                AutomationProperties.AutomationId="LocationPrivacySettingsMenuItem"
+                                Text="Location privacy settings"
+                                Click="LocationPrivacySettings_Click">
+                                <MenuFlyoutItem.Icon>
+                                    <FontIcon Glyph="&#xE713;" />
+                                </MenuFlyoutItem.Icon>
+                            </MenuFlyoutItem>
+                        </MenuFlyout>
+                    </FlyoutBase.AttachedFlyout>
                 </Button>
                 <!-- An IME's mode ("あ" or "A") while one is in front: a click switches it. -->
                 <Button

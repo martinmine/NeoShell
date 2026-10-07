@@ -1,7 +1,7 @@
 # NeoShell
 
 A replacement for the `explorer.exe` shell on Windows 11, built with WinUI 3 on .NET 10. It shows the wallpaper
-and desktop icons, a Windows 11 style taskbar (with system tray, network, volume and microphone indicators, and Quick
+and desktop icons, a Windows 11 style taskbar (with system tray, network, volume and privacy indicators, and Quick
 Settings) and a Start menu with search and power options.
 
 - Design and feature spec: [docs/design.md](docs/design.md)
@@ -84,7 +84,7 @@ src/NeoShell.Interop/
   Windowing/                  MessageWindow, WindowSubclass, AppBar, ShellHook, DwmThumbnail, KeyboardHook, WindowInfo
   Imaging/                    IconBitmap (BGRA pixels), ScreenCapture (screen pixels, clipboard, PNG)
   Tray/                       TrayHost (owns Shell_TrayWnd), NOTIFYICONDATA parsing (32/64-bit)
-  Audio/                      AudioEndpoint (volume/mute + events), CaptureMonitor (microphone in use), mixer, outputs
+  Audio/                      AudioEndpoint (volume/mute + events), mixer, outputs
   Network/                    NetworkStatus (WinRT NetworkInformation), WifiNetworks (WinRT WiFiAdapter)
   Radios/                     RadioSwitches (Wi-Fi/Bluetooth radios), AirplaneMode (Radio Management API)
   Bluetooth/                  BluetoothDevices (paired devices)
@@ -94,6 +94,7 @@ src/NeoShell.Interop/
   Performance/                SystemUsage (CPU, disk and memory use through PDH)
   Media/                      NowPlaying (system media transport controls)
   Location/                   DeviceLocation (WinRT Geolocator)
+  Privacy/                    CapabilityUsage: apps using the microphone or the location (privacy indicator)
   Wireless/                   WirelessDevices: battery of Bluetooth, Razer and Audeze devices (from WirelessStatus)
   Input/                      InputMethods: the input method in front and switching (InputSwitch.dll), TSF profiles
   Notifications/              UserNotifications (UserNotificationListener), DoNotDisturb (quiet hours), AppBadges (badges)

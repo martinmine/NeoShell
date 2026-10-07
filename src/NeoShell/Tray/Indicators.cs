@@ -4,6 +4,7 @@ using NeoShell.Interop.Audio;
 using NeoShell.Interop.Input;
 using NeoShell.Interop.Network;
 using NeoShell.Interop.Power;
+using NeoShell.Interop.Privacy;
 using NeoShell.Interop.Radios;
 using NeoShell.Interop.Shell;
 using NeoShell.Logging;
@@ -11,9 +12,9 @@ using NeoShell.Logging;
 namespace NeoShell.Tray;
 
 /// <summary>
-/// The state behind the taskbar's indicators and Quick Settings: network, volume, microphone, radios, airplane mode,
-/// energy saver, battery and the input method. Windows reports changes on its own threads; they arrive here as one
-/// <see cref="Changed"/> on the UI thread per burst.
+/// The state behind the taskbar's indicators and Quick Settings: network, volume, the apps using the microphone and
+/// the location, radios, airplane mode, energy saver, battery and the input method. Windows reports changes on its
+/// own threads; they arrive here as one <see cref="Changed"/> on the UI thread per burst.
 /// </summary>
 internal sealed class Indicators : IDisposable
 {
@@ -21,8 +22,9 @@ internal sealed class Indicators : IDisposable
     private readonly NetworkStatus _network = new();
     private readonly AudioEndpoint? _audio;
     private readonly AudioEndpoint? _microphone;
-    private readonly CaptureMonitor? _capture;
     private readonly AudioMixer? _mixer;
+    private readonly CapabilityUsage _microphoneUsage = new(CapabilityUsage.Microphone);
+    private readonly CapabilityUsage _locationUsage = new(CapabilityUsage.Location);
     private readonly RadioSwitches _radios = new();
     private readonly EnergySaver _energySaver = new();
     private readonly BatteryMonitor _battery = new();
@@ -39,14 +41,13 @@ internal sealed class Indicators : IDisposable
         _radios.Changed += OnRadiosChanged;
         _energySaver.Changed += QueueUpdate;
         _battery.Changed += QueueUpdate;
+        _microphoneUsage.Changed += QueueUpdate;
+        _locationUsage.Changed += QueueUpdate;
         try
         {
             _audio = new AudioEndpoint();
             _audio.Changed += QueueUpdate;
             _microphone = new AudioEndpoint(microphone: true);
-            _microphone.Changed += QueueUpdate;
-            _capture = new CaptureMonitor();
-            _capture.Changed += QueueUpdate;
             _mixer = new AudioMixer();
             _mixer.Changed += QueueUpdate;
         }
@@ -234,9 +235,6 @@ internal sealed class Indicators : IDisposable
     /// <summary>Null on a PC without a battery.</summary>
     public BatteryState? Battery { get; private set; }
 
-    /// <summary>Whether the default microphone is muted; false without one.</summary>
-    public bool IsMicrophoneMuted => _microphone?.IsMuted == true;
-
     /// <summary>Win+Alt+K: mutes the default microphone, or unmutes it.</summary>
     public void ToggleMicrophoneMute()
     {
@@ -305,8 +303,11 @@ internal sealed class Indicators : IDisposable
         }
     }
 
-    /// <summary>Names of the apps recording from a microphone; empty while none is.</summary>
-    public IReadOnlyList<string> MicrophoneApps { get; private set; } = [];
+    /// <summary>The apps using a microphone, by display name; empty while none is.</summary>
+    public IReadOnlyList<string> MicrophoneApps => _microphoneUsage.Apps;
+
+    /// <summary>The apps using the location, by display name; empty while none is.</summary>
+    public IReadOnlyList<string> LocationApps => _locationUsage.Apps;
 
     public void Dispose()
     {
@@ -316,7 +317,8 @@ internal sealed class Indicators : IDisposable
         _battery.Dispose();
         _audio?.Dispose();
         _microphone?.Dispose();
-        _capture?.Dispose();
+        _microphoneUsage.Dispose();
+        _locationUsage.Dispose();
         _mixer?.Dispose();
         _inputMethods?.Dispose();
     }
@@ -370,7 +372,6 @@ internal sealed class Indicators : IDisposable
                 AirplaneMode = Interop.Radios.AirplaneMode.Read();
             }
             Battery = BatteryMonitor.Read();
-            MicrophoneApps = [.. (_capture?.ActiveProcessIds() ?? []).Select(AppName).Distinct()];
             UpdateInputMethod();
             Changed?.Invoke();
         }
@@ -393,28 +394,6 @@ internal sealed class Indicators : IDisposable
         else
         {
             InputMethodInFront = InputMethod is { } current ? IndicatorDisplay.MatchInputMethod(EnabledInputMethods, current) : null;
-        }
-    }
-
-    private static string AppName(int processId)
-    {
-        try
-        {
-            using Process process = Process.GetProcessById(processId);
-            string? description = null;
-            try
-            {
-                description = process.MainModule?.FileVersionInfo.FileDescription;
-            }
-            catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or InvalidOperationException)
-            {
-                // Elevated and protected processes don't let us read their modules.
-            }
-            return string.IsNullOrWhiteSpace(description) ? process.ProcessName : description;
-        }
-        catch (ArgumentException)
-        {
-            return $"Process {processId}"; // already gone
         }
     }
 }
