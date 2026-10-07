@@ -81,6 +81,16 @@ internal sealed class ShellBackdrop(Backdrop kind) : SystemBackdrop
         ApplyTint();
     }
 
+    // WinUI calls this when the theme of the target's content changes, to update the configuration it hands out
+    // through GetDefaultSystemBackdropConfiguration. The controllers here follow NeoShell's own theme and accent
+    // (the Theme and Tint setters) instead. The base implementation must not run: WinUI holds the target only
+    // weakly, a window's target is already gone by then, and the base throws ArgumentException on the null
+    // target, which WinUI turns into a fail-fast (it crashed NeoShell whenever a surface changed theme).
+    protected override void OnDefaultSystemBackdropConfigurationChanged(ICompositionSupportsSystemBackdrop target,
+        XamlRoot xamlRoot)
+    {
+    }
+
     protected override void OnTargetDisconnected(ICompositionSupportsSystemBackdrop target)
     {
         base.OnTargetDisconnected(target);

@@ -53,6 +53,13 @@ All shell surfaces (taskbar, Start menu, wallpaper, flyouts) are WinUI `Window`s
   menu's backdrop is used by its submenus' popups too. They share one controller (or brush), disposed with the last
   target. A controller left behind closes itself when the dispatcher shuts down and touches a popup that's gone (a
   crash in `CPopup::GetSystemBackdrop` on exit after the taskbar's backdrop submenu had been used).
+- `ShellBackdrop` overrides `OnDefaultSystemBackdropConfigurationChanged` with an empty body. `base.OnTargetConnected`
+  makes WinUI (3.2.3, App SDK 2.5.1) track each target for `GetDefaultSystemBackdropConfiguration`, listening to its
+  content's `ActualThemeChanged`; on a theme change it calls that method with the target resolved from a weak
+  reference, which for a window is already null, and the base implementation fails `E_INVALIDARG` ("target"). The
+  `ArgumentException` comes from a XAML callback, so WinUI fail-fasts: NeoShell crashed whenever a surface's theme
+  changed (starting in, or switching to, the light theme). NeoShell's backdrops follow their own `Theme`/`Tint`, set
+  by each window, so the default configuration isn't needed.
 
 ## Application lifecycle
 
