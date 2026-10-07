@@ -2,7 +2,6 @@ using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using Microsoft.UI.Xaml.Media;
 using NeoShell.Interop.Shell;
-using NeoShell.Settings;
 
 namespace NeoShell.Desktop;
 
@@ -17,6 +16,7 @@ internal sealed class DesktopIcon(DesktopEntry entry) : INotifyPropertyChanged
     private ImageSource? _overlay;
     private double _size;
     private bool _isDropTarget;
+    private bool _isSelected;
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
@@ -65,8 +65,28 @@ internal sealed class DesktopIcon(DesktopEntry entry) : INotifyPropertyChanged
 
     public double OverlaySize => Math.Min(_size, MaxOverlaySize);
 
-    /// <summary>Where the icon is on the desktop's grid; set by <see cref="DesktopIcons.Arrange"/>.</summary>
-    public GridCell Cell { get; set; }
+    /// <summary>Where the icon is: a monitor and a cell of its grid; set by <see cref="DesktopIcons"/>, null until placed.</summary>
+    public IconPlace? Place { get; set; }
+
+    /// <summary>The icon's cell on its monitor's grid.</summary>
+    public GridCell Cell => Place?.Cell ?? default;
+
+    /// <summary>The name and flags Explorer's saved layouts know the item by (<see cref="IconLayouts"/>).</summary>
+    public string LayoutName { get; set; } = "";
+
+    public LayoutIconFlags LayoutFlags { get; set; }
+
+    /// <summary>The pixel size <see cref="Image"/> was loaded at, for the DPI of the monitor the icon is on.</summary>
+    public int? ImagePixels { get; set; }
+
+    public int? OverlayPixels { get; set; }
+
+    /// <summary>In the desktop's selection, which spans every monitor.</summary>
+    public bool IsSelected
+    {
+        get => _isSelected;
+        set => Set(ref _isSelected, value);
+    }
 
     /// <summary>A drag is over the icon and would drop on it.</summary>
     public bool IsDropTarget

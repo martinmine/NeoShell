@@ -392,7 +392,17 @@ Each item is done when it looks and behaves as Explorer's (layout, behaviour, an
       beyond showing its current picture (the "Learn about this picture" icon, flyout, Next and the rotation live in
       Explorer and private UDK/COM interfaces); the slideshow's pause while the display is off; not run live: a second
       monitor (per-monitor values and the monitor mapping unit tested), a battery
-- [ ] T25 Desktop icons on every monitor
+- [x] T25 Desktop icons on every monitor — tested with a second monitor from VMware Tools (`VMwareResolutionSet`);
+      one view per monitor sharing one selection, drags between monitors, the selection rectangle and arrow keys
+      across them, Sort by and Auto arrange per monitor, new icons on the primary first; places kept in Explorer's
+      own `IconLayouts` (format and desktop matching read from shell32 with Ghidra), so icons stay put when switching
+      shells (checked both ways, with and without the widget sidebar) and come back when a monitor is unplugged and
+      plugged back; Explorer's grid spacing (stretched to the work areas) and per-monitor DPI (125%) — compared with
+      `LVM_GETITEMPOSITION`/`LVM_GETITEMSPACING` on Explorer's desktop, cells to the pixel — differs: the matching of
+      a new monitor arrangement is a simplified `DesktopMatcher` (no linked desktops of its own, rating by fit); the
+      spacing's label height is a constant (44 at 96 DPI; Explorer measures the icon font and text scaling), and
+      with mixed DPI Explorer's spacing came out 76x98, NeoShell's 76x101 — not run live: Auto arrange toggled with
+      icons on two monitors in NeoShell (unit tested; Explorer's checked), Ctrl+A (no letter keys)
 - [ ] T26 Desktop: Undo; "Align icons to grid" off
 - [ ] T27 Snap Assist, snap groups, Snap layouts on the maximize button and at the top edge
 - [ ] T28 Win+Shift+arrows and Win+Left/Right across monitors

@@ -418,19 +418,59 @@ Shell mode only, like the wallpaper: alongside Explorer, Explorer's desktop has 
 - **Order** (unit tested): system icons first in Explorer's order, then folders, then files, by the Sort by choice
   (Name, Size, Item type, Date modified; `ShellSettings.DesktopSortOrder`) and then by name, numbers compared by
   value.
-- **Places** (`DesktopGrid`, unit tested): the icons sit on a grid of cells over the primary monitor's work area, as
-  Explorer's do with Align icons to grid (always on here). Icons fill columns from the top left in sort order, and
-  can be dragged anywhere on the grid; every icon's cell is then remembered (`ShellSettings.DesktopIconPositions`, by
-  parsing name; Explorer's own `IconLayouts` is undocumented), so a moved or deleted icon leaves a gap and new ones
-  fill the first gaps. A cell that's taken, or off a grid that got smaller (taskbar, icon size, resolution), sends
-  the icon to the nearest free cell. A dragged icon goes to the cell nearest to where it was under the pointer (the
-  grab point kept), the rest of the selection alongside. Files dropped on the desktop, and items made with New, go
-  to the cell where that happened, as in Explorer. Sort by packs the icons again and forgets their places; a
-  rename keeps the place. Arrow keys move the selection to the nearest icon that way, keeping to the row or column
-  where they can.
+- **Places** (`DesktopGrid`, `DesktopLayout`, unit tested): like Explorer's, one desktop spans every monitor. Each
+  monitor's work area is a grid of cells from its top left corner (no margin), with Align icons to grid (always on
+  here); an icon's place is a monitor and a cell. New icons fill the primary monitor's columns from the top left, then
+  the other monitors', then columns past the primary's edge (they scroll). Icons can be dragged anywhere, to any
+  monitor: a drag moves them by as much as the pointer moved, each to the cell nearest to where it lands (halfway
+  rounds up, as in Explorer) on the monitor it lands on, or the nearest free one. Files dropped on the desktop, and
+  items made with New, go to the cell where that happened, as in Explorer. A rename keeps the place. Sort by packs
+  each monitor's icons again in that order on that monitor, and Auto arrange keeps them packed so (Explorer keeps each
+  icon on its monitor for both; checked live). Arrow keys move the selection to the nearest icon that way on the
+  screen, across monitors, keeping to the row or column where they can.
+- **Explorer's saved places** (`IconLayouts`, unit tested with a value Explorer wrote): positions live where Explorer
+  keeps them, `HKCU\Software\Microsoft\Windows\Shell\Bags\1\Desktop\IconLayouts` (binary; `IconNameVersion` = 1),
+  so icons stay put when switching shells (checked both ways on the VM). Read from shell32's `IconLayoutEngine`,
+  `DesktopDictionary`, `DesktopData`, `WorkspaceData`, `IconNameTable` (Ghidra with the PDB):
+  - 16 bytes of the property bag (zero), then the dictionary: `int` version 0x10003, the name table (`int` 0x10001,
+    `uint64` count, strings), `uint64` desktop count (at most 256). A string is a `uint64` length counting its
+    terminating null, then UTF-16; 0 for none. A name is the item's parent-relative parsing name (file name, or
+    `::{CLSID}` for a system folder) followed by `>`, `\` for a folder or a space, `|` for the public Desktop or a
+    space (flags 1, 2, 4; a system folder has no attributes, so only 1).
+  - A desktop (one monitor arrangement): `int` version 0x10001/0x10002, linked key (string), `uint64` workspace count
+    (at most 16), the workspaces, and for a linked desktop of version 2 an `int` per workspace. A workspace (one
+    monitor, in work-area order: by left, then top): `int` version, for version 2 a shift (two `int`s, kept as read),
+    columns, rows, flags (1 = primary), `uint64` icon count (at most 4096), icons: column and row as `float`s, then a
+    `uint16` index into the name table.
+  - Explorer finds a desktop by its key, each workspace as `%02d:(%03dx%03d)` (flags, columns, rows) joined by `_`.
+    When the arrangement is new it initialises it from the saved desktop that fits best: monitors mapped primary to
+    primary, then same grid size, then in order; rated 4 for the same grid, 3 when the icons' bounding box fits, 1
+    when not; best rating, then the same monitor count, wins (NeoShell's `SavedPlaces` follows this, simplified from
+    `DesktopMatcher::GetCompatibility`). Icons of a monitor with no counterpart join the new icons (on the primary).
+    So unplugging a monitor brings its icons to the primary (the single-monitor layout), and plugging it back puts
+    them back (checked live in both shells).
+  - Desktops that differ only in the primary monitor's grid "look the same to the user"
+    (`DesktopData::LooksTheSameToTheUser`): Explorer links them and shows one's icons for both, saving only the link
+    target. NeoShell's widget sidebar narrows the primary as the shell (19 columns here instead of 23), so NeoShell
+    takes such a twin's places and, when saving, replaces every twin with its own desktop; otherwise Explorer may show
+    an older twin's places (seen once before this was handled).
+  - Explorer writes the value when its desktop closes (a clean exit, or now and then after a move), and reads it when
+    it starts; NeoShell reads it at start and writes 0.5 s after icons move, keeping every other desktop as read.
+    A value in another format isn't read and is never written over.
+- **Grid** (`DesktopLayout.Spacing`, unit tested against `LVM_GETITEMSPACING` on the VM): shell32's
+  `CListViewHost::UpdateIconSpacing`. At 96 DPI a cell is the icon's box, `icon + 6 + MulDiv(9, icon - 16, 240)`, at
+  least 75 wide (`SM_CXICONSPACING`), and the box plus two label lines (44) high: 75x99 for medium icons. It's then
+  stretched to the work areas (in 96-DPI pixels): with one monitor, across by the remainder shared out among the
+  columns, down by what's over beyond 30% of a row (`CalculateOptimalSpacingForPrimaryMonitor`; 76x101 for the VM's
+  1764x940); with several (`FindOptimalSpacing`), across by the first work area's stretch unless a width between
+  the plain one and the smallest stretch leaves less over in all of them, down by the tallest any wants, up to the
+  smallest stretch (76x103 with the second 1280x752 monitor). One spacing serves every monitor, scaled to each one's
+  DPI in whole pixels (`dpi * spacing / 96`, as `IconLayoutEngine::WorkAreaToGridWorkspace`); columns and rows are
+  the work area over the cell. The icon is centred in its cell; WinUI's per-monitor DPI scales icons and labels on a
+  125% monitor as Explorer's do (an image loaded at that monitor's pixel size).
 - **View settings** live where Explorer keeps them, so they carry over when switching shells: the icon size in
   `HKCU\Software\Microsoft\Windows\Shell\Bags\1\Desktop\IconSize` (32/48/96), "Auto arrange icons" as `FWF_AUTOARRANGE`
-  (bit 0x1) of that key's `FFlags` (icons stay packed in sort order; turning it on forgets their places), "Show
+  (bit 0x1) of that key's `FFlags` (each monitor's icons stay packed in sort order on it), "Show
   desktop icons" in `Explorer\Advanced\HideIcons`.
 - **Images** come from `IShellItemImageFactory` without `SIIGBF_ICONONLY`, so pictures get thumbnails, loaded off the
   UI thread at physical pixel size. Shortcuts get the stock link overlay (`SHGetStockIconInfo(SIID_LINK)`) in the
@@ -439,9 +479,13 @@ Shell mode only, like the wallpaper: alongside Explorer, Explorer's desktop has 
   Recycle Bin icon shows whether it's empty), and every `WM_SETTINGCHANGE` (folder options, Desktop icon settings,
   the work area), queue a debounced refresh. A refresh enumerates off the UI thread and updates the
   `ObservableCollection` in place (remove, move, insert), so the selection and loaded images survive.
-- **View** (`DesktopIconsView`): a `GridView` (extended selection; `DesktopIconPanel` places each container at its
-  icon's cell) in the primary monitor's
-  `WallpaperWindow`. Double-click or Enter opens; Delete, F2, F5, Ctrl+C/X/V and Alt+Enter work as in Explorer; a
+- **View** (`DesktopIconsView`): one per monitor, in its `WallpaperWindow`: a `GridView` (extended selection;
+  `DesktopIconPanel` places each container at its icon's cell) of the icons on that monitor (`DesktopIcons.IconsOn`).
+  The views share one selection (`DesktopIcon.IsSelected`): a plain click selects only there and deselects the other
+  monitors' icons, as in Explorer's one window; Ctrl+A selects all of them. The selection rectangle goes on across
+  monitors (the pointer stays captured by the window where it started) and each view draws its part and selects its
+  icons; the arrow keys move the focus to another monitor's window. An icon dragged to another monitor is dropped on
+  that monitor's window (WinUI's drop events reach any window of the process), which moves it. Double-click or Enter opens; Delete, F2, F5, Ctrl+C/X/V and Alt+Enter work as in Explorer; a
   click on the empty desktop clears the selection. Dragging from the empty desktop draws a selection rectangle (accent
   coloured) and selects every icon it touches; with Ctrl held it adds to the selection.
 - **Drag and drop** as on Explorer's desktop (`DesktopDragDrop`, Interop). Whatever is dropped on an icon that takes

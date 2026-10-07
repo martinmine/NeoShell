@@ -26,7 +26,7 @@ internal sealed class WallpaperWindow : Window
     private int _arrangeVersion;
 
     /// <param name="onMessage">Sees this window's messages; top-level windows receive the system broadcasts.</param>
-    /// <param name="icons">The desktop icons to show, on the primary monitor only.</param>
+    /// <param name="icons">The desktop icons, of which this window shows those on its monitor.</param>
     /// <param name="closeRequested">Alt+F4 on the desktop, which doesn't close it: Explorer asks to shut down instead.</param>
     public WallpaperWindow(DisplayMonitor monitor, RectInt32 virtualScreen, MessageHandler onMessage, DesktopIcons? icons, Action closeRequested)
     {

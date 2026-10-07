@@ -43,7 +43,6 @@ public sealed class SettingsStoreTests : IDisposable
                 new StartPin(Folder: new StartFolder("f1", "Games", [new PinnedApp("Solitaire", AppUserModelId: "Microsoft.MicrosoftSolitaireCollection_8wekyb3d8bbwe!App")])),
             ],
             StartAppsOpened = ["P~Microsoft.WindowsCalculator_8wekyb3d8bbwe!App"],
-            DesktopIconPositions = new Dictionary<string, GridCell> { ["::{645FF040-5081-101B-9F08-00AA002F954E}"] = new(2, 3) },
             ShowWidgetSidebar = false,
             WidgetSidebarWidth = 400,
             Widgets =
@@ -58,10 +57,9 @@ public sealed class SettingsStoreTests : IDisposable
         ShellSettings loaded = _store.Load();
 
         Assert.Equal(
-            settings with { PinnedTaskbarApps = [], StartPins = [], StartAppsOpened = [], Widgets = [], DesktopIconPositions = ShellSettings.NoIconPositions },
-            loaded with { PinnedTaskbarApps = [], StartPins = [], StartAppsOpened = [], Widgets = [], DesktopIconPositions = ShellSettings.NoIconPositions });
+            settings with { PinnedTaskbarApps = [], StartPins = [], StartAppsOpened = [], Widgets = [] },
+            loaded with { PinnedTaskbarApps = [], StartPins = [], StartAppsOpened = [], Widgets = [] });
         Assert.Equal(settings.StartAppsOpened, loaded.StartAppsOpened);
-        Assert.Equal(settings.DesktopIconPositions, loaded.DesktopIconPositions);
         Assert.Equal(settings.PinnedTaskbarApps, loaded.PinnedTaskbarApps);
         Assert.Equal(settings.StartPins[0], loaded.StartPins[0]);
         Assert.Equal(settings.StartPins[1].Folder!.Name, loaded.StartPins[1].Folder!.Name);

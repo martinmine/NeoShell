@@ -1,3 +1,4 @@
+using System.Collections.ObjectModel;
 using Microsoft.UI.Input;
 using Microsoft.UI.Text;
 using Microsoft.UI.Xaml;
@@ -16,7 +17,6 @@ using Windows.Graphics;
 using Windows.Storage;
 using Windows.System;
 using Windows.UI.Core;
-using GridCell = NeoShell.Settings.GridCell;
 using DispatcherQueuePriority = Microsoft.UI.Dispatching.DispatcherQueuePriority;
 
 namespace NeoShell.Desktop;
@@ -60,34 +60,45 @@ internal sealed partial class DesktopIconsView : UserControl
     private readonly DesktopIcons _icons;
     private readonly nint _hwnd;
     private readonly DisplayMonitor _monitor;
+    private readonly ObservableCollection<DesktopIcon> _list;
     private MarqueeDrag? _marquee;
     private bool _dragged;
     private IconPress? _press;
     private DesktopDragDrop? _dragDrop;
-    private OwnDrag? _ownDrag;
-    private int _rows = 1;
-    private int _columns = 1;
+    /// <summary>The grid's selection is being brought in line with the shared one: not the user's doing.</summary>
+    private bool _syncing;
 
     /// <param name="hwnd">The wallpaper window: owner of the shell's menus and dialogs.</param>
+    /// <param name="monitor">The monitor this view shows the icons of.</param>
     public DesktopIconsView(DesktopIcons icons, nint hwnd, DisplayMonitor monitor)
     {
         _icons = icons;
         _hwnd = hwnd;
         _monitor = monitor;
+        _list = icons.IconsOn(monitor.Handle);
         InitializeComponent();
 
-        IconGrid.ItemsSource = icons.Icons;
+        IconGrid.ItemsSource = _list;
         Loaded += (_, _) =>
         {
             icons.Refreshed += Apply;
-            icons.Scale = XamlRoot.RasterizationScale;
+            icons.Arranged += Apply;
+            icons.SelectionChanged += SyncSelection;
+            icons.MarqueeChanged += ShowMarquee;
+            icons.FocusRequested += FocusIcon;
+            icons.OwnDragChanged += FollowOwnDrag;
             Apply();
-            _ = icons.RefreshAsync();
+            icons.QueueRefresh();
             StartDragDrop();
         };
         Unloaded += (_, _) =>
         {
             icons.Refreshed -= Apply;
+            icons.Arranged -= Apply;
+            icons.SelectionChanged -= SyncSelection;
+            icons.MarqueeChanged -= ShowMarquee;
+            icons.FocusRequested -= FocusIcon;
+            icons.OwnDragChanged -= FollowOwnDrag;
             _dragDrop?.Dispose();
             _dragDrop = null;
         };
@@ -98,9 +109,13 @@ internal sealed partial class DesktopIconsView : UserControl
         Root.AddHandler(PointerCaptureLostEvent, new PointerEventHandler(Root_PointerReleased), handledEventsToo: true);
     }
 
-    private IReadOnlyList<DesktopItem> Selection => [.. IconGrid.SelectedItems.Cast<DesktopIcon>().Select(icon => icon.Item)];
+    /// <summary>The selected items, on every monitor.</summary>
+    private IReadOnlyList<DesktopItem> Selection => [.. _icons.Selection.Select(icon => icon.Item)];
 
-    /// <summary>Applies the view settings, the system theme (for the menus) and the work area (to keep clear of the taskbar).</summary>
+    /// <summary>
+    /// Applies the view settings, the system theme (for the menus), and this monitor's grid: its cells, from the top
+    /// left corner of its work area (which keeps clear of the taskbar), as Explorer lays them out.
+    /// </summary>
     private void Apply()
     {
         RequestedTheme = SystemTheme.Read();
@@ -108,46 +123,67 @@ internal sealed partial class DesktopIconsView : UserControl
 
         if (IconGrid.ItemsPanelRoot is not DesktopIconPanel panel)
             return;
-        int size = _icons.View.IconSize;
-        panel.ItemSize = new Size(Math.Max(80, size + 36), size + 52);
-
-        // The work area changes when the taskbar does (auto-hide, another size), so it's read again every time.
-        if (XamlRoot is null || DisplayMonitor.GetAll().FirstOrDefault(monitor => monitor.Handle == _monitor.Handle) is not { } current)
-            return;
-
-        double scale = XamlRoot.RasterizationScale;
-        RectInt32 bounds = current.Bounds;
-        RectInt32 work = current.WorkArea;
-        IconGrid.Margin = new Thickness(
-            (work.X - bounds.X) / scale,
-            (work.Y - bounds.Y) / scale,
-            (bounds.X + bounds.Width - work.X - work.Width) / scale,
-            (bounds.Y + bounds.Height - work.Y - work.Height) / scale);
-
-        // The grid is what fits in the work area, inside the list's padding.
-        _rows = Math.Max(1, (int)((work.Height / scale - IconGrid.Padding.Top - IconGrid.Padding.Bottom) / panel.ItemSize.Height));
-        _columns = Math.Max(1, (int)((work.Width / scale - IconGrid.Padding.Left - IconGrid.Padding.Right) / panel.ItemSize.Width));
-        _icons.Arrange(_rows, _columns);
+        if (XamlRoot is not null && _icons.WorkspaceOf(_monitor.Handle) is { } workspace)
+        {
+            (double width, double height) = workspace.CellSize;
+            panel.ItemSize = new Size(width, height);
+            double scale = XamlRoot.RasterizationScale;
+            RectInt32 bounds = _monitor.Bounds;
+            RectInt32 work = workspace.WorkArea;
+            IconGrid.Margin = new Thickness(
+                (work.X - bounds.X) / scale,
+                (work.Y - bounds.Y) / scale,
+                Math.Max(0, bounds.X + bounds.Width - work.X - work.Width) / scale,
+                Math.Max(0, bounds.Y + bounds.Height - work.Y - work.Height) / scale);
+        }
         panel.InvalidateMeasure();
+        SyncSelection();
     }
 
-    /// <summary>The cell of the icon grid at a point on the screen (physical pixels).</summary>
-    private GridCell CellAtScreen(int x, int y) =>
-        IconGrid.ItemsPanelRoot is DesktopIconPanel panel ? panel.CellAt(PanelPoint(panel, x, y)) : new GridCell(0, 0);
-
-    /// <summary>A point on the screen (physical pixels) on the icons' panel.</summary>
-    private Point PanelPoint(DesktopIconPanel panel, int x, int y)
+    /// <summary>Shows the shared selection on this monitor's icons.</summary>
+    private void SyncSelection()
     {
-        double scale = XamlRoot.RasterizationScale;
-        var point = new Point((x - _monitor.Bounds.X) / scale, (y - _monitor.Bounds.Y) / scale);
-        return Root.TransformToVisual(panel).TransformPoint(point);
+        _syncing = true;
+        try
+        {
+            foreach (DesktopIcon icon in _list)
+            {
+                if (icon.IsSelected == IconGrid.SelectedItems.Contains(icon))
+                    continue;
+                if (icon.IsSelected)
+                    IconGrid.SelectedItems.Add(icon);
+                else
+                    IconGrid.SelectedItems.Remove(icon);
+            }
+        }
+        finally
+        {
+            _syncing = false;
+        }
+    }
+
+    /// <summary>
+    /// The user selected icons here: the shared selection follows. A plain click (no Ctrl or Shift) selects only
+    /// here, so the other monitors' icons are deselected, as in Explorer's one desktop window.
+    /// </summary>
+    private void IconGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_syncing)
+            return;
+        foreach (DesktopIcon icon in e.AddedItems.OfType<DesktopIcon>())
+            icon.IsSelected = true;
+        // An icon that moved to another monitor leaves this list, and its selection with it: it stays selected.
+        foreach (DesktopIcon icon in e.RemovedItems.OfType<DesktopIcon>().Where(_list.Contains))
+            icon.IsSelected = false;
+        if (e.AddedItems.Count > 0 && !IsDown(VirtualKey.Control) && !IsDown(VirtualKey.Shift))
+            _icons.SelectOnly(IconGrid.SelectedItems.Cast<DesktopIcon>());
     }
 
     private void Root_Tapped(object sender, TappedRoutedEventArgs e)
     {
         // A click on the desktop itself clears the selection, as in Explorer.
         if (!_dragged && IconAt(e.OriginalSource) is null)
-            IconGrid.SelectedItems.Clear();
+            _icons.ClearSelection();
     }
 
     /// <summary>
@@ -167,7 +203,7 @@ internal sealed partial class DesktopIconsView : UserControl
         }
 
         _dragged = false;
-        HashSet<DesktopIcon> kept = IsDown(VirtualKey.Control) ? [.. IconGrid.SelectedItems.Cast<DesktopIcon>()] : [];
+        HashSet<DesktopIcon> kept = IsDown(VirtualKey.Control) ? [.. _icons.Selection] : [];
         if (Root.CapturePointer(e.Pointer))
             _marquee = new MarqueeDrag(e.Pointer.PointerId, point.Position, kept);
     }
@@ -178,7 +214,7 @@ internal sealed partial class DesktopIconsView : UserControl
         if (_press is { } press && e.Pointer.PointerId == press.PointerId && IsDrag(press.Start, position))
         {
             _press = null;
-            BeginDrag(press.Icon, e);
+            BeginDrag(press, e);
             return;
         }
 
@@ -187,25 +223,12 @@ internal sealed partial class DesktopIconsView : UserControl
         if (!_dragged && !IsDrag(marquee.Start, position))
             return;
 
+        // The rectangle goes on across monitors (the pointer is captured): every monitor's view draws its part.
         _dragged = true;
-        var rect = new Rect(marquee.Start, position);
-        Canvas.SetLeft(Marquee, rect.X);
-        Canvas.SetTop(Marquee, rect.Y);
-        Marquee.Width = rect.Width;
-        Marquee.Height = rect.Height;
-        Marquee.Visibility = Visibility.Visible;
-
-        foreach (DesktopIcon icon in _icons.Icons)
-        {
-            bool select = marquee.Kept.Contains(icon) || Intersects(icon, rect);
-            if (select != IconGrid.SelectedItems.Contains(icon))
-            {
-                if (select)
-                    IconGrid.SelectedItems.Add(icon);
-                else
-                    IconGrid.SelectedItems.Remove(icon);
-            }
-        }
+        (int x1, int y1) = ToScreen(marquee.Start);
+        (int x2, int y2) = ToScreen(position);
+        var rect = new RectInt32(Math.Min(x1, x2), Math.Min(y1, y2), Math.Abs(x2 - x1), Math.Abs(y2 - y1));
+        _icons.SetMarquee(rect, marquee.Kept);
     }
 
     private void Root_PointerReleased(object sender, PointerRoutedEventArgs e)
@@ -215,11 +238,33 @@ internal sealed partial class DesktopIconsView : UserControl
             return;
 
         _marquee = null;
-        Marquee.Visibility = Visibility.Collapsed;
+        _icons.SetMarquee(null, marquee.Kept);
         Root.ReleasePointerCapture(e.Pointer);
         // So the keys (Enter, Delete, Ctrl+C) act on what was just selected.
         if (_dragged)
             IconGrid.Focus(FocusState.Pointer);
+    }
+
+    /// <summary>Draws this monitor's part of a selection rectangle and selects the icons here that it touches.</summary>
+    private void ShowMarquee(RectInt32? screenRect, IReadOnlySet<DesktopIcon> kept)
+    {
+        if (screenRect is not { } screen || XamlRoot is null)
+        {
+            Marquee.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        double scale = XamlRoot.RasterizationScale;
+        var rect = new Rect((screen.X - _monitor.Bounds.X) / scale, (screen.Y - _monitor.Bounds.Y) / scale, screen.Width / scale, screen.Height / scale);
+        Canvas.SetLeft(Marquee, rect.X);
+        Canvas.SetTop(Marquee, rect.Y);
+        Marquee.Width = rect.Width;
+        Marquee.Height = rect.Height;
+        Marquee.Visibility = Visibility.Visible;
+
+        foreach (DesktopIcon icon in _list)
+            icon.IsSelected = kept.Contains(icon) || Intersects(icon, rect);
+        SyncSelection();
     }
 
     private bool Intersects(DesktopIcon icon, Rect rect)
@@ -254,12 +299,6 @@ internal sealed partial class DesktopIconsView : UserControl
     private sealed record IconPress(uint PointerId, Point Start, DesktopIcon Icon);
 
     /// <summary>
-    /// The desktop's own icons being dragged, and the one under the pointer, with where on it the pointer is: let go,
-    /// it goes to the cell nearest to where it was under the pointer, as in Explorer, and the others alongside.
-    /// </summary>
-    private sealed record OwnDrag(IReadOnlyList<DesktopIcon> Icons, DesktopIcon Grabbed, Point Grab);
-
-    /// <summary>
     /// Lets files be dragged in from other apps onto the desktop and its icons; the shell handles the drop, as on
     /// Explorer's desktop. Native OLE drag and drop rather than WinUI's: the shell needs the drag's own data object.
     /// </summary>
@@ -272,24 +311,23 @@ internal sealed partial class DesktopIconsView : UserControl
             _dragDrop = new DesktopDragDrop(_hwnd, (x, y) => IconAtScreen(x, y)?.Item);
             _dragDrop.TargetChanged += item =>
             {
-                foreach (DesktopIcon icon in _icons.Icons)
+                foreach (DesktopIcon icon in _list)
                     icon.IsDropTarget = item is not null && icon.Item.ParsingName == item.ParsingName;
             };
-            // The icons let go on the desktop itself move there, as do files dropped on it from elsewhere.
+            // The icons let go on the desktop itself move by as much as the pointer did, to whichever monitor that
+            // is; files dropped on it from elsewhere go to the cell under the pointer.
             _dragDrop.OwnItemsDropped += (x, y) =>
             {
-                if (_ownDrag is not { } drag || IconGrid.ItemsPanelRoot is not DesktopIconPanel panel)
-                    return;
-                Point pointer = PanelPoint(panel, x, y);
-                GridCell cell = panel.NearestCell(new Point(pointer.X - drag.Grab.X, pointer.Y - drag.Grab.Y));
-                _icons.Move(drag.Icons, cell.Column - drag.Grabbed.Cell.Column, cell.Row - drag.Grabbed.Cell.Row, _rows, _columns);
-                panel.InvalidateMeasure();
+                if (_icons.OwnDrag is { } drag)
+                    _icons.MoveBy(drag.Icons, x - drag.Start.X, y - drag.Start.Y);
             };
             _dragDrop.ItemsDropped += (x, y) =>
             {
-                _icons.ExpectNewItemsAt(CellAtScreen(x, y));
+                if (_icons.PlaceAt(x, y) is { } place)
+                    _icons.ExpectNewItemsAt(place);
                 _icons.QueueRefresh();
             };
+            FollowOwnDrag();
         }
         catch (Exception ex)
         {
@@ -297,24 +335,34 @@ internal sealed partial class DesktopIconsView : UserControl
         }
     }
 
+    /// <summary>A drag of the desktop's own icons may come over this monitor from another: its drops go to them too.</summary>
+    private void FollowOwnDrag()
+    {
+        if (_icons.OwnDrag is { } drag)
+            _dragDrop?.BeginOwnDrag([.. drag.Icons.Select(icon => icon.Item)]);
+        else
+            _dragDrop?.EndOwnDrag();
+    }
+
     /// <summary>
     /// Drags the icon, with the rest of the selection if it's selected, out to wherever it's let go: another app, an
-    /// Explorer window, a folder on the desktop. A drag of an icon that isn't selected selects it first, as in Explorer.
-    /// WinUI's drag, with the files as storage items: OLE's own drag loop gets no mouse input in a WinUI app, which
-    /// takes the mouse's input as pointer messages. System folders (This PC, the Recycle Bin) only move on the desktop.
+    /// Explorer window, a folder on the desktop, another monitor. A drag of an icon that isn't selected selects it
+    /// first, as in Explorer. WinUI's drag, with the files as storage items: OLE's own drag loop gets no mouse input
+    /// in a WinUI app, which takes the mouse's input as pointer messages. System folders (This PC, the Recycle Bin)
+    /// only move on the desktop.
     /// </summary>
-    private async void BeginDrag(DesktopIcon icon, PointerRoutedEventArgs e)
+    private async void BeginDrag(IconPress press, PointerRoutedEventArgs e)
     {
+        DesktopIcon icon = press.Icon;
         if (IconGrid.ContainerFromItem(icon) is not UIElement container)
             return;
 
-        if (!IconGrid.SelectedItems.Contains(icon))
-        {
-            IconGrid.SelectedItems.Clear();
-            IconGrid.SelectedItems.Add(icon);
-        }
+        if (!icon.IsSelected)
+            _icons.SelectOnly([icon]);
         IReadOnlyList<DesktopItem> items = Selection;
-        _ownDrag = new OwnDrag([.. IconGrid.SelectedItems.Cast<DesktopIcon>()], icon, e.GetCurrentPoint(container).Position);
+        // From where the button went down: the pointer has moved a little since.
+        (int x, int y) = ToScreen(press.Start);
+        _icons.BeginOwnDrag(new OwnDrag([.. _icons.Selection], icon, new PointInt32(x, y)));
 
         TypedEventHandler<UIElement, DragStartingEventArgs> starting = async (_, args) =>
         {
@@ -338,7 +386,6 @@ internal sealed partial class DesktopIconsView : UserControl
             }
         };
         container.DragStarting += starting;
-        _dragDrop?.BeginOwnDrag(items);
         try
         {
             await container.StartDragAsync(e.GetCurrentPoint(container));
@@ -350,8 +397,7 @@ internal sealed partial class DesktopIconsView : UserControl
         finally
         {
             container.DragStarting -= starting;
-            _dragDrop?.EndOwnDrag();
-            _ownDrag = null;
+            _icons.EndOwnDrag();
             IconGrid.Focus(FocusState.Pointer);
         }
     }
@@ -447,7 +493,7 @@ internal sealed partial class DesktopIconsView : UserControl
     private void IconGrid_DoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
     {
         if (IconAt(e.OriginalSource) is { } icon)
-            Open(IconGrid.SelectedItems.Contains(icon) ? Selection : [icon.Item]);
+            Open(icon.IsSelected ? Selection : [icon.Item]);
     }
 
     private void IconGrid_PreviewKeyDown(object sender, KeyRoutedEventArgs e)
@@ -467,8 +513,11 @@ internal sealed partial class DesktopIconsView : UserControl
             case VirtualKey.Delete when selection.Count > 0:
                 Verb(selection, "delete");
                 break;
-            case VirtualKey.F2 when IconGrid.SelectedItems.Count == 1:
-                BeginRename((DesktopIcon)IconGrid.SelectedItems[0]);
+            case VirtualKey.F2 when selection.Count == 1:
+                BeginRename(_icons.Selection.First());
+                break;
+            case VirtualKey.A when control:
+                _icons.SelectAll();
                 break;
             case VirtualKey.F5:
                 _ = _icons.RefreshAsync();
@@ -483,16 +532,16 @@ internal sealed partial class DesktopIconsView : UserControl
                 Paste("paste");
                 break;
             case VirtualKey.Left:
-                SelectNext(-1, 0);
+                _icons.SelectNext(FocusedIcon(), -1, 0);
                 break;
             case VirtualKey.Right:
-                SelectNext(1, 0);
+                _icons.SelectNext(FocusedIcon(), 1, 0);
                 break;
             case VirtualKey.Up:
-                SelectNext(0, -1);
+                _icons.SelectNext(FocusedIcon(), 0, -1);
                 break;
             case VirtualKey.Down:
-                SelectNext(0, 1);
+                _icons.SelectNext(FocusedIcon(), 0, 1);
                 break;
             default:
                 e.Handled = false;
@@ -500,32 +549,21 @@ internal sealed partial class DesktopIconsView : UserControl
         }
     }
 
-    /// <summary>
-    /// Selects the nearest icon in a direction across the grid from the focused one, keeping to its row or column
-    /// where it can (the icons sit anywhere, so the list's own arrow keys, which go by order, won't do).
-    /// </summary>
-    private void SelectNext(int columns, int rows)
-    {
-        DesktopIcon? from = (FocusManager.GetFocusedElement(XamlRoot) as GridViewItem)?.Content as DesktopIcon
-            ?? IconGrid.SelectedItems.LastOrDefault() as DesktopIcon;
-        DesktopIcon? next = from is null
-            ? _icons.Icons.OrderBy(icon => icon.Cell.Column).ThenBy(icon => icon.Cell.Row).FirstOrDefault()
-            : _icons.Icons
-                .Where(icon => columns != 0
-                    ? Math.Sign(icon.Cell.Column - from.Cell.Column) == columns
-                    : Math.Sign(icon.Cell.Row - from.Cell.Row) == rows)
-                .OrderBy(icon =>
-                {
-                    int along = columns != 0 ? icon.Cell.Column - from.Cell.Column : icon.Cell.Row - from.Cell.Row;
-                    int across = columns != 0 ? icon.Cell.Row - from.Cell.Row : icon.Cell.Column - from.Cell.Column;
-                    return along * along + 4 * across * across;
-                })
-                .FirstOrDefault();
-        if (next is null)
-            return;
+    /// <summary>The icon with the keyboard focus, or the last selected one.</summary>
+    private DesktopIcon? FocusedIcon() =>
+        (FocusManager.GetFocusedElement(XamlRoot) as GridViewItem)?.Content as DesktopIcon ?? _icons.Selection.LastOrDefault();
 
-        Select(next);
-        (IconGrid.ContainerFromItem(next) as Control)?.Focus(FocusState.Keyboard);
+    /// <summary>The keyboard moved to an icon (maybe from another monitor): if it's here, this view takes the focus.</summary>
+    private void FocusIcon(DesktopIcon icon)
+    {
+        if (!_list.Contains(icon))
+            return;
+        // The arrow keys went to another monitor's window; Explorer's one desktop window has them all.
+        if (FocusManager.GetFocusedElement(XamlRoot) is null)
+            TopLevelWindows.Activate(_hwnd);
+        IconGrid.ScrollIntoView(icon);
+        IconGrid.UpdateLayout();
+        (IconGrid.ContainerFromItem(icon) as Control)?.Focus(FocusState.Keyboard);
     }
 
     private void Root_ContextRequested(UIElement sender, ContextRequestedEventArgs e)
@@ -534,22 +572,17 @@ internal sealed partial class DesktopIconsView : UserControl
         DesktopIcon? icon = IconAt(e.OriginalSource);
         if (!e.TryGetPosition(Root, out Point point))
         {
-            // From the keyboard (Menu key, Shift+F10): the menu is for the selection, under its first icon.
-            icon = IconGrid.SelectedItems.FirstOrDefault() as DesktopIcon;
+            // From the keyboard (Menu key, Shift+F10): the menu is for the selection, under its first icon here.
+            icon = _list.FirstOrDefault(icon => icon.IsSelected);
             point = icon is not null && IconGrid.ContainerFromItem(icon) is UIElement container
                 ? container.TransformToVisual(Root).TransformPoint(new Point(24, 24))
                 : new Point(24, 24);
         }
 
         if (icon is null)
-        {
-            IconGrid.SelectedItems.Clear();
-        }
-        else if (!IconGrid.SelectedItems.Contains(icon))
-        {
-            IconGrid.SelectedItems.Clear();
-            IconGrid.SelectedItems.Add(icon);
-        }
+            _icons.ClearSelection();
+        else if (!icon.IsSelected)
+            _icons.SelectOnly([icon]);
 
         MenuFlyout menu = icon is null ? BackgroundMenu(point) : ItemMenu(Selection, point);
         menu.ShowAt(Root, new FlyoutShowOptions { Position = point });
@@ -693,8 +726,8 @@ internal sealed partial class DesktopIconsView : UserControl
         HashSet<string> before = creates ? [.. _icons.Icons.Select(icon => icon.Item.ParsingName)] : [];
 
         (int x, int y) = ToScreen(point);
-        if (creates)
-            _icons.ExpectNewItemsAt(CellAtScreen(x, y));
+        if (creates && _icons.PlaceAt(x, y) is { } place)
+            _icons.ExpectNewItemsAt(place);
         if (!shellMenu.Invoke(item, x, y))
             Log.Warn($"The {verb ?? item.Text} command failed");
         else if (creates)
@@ -848,9 +881,9 @@ internal sealed partial class DesktopIconsView : UserControl
 
     private void Select(DesktopIcon icon)
     {
-        IconGrid.SelectedItems.Clear();
-        IconGrid.SelectedItems.Add(icon);
-        IconGrid.ScrollIntoView(icon);
+        _icons.SelectOnly([icon]);
+        if (_list.Contains(icon))
+            IconGrid.ScrollIntoView(icon);
     }
 
     /// <summary>

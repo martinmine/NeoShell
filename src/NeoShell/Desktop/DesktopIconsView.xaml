@@ -44,11 +44,12 @@
             AutomationProperties.AutomationId="DesktopIcons"
             AutomationProperties.Name="Desktop"
             SelectionMode="Extended"
-            Padding="4"
+            Padding="0"
             ScrollViewer.HorizontalScrollMode="Auto"
             ScrollViewer.HorizontalScrollBarVisibility="Auto"
             ScrollViewer.VerticalScrollMode="Disabled"
             ScrollViewer.VerticalScrollBarVisibility="Disabled"
+            SelectionChanged="IconGrid_SelectionChanged"
             DoubleTapped="IconGrid_DoubleTapped"
             PreviewKeyDown="IconGrid_PreviewKeyDown">
             <GridView.Resources>

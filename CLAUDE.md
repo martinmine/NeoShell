@@ -64,7 +64,7 @@ src/NeoShell/                 WinUI app
   ShellWorkArea.cs            Shell-mode work area: what the taskbar and the widget sidebar reserve
   Logging/                    Small file logger
   Desktop/                    WallpaperWindow (one per monitor), slideshow, IDesktopWallpaper server, desktop icons and
-                              their menus (primary monitor)
+                              their menus (every monitor)
   Taskbar/                    TaskbarWindow, task list + grouping, pinned apps, thumbnail popup, clock
   Tray/                       Tray area, overflow flyout, network/volume/battery/mic/input indicators, input switcher
   Notifications/              Notification center + calendar (two panel windows), toasts (shell mode), focus sessions
@@ -190,7 +190,7 @@ the desktop and back. Full spec in docs/design.md ("Widgets").
   tray icon order and drag targets,
   app bar placing, search ranking,
   indexer query building, startup entries, settings, wallpaper style mapping, AppBar rects, desktop icon
-  filtering, sorting and grid places, wallpaper per monitor, slideshow order and timing, Explorer's wallpaper and slideshow formats, snap zones and keys, Start's pin folders and folder buttons, Start's All categories, order, New/System and tile store, the taskbar search setting and its collapse, thumbnail toolbar data and image lists, pinning by drag, clock settings and notification bell, widget placement and order, MET forecast parsing, wireless device protocols, Windows product name,
+  filtering, sorting and grid places, icon spacing and Explorer's saved icon layouts (IconLayouts), wallpaper per monitor, slideshow order and timing, Explorer's wallpaper and slideshow formats, snap zones and keys, Start's pin folders and folder buttons, Start's All categories, order, New/System and tile store, the taskbar search setting and its collapse, thumbnail toolbar data and image lists, pinning by drag, clock settings and notification bell, widget placement and order, MET forecast parsing, wireless device protocols, Windows product name,
   AutoPlay content, events, choice lists and saving, autorun.inf parsing, optical drive names, toast sounds,
   input indicator labels and Win+Space keys, task button badges, Start account menu order and "…".
 - When testing the UI live, drive it through UI Automation (set `AutomationProperties.AutomationId` on interactive

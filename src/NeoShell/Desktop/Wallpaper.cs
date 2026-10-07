@@ -8,7 +8,7 @@ using Windows.Graphics;
 namespace NeoShell.Desktop;
 
 /// <summary>
-/// The wallpaper on every monitor, and the desktop icons on the primary one (shell mode only; Explorer draws both
+/// The wallpaper and the desktop icons on every monitor (shell mode only; Explorer draws both
 /// otherwise). Follows changes to the wallpaper, the background colour and the displays, runs the slideshow and
 /// serves <c>IDesktopWallpaper</c>, as Explorer's desktop does.
 /// </summary>
@@ -147,7 +147,7 @@ internal sealed class Wallpaper(SettingsStore settings, Action closeRequested) :
         {
             Log.Info($"Monitor {WallpaperWindow.Format(monitor.Bounds)}, work area {WallpaperWindow.Format(monitor.WorkArea)}, "
                 + $"{monitor.Dpi} DPI{(monitor.IsPrimary ? ", primary" : "")}");
-            var window = new WallpaperWindow(monitor, virtualScreen, OnMessage, monitor.IsPrimary ? _icons : null, closeRequested);
+            var window = new WallpaperWindow(monitor, virtualScreen, OnMessage, _icons, closeRequested);
             window.AppWindow.Show(activateWindow: false);
             _windows.Add(window);
         }

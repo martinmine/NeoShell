@@ -78,6 +78,24 @@ public static class DesktopContents
     }
 
     /// <summary>
+    /// The name and flags Explorer's saved layouts know an item by (shell32 takes the parent-relative parsing name and
+    /// the file attributes): the file name, or <c>::{CLSID}</c> for a system folder, which has no attributes; a
+    /// folder is marked so, and so is anything on the public Desktop.
+    /// </summary>
+    public static (string Name, LayoutIconFlags Flags) LayoutName(DesktopItem item, DesktopLocations locations)
+    {
+        if (item.Path is not { } path)
+            return (item.ParsingName, LayoutIconFlags.Marked);
+
+        LayoutIconFlags flags = LayoutIconFlags.Marked;
+        if (item.IsFolder)
+            flags |= LayoutIconFlags.Folder;
+        if (string.Equals(System.IO.Path.GetDirectoryName(path), locations.PublicDesktop, StringComparison.OrdinalIgnoreCase))
+            flags |= LayoutIconFlags.Common;
+        return (System.IO.Path.GetFileName(path), flags);
+    }
+
+    /// <summary>
     /// Orders icons like Explorer's Sort by: system icons first in their fixed order, then folders, then files, each
     /// by the chosen key and then by name. Names compare as Explorer does, with numbers by value ("2" before "10").
     /// </summary>
