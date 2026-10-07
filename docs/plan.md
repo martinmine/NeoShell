@@ -318,7 +318,8 @@ Each item is done when it looks and behaves as Explorer's (layout, behaviour, an
 - [ ] T18 Start: app menu (Run as administrator, Open file location, Uninstall, App settings, jump list)
 - [ ] T19 Power menu: Hibernate, Switch user, Update and restart / shut down
 - [ ] T20 Start: account menu on the user picture
-- [ ] T21 Start search: Settings pages, web, filter tabs, best match preview pane with actions
+- T21 Start search: Settings pages, web, filter tabs, best match preview pane with actions — skipped: search is
+      good as it is
 - [ ] T22 Packaged apps started by NeoShell recorded in Recent
 - [ ] T23 Start: All apps category view
 - [ ] T24 Wallpaper: slideshow, Windows Spotlight, a wallpaper per monitor, `IDesktopWallpaper` in shell mode
