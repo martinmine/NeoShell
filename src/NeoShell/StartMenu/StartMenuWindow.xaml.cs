@@ -220,6 +220,7 @@ internal sealed partial class StartMenuWindow : Window
         ShowPinned();
         ShowRecent();
         ShowPlaces();
+        ShowPowerButton();
         LoadAppsIfStale();
 
         _anchor = (monitor, taskbar, centered);
@@ -1447,28 +1448,40 @@ internal sealed partial class StartMenuWindow : Window
         }
     }
 
-    private void Lock_Click(object sender, RoutedEventArgs e) => RunPowerAction("Lock", Power.Lock);
-
-    private void SignOut_Click(object sender, RoutedEventArgs e) => RunPowerAction("Sign out", Power.SignOut);
-
-    private void Sleep_Click(object sender, RoutedEventArgs e) => RunPowerAction("Sleep", Power.Sleep);
-
-    private void Restart_Click(object sender, RoutedEventArgs e) => RunPowerAction("Restart", Power.Restart);
-
-    private void ShutDown_Click(object sender, RoutedEventArgs e) => RunPowerAction("Shut down", Power.ShutDown);
-
-    private void RunPowerAction(string name, Action action)
+    // Read each time Start opens, as Explorer's: the power button hides by policy and has a dot while an update waits.
+    private void ShowPowerButton()
     {
-        Hide();
-        Log.Info($"Power: {name}");
-        try
+        PowerOptions options = PowerOptions.Read();
+        PowerButton.Visibility = options.PowerButtonHidden ? Visibility.Collapsed : Visibility.Visible;
+        bool update = options.RebootRequired
+            && options.Choices(PowerMenu.Start).Any(c => c is PowerChoice.UpdateAndShutDown or PowerChoice.ShutDown or PowerChoice.UpdateAndRestart or PowerChoice.Restart);
+        PowerGlyph.Glyph = update ? PowerItems.Glyph(PowerChoice.UpdateAndShutDown) : PowerItems.Glyph(PowerChoice.ShutDown);
+        PowerUpdateDot.Visibility = update ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    // Filled as it opens from what Windows offers now: Lock, the power states, the update choices.
+    private void PowerMenu_Opening(object sender, object e)
+    {
+        PowerOptions options = PowerOptions.Read();
+        IReadOnlyList<PowerChoice> choices = options.Choices(PowerMenu.Start);
+        PowerFlyout.Items.Clear();
+        foreach (PowerChoice choice in choices)
         {
-            action();
+            var item = new MenuFlyoutItem { Text = PowerItems.Name(choice, options), Icon = PowerItems.Icon(choice) };
+            AutomationProperties.SetAutomationId(item, PowerItems.AutomationId(choice));
+            // Explorer's Lock is Start's own item, without shutdownux's description.
+            if (choice != PowerChoice.Lock)
+                ToolTipService.SetToolTip(item, PowerItems.Description(choice));
+            item.Click += (_, _) =>
+            {
+                bool shift = PowerItems.IsShiftDown();
+                Hide();
+                PowerItems.Run(choice, shift);
+            };
+            PowerFlyout.Items.Add(item);
         }
-        catch (Win32Exception ex)
-        {
-            Log.Warn($"{name} failed", ex);
-        }
+        if (choices.Count == 0)
+            PowerFlyout.Items.Add(new MenuFlyoutItem { Text = "There are currently no power options available.", IsEnabled = false });
     }
 
     private static MenuFlyoutItem MenuItem(string text, string glyph, string automationId, Action onClick)

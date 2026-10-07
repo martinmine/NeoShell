@@ -1,4 +1,3 @@
-using System.ComponentModel;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
@@ -7,7 +6,6 @@ using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using NeoShell.Interop.Shell;
 using NeoShell.Interop.Windowing;
-using NeoShell.Logging;
 using Windows.Graphics;
 using Windows.System;
 
@@ -23,15 +21,11 @@ internal sealed class ShutDownDialog : Window
     private const double DialogWidth = 400;
     private const double DialogHeight = 250;
 
-    private static readonly Choice[] s_choices =
-    [
-        new("Sign out", "Closes all apps and signs you out.", Power.SignOut),
-        new("Sleep", "The PC stays on but uses low power. Apps stay open so when the PC wakes up, you're instantly back to where you left off.", Power.Sleep),
-        new("Shut down", "Closes all apps and turns off the PC.", Power.ShutDown),
-        new("Restart", "Closes all apps, turns off the PC, and then turns it on again.", Power.Restart),
-    ];
-
     private static ShutDownDialog? s_open;
+
+    // What Windows offers as the dialog opens: Switch user, Sign out, the power states and the update choices.
+    private readonly PowerOptions _options = PowerOptions.Read();
+    private readonly PowerChoice[] _choices;
 
     private readonly ComboBox _choice = new() { HorizontalAlignment = HorizontalAlignment.Stretch };
     private readonly TextBlock _description = new() { TextWrapping = TextWrapping.Wrap };
@@ -56,12 +50,14 @@ internal sealed class ShutDownDialog : Window
         presenter.IsResizable = false;
         AppWindow.SetPresenter(presenter);
 
-        foreach (Choice choice in s_choices)
-            _choice.Items.Add(choice.Name);
+        _choices = [.. _options.Choices(PowerMenu.ShutDownDialog)];
+        foreach (PowerChoice choice in _choices)
+            _choice.Items.Add(PowerItems.Name(choice, _options));
         AutomationProperties.SetName(_choice, "What do you want the computer to do?");
         AutomationProperties.SetAutomationId(_choice, "ShutDownChoice");
-        _choice.SelectionChanged += (_, _) => _description.Text = s_choices[Math.Max(0, _choice.SelectedIndex)].Description;
-        _choice.SelectedIndex = Array.FindIndex(s_choices, c => c.Name == "Shut down");
+        _choice.SelectionChanged += (_, _) => _description.Text = PowerItems.Description(Chosen);
+        if (_choices.Length > 0)
+            _choice.SelectedIndex = Array.IndexOf(_choices, _options.DefaultChoice(_choices));
 
         var ok = new Button { Content = "OK", MinWidth = 96, Style = (Style)Application.Current.Resources["AccentButtonStyle"] };
         AutomationProperties.SetAutomationId(ok, "ShutDownOkButton");
@@ -123,20 +119,13 @@ internal sealed class ShutDownDialog : Window
         AppWindow.MoveAndResize(new RectInt32(area.X + (area.Width - size.Width) / 2, area.Y + (area.Height - size.Height) / 2, size.Width, size.Height));
     }
 
+    private PowerChoice Chosen => _choices[Math.Max(0, _choice.SelectedIndex)];
+
     private void Run()
     {
-        Choice choice = s_choices[Math.Max(0, _choice.SelectedIndex)];
+        bool shift = PowerItems.IsShiftDown();
         Close();
-        Log.Info($"Power: {choice.Name}");
-        try
-        {
-            choice.Run();
-        }
-        catch (Win32Exception ex)
-        {
-            Log.Warn($"{choice.Name} failed", ex);
-        }
+        if (_choices.Length > 0)
+            PowerItems.Run(Chosen, shift);
     }
-
-    private sealed record Choice(string Name, string Description, Action Run);
 }

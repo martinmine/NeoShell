@@ -481,40 +481,18 @@
                         </MenuFlyout>
                     </StackPanel.ContextFlyout>
                 </StackPanel>
+                <!-- Its menu is filled as it opens (PowerMenu_Opening); the dot shows while an update waits. -->
                 <Button
+                    x:Name="PowerButton"
                     AutomationProperties.AutomationId="PowerButton"
                     AutomationProperties.Name="Power"
                     ToolTipService.ToolTip="Power">
-                    <FontIcon Glyph="&#xE7E8;" FontSize="16" />
+                    <Grid>
+                        <FontIcon x:Name="PowerGlyph" Glyph="&#xE7E8;" FontSize="16" />
+                        <FontIcon x:Name="PowerUpdateDot" Glyph="&#xEC83;" FontSize="16" Foreground="#FF9900" Visibility="Collapsed" />
+                    </Grid>
                     <Button.Flyout>
-                        <MenuFlyout Placement="TopEdgeAlignedRight">
-                            <MenuFlyoutItem AutomationProperties.AutomationId="LockMenuItem" Text="Lock" Click="Lock_Click">
-                                <MenuFlyoutItem.Icon>
-                                    <FontIcon Glyph="&#xE72E;" />
-                                </MenuFlyoutItem.Icon>
-                            </MenuFlyoutItem>
-                            <MenuFlyoutItem AutomationProperties.AutomationId="SignOutMenuItem" Text="Sign out" Click="SignOut_Click">
-                                <MenuFlyoutItem.Icon>
-                                    <FontIcon Glyph="&#xF3B1;" />
-                                </MenuFlyoutItem.Icon>
-                            </MenuFlyoutItem>
-                            <MenuFlyoutSeparator />
-                            <MenuFlyoutItem AutomationProperties.AutomationId="SleepMenuItem" Text="Sleep" Click="Sleep_Click">
-                                <MenuFlyoutItem.Icon>
-                                    <FontIcon Glyph="&#xE708;" />
-                                </MenuFlyoutItem.Icon>
-                            </MenuFlyoutItem>
-                            <MenuFlyoutItem AutomationProperties.AutomationId="RestartMenuItem" Text="Restart" Click="Restart_Click">
-                                <MenuFlyoutItem.Icon>
-                                    <FontIcon Glyph="&#xE777;" />
-                                </MenuFlyoutItem.Icon>
-                            </MenuFlyoutItem>
-                            <MenuFlyoutItem AutomationProperties.AutomationId="ShutDownMenuItem" Text="Shut down" Click="ShutDown_Click">
-                                <MenuFlyoutItem.Icon>
-                                    <FontIcon Glyph="&#xE7E8;" />
-                                </MenuFlyoutItem.Icon>
-                            </MenuFlyoutItem>
-                        </MenuFlyout>
+                        <MenuFlyout x:Name="PowerFlyout" Placement="TopEdgeAlignedRight" Opening="PowerMenu_Opening" />
                     </Button.Flyout>
                 </Button>
             </StackPanel>

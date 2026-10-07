@@ -25,10 +25,6 @@ internal static class QuickLinkMenu
 
         var shutDown = new MenuFlyoutSubItem { Text = "Shut down or sign out" };
         AutomationProperties.SetAutomationId(shutDown, "QuickLinkPowerMenuItem");
-        shutDown.Items.Add(Item("Sign out", "QuickLinkSignOutMenuItem", () => RunPowerAction("Sign out", Power.SignOut)));
-        shutDown.Items.Add(Item("Sleep", "QuickLinkSleepMenuItem", () => RunPowerAction("Sleep", Power.Sleep)));
-        shutDown.Items.Add(Item("Shut down", "QuickLinkShutDownMenuItem", () => RunPowerAction("Shut down", Power.ShutDown)));
-        shutDown.Items.Add(Item("Restart", "QuickLinkRestartMenuItem", () => RunPowerAction("Restart", Power.Restart)));
 
         // As the shell, Settings can't start (it needs Explorer): its pages are Control Panel's applets instead.
         var menu = new MenuFlyout();
@@ -57,7 +53,20 @@ internal static class QuickLinkMenu
         {
             menu.Items.Add(item);
         }
+        menu.Opening += (_, _) => FillPowerItems(shutDown);
         return menu;
+    }
+
+    // Read as the menu opens, as Explorer builds its submenu: Sign out, the power states, the update choices.
+    private static void FillPowerItems(MenuFlyoutSubItem shutDown)
+    {
+        PowerOptions options = PowerOptions.Read();
+        shutDown.Items.Clear();
+        foreach (PowerChoice choice in options.Choices(PowerMenu.QuickLink))
+        {
+            shutDown.Items.Add(Item(PowerItems.Name(choice, options), $"QuickLink{PowerItems.AutomationId(choice)}",
+                () => PowerItems.Run(choice, PowerItems.IsShiftDown())));
+        }
     }
 
     private static MenuFlyoutItem Item(string text, string automationId, Action onClick)
@@ -78,19 +87,6 @@ internal static class QuickLinkMenu
         catch (Win32Exception ex)
         {
             Log.Warn($"Could not open {file}", ex);
-        }
-    }
-
-    private static void RunPowerAction(string name, Action action)
-    {
-        Log.Info($"Power: {name}");
-        try
-        {
-            action();
-        }
-        catch (Win32Exception ex)
-        {
-            Log.Warn($"{name} failed", ex);
         }
     }
 }

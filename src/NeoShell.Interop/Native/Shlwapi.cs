@@ -25,4 +25,10 @@ internal static unsafe partial class Shlwapi
     [LibraryImport("shlwapi.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     public static partial bool SHUnlockShared(void* data);
+
+    public const uint OS_FASTUSERSWITCHING = 26;
+
+    [LibraryImport("shlwapi.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static partial bool IsOS(uint os);
 }

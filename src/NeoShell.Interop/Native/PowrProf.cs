@@ -22,6 +22,26 @@ internal static unsafe partial class PowrProf
         public uint DataLength;
     }
 
+    /// <summary>The start of SYSTEM_POWER_CAPABILITIES (76 bytes in all), up to what NeoShell reads.</summary>
+    [StructLayout(LayoutKind.Explicit, Size = 76)]
+    public struct SYSTEM_POWER_CAPABILITIES
+    {
+        [FieldOffset(3)] public byte SystemS1;
+        [FieldOffset(4)] public byte SystemS2;
+        [FieldOffset(5)] public byte SystemS3;
+        [FieldOffset(6)] public byte SystemS4;
+        [FieldOffset(8)] public byte HiberFilePresent;
+        [FieldOffset(20)] public byte AoAc;
+        [FieldOffset(22)] public byte HiberFileType;
+    }
+
+    /// <summary>A full hibernation file; a reduced one only serves Fast Startup.</summary>
+    public const byte PowerHiberFileTypeFull = 2;
+
+    [LibraryImport("powrprof.dll")]
+    [return: MarshalAs(UnmanagedType.U1)]
+    public static partial bool GetPwrCapabilities(out SYSTEM_POWER_CAPABILITIES capabilities);
+
     [LibraryImport("powrprof.dll")]
     [return: MarshalAs(UnmanagedType.U1)]
     public static partial bool SetSuspendState(

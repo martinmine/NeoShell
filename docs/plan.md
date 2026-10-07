@@ -344,7 +344,16 @@ Each item is done when it looks and behaves as Explorer's (layout, behaviour, an
       desktop app's Uninstall, no Run as administrator for packaged apps) — not done: Rate and review / Share
       (search, Store apps), pinned jump list entries, a URL's short name in Recent; not run live: the light theme,
       keyboard opening (Shift+F10, menu key), elevation itself (the UAC prompt was shown, then cancelled)
-- [ ] T19 Power menu: Hibernate, Switch user, Update and restart / shut down
+- [x] T19 Power menu: Hibernate, Switch user, Update and restart / shut down — shutdownux's choices (read with its
+      PDB) in Start's power button, the Quick Link menu and the Shut Down Windows dialog, each in Explorer's order and
+      read as it opens: Lock in Start (Sign out moves to the user picture, T20), Switch user in the dialog, Hibernate
+      and Sleep by Power Options, capabilities and policies, Update and shut down / Update and restart (with
+      estimates) from Windows Update's `ShutdownFlyoutOptions`, Start's glyphs, orange dots and tooltips; shutdownux's
+      flags (Fast Startup, Shift for boot options, `SHUTDOWN_INSTALL_UPDATES`, ARSO), Switch user as
+      `WTSDisconnectSession`, in both run modes — not run live: Hibernate (the VM's firmware has no S4), the power
+      button's update dot (`WNF_USO_REBOOT_REQUIRED` can't be faked), real updates, and the calls themselves
+      (stopped at a cdb breakpoint); not done: Start's confirmation when other users are signed in, USO's
+      `EnhancedShutdownEnabled` path
 - [ ] T20 Start: account menu on the user picture
 - T21 Start search: Settings pages, web, filter tabs, best match preview pane with actions — skipped: search is
       good as it is

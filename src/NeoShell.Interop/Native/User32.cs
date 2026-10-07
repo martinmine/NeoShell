@@ -224,7 +224,9 @@ internal static unsafe partial class User32
     [return: MarshalAs(UnmanagedType.Bool)]
     public static partial bool SetTaskmanWindow(nint hwnd);
 
+    public const int SM_REMOTESESSION = 0x1000;
     public const int SM_SHUTTINGDOWN = 0x2000;
+    public const int SM_REMOTECONTROL = 0x2001;
 
     [LibraryImport("user32.dll")]
     public static partial int GetSystemMetrics(int index);

@@ -382,8 +382,9 @@ Shell mode only, like the wallpaper: alongside Explorer, Explorer's desktop has 
   window in the z-order when they close, and that is never the bottom-most desktop.
 - **Alt+F4** on the desktop (or on the taskbar while it has the keyboard) doesn't close the window
   (`AppWindow.Closing` is cancelled; NeoShell's own `Close` doesn't raise it) but opens the **Shut Down Windows**
-  dialog (`ShutDownDialog`), as Explorer does: "What do you want the computer to do?" with Sign out, Sleep, Shut
-  down (chosen) and Restart, a line on what the choice does, OK and Cancel (Enter and Esc). shell32's own dialog
+  dialog (`ShutDownDialog`), as Explorer does: "What do you want the computer to do?" with the power menus' choices
+  for it (Switch user, Sign out, Sleep, …; see Start's **Power menus**), chosen first as in Explorer, a line on
+  what the choice does, OK and Cancel (Enter and Esc). shell32's own dialog
   (`ExitWindowsDialog`, ordinal 60) hands the request to Explorer's taskbar and shows nothing without it. A WinUI
   window with Mica, in the middle of the primary monitor; one at a time.
 
@@ -484,7 +485,7 @@ Shell mode only, like the wallpaper: alongside Explorer, Explorer's desktop has 
   `PanelKeys`; the taskbar takes the keyboard for the arrow keys), opens Explorer's list above the Start button,
   left edges aligned: Installed apps, Power Options, Event Viewer, System, Device Manager, Network Connections, Disk
   Management, Computer Management, Terminal and Terminal (Admin) (Windows PowerShell without Terminal), Task Manager,
-  Settings, File Explorer, Search, Run, Shut down or sign out (Sign out, Sleep, Shut down, Restart), Desktop. As the
+  Settings, File Explorer, Search, Run, Shut down or sign out (the power menus' choices, filled as it opens), Desktop. As the
   shell, Settings pages are Control Panel applets. Run is shell32's `RunFileDlg` (ordinal 61) on a thread of its
   own, moved above the taskbar's left end by a thread CBT hook as it activates.
 - Show desktop minimizes every minimizable window of other processes (`SW_SHOWMINNOACTIVE`) and the next click
@@ -1594,12 +1595,81 @@ Windows', its shortcut as key caps (`ShortcutKeys`), and a footer with a link to
     name as tooltip. Explorer's buttons, the power button's too, touch, 40 apart, the power glyph's right edge 65 px
     from Start's. Right-clicking them gives "Personalise this list" (`ms-settings:personalization-start-places`;
     Control Panel in shell mode). NeoShell's Settings button, always shown before, is now this list's.
-  - Power button menu:
-    - Lock → `LockWorkStation`
-    - Sign out → `ExitWindowsEx(EWX_LOGOFF)`
-    - Sleep → `SetSuspendState(false, false, false)`
-    - Restart / Shut down → enable `SeShutdownPrivilege`, `InitiateShutdown` with `SHUTDOWN_RESTART` /
-      `SHUTDOWN_POWEROFF` and a planned reason code.
+  - Power button menu: see **Power menus** below. Its items are filled as the menu opens. The power button hides
+    when the `HidePowerButton` MDM policy is set (`PolicyManager\current\device\Start`). While Windows Update waits
+    for a restart (`WNF_USO_REBOOT_REQUIRED` ≠ 0, the state StartDocked.dll's `PowerOptionsViewModel` subscribes
+    to) and Shut down or Restart is offered, its glyph becomes F1B1 with the orange dot. That look is inferred from
+    StartDocked's resources and wasn't seen live: the WNF state can't be published without SYSTEM. Its accessible name
+    then is `PowerButtonDisplayNameWithUpdate`, a string not found in any resource file, so NeoShell keeps "Power".
+  - **Not here on 25H2:** Sign out, and switching to another account, are in the menu on the user picture (T20 adds
+    both there: Sign out → `Power.SignOut`; Explorer's other accounts are listed below the account card, and its
+    plain "Switch user" (`UserTile_SwitchAccount`) is `Power.SwitchUser`).
+
+### Power menus (`PowerItems`, Interop `Shell/PowerOptions`, `Shell/Power`)
+
+Start's power button, the Quick Link menu's "Shut down or sign out" and the Shut Down Windows dialog all list
+shutdownux.dll's choices (`CShutdownChoices`, read with its PDB in Ghidra). Each reads them again as it opens
+(`PowerOptions.Read`); `PowerOptions.Choices(menu)` puts them in order (unit tested).
+
+- **Order**: the account choices for that menu, then Sleep, Hibernate, (Update and) Shut down, (Update and) Restart.
+  - Start: Lock. Explorer's power menu on 25H2 is Lock, Sleep, Shut down, Restart, with no separator. Sign out is
+    under the user picture.
+  - Quick Link (twinui.pcshell's `CLauncherTipContextMenu::_EnumerateAndBuildShutdownMenu`, which ORs Sign out into
+    the default mask): Sign out.
+  - Shut Down Windows dialog (`_BuildShutdownOptionArray`): Switch user, then Sign out. Explorer shows Switch user
+    even with only one account on the PC.
+- **What decides each choice**:
+  - Sleep: S1–S3 or modern standby (`GetPwrCapabilities`), `ShowSleepOption` (default on), MDM `HideSleep`. This
+    VM has only S1 and still shows Sleep.
+  - Hibernate: `ShowHibernateOption` (default off; Power Options → "Show in Power menu"), S4, and a *full*
+    hibernation file (`HiberFileType` 2; Fast Startup alone keeps a reduced one), MDM `HideHibernate`.
+  - Lock: `ShowLockOption` (default on), unless `DisableLockWorkstation` is set in Winlogon or in either Policies\System.
+  - Sign out: not the `StartMenuLogOff` (=1) or `NoLogoff` policy.
+  - Switch user: a console session that isn't remote (`SM_REMOTESESSION`, `SM_REMOTECONTROL`), fast user switching
+    (`IsOS(OS_FASTUSERSWITCHING)`), no `HideFastUserSwitching`.
+  - `HidePowerOptions` (HKLM) or `NoClose`: no Sleep, Hibernate, Shut down or Restart anywhere. MDM `HideShutDown` and
+    `HideRestart` take away just those. Start shows "There are currently no power options available." when nothing
+    is left.
+  - The `Show…Option` settings are read from the policy (`HKLM\Software\Policies\Microsoft\Windows\Explorer`) first,
+    then `HKLM\…\Explorer\FlyoutMenuSettings`, then the default.
+- **Updates**: Windows Update writes `HKLM\SOFTWARE\Microsoft\WindowsUpdate\Orchestrator\ShutdownFlyoutOptions`.
+  Bit 8 is Update and shut down and bit 2 is Update and restart; each takes the place of the plain choice unless
+  bit 4 or bit 1 keeps it beside it. Explorer ignores the value if it has any other bit set. `…\UX\RebootDowntime`
+  holds `DowntimeEstimateLow` and `DowntimeEstimateHigh` in minutes, capped at 60. With them the names read
+  "Update and restart (estimate: 5 - 15 min)", or "up to …", "more than …", "… min - 1 hr" (`PowerItems.Estimate`,
+  tested). With updates waiting, the dialog picks Update and shut down. Otherwise it picks the power button action
+  (`PowerButtonAction` policy, else `Start_PowerButtonAction`, default Shut down). Checked live by setting
+  `ShutdownFlyoutOptions` to 0xA for a while (then back to 0). Explorer's Start, Quick Link menu and dialog
+  (shutdownux's dialog object shown in a test process) all offered Update and shut down / Update and restart.
+- **Start's look**: glyphs Lock E72E, Sleep E708, Hibernate E823, Shut down E7E8, Restart E777. The update choices
+  use F1B1 and ED21 (each with a gap at the top right) under an orange `#FF9900` dot (EC83, the same colour in light
+  and dark). A menu item takes one icon, so `PowerItems.Icon` adds the dot into the glyph's own grid. Every item
+  except Lock has shutdownux's description as its tooltip, as Explorer's.
+- **Actions** (`Power`, shutdownux's `_InitiatePowerTransition`, `ShutdownOption::Invoke`, `_GetEnhancedShutdownFlags`):
+  - Lock → `LockWorkStation`. Sign out → `ExitWindowsEx(EWX_LOGOFF)`. Sleep / Hibernate → `SetSuspendState(false|true, …)`.
+  - Switch user → `WTSDisconnectSession(current)`. The session keeps running and the sign-in screen lists the
+    accounts. Explorer's dialog does this through AuthUI's `CLSID_AuthUISessionControl` (shell32 `_Disconnect`),
+    and shutdownux's Disconnect calls `WinStationDisconnect` directly.
+  - Shut down / Restart → `InitiateShutdown` with a planned reason, after enabling `SeShutdownPrivilege`:
+    - Shut down: `SHUTDOWN_POWEROFF | SHUTDOWN_HYBRID` (Fast Startup; Windows ignores it when that's off). With Shift
+      held, no hybrid. Update and shut down: `SHUTDOWN_POWEROFF | SHUTDOWN_INSTALL_UPDATES`.
+    - Restart: `SHUTDOWN_RESTART`. Update and restart: `| SHUTDOWN_INSTALL_UPDATES`. With Shift held, any restart
+      becomes `SHUTDOWN_RESTART_BOOTOPTIONS` (Advanced startup) without updates.
+    - "Use my sign-in info to automatically finish setting up after an update" (Settings → Sign-in options; ARSO):
+      when `LsaIsUserArsoEnabled` and `LsaIsUserArsoAllowed` (advapi32, not in the SDK headers) both say yes,
+      updates add `SHUTDOWN_ARSO`. A plain restart or shut down adds it too unless `DsrIsDeviceJoined` (dsreg)
+      says the PC is joined. ARSO is on here, so Update and restart is 0x2044.
+    - Before shutting down, `…\WindowsUpdate\Orchestrator\InstallAtShutdown` (default value) is set to whether this
+      shut down installs updates, as `ShutdownOption::Invoke` does. Authenticated Users may set values there, so the
+      key is opened with `SetValue` rights only.
+  - Not mirrored: with `Orchestrator\EnhancedShutdownEnabled` set, shutdownux passes the flags through USO's private
+    `UsoCommitHelper` COM interface. That value doesn't exist on this VM. Also not mirrored: Start's confirmation
+    when other users are signed in, and its `RestartApps` and sign-in options link; the Quick Link menu and dialog
+    going through shell32's `ExitWindowsEx` path (`CommonRestart`) instead of `InitiateShutdown`. The effect is the
+    same.
+  - Verified with cdb breakpoints in a medium-IL NeoShell that skipped the call: Update and restart passed
+    `InitiateShutdownW(null, null, 0, 0x2044, 0x80000000)`, and Switch user passed
+    `WTSDisconnectSession(0, 0xFFFFFFFF, FALSE)`.
 
 ## Window switcher (`Switcher/`)
 
