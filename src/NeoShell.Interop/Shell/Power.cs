@@ -92,8 +92,10 @@ public static unsafe class Power
         try
         {
             // Users may only set values here, so ask for no more than that.
+            // Without ReadWriteSubTree the key inherits HKLM's read-only check and SetValue throws.
             using RegistryKey? key = Registry.LocalMachine.OpenSubKey(
-                @"SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Orchestrator\InstallAtShutdown", RegistryRights.SetValue);
+                @"SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Orchestrator\InstallAtShutdown",
+                RegistryKeyPermissionCheck.ReadWriteSubTree, RegistryRights.SetValue);
             key?.SetValue("", install ? 1 : 0, RegistryValueKind.DWord);
         }
         catch (Exception ex) when (ex is UnauthorizedAccessException or System.Security.SecurityException or IOException)
