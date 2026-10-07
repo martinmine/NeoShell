@@ -80,7 +80,11 @@ public sealed record ShellSettings
     public CombineButtons CombineButtons { get; set; } = CombineButtons.Always;
     public bool AutoHide { get; set; }
     public bool ShowOnAllDisplays { get; set; } = true;
-    public bool ShowSearchButton { get; set; } = true;
+    /// <summary>
+    /// The former search button toggle, which Explorer's search setting replaces: read once (hidden, it hides
+    /// Explorer's search too, see <see cref="Taskbar.TaskbarSearch"/>) and cleared.
+    /// </summary>
+    public bool? ShowSearchButton { get; set; }
     /// <summary>
     /// The tray's former setting, all icons on the taskbar or behind the chevron, which Explorer's per-icon settings
     /// replace: read once as the shell (<see cref="TrayMode.ShowAll"/> then shows every icon) and cleared.

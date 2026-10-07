@@ -403,7 +403,7 @@ Shell mode only, like the wallpaper: alongside Explorer, Explorer's desktop has 
     `SPIF_SENDCHANGE` waits for every window, and apps that answer by calling the shell (re-adding tray icons) would
     wait for the UI thread in turn (startup hung that way). What's reserved during one turn of the UI thread goes out
     as one change, after it, and only when the area differs from the last one sent (Explorer defers its changes the
-    same way, `DeferWorkAreaChangesGuard`): a taskbar made again (alignment, search button, auto-hide) gives its strip
+    same way, `DeferWorkAreaChangesGuard`): a taskbar made again (alignment, auto-hide, all displays) gives its strip
     back and takes it again, which would otherwise make maximized windows grow under it and shrink back. App bars'
     changes go out at once, without waiting, as Explorer sets them (a bar may read the work area right after
     `ABM_SETPOS`). `ShellWorkArea.Changed` tells the sidebar and the app bars of each change.
@@ -495,7 +495,8 @@ Shell mode only, like the wallpaper: alongside Explorer, Explorer's desktop has 
 ### Layout (left → right, or centred like Windows 11 by setting)
 
 1. Start button.
-2. Search button — opens the Start menu with the search box focused. Can be hidden from the taskbar menu.
+2. Search — the icon, a search box, or the icon with a label, or nothing: Explorer's search setting (see Search on the
+   taskbar). Opens the Start menu with the search box focused.
 3. Pinned and running apps.
 4. Tray area: chevron/overflow, tray icons.
 5. Indicators: privacy (microphone or location in use), the input method (with more than one: an IME's mode, then the language),
@@ -569,7 +570,7 @@ Shell mode only, like the wallpaper: alongside Explorer, Explorer's desktop has 
   processes keep running; an elevated app (Task Manager) ends too, from a medium-integrity caller, since CSRSS ends
   it (no UAC prompt).
 - Pressed, the icon shrinks to 0.8 (only the icon, as in Explorer); dragged, it grows to 1.2 and loses its plate and
-  pill (`IconPress`, a `ScaleTransition` on the icon). The Start and Search buttons' icons shrink too.
+  pill (`IconPress`, a `ScaleTransition` on the icon). The Start and search icons shrink too (not the box's).
 - Drag to reorder (by hand, `TaskReorder`: the button slides along the row and its neighbours make way). The order
   is persisted for pinned apps and kept for the session for the others (`TaskOrder`, unit tested): buttons keep the
   order last shown, a new window goes next to its app's others and a newly started app at the end. Shared by the
@@ -813,9 +814,51 @@ Win+arrows and Ctrl+Shift+Esc; the rest were Explorer's.
   and the clipboard history, emoji panel and voice typing (Win+V, Win+Period, Win+H), which Explorer passes to
   Windows' text input host through no public API.
 
+### Search on the taskbar (`TaskbarSearch`, unit tested)
+
+Settings → Personalization → Taskbar → Search: Hide, Search icon only, Search icon and label, Search box (Settings'
+labels and order on 25H2). Explorer keeps it in `HKCU\Software\Microsoft\Windows\CurrentVersion\Search`,
+`SearchboxTaskbarMode`: 0 hide, 1 icon, 2 box, 3 icon and label; missing or anything else shows the box. It follows a
+plain write to the value at once, with no message, so NeoShell watches the key (`RegistryWatcher`; Windows Search
+writes other values there constantly, so only a changed mode counts) and changes the look in place. The taskbar
+menu's Search submenu writes the same value, so Explorer follows NeoShell's choice too. The former `ShowSearchButton`
+setting is read once: hidden, it writes 0; then it's cleared.
+
+Explorer's look (Taskbar.View.dll `SearchBoxButton`/`SearchBoxLaunchListButton`, `SearchItemViewModel`; measured at
+96 DPI, dark, light and accent-coloured):
+- **Icon** — a 44 px slot, the usual 40x40 hover plate. The icon is an animated icon (Lottie, not a glyph), 24 px:
+  a ring about 19x18.5 px with a 2.5 px stroke, lighter at the top left (dark #FAFAFA → #D2D2D2, light #444 → #1F1F1F),
+  round a tinted lens (dark white ~22% → 17%, light black 6% → 0), and a round-capped handle. NeoShell draws it
+  (`SearchIconRingStyle`/`SearchIconHandleStyle`); it shrinks when pressed like the other icons. Tooltip "Search".
+- **Box** — 220x32 at 2 px margins (a 224 px slot), corner radius 16, 1 px border. Fill: dark #25FFFFFF, hovered
+  #2BFFFFFF (Explorer's own, stronger than WinUI's); light `ControlFillColorDefault`/`Secondary`; pressed
+  `ControlFillColorInputActive` (it looks like a focused text box). Border: dark #4EFFFFFF on the top row and
+  #2EFFFFFF elsewhere, light #0F000000 with #29000000 on the bottom row; pressed, all of it #2EFFFFFF / #0F000000.
+  Inside, 10 px in: the same icon smaller (about 13 px), then 10 px on "Search" at 14 px in
+  `TextFillColorSecondary` (pressed `Tertiary`). Hovered or pressed, the icon cross-fades in 133 ms to a slightly
+  larger one in Windows Search's colours: a ring from green (#58DC7E, top right) through teal to blue (#0078D3,
+  bottom left) and a blue handle. Fills change over 133 ms (Explorer's press is instant). Tooltip "Search" at the
+  pointer.
+- **Icon and label** — a 106 px slot as tall as the taskbar holding a 100x32 pill (radius 16):
+  `ControlFillColorDefault`, hovered `Secondary`, pressed `Tertiary`, over 150 ms; border dark #18FFFFFF on the top
+  row and #12FFFFFF elsewhere, light #05000000 / #0B000000. Centred in it, the bold magnifier U+F78B (Segoe Fluent
+  Icons, 16 px, a pixel below the label's centre) and "Search" at 12 px, no gap, `TextFillColorPrimary`; pressed
+  both turn `Secondary` and the icon shrinks. No tooltip.
+- **Full taskbar** — the box and the label collapse to the icon (`CanCollapse`; `UpdateEffectiveSearchMode` falls
+  back to 1 when there's no room, `IsSpaceAvailableForSearchBox`) and expand again when there's room. Explorer first
+  narrows labelled buttons to their minimum (~98 px), then collapses the search, then shrinks icons; NeoShell's
+  buttons don't narrow, so it collapses the search as soon as the buttons don't fit beside it
+  (`TaskbarSearch.Shown`).
+- **Search highlights** (the "gleam" picture at the box's end, `IsDynamicSearchBoxEnabled`) are Bing content served
+  to Windows Search through no public API, and are off on this VM; NeoShell doesn't show them.
+- Centred, the slot sits between Start and the task buttons as left-aligned (the centred group lands 1 px left of
+  Explorer's in every mode: Explorer's centred Start slot is 45 px). NeoShell switches looks without animating.
+- A click opens Start with its search box focused, as before, in both run modes; Explorer opens its
+  own Search window instead (T21: Start's search stays).
+
 ### Taskbar context menu
 
-Task Manager, the taskbar settings toggles (alignment, search button, combine, backdrop, auto-hide, hidden icon menu, all displays),
+Task Manager, the taskbar settings toggles (alignment, search, combine, backdrop, auto-hide, hidden icon menu, all displays),
 Exit NeoShell (alongside Explorer only).
 
 ## System tray (`Tray/`)
@@ -1638,7 +1681,7 @@ TaskbarAlignment     Center | Left
 CombineButtons       Always | WhenFull | Never
 AutoHide             bool
 ShowOnAllDisplays    bool
-ShowSearchButton     bool
+ShowSearchButton     (former; read once, see Search on the taskbar)
 TrayMode             (former; read once, see Hidden icons under System tray)
 TaskbarBackdrop      Acrylic | Mica | Translucent | Transparent
 PinnedTaskbarApps    list

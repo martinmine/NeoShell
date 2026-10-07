@@ -30,6 +30,7 @@ internal sealed class Taskbars : IDisposable
     // Explorer follows its clock settings as Settings writes them, with no message.
     private readonly RegistryWatcher _clockSettingsWatcher = new(ClockSettings.ExplorerAdvancedKey);
     private readonly RegistryWatcher _additionalClocksWatcher = new(ClockSettings.AdditionalClocksKey, subtree: true);
+    private readonly RegistryWatcher _searchWatcher = new(TaskbarSearch.KeyPath);
     private ElementTheme _theme = SystemTheme.Read();
     private Color? _accent = SystemTheme.ReadAccent();
     private ShellSettings _windowSettings;
@@ -60,6 +61,15 @@ internal sealed class Taskbars : IDisposable
         Settings.Changed += OnSettingsChanged;
         _clockSettingsWatcher.Changed += () => _dispatcher.TryEnqueue(UpdateClocks);
         _additionalClocksWatcher.Changed += () => _dispatcher.TryEnqueue(UpdateClocks);
+        _searchWatcher.Changed += () => _dispatcher.TryEnqueue(UpdateSearch);
+        // The former toggle: hidden carries over to Explorer's setting, which replaces it.
+        if (settings.Current.ShowSearchButton is { } showSearch)
+        {
+            if (!showSearch)
+                TaskbarSearch.Save(TaskbarSearchMode.Hidden);
+            settings.Update(settings.Current with { ShowSearchButton = null });
+        }
+        SearchMode = TaskbarSearch.Read();
     }
 
     public RunMode RunMode { get; }
@@ -83,6 +93,9 @@ internal sealed class Taskbars : IDisposable
 
     /// <summary>What the clocks show: seconds, the time and date at all, the notification bell, other time zones.</summary>
     public ClockSettings ClockSettings { get; private set; } = ClockSettings.Read();
+
+    /// <summary>How the search entry point shows, Explorer's setting; read after the former toggle is carried over.</summary>
+    public TaskbarSearchMode SearchMode { get; private set; }
 
     public AppIcons Icons { get; }
 
@@ -146,6 +159,7 @@ internal sealed class Taskbars : IDisposable
         Settings.Changed -= OnSettingsChanged;
         _clockSettingsWatcher.Dispose();
         _additionalClocksWatcher.Dispose();
+        _searchWatcher.Dispose();
         Tracker.Dispose();
         _appBars?.Dispose();
         Tray?.Dispose();
@@ -377,8 +391,7 @@ internal sealed class Taskbars : IDisposable
         ShellSettings current = Settings.Current;
         if (current.TaskbarAlignment != _windowSettings.TaskbarAlignment
             || current.ShowOnAllDisplays != _windowSettings.ShowOnAllDisplays
-            || current.AutoHide != _windowSettings.AutoHide
-            || current.ShowSearchButton != _windowSettings.ShowSearchButton)
+            || current.AutoHide != _windowSettings.AutoHide)
         {
             QueueRecreate();
         }
@@ -436,6 +449,25 @@ internal sealed class Taskbars : IDisposable
         ClockSettings = ClockSettings.Read();
         foreach (TaskbarWindow window in _windows)
             window.UpdateClock();
+    }
+
+    // The key holds many other values of Windows Search's, written as it works.
+    private void UpdateSearch()
+    {
+        TaskbarSearchMode mode = TaskbarSearch.Read();
+        if (mode == SearchMode)
+            return;
+
+        SearchMode = mode;
+        foreach (TaskbarWindow window in _windows)
+            window.SetSearchMode(mode);
+    }
+
+    /// <summary>The taskbar menu's choice, saved where Explorer keeps it.</summary>
+    public void SetSearchMode(TaskbarSearchMode mode)
+    {
+        TaskbarSearch.Save(mode);
+        UpdateSearch();
     }
 
     private void QueueUpdate()

@@ -34,7 +34,7 @@ namespace NeoShell.Taskbar;
 /// <summary>The taskbar on one monitor.</summary>
 internal sealed partial class TaskbarWindow : Window
 {
-    // Effective pixels taken by a Start or Search button, and by the margins around the task list.
+    // Effective pixels taken by the Start button, and by the margins around the task list.
     private const double FixedButtonWidth = 44;
     private const double AppsPanelMargins = 2 * 11;
 
@@ -109,6 +109,9 @@ internal sealed partial class TaskbarWindow : Window
     private ElementTheme _theme;
     private Color? _accent;
     private int _pointerAwayTicks;
+    // Explorer's search setting, and the look shown, which gives way to the icon when the taskbar is full.
+    private TaskbarSearchMode _searchMode;
+    private TaskbarSearchMode _searchShown;
 
     public TaskbarWindow(Taskbars owner, DisplayMonitor monitor, ShellSettings settings, ElementTheme theme, Color? accent)
     {
@@ -122,7 +125,8 @@ internal sealed partial class TaskbarWindow : Window
         SetTheme(theme, accent);
         AppsPanel.HorizontalAlignment =
             settings.TaskbarAlignment == TaskbarAlignment.Left ? HorizontalAlignment.Left : HorizontalAlignment.Center;
-        SearchButton.Visibility = settings.ShowSearchButton ? Visibility.Visible : Visibility.Collapsed;
+        _searchMode = owner.SearchMode;
+        ShowSearch(_searchMode);
         ExitSeparator.Visibility = ExitItem.Visibility =
             owner.RunMode == RunMode.AlongsideExplorer ? Visibility.Visible : Visibility.Collapsed;
 
@@ -181,7 +185,8 @@ internal sealed partial class TaskbarWindow : Window
 
         TaskList.ItemsSource = _tasks;
         IconPress.Attach(StartButton, (UIElement)StartButton.Content);
-        IconPress.Attach(SearchButton, (UIElement)SearchButton.Content);
+        IconPress.Attach(SearchButton, SearchButtonIcon);
+        IconPress.Attach(SearchPill, SearchPillIcon);
         IconPress.Attach(OverflowButton, OverflowChevron);
         // Presses on the taskbar's tray icons reach them while the overflow is open (see OverflowFlyout_Closing).
         OverflowFlyout.OverlayInputPassThroughElement = TrayIcons;
@@ -466,6 +471,21 @@ internal sealed partial class TaskbarWindow : Window
     }
 
     public void UpdateClock() => Clock.Apply(_owner.ClockSettings);
+
+    /// <summary>Follows Explorer's search setting.</summary>
+    public void SetSearchMode(TaskbarSearchMode mode)
+    {
+        _searchMode = mode;
+        RefreshTasks();
+    }
+
+    private void ShowSearch(TaskbarSearchMode shown)
+    {
+        _searchShown = shown;
+        SearchButton.Visibility = shown == TaskbarSearchMode.Icon ? Visibility.Visible : Visibility.Collapsed;
+        SearchBox.Visibility = shown == TaskbarSearchMode.Box ? Visibility.Visible : Visibility.Collapsed;
+        SearchPill.Visibility = shown == TaskbarSearchMode.IconAndLabel ? Visibility.Visible : Visibility.Collapsed;
+    }
 
     private void ShowNotifications() =>
         Clock.ShowNotifications(_owner.Notifications?.DoNotDisturb == true, _owner.Notifications?.NewCount ?? 0);
@@ -1148,15 +1168,20 @@ internal sealed partial class TaskbarWindow : Window
 
         ShellSettings settings = _owner.Settings.Current;
         IReadOnlyList<WindowInfo> windows = _owner.Tracker.Windows;
-        double available = AvailableTaskWidth();
-        // More buttons than fit are cut off rather than drawn over the clock.
-        TaskList.MaxWidth = Math.Max(0, available);
+        // The room left beside the search box (or the icon with its label), as Settings asks for it.
+        double available = AvailableTaskWidth(TaskbarSearch.Width(_searchMode));
         IReadOnlyList<TaskButtonModel> uncombined = TaskListBuilder.Build(settings.PinnedTaskbarApps, windows, combine: false);
         bool combine = TaskListBuilder.ShouldCombine(settings.CombineButtons, uncombined, available);
         IReadOnlyList<TaskButtonModel> models = TaskOrder.Arrange(
             combine ? TaskListBuilder.Build(settings.PinnedTaskbarApps, windows, combine: true) : uncombined,
             _owner.TaskOrder);
         _owner.TaskOrder = [.. models.Select(model => model.Key)];
+        double taskWidth = models.Sum(model => combine ? TaskListBuilder.CombinedButtonWidth : TaskListBuilder.Width(model));
+        TaskbarSearchMode search = TaskbarSearch.Shown(_searchMode, taskWidth, available);
+        if (search != _searchShown)
+            ShowSearch(search);
+        // More buttons than fit are cut off rather than drawn over the clock.
+        TaskList.MaxWidth = Math.Max(0, AvailableTaskWidth(TaskbarSearch.Width(search)));
 
         // Where each button is now, to slide it from there to its new place.
         bool animate = TaskList.IsLoaded;
@@ -1285,12 +1310,11 @@ internal sealed partial class TaskbarWindow : Window
         _layoutAnimations.Clear();
     }
 
-    private double AvailableTaskWidth()
+    private double AvailableTaskWidth(double searchWidth)
     {
         // Centred, the task list must stay clear of the right-hand panel on both sides to stay centred.
         double right = AppsPanel.HorizontalAlignment == HorizontalAlignment.Center ? 2 * RightPanel.ActualWidth : RightPanel.ActualWidth;
-        double buttons = SearchButton.Visibility == Visibility.Visible ? 2 * FixedButtonWidth : FixedButtonWidth;
-        return Root.ActualWidth - right - buttons - AppsPanelMargins;
+        return Root.ActualWidth - right - FixedButtonWidth - searchWidth - AppsPanelMargins;
     }
 
     private int IndexOf(string key, int start)
@@ -1322,7 +1346,7 @@ internal sealed partial class TaskbarWindow : Window
         bool clock = false;
         for (var element = e.OriginalSource as DependencyObject; element is not null; element = VisualTreeHelper.GetParent(element))
         {
-            start |= element == StartButton || element == SearchButton;
+            start |= element == StartButton || element == SearchButton || element == SearchBox || element == SearchPill;
             clock |= element == Clock;
         }
         if (!start && e.GetCurrentPoint(Root).Properties.IsLeftButtonPressed && InStartZone(e) && Root.CapturePointer(e.Pointer))
@@ -1985,7 +2009,10 @@ internal sealed partial class TaskbarWindow : Window
         AutoHideItem.IsChecked = settings.AutoHide;
         AlignCenterItem.IsChecked = settings.TaskbarAlignment == TaskbarAlignment.Center;
         AlignLeftItem.IsChecked = settings.TaskbarAlignment == TaskbarAlignment.Left;
-        ShowSearchItem.IsChecked = settings.ShowSearchButton;
+        SearchHiddenItem.IsChecked = _searchMode == TaskbarSearchMode.Hidden;
+        SearchIconItem.IsChecked = _searchMode == TaskbarSearchMode.Icon;
+        SearchIconAndLabelItem.IsChecked = _searchMode == TaskbarSearchMode.IconAndLabel;
+        SearchBoxItem.IsChecked = _searchMode == TaskbarSearchMode.Box;
         ShowWidgetsItem.IsChecked = settings.ShowWidgetSidebar;
         CombineAlwaysItem.IsChecked = settings.CombineButtons == CombineButtons.Always;
         CombineWhenFullItem.IsChecked = settings.CombineButtons == CombineButtons.WhenFull;
@@ -2007,8 +2034,12 @@ internal sealed partial class TaskbarWindow : Window
             TaskbarAlignment = ReferenceEquals(sender, AlignLeftItem) ? TaskbarAlignment.Left : TaskbarAlignment.Center,
         });
 
-    private void ShowSearch_Click(object sender, RoutedEventArgs e) =>
-        _owner.Settings.Update(_owner.Settings.Current with { ShowSearchButton = ShowSearchItem.IsChecked });
+    private void Search_Click(object sender, RoutedEventArgs e) =>
+        _owner.SetSearchMode(
+            ReferenceEquals(sender, SearchHiddenItem) ? TaskbarSearchMode.Hidden
+            : ReferenceEquals(sender, SearchIconItem) ? TaskbarSearchMode.Icon
+            : ReferenceEquals(sender, SearchIconAndLabelItem) ? TaskbarSearchMode.IconAndLabel
+            : TaskbarSearchMode.Box);
 
     private void ShowWidgets_Click(object sender, RoutedEventArgs e) =>
         _owner.Settings.Update(_owner.Settings.Current with { ShowWidgetSidebar = ShowWidgetsItem.IsChecked });

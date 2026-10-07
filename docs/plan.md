@@ -316,7 +316,13 @@ Each item is done when it looks and behaves as Explorer's (layout, behaviour, an
       format, tabular digits and layout, the bell's four looks from the platform's new-notification count (shared
       with Explorer), the clock's menu, in both run modes — not done: "Show abbreviated time and date" (feature-
       flagged off on this build), "Show time in Notification Centre", the `DisableNotificationCenter` policy
-- [ ] T15 Taskbar search box style
+- [x] T15 Taskbar search box style: Explorer's four search looks (hidden, icon, box, icon and label) from its
+      `SearchboxTaskbarMode`, followed live and set from the taskbar menu's Search submenu, drawn and coloured as
+      Explorer's in dark, light and accent, with its hover and press states; the box and the label collapse to the
+      icon when the taskbar is full; `ShowSearchButton` carried over, in both run modes — not done: search highlights
+      (Bing content, no public API); not matched: the box's press is animated (133 ms) where Explorer's is instant,
+      the label's icon shrinks to 0.8 (Explorer ~0.86), Explorer's labelled buttons narrow before the search collapses
+      (NeoShell's don't narrow)
 - [ ] T16 Start: Recommended with recent files and newly installed apps
 - [ ] T17 Start: folders beside the power button; folders of pins in the pinned grid
 - [ ] T18 Start: app menu (Run as administrator, Open file location, Uninstall, App settings, jump list)

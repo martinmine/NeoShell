@@ -15,6 +15,220 @@
                     <ResourceDictionary Source="ms-appx:///FlatButtons.xaml" />
                 </ResourceDictionary.MergedDictionaries>
 
+                <!-- The search entry point's colours, measured on Explorer's taskbar (its dark brushes for the box are
+                     stronger than WinUI's; on an accent-coloured taskbar it uses the dark ones). The borders are one
+                     pixel round a 32 px high pill, whose top row (in light the bottom row of the box) differs. -->
+                <ResourceDictionary.ThemeDictionaries>
+                    <ResourceDictionary x:Key="Default">
+                        <LinearGradientBrush x:Key="SearchIconRingBrush" StartPoint="0,0" EndPoint="1,1">
+                            <GradientStop Offset="0" Color="#FAFAFA" />
+                            <GradientStop Offset="1" Color="#D2D2D2" />
+                        </LinearGradientBrush>
+                        <SolidColorBrush x:Key="SearchIconHandleBrush" Color="#D7D7D7" />
+                        <LinearGradientBrush x:Key="SearchIconLensBrush" StartPoint="0,0" EndPoint="0,1">
+                            <GradientStop Offset="0" Color="#38FFFFFF" />
+                            <GradientStop Offset="1" Color="#2CFFFFFF" />
+                        </LinearGradientBrush>
+                        <SolidColorBrush x:Key="SearchBoxBackground" Color="#25FFFFFF" />
+                        <SolidColorBrush x:Key="SearchBoxBackgroundPointerOver" Color="#2BFFFFFF" />
+                        <StaticResource x:Key="SearchBoxBackgroundPressed" ResourceKey="ControlFillColorInputActiveBrush" />
+                        <LinearGradientBrush x:Key="SearchBoxBorderBrush" StartPoint="0,0" EndPoint="0,1">
+                            <GradientStop Offset="0.03" Color="#4EFFFFFF" />
+                            <GradientStop Offset="0.03" Color="#2EFFFFFF" />
+                        </LinearGradientBrush>
+                        <SolidColorBrush x:Key="SearchBoxBorderBrushPressed" Color="#2EFFFFFF" />
+                        <SolidColorBrush x:Key="SearchBoxHoverLensBrush" Color="#2DFFFFFF" />
+                        <LinearGradientBrush x:Key="SearchPillBorderBrush" StartPoint="0,0" EndPoint="0,1">
+                            <GradientStop Offset="0.03" Color="#18FFFFFF" />
+                            <GradientStop Offset="0.03" Color="#12FFFFFF" />
+                        </LinearGradientBrush>
+                        <SolidColorBrush x:Key="SearchPillBorderBrushPressed" Color="#0CFFFFFF" />
+                    </ResourceDictionary>
+                    <ResourceDictionary x:Key="Light">
+                        <LinearGradientBrush x:Key="SearchIconRingBrush" StartPoint="0,0" EndPoint="1,1">
+                            <GradientStop Offset="0" Color="#444444" />
+                            <GradientStop Offset="1" Color="#1F1F1F" />
+                        </LinearGradientBrush>
+                        <SolidColorBrush x:Key="SearchIconHandleBrush" Color="#1F1F1F" />
+                        <LinearGradientBrush x:Key="SearchIconLensBrush" StartPoint="0,0" EndPoint="0,1">
+                            <GradientStop Offset="0" Color="#0F000000" />
+                            <GradientStop Offset="1" Color="#00000000" />
+                        </LinearGradientBrush>
+                        <StaticResource x:Key="SearchBoxBackground" ResourceKey="ControlFillColorDefaultBrush" />
+                        <StaticResource x:Key="SearchBoxBackgroundPointerOver" ResourceKey="ControlFillColorSecondaryBrush" />
+                        <StaticResource x:Key="SearchBoxBackgroundPressed" ResourceKey="ControlFillColorInputActiveBrush" />
+                        <LinearGradientBrush x:Key="SearchBoxBorderBrush" StartPoint="0,0" EndPoint="0,1">
+                            <GradientStop Offset="0.97" Color="#0F000000" />
+                            <GradientStop Offset="0.97" Color="#29000000" />
+                        </LinearGradientBrush>
+                        <SolidColorBrush x:Key="SearchBoxBorderBrushPressed" Color="#0F000000" />
+                        <SolidColorBrush x:Key="SearchBoxHoverLensBrush" Color="#0D000000" />
+                        <LinearGradientBrush x:Key="SearchPillBorderBrush" StartPoint="0,0" EndPoint="0,1">
+                            <GradientStop Offset="0.03" Color="#05000000" />
+                            <GradientStop Offset="0.03" Color="#0B000000" />
+                        </LinearGradientBrush>
+                        <SolidColorBrush x:Key="SearchPillBorderBrushPressed" Color="#03000000" />
+                    </ResourceDictionary>
+                </ResourceDictionary.ThemeDictionaries>
+
+                <!-- The search icon alone, and in the search box when hovered: a ring round a tinted lens, and a handle
+                     (Explorer's is an animated icon). Drawn in a 24 px square, an app icon's size. -->
+                <Style x:Key="SearchIconRingStyle" TargetType="Ellipse">
+                    <Setter Property="Canvas.Left" Value="1.45" />
+                    <Setter Property="Canvas.Top" Value="1" />
+                    <Setter Property="Width" Value="19.2" />
+                    <Setter Property="Height" Value="18.5" />
+                    <Setter Property="StrokeThickness" Value="2.5" />
+                </Style>
+                <Style x:Key="SearchIconHandleStyle" TargetType="Line">
+                    <Setter Property="X1" Value="17.9" />
+                    <Setter Property="Y1" Value="18" />
+                    <Setter Property="X2" Value="21.5" />
+                    <Setter Property="Y2" Value="22" />
+                    <Setter Property="StrokeThickness" Value="2.6" />
+                    <Setter Property="StrokeStartLineCap" Value="Round" />
+                    <Setter Property="StrokeEndLineCap" Value="Round" />
+                </Style>
+
+                <!-- "Search box": a 220x32 pill with the magnifier and a placeholder. Hovered, the magnifier takes
+                     Windows Search's colours; pressed, the box looks like a focused text box. -->
+                <Style x:Key="SearchBoxStyle" TargetType="Button">
+                    <Setter Property="Width" Value="220" />
+                    <Setter Property="Height" Value="32" />
+                    <Setter Property="Margin" Value="2,0" />
+                    <Setter Property="Template">
+                        <Setter.Value>
+                            <ControlTemplate TargetType="Button">
+                                <Border
+                                    x:Name="Plate"
+                                    CornerRadius="16"
+                                    BorderThickness="1"
+                                    Background="{ThemeResource SearchBoxBackground}"
+                                    BorderBrush="{ThemeResource SearchBoxBorderBrush}">
+                                    <Border.BackgroundTransition>
+                                        <BrushTransition Duration="0:0:0.133" />
+                                    </Border.BackgroundTransition>
+                                    <VisualStateManager.VisualStateGroups>
+                                        <VisualStateGroup x:Name="CommonStates">
+                                            <!-- The icons cross-fade with storyboards: an OpacityTransition here crashes WinUI. -->
+                                            <VisualState x:Name="Normal">
+                                                <Storyboard>
+                                                    <DoubleAnimation Storyboard.TargetName="Glyph" Storyboard.TargetProperty="Opacity" To="1" Duration="0:0:0.133" />
+                                                    <DoubleAnimation Storyboard.TargetName="HoverIcon" Storyboard.TargetProperty="Opacity" To="0" Duration="0:0:0.133" />
+                                                </Storyboard>
+                                            </VisualState>
+                                            <VisualState x:Name="PointerOver">
+                                                <VisualState.Setters>
+                                                    <Setter Target="Plate.Background" Value="{ThemeResource SearchBoxBackgroundPointerOver}" />
+                                                </VisualState.Setters>
+                                                <Storyboard>
+                                                    <DoubleAnimation Storyboard.TargetName="Glyph" Storyboard.TargetProperty="Opacity" To="0" Duration="0:0:0.133" />
+                                                    <DoubleAnimation Storyboard.TargetName="HoverIcon" Storyboard.TargetProperty="Opacity" To="1" Duration="0:0:0.133" />
+                                                </Storyboard>
+                                            </VisualState>
+                                            <VisualState x:Name="Pressed">
+                                                <VisualState.Setters>
+                                                    <Setter Target="Plate.Background" Value="{ThemeResource SearchBoxBackgroundPressed}" />
+                                                    <Setter Target="Plate.BorderBrush" Value="{ThemeResource SearchBoxBorderBrushPressed}" />
+                                                    <Setter Target="Placeholder.Foreground" Value="{ThemeResource TextFillColorTertiaryBrush}" />
+                                                </VisualState.Setters>
+                                                <Storyboard>
+                                                    <DoubleAnimation Storyboard.TargetName="Glyph" Storyboard.TargetProperty="Opacity" To="0" Duration="0:0:0.133" />
+                                                    <DoubleAnimation Storyboard.TargetName="HoverIcon" Storyboard.TargetProperty="Opacity" To="1" Duration="0:0:0.133" />
+                                                </Storyboard>
+                                            </VisualState>
+                                            <VisualState x:Name="Disabled" />
+                                        </VisualStateGroup>
+                                    </VisualStateManager.VisualStateGroups>
+                                    <StackPanel Margin="10,0,0,0" Orientation="Horizontal">
+                                        <Grid Width="16" Height="16">
+                                            <!-- The search icon, smaller; hovered, it grows a little as it takes the colours. -->
+                                            <Viewbox x:Name="Glyph" Width="16.4" Height="16.4" Margin="0.15,-0.05,-0.55,-0.35">
+                                                <Canvas Width="24" Height="24">
+                                                    <Ellipse Style="{StaticResource SearchIconRingStyle}" Fill="{ThemeResource SearchIconLensBrush}" Stroke="{ThemeResource SearchIconRingBrush}" />
+                                                    <Line Style="{StaticResource SearchIconHandleStyle}" Stroke="{ThemeResource SearchIconHandleBrush}" />
+                                                </Canvas>
+                                            </Viewbox>
+                                            <Viewbox x:Name="HoverIcon" Width="18.5" Height="18.5" Margin="-1,-1,-1.5,-1.5" Opacity="0">
+                                                <Canvas Width="24" Height="24">
+                                                    <Ellipse Style="{StaticResource SearchIconRingStyle}" Fill="{ThemeResource SearchBoxHoverLensBrush}">
+                                                        <Ellipse.Stroke>
+                                                            <LinearGradientBrush StartPoint="1,0" EndPoint="0,1">
+                                                                <GradientStop Offset="0.1" Color="#58DC7E" />
+                                                                <GradientStop Offset="0.5" Color="#1F9BB5" />
+                                                                <GradientStop Offset="0.8" Color="#0078D3" />
+                                                            </LinearGradientBrush>
+                                                        </Ellipse.Stroke>
+                                                    </Ellipse>
+                                                    <Line Style="{StaticResource SearchIconHandleStyle}" Stroke="#0077D4" />
+                                                </Canvas>
+                                            </Viewbox>
+                                        </Grid>
+                                        <TextBlock
+                                            x:Name="Placeholder"
+                                            Margin="10,0,0,2"
+                                            VerticalAlignment="Center"
+                                            FontSize="14"
+                                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                            Text="Search" />
+                                    </StackPanel>
+                                </Border>
+                            </ControlTemplate>
+                        </Setter.Value>
+                    </Setter>
+                </Style>
+
+                <!-- "Search icon and label": a 100x32 pill with the bold magnifier and "Search" centred in it, in a
+                     106 px slot as tall as the taskbar. -->
+                <Style x:Key="SearchPillStyle" TargetType="Button">
+                    <Setter Property="Width" Value="106" />
+                    <Setter Property="Height" Value="48" />
+                    <Setter Property="Foreground" Value="{ThemeResource TextFillColorPrimaryBrush}" />
+                    <Setter Property="Template">
+                        <Setter.Value>
+                            <ControlTemplate TargetType="Button">
+                                <Grid Background="Transparent">
+                                    <VisualStateManager.VisualStateGroups>
+                                        <VisualStateGroup x:Name="CommonStates">
+                                            <VisualState x:Name="Normal" />
+                                            <VisualState x:Name="PointerOver">
+                                                <VisualState.Setters>
+                                                    <Setter Target="Plate.Background" Value="{ThemeResource ControlFillColorSecondaryBrush}" />
+                                                </VisualState.Setters>
+                                            </VisualState>
+                                            <VisualState x:Name="Pressed">
+                                                <VisualState.Setters>
+                                                    <Setter Target="Plate.Background" Value="{ThemeResource ControlFillColorTertiaryBrush}" />
+                                                    <Setter Target="Plate.BorderBrush" Value="{ThemeResource SearchPillBorderBrushPressed}" />
+                                                    <Setter Target="Label.Foreground" Value="{ThemeResource TextFillColorSecondaryBrush}" />
+                                                </VisualState.Setters>
+                                            </VisualState>
+                                            <VisualState x:Name="Disabled" />
+                                        </VisualStateGroup>
+                                    </VisualStateManager.VisualStateGroups>
+                                    <Border
+                                        x:Name="Plate"
+                                        Margin="3,8"
+                                        CornerRadius="16"
+                                        BorderThickness="1"
+                                        Background="{ThemeResource ControlFillColorDefaultBrush}"
+                                        BorderBrush="{ThemeResource SearchPillBorderBrush}">
+                                        <Border.BackgroundTransition>
+                                            <BrushTransition Duration="0:0:0.15" />
+                                        </Border.BackgroundTransition>
+                                    </Border>
+                                    <ContentPresenter
+                                        x:Name="Label"
+                                        HorizontalAlignment="Center"
+                                        VerticalAlignment="Center"
+                                        Foreground="{TemplateBinding Foreground}"
+                                        Content="{TemplateBinding Content}" />
+                                </Grid>
+                            </ControlTemplate>
+                        </Setter.Value>
+                    </Setter>
+                </Style>
+
                 <!-- The taskbar's menus: see-through, so their own backdrop shows (SetTheme). -->
                 <Style x:Key="ShellMenuPresenterStyle" TargetType="MenuFlyoutPresenter" BasedOn="{StaticResource DefaultMenuFlyoutPresenterStyle}">
                     <Setter Property="Background" Value="Transparent" />
@@ -95,6 +309,7 @@
                     <Rectangle Grid.Row="1" Grid.Column="1" RadiusX="1" RadiusY="1" Fill="{ThemeResource AccentFillColorDefaultBrush}" />
                 </Grid>
             </Button>
+            <!-- Explorer's search setting picks one of these (SetSearchMode); Explorer shows no tooltip on the label. -->
             <Button
                 x:Name="SearchButton"
                 AutomationProperties.AutomationId="SearchButton"
@@ -102,7 +317,31 @@
                 ToolTipService.ToolTip="Search"
                 Style="{StaticResource FlatButtonStyle}"
                 Click="StartButton_Click">
-                <FontIcon Glyph="&#xE721;" FontSize="16" />
+                <Canvas x:Name="SearchButtonIcon" Width="24" Height="24">
+                    <Ellipse Style="{StaticResource SearchIconRingStyle}" Fill="{ThemeResource SearchIconLensBrush}" Stroke="{ThemeResource SearchIconRingBrush}" />
+                    <Line Style="{StaticResource SearchIconHandleStyle}" Stroke="{ThemeResource SearchIconHandleBrush}" />
+                </Canvas>
+            </Button>
+            <Button
+                x:Name="SearchBox"
+                AutomationProperties.AutomationId="SearchBox"
+                AutomationProperties.Name="Search"
+                ToolTipService.ToolTip="Search"
+                Style="{StaticResource SearchBoxStyle}"
+                Visibility="Collapsed"
+                Click="StartButton_Click" />
+            <Button
+                x:Name="SearchPill"
+                AutomationProperties.AutomationId="SearchPill"
+                AutomationProperties.Name="Search"
+                Style="{StaticResource SearchPillStyle}"
+                Visibility="Collapsed"
+                Click="StartButton_Click">
+                <StackPanel Orientation="Horizontal">
+                    <!-- A pixel lower than the label's centre, as in Explorer. -->
+                    <FontIcon x:Name="SearchPillIcon" Margin="0,1,0,-1" Glyph="&#xF78B;" FontSize="16" />
+                    <TextBlock VerticalAlignment="Center" FontSize="12" Text="Search" />
+                </StackPanel>
             </Button>
             <ListView
                 x:Name="TaskList"
@@ -572,11 +811,33 @@
                     GroupName="Alignment"
                     Text="Left-align taskbar items"
                     Click="Alignment_Click" />
-                <ToggleMenuFlyoutItem
-                    x:Name="ShowSearchItem"
-                    AutomationProperties.AutomationId="ShowSearchMenuItem"
-                    Text="Show search button"
-                    Click="ShowSearch_Click" />
+                <!-- Settings' choices, in its order. -->
+                <MenuFlyoutSubItem AutomationProperties.AutomationId="SearchMenuItem" Text="Search">
+                    <RadioMenuFlyoutItem
+                        x:Name="SearchHiddenItem"
+                        AutomationProperties.AutomationId="SearchHiddenMenuItem"
+                        GroupName="Search"
+                        Text="Hide"
+                        Click="Search_Click" />
+                    <RadioMenuFlyoutItem
+                        x:Name="SearchIconItem"
+                        AutomationProperties.AutomationId="SearchIconMenuItem"
+                        GroupName="Search"
+                        Text="Search icon only"
+                        Click="Search_Click" />
+                    <RadioMenuFlyoutItem
+                        x:Name="SearchIconAndLabelItem"
+                        AutomationProperties.AutomationId="SearchIconAndLabelMenuItem"
+                        GroupName="Search"
+                        Text="Search icon and label"
+                        Click="Search_Click" />
+                    <RadioMenuFlyoutItem
+                        x:Name="SearchBoxItem"
+                        AutomationProperties.AutomationId="SearchBoxMenuItem"
+                        GroupName="Search"
+                        Text="Search box"
+                        Click="Search_Click" />
+                </MenuFlyoutSubItem>
                 <ToggleMenuFlyoutItem
                     x:Name="ShowWidgetsItem"
                     AutomationProperties.AutomationId="ShowWidgetsMenuItem"
