@@ -634,7 +634,47 @@ that property; alongside Explorer these calls go to Explorer. Messages (`Taskbar
 
 Apps only start once told their button exists: the `TaskbarButtonCreated` registered message, sent with
 `SendNotifyMessage` when a window is added to the task list (shell mode). The task button shows the first window's
-progress (bar along the bottom; indeterminate, error and paused states) and overlay icon (bottom-right of the icon).
+progress (bar along the bottom; indeterminate, error and paused states) and overlay icon. The overlay sits where the
+badge goes (below): 16 px over the icon's top-right corner, 6 px right of the icon and 7 above it (Explorer's
+`OverlayIcon`, measured through UI Automation), and is hidden while the app has a badge.
+
+**Badges** (an app's count or glyph from `BadgeUpdateManager`; `AppBadges`, `TaskBadge`, `BadgeLook`, unit tested).
+Only apps with package identity can set one: for an unpackaged app with an AppUserModelID from a Start menu shortcut,
+`BadgeUpdater.Update` fails with `ERROR_NOT_FOUND`. Any process may set a packaged app's badge, and Windows keeps it
+whether or not the app runs, so a pinned app shows it too.
+
+- **Reading them.** Explorer's taskbar (Taskbar.dll, `CTaskBand::UpdateBadgeAsync`) asks the undocumented Windows Runtime
+  class `WindowsUdk.UI.StartScreen.BadgeProvider` (windowsudk.shellcommon.dll, in-process, base trust) for each task
+  group's AppUserModelID: `GetForUser(user)` (null works: the process's user), `GetRegisteredBadge(appId)` → a `Badge`
+  with `Kind` (0 none, 1 number, 2 glyph), `Number`, `Glyph` (`BadgeGlyphKind`: 1 activity, 2 alert, 3 alarm,
+  4 available, 5 away, 6 busy, 7 newMessage, 8 paused, 9 playing, 10 unavailable, 11 error, 12 attention) and a
+  `Changed` event. IIDs and method order are from the DLL's symbols (`Com/IBadgeProvider.cs`). The value arrives a
+  moment after the first call (the provider subscribes to the notification platform's badge updates for that app).
+  It works from a medium-integrity unpackaged process, alongside Explorer and as the shell. A count of 0 and
+  `value="none"` show nothing.
+- **Threads.** The provider raises `Changed` while holding its lock; a handler registered on the UI thread (an STA) is
+  marshalled back to it, and a UI thread then calling `GetRegisteredBadge` waits on that lock forever (found the hard
+  way). Explorer calls it from its task pool; `AppBadges` likewise only touches it on thread-pool threads, reads each
+  change after the event returns, and the taskbar reads its cache.
+- **"Show badges on taskbar apps"** is `TaskbarBadges` (DWORD) under `HKCU\…\Explorer\Advanced`, on unless 0
+  (Taskbar.dll `IsTaskbarBadgingEnabled`). Settings just writes the value and Explorer follows within a moment without
+  any message, so NeoShell watches the key (`RegistryWatcher`, `RegNotifyChangeKeyValue`).
+- **Look** (Taskbar.View.dll `BadgeConfiguration`; sizes from UI Automation and screenshots at 96 DPI): a plate 16 px
+  high, at least 16 wide, corner radius 8, its right edge 6 px right of the 24 px icon and its top 7 px above it (the
+  overlay's spot), inside the icon's panel so it shrinks with the icon when pressed. Counts in Segoe UI Variable 11,
+  padding 4 on each side, tight line bounds, centred: 1 → 16 wide, 10 → 19, 99 → 21, above 99 "99+" → 28. Glyphs in
+  Segoe Fluent Icons 12: activity EDAB, alarm EDAC, alert EDAD, error EDAE, attention EDB1, newMessage EDB3, paused
+  EDB4, playing EDB5. Colours: the plate is `SystemAccentColorLight2` with black text on a dark taskbar,
+  `SystemAccentColor` with white text on a light one (accent on the taskbar or not); alert, attention and error are
+  white on #D73B02; available, away, busy and unavailable are plain dots of #008117, #FFC20A, #D82128 and #999999.
+  The button's help text is "Status N items" / "Status 1 item" / "Status Alert" (Explorer's `BadgeStatusText` strings).
+- **Animation** (`SharedAnimations`): appearing, the plate's `Scale` goes 0 → 1.1 at a third (cubic-bezier 0.85,0,
+  0.75,1) → 1 (0.35,0,0,1) over 500 ms about (8, 8), the centre of its left end; disappearing, → 0 over 167 ms
+  (0,0,0,1) about its centre. A new count or glyph of the same width just swaps. A width change moves the left edge
+  (the right one stays): Explorer's implicit `Offset` animation slides it there over 333 ms (0.55,0,0,1); NeoShell
+  animates `Translation` from the old place, only for a badge already shown (a new one pops in where it belongs).
+- Explorer once missed the badge of a UWP app whose button existed when Explorer started, until the app restarted;
+  NeoShell shows it. A focus session hides Explorer's badges (T35).
 
 **Thumbnail toolbars** (a player's previous, play/pause and next under its preview; `ThumbBarCall`, `ThumbBar`, unit
 tested). The thumbnail toolbar calls carry their data in shared memory from `SHAllocShared`, its handle duplicated

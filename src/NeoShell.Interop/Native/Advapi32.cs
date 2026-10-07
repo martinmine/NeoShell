@@ -39,6 +39,14 @@ internal static unsafe partial class Advapi32
     [LibraryImport("advapi32.dll", EntryPoint = "InitiateShutdownW", StringMarshalling = StringMarshalling.Utf16)]
     public static partial uint InitiateShutdown(string? machine, string? message, uint gracePeriod, uint flags, uint reason);
 
+    public const uint REG_NOTIFY_CHANGE_LAST_SET = 0x4;
+    public const uint REG_NOTIFY_THREAD_AGNOSTIC = 0x1000_0000;
+
+    /// <summary>Returns a Win32 error code; 0 is success.</summary>
+    [LibraryImport("advapi32.dll")]
+    public static partial int RegNotifyChangeKeyValue(
+        nint key, [MarshalAs(UnmanagedType.Bool)] bool watchSubtree, uint filter, nint signal, [MarshalAs(UnmanagedType.Bool)] bool asynchronous);
+
     /// <summary>Only the key's last write time is asked for here. Returns a Win32 error code; 0 is success.</summary>
     [LibraryImport("advapi32.dll", EntryPoint = "RegQueryInfoKeyW")]
     public static partial int RegQueryInfoKey(

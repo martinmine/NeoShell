@@ -2,6 +2,7 @@ using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Media;
+using NeoShell.Interop.Notifications;
 using NeoShell.Interop.Tray;
 using NeoShell.Interop.Windowing;
 using NeoShell.Settings;
@@ -20,6 +21,7 @@ internal sealed class TaskButton(string key) : INotifyPropertyChanged
     private bool _showLabel;
     private TaskProgress? _progress;
     private ImageSource? _overlay;
+    private AppBadge? _badge;
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
@@ -149,7 +151,24 @@ internal sealed class TaskButton(string key) : INotifyPropertyChanged
         }
     }
 
-    public Visibility OverlayVisibility => Overlay is null ? Visibility.Collapsed : Visibility.Visible;
+    /// <summary>The overlay sits where the badge goes; Explorer shows the badge instead while there is one.</summary>
+    public Visibility OverlayVisibility => Overlay is null || Badge is not null ? Visibility.Collapsed : Visibility.Visible;
+
+    /// <summary>The app's badge notification (BadgeUpdateManager), drawn over the top-right corner of the icon.</summary>
+    public AppBadge? Badge
+    {
+        get => _badge;
+        private set
+        {
+            if (Set(ref _badge, value))
+            {
+                Raise(nameof(OverlayVisibility));
+                Raise(nameof(BadgeHelpText));
+            }
+        }
+    }
+
+    public string BadgeHelpText => Badge is null ? "" : BadgeLook.HelpText(Badge);
 
     public void Update(TaskButtonModel model, WindowTracker tracker, bool combined)
     {
@@ -167,6 +186,7 @@ internal sealed class TaskButton(string key) : INotifyPropertyChanged
         // A combined button shows the first of its windows that reports anything.
         Progress = model.Windows.Select(w => tracker.Progress(w.Handle)).FirstOrDefault(p => p is not null);
         Overlay = model.Windows.Select(w => tracker.Overlay(w.Handle)).FirstOrDefault(o => o is not null);
+        Badge = tracker.Badge(App);
         Raise(nameof(RunningVisibility));
         Raise(nameof(StackVisibility));
     }

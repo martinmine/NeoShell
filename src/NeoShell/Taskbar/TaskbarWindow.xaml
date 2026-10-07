@@ -153,6 +153,7 @@
                             Background="Transparent"
                             AutomationProperties.AutomationId="TaskButton"
                             AutomationProperties.Name="{x:Bind Title, Mode=OneWay}"
+                            AutomationProperties.HelpText="{x:Bind BadgeHelpText, Mode=OneWay}"
                             PointerPressed="TaskItem_PointerPressed"
                             PointerEntered="TaskItem_PointerEntered"
                             PointerExited="TaskItem_PointerExited"
@@ -206,15 +207,21 @@
                                 <!-- Shrinks while pressed and grows while dragged (IconPress). -->
                                 <Grid x:Name="TaskIcon" Width="24" Height="24">
                                     <Image Source="{x:Bind Icon, Mode=OneWay}" />
-                                    <!-- The app's overlay badge, over the icon's bottom-right corner. -->
+                                    <!-- The app's overlay icon and badge share the icon's top-right corner, 16 px from 6 px
+                                         right of the icon and 7 above it, as in Explorer; the badge wins. -->
                                     <Image
-                                        Width="14"
-                                        Height="14"
-                                        Margin="0,0,-4,-4"
+                                        Width="16"
+                                        Height="16"
+                                        Margin="0,-7,-6,0"
                                         HorizontalAlignment="Right"
-                                        VerticalAlignment="Bottom"
+                                        VerticalAlignment="Top"
                                         Source="{x:Bind Overlay, Mode=OneWay}"
                                         Visibility="{x:Bind OverlayVisibility, Mode=OneWay}" />
+                                    <local:TaskBadge
+                                        Margin="0,-7,-6,0"
+                                        HorizontalAlignment="Right"
+                                        VerticalAlignment="Top"
+                                        Badge="{x:Bind Badge, Mode=OneWay}" />
                                 </Grid>
                                 <TextBlock
                                     Width="108"

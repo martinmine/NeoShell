@@ -1,7 +1,9 @@
 using System.Diagnostics;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml.Media;
+using Microsoft.Win32;
 using NeoShell.Interop.Imaging;
+using NeoShell.Interop.Notifications;
 using NeoShell.Interop.Shell;
 using NeoShell.Interop.Tray;
 using NeoShell.Interop.Windowing;
@@ -15,10 +17,13 @@ public sealed record TaskProgress(TaskbarProgressState State, double Value);
 
 /// <summary>
 /// The windows that have taskbar buttons, in the order they appeared, plus which one is active, which are flashing,
-/// and their icons and app names. Fed by shell hooks and WinEvents; raises <see cref="Changed"/> once per burst.
+/// their icons and app names, and the apps' badges. Fed by shell hooks and WinEvents; raises <see cref="Changed"/> once
+/// per burst.
 /// </summary>
 internal sealed class WindowTracker : IDisposable
 {
+    private const string ExplorerAdvancedKey = @"Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced";
+
     private readonly DispatcherQueue _dispatcher = DispatcherQueue.GetForCurrentThread();
     private readonly int _ownProcess = Environment.ProcessId;
     private readonly AppIcons _appIcons;
@@ -31,6 +36,9 @@ internal sealed class WindowTracker : IDisposable
     private readonly Dictionary<nint, ImageSource> _overlays = [];
     private readonly HashSet<nint> _markedFullScreen = [];
     private readonly Dictionary<nint, ThumbBar> _thumbBars = [];
+    private readonly AppBadges _badges = new();
+    private readonly RegistryWatcher _explorerSettings = new(ExplorerAdvancedKey);
+    private bool _showBadges = ReadShowBadges();
     private ShellHook? _shellHook;
     private WindowEvents? _windowEvents;
     private bool _changeQueued;
@@ -45,6 +53,13 @@ internal sealed class WindowTracker : IDisposable
         _appIcons = appIcons;
         _announceButtons = announceButtons;
         _appIcons.Loaded += QueueChanged;
+        _badges.Changed += _ => _dispatcher.TryEnqueue(QueueChanged);
+        // Explorer follows "Show badges on taskbar apps" as Settings writes it, with no message.
+        _explorerSettings.Changed += () => _dispatcher.TryEnqueue(() =>
+        {
+            _showBadges = ReadShowBadges();
+            QueueChanged();
+        });
     }
 
     public event Action? Changed;
@@ -87,6 +102,8 @@ internal sealed class WindowTracker : IDisposable
     public void Dispose()
     {
         _appIcons.Loaded -= QueueChanged;
+        _explorerSettings.Dispose();
+        _badges.Dispose();
         _windowEvents?.Dispose();
         _shellHook?.Dispose();
     }
@@ -98,6 +115,13 @@ internal sealed class WindowTracker : IDisposable
 
     /// <summary>The overlay badge the window's app set through ITaskbarList3, or null.</summary>
     public ImageSource? Overlay(nint hwnd) => _overlays.GetValueOrDefault(hwnd);
+
+    /// <summary>
+    /// The app's badge notification, or null for none or while badges are turned off. Apps without package identity
+    /// can't set one.
+    /// </summary>
+    public AppBadge? Badge(PinnedApp app) =>
+        _showBadges && app.AppUserModelId is { } appId ? _badges.Get(appId) : null;
 
     /// <summary>The buttons the window's app put under its preview through ITaskbarList3; empty for none.</summary>
     public ThumbBar ThumbBarOf(nint hwnd) => _thumbBars.GetValueOrDefault(hwnd) ?? ThumbBar.Empty;
@@ -185,6 +209,12 @@ internal sealed class WindowTracker : IDisposable
         return TaskGrouping.AppFor(window, name);
     }
 
+
+    private static bool ReadShowBadges()
+    {
+        using RegistryKey? key = Registry.CurrentUser.OpenSubKey(ExplorerAdvancedKey);
+        return BadgeLook.AreShown(key?.GetValue("TaskbarBadges"));
+    }
 
     private static string? FileDescription(string? path)
     {

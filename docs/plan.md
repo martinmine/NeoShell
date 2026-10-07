@@ -290,7 +290,11 @@ Each item is done when it looks and behaves as Explorer's (layout, behaviour, an
       not done: the IME's right-click menu (InputSwitch draws it only in Explorer); not run live: text services
       other than the Japanese IME (their glyphs paired by meaning), "a different input method for each app
       window", other DPIs
-- [ ] T9 Badges for packaged apps (`BadgeUpdateManager`)
+- [x] T9 Badges for packaged apps (`BadgeUpdateManager`): counts and glyphs read from Windows' badge store as
+      Explorer reads them, drawn and animated as Explorer's, in both run modes; "Show badges on taskbar apps" followed
+      live; the overlay icon moved to the badge's corner — not run live: NeoShell in the light theme (it crashes on
+      start in light mode, an existing backdrop bug); not matched: "99+" sits 1 px left and the playing glyph 1 px
+      right of Explorer's (text rendering)
 - [ ] T10 End task in the task button's menu
 - [ ] T11 Dragging over task buttons: bring the window forward; drop on a pinned app opens with it
 - [ ] T12 Tray icons promoted one by one (`NotifyIconSettings`), dragged between overflow and taskbar
