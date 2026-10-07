@@ -59,8 +59,8 @@ Tick items off as they land. The feature details are in [design.md](design.md).
 - [x] Pinned grid + All apps list; pin to Start / taskbar
 - [x] Home page like Windows 11: Pinned, Recent; All apps behind its button
 - [x] Explorer's Start pins imported once (`Export-StartLayout`'s COM object; tests for parsing and matching)
-- [x] Recent apps from UserAssist; NeoShell's launches logged there (`SEE_MASK_FLAG_LOG_USAGE`) - packaged apps
-      started by NeoShell aren't recorded (the activation manager doesn't log)
+- [x] Recent apps from UserAssist; NeoShell's launches logged there (`SEE_MASK_FLAG_LOG_USAGE`; packaged apps as
+      Explorer's Start records them, milestone 19 T22)
 - [x] App search ranking (tests)
 - [x] Indexer search via `ISearchQueryHelper` + `System.Data.OleDb` (query building tests), debounce + cancellation
 - [x] Keyboard navigation (type-to-search, arrows, Enter) — not driven live: that needs global keystrokes
@@ -365,7 +365,14 @@ Each item is done when it looks and behaves as Explorer's (layout, behaviour, an
       account, the joined-PC Switch user, and the calls themselves (stopped at a cdb breakpoint)
 - T21 Start search: Settings pages, web, filter tabs, best match preview pane with actions — skipped: search is
       good as it is
-- [ ] T22 Packaged apps started by NeoShell recorded in Recent
+- [x] T22 Packaged apps started by NeoShell recorded in Recent — found with Procmon and cdb how Explorer's Start
+      (through the shell broker and twinui's view manager) and taskbar (ShellExecuteEx on `shell:AppsFolder`) record
+      a start, and NeoShell now makes the same shell32 calls: the app's UserAssist value and, for a packaged desktop
+      app, its executable's; values compared before and after the same launch from Explorer's Start and NeoShell's,
+      in both run modes, and the Recent row checked — differs: alongside Explorer the session totals in
+      `UEME_CTLSESSION` stay Explorer's (shell32 keeps them per process; as the shell they count NeoShell's
+      starts); Explorer's own Start doesn't reorder its category folders or drop "New" for apps NeoShell starts (it
+      keeps its own launch counts)
 - [ ] T23 Start: All apps category view
 - [ ] T24 Wallpaper: slideshow, Windows Spotlight, a wallpaper per monitor, `IDesktopWallpaper` in shell mode
 - [ ] T25 Desktop icons on every monitor

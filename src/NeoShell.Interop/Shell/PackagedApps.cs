@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using System.Runtime.InteropServices.Marshalling;
 using System.Xml;
 using System.Xml.Linq;
 using NeoShell.Interop.Com;
@@ -16,7 +17,7 @@ namespace NeoShell.Interop.Shell;
 /// Starts packaged (MSIX/Store) apps and finds their logos. Opening <c>shell:AppsFolder\&lt;AUMID&gt;</c> does the same through a handler
 /// that lives in Explorer, so without Explorer only this works.
 /// </summary>
-public static class PackagedApps
+public static partial class PackagedApps
 {
     private static readonly Guid CLSID_ApplicationActivationManager = new("45ba127d-10a8-46ea-8ab7-56ea9078943c");
     private static readonly Guid CLSID_PackageDebugSettings = new("b1aec16f-2383-4852-b0e9-8f0b1dc66b4d");
@@ -29,11 +30,55 @@ public static class PackagedApps
     /// Starts the app and returns its process ID, or throws. Blocks until the app has started, which for a UWP app
     /// without Explorer's view management never quite happens, so call it off the UI thread.
     /// </summary>
-    public static uint Activate(string appUserModelId, string? arguments = null)
+    /// <param name="logUsage">
+    /// Records a packaged desktop app's start under its executable in <see cref="UserAssist"/>, as starts from
+    /// Explorer's Start and taskbar are. The app's own entry is <see cref="UserAssist.RecordLaunch"/>'s.
+    /// </param>
+    public static uint Activate(string appUserModelId, string? arguments = null, bool logUsage = false)
     {
         var manager = Ole32.Create<IApplicationActivationManager>(CLSID_ApplicationActivationManager, Ole32.CLSCTX_LOCAL_SERVER | Ole32.CLSCTX_INPROC_SERVER);
+        if (logUsage)
+            SetSite((IObjectWithSite)manager, new LogUsageSite());
         Marshal.ThrowExceptionForHR(manager.ActivateApplication(appUserModelId, arguments, 0, out uint processId));
         return processId;
+    }
+
+    private static unsafe void SetSite(IObjectWithSite target, IOleServiceProvider site)
+    {
+        void* pointer = ComInterfaceMarshaller<IOleServiceProvider>.ConvertToUnmanaged(site);
+        try
+        {
+            Marshal.ThrowExceptionForHR(target.SetSite((nint)pointer));
+        }
+        finally
+        {
+            ComInterfaceMarshaller<IOleServiceProvider>.Free(pointer);
+        }
+    }
+
+    /// <summary>
+    /// The site Explorer's broker and ShellExecuteEx's <c>SEE_MASK_FLAG_LOG_USAGE</c> give the activation: asked for
+    /// <c>SID_ExecuteLogUsage</c> (twinui.appcore's <c>DesktopAppXActivator::GetLogUsageFromSite</c>), it answers,
+    /// and the activator then starts a packaged desktop app with usage logging. UWP activation doesn't ask.
+    /// </summary>
+    [GeneratedComClass]
+    private sealed unsafe partial class LogUsageSite : IOleServiceProvider
+    {
+        private static readonly Guid SID_ExecuteLogUsage = new("582b888f-80d5-4bc4-9a6d-5d7a58efd60a");
+        private const int E_NOINTERFACE = unchecked((int)0x80004002);
+
+        int IOleServiceProvider.QueryService(Guid* service, Guid* iid, nint* result)
+        {
+            *result = 0;
+            if (*service != SID_ExecuteLogUsage)
+                return E_NOINTERFACE;
+
+            // Only the answer counts; the object handed back is the site itself.
+            void* site = ComInterfaceMarshaller<IOleServiceProvider>.ConvertToUnmanaged(this);
+            int hr = Marshal.QueryInterface((nint)site, *iid, out *result);
+            ComInterfaceMarshaller<IOleServiceProvider>.Free(site);
+            return hr;
+        }
     }
 
     /// <summary>

@@ -21,11 +21,21 @@ internal static class Launcher
             {
                 try
                 {
-                    PackagedApps.Activate(packagedId);
+                    PackagedApps.Activate(packagedId, logUsage: true);
                 }
                 catch (Exception ex)
                 {
                     Log.Warn($"Could not start {app.DisplayName} ({packagedId})", ex);
+                    return;
+                }
+                try
+                {
+                    // So the start shows in Start's Recent and Windows' own lists, as Explorer's launches do.
+                    UserAssist.RecordLaunch(packagedId);
+                }
+                catch (Exception ex)
+                {
+                    Log.Warn($"Could not record the start of {app.DisplayName}", ex);
                 }
             });
             return;

@@ -590,7 +590,8 @@ Shell mode only, like the wallpaper: alongside Explorer, Explorer's desktop has 
 
 - Stored in settings as a list of `{ AppUserModelId or Path, Arguments, DisplayName }`.
 - Launch packaged apps (AUMID `<family>!<app>`) with `IApplicationActivationManager::ActivateApplication`, on a
-  background thread as it waits for the app; other apps through `shell:AppsFolder\<AUMID>` when there is an AUMID,
+  background thread as it waits for the app, recording the start in UserAssist as Explorer does (see "How Explorer
+  records a packaged app's start" under Start); other apps through `shell:AppsFolder\<AUMID>` when there is an AUMID,
   otherwise `ShellExecuteEx` on the path. Opening `shell:AppsFolder\<packaged AUMID>` needs a handler hosted by
   Explorer and fails without it ("Class not registered").
 - UWP (CoreWindow) apps, Settings and Calculator among them, can't show in shell mode: their windows stay cloaked
@@ -1468,8 +1469,37 @@ Windows', its shortcut as key caps (`ShortcutKeys`), and a footer with a link to
   - **Recent**: the six catalog apps started most recently, three columns, with "30m ago" / "5h ago" / the date.
     Read from UserAssist (`HKCU\…\Explorer\UserAssist\{CEBFF5CD-…}\Count`: ROT13 value names, AUMIDs or
     known-folder paths, last run as a FILETIME at offset 60) each time Start opens. `Launcher` starts non-packaged
-    apps with `ShellExecuteEx` + `SEE_MASK_FLAG_LOG_USAGE` so NeoShell's launches are recorded too; packaged apps
-    started through the activation manager are not.
+    apps with `ShellExecuteEx` + `SEE_MASK_FLAG_LOG_USAGE` so NeoShell's launches are recorded too, and records
+    packaged apps' starts as Explorer does (below).
+  - **How Explorer records a packaged app's start** (25H2; Procmon on the key, cdb breakpoints on
+    `shell32!CUserAssist::FireEvent` in Explorer and Start): Explorer's process writes every value, always through
+    shell32's UserAssist object (`CLSID_UserAssist` {DD313E04-FEFF-11D1-8ECD-0000F87A470C}, in-process, interface
+    {49B36D57-5FD2-45A7-981B-06028D577A47}) as `FireEvent(&{CEBFF5CD-…}, UAE_LAUNCH = 0, AUMID, 0)`; shell32 bumps
+    the value's run count and last run, the session totals in `UEME_CTLSESSION` (its second DWORD counts starts)
+    and its own top lists, and skips it all when "Let Windows track app launches" is off.
+    - From Start: `StartTileData!TileStoreTransformer::ActivateTileInternal` puts
+      `AppActivation.ShouldNotifyUAOfLaunch = true` in the activation's property set and hands it to the shell
+      broker in Explorer (`ImmersiveShellBroker`). A UWP app's value is written by twinui.pcshell's view manager
+      when its view first shows (`CApplicationManager::_HandleViewNavigationRequested` →
+      `AppActivationPropertySetHelpers::ConditionallyNotifyUAOfLaunch`); a packaged desktop app's by the broker
+      (windows.immersiveshell.serviceprovider) after it starts it through daxexec. The broker's activation site also
+      answers `SID_ExecuteLogUsage` {582B888F-80D5-4BC4-9A6D-5D7A58EFD60A}, so twinui.appcore's
+      `DesktopAppXActivator` starts the desktop app with `ShellExecuteEx` + `SEE_MASK_FLAG_LOG_USAGE`, which adds a
+      second value for the executable (`{6D809377-…}\WindowsApps\Microsoft.Paint_<version>_x64__…\mspaint.exe`),
+      ~0.1-0.3 s before the app's. Each start adds one to each value's run count.
+    - From the taskbar: `Taskbar!LaunchFromTaskbar` opens the pin's `shell:AppsFolder` item with `ShellExecuteEx`;
+      windows.storage records the AUMID (`StoreHintsAndReportUserAssistInfo`) before the AppsFolder handler starts
+      the app. One start, one count.
+    - `IApplicationActivationManager::ActivateApplication` alone records nothing: no property set, no site.
+    - NeoShell does the same (`PackagedApps.Activate(…, logUsage: true)` then `UserAssist.RecordLaunch`, for every
+      launch through `Launcher`: Start's pins, All apps, Recent and search, taskbar pins and their menus, Win+1…9,
+      toasts). The activation manager (twinui.appcore, in-process) takes an `IObjectWithSite` site; NeoShell's
+      answers `SID_ExecuteLogUsage` as the broker's does, and UWP activation never asks for it. Compared value by
+      value with the same app started from Explorer's Start: the same two values, counts and layout. Alongside
+      Explorer, `UEME_CTLSESSION`'s totals don't move for NeoShell's starts (shell32 keeps the session per
+      process, and Explorer's copy wins; the same holds for desktop apps NeoShell starts with
+      `SEE_MASK_FLAG_LOG_USAGE`); as the shell they count as Explorer's do. Explorer's own Start doesn't reorder its
+      category folders or drop "New" for an app only NeoShell started: those follow Start's own data, not UserAssist.
   - An **All apps** button opens the alphabetical list with letter headers ("#" first) in place of the page, with a
     Back button (unlike Windows 11, which puts All on the same page).
   - **Folders of pins** (Windows 11 23H2+; `StartPins` and `GridReorder`, unit tested), as Explorer's:

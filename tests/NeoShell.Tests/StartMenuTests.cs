@@ -219,6 +219,21 @@ public sealed class StartMenuTests
     }
 
     [Fact]
+    public void UserAssist_record_of_a_packaged_app_started_by_NeoShell_reads_as_Explorers()
+    {
+        // As shell32 wrote it for Paint started from NeoShell's Start (2026-10-07): the same layout as Explorer's Start
+        // leaves — 8 starts, 24 focus changes, focus time, ten -1.0f, -1, the last run.
+        byte[] data = Convert.FromHexString(
+            "000000000800000018000000164b0600000080bf000080bf000080bf000080bf000080bf000080bf000080bf000080bf000080bf"
+            + "000080bfffffffff6068c96f9156dd0100000000");
+
+        AppUsage? usage = UserAssist.Parse("Zvpebfbsg.Cnvag_8jrxlo3q8oojr!Ncc", data);
+
+        Assert.Equal("Microsoft.Paint_8wekyb3d8bbwe!App", usage?.Id);
+        Assert.Equal(new DateTime(2026, 10, 7, 19, 24, 13, 670, DateTimeKind.Utc), usage?.LastRun);
+    }
+
+    [Fact]
     public void Recent_apps_are_newest_first_listed_once_and_only_from_the_catalog()
     {
         var now = new DateTime(2026, 10, 4, 12, 0, 0, DateTimeKind.Utc);
