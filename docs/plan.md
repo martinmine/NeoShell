@@ -472,8 +472,44 @@ Each item is done when it looks and behaves as Explorer's (layout, behaviour, an
 - [ ] T35 Focus sessions: hide badges and flashing, end chime
 - [ ] T36 UWP (CoreWindow) apps, Settings among them, in shell mode
 
+## Future work
+
+Found while working on milestone 19, not done yet.
+
+- [ ] T37 Screen capture as the shell: `Windows.Graphics.Capture` of a monitor fails for every app without Explorer
+      (screen sharing, OBS, Snipping Tool's overlay and recorder; see design.md "Hotkeys", T30)
+- [ ] T38 The session's change-notification server (`SHChangeNotify`): without Explorer no process serves it, so folder
+      windows may not hear of changes made by other processes (T5; not confirmed live)
+- [ ] T39 Explorer parity polish, existing differences noticed by the agents:
+  - Flyouts don't close when another app is clicked; the Quick Settings button isn't highlighted while it's open; the
+    Quick Settings footer's shading is reversed (T8)
+  - Task button menu narrower than Explorer's; its launch item shows a generic glyph, not the app's icon (T10)
+  - The taskbar's right-hand items sit 5 px left of Explorer's (T12); the centred group 1 px left (T15)
+  - Network and volume menus: Explorer's are right-aligned with icons, and the network menu has two more items (T13)
+  - Taskbar tooltips are kept out of the widget sidebar's space (Explorer's show over it); no "open" highlight on the
+    clock while the notification center is open (T14)
+  - Labelled task buttons never narrow when the taskbar is full; Explorer narrows them before collapsing search (T15)
+  - A new pin folder swaps in at once (Explorer fades out and in); the folder panel's colour is approximate (T17)
+  - All apps is flat (Explorer shows Start Menu folders); no arrow keys between items; no zoom-out for the letter
+    index (T23)
+  - Win+arrow moves jump; Explorer slides them over about 250 ms (T28)
+  - Snap Assist's cards fade in after 170 ms; Explorer's fly in from the windows after about 450 ms (T27)
+  - The auto-hidden taskbar's 2 px edge can't be reached under a topmost maximized window; a maximized window's border
+    covers the sidebar's resize grip (T3)
+- [ ] T40 Robustness and correctness, existing problems noticed by the agents:
+  - WinUI access violation when auto-hide was switched through UI Automation with the menu still open (T1)
+  - Posting SC_MAXIMIZE to an elevated window is refused, contrary to design.md / `TopLevelWindows.Maximize` (T3)
+  - UI Automation reports the overflow flyout's icons about 360 px left of where they're drawn (T4)
+  - Explorer once laid out the desktop from scratch after a switch: NeoShell had replaced its full-width
+    IconLayouts entry with the narrower one saved while the sidebar was open (T26)
+  - Test windows started at medium integrity often open below the wallpaper window as the shell; once right after a
+    restart the work area read was the whole monitor (T27)
+- Not possible without Explorer, with the evidence in design.md: Windows' own AutoPlay UI (T5, NeoShell has its own),
+  the IME's right-click menu (T8), Win+V, Win+Period, Win+Semicolon and Win+H (T30), importing Explorer's pin folders
+  (T17), Spotlight's "Learn about this picture", Next and rotation (T24), Edge tabs in Alt+Tab (T29)
+
 ## Later / not planned yet
 
-- Notifications: toast images, buttons and inline replies (not exposed to listeners); tray balloons as toasts
+- Notifications: toast images, buttons and inline replies (not exposed to listeners)
 
 - Jump lists: pinned entries, Pin to / Remove from this list
