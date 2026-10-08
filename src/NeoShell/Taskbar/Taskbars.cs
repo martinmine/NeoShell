@@ -530,6 +530,9 @@ internal sealed class Taskbars : IDisposable
                 Tray?.SetTaskbarBounds(window.ScreenBounds);
         }
         Log.Info($"Taskbars on {monitors.Count} monitor(s)");
+        // Windows gives every monitor its whole screen back when the displays change. The space goes out again only
+        // now that the new taskbars took theirs: app bars told of the change place themselves around them.
+        ShellWorkArea.SendAgain();
         UpdateFullScreen();
         if (autoHideChanged)
             _appBars?.NotifyStateChange();

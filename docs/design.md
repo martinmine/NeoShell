@@ -580,6 +580,24 @@ Shell mode only, like the wallpaper: alongside Explorer, Explorer's desktop has 
     The order: Explorer's auto-hide slides the taskbar away (about 270 ms) and then sets the work area, so windows
     grow once it's gone; turned off, the taskbar slides in over the windows and they shrink as it lands. An app bar's
     `ABM_SETPOS` returns after the windows were resized (about 140 ms with five maximized windows).
+  - **Display changes.** When monitors come or go, and when a monitor's resolution changes, win32k makes new monitor
+    objects (new `HMONITOR`s, the primary's too) whose work area is the whole monitor, so nothing stays reserved
+    (seen on the VM with no shell running). Explorer copes because `CTray::RecomputeWorkArea` builds each area from
+    `GetMonitorInfo`'s `rcMonitor` less the taskbar and the bars, and compares it with that monitor's *current*
+    `rcWork` (`EqualRect`), not with what it set last; on top of that 25H2 has a feature-flagged private path
+    (`CTray::FillDisplayChangeData`, `CanPredictWorkAreas`, `TaskbarSyncWorkAreaCalculation`) that hands win32k the
+    work areas during the mode change, which NeoShell can't use. NeoShell does the same comparison: a change going
+    out is checked against Windows' work area right before it's set (`WorkArea.Get`), skipped if it's already so,
+    and skipped for a monitor that's gone (setting one fails with `ERROR_INVALID_PARAMETER`; a removed monitor's
+    taskbar gives its strip back after the monitor left). Every reservation goes out again after the taskbars are
+    remade for the change (`ShellWorkArea.SendAgain`), not before: a bar told by the broadcast would otherwise place
+    itself while no taskbar strip is reserved (between the old taskbar closing and the new one opening) and end up
+    over the taskbar. Measured on the VM with a maximized window and a left test bar: unplugging and plugging the
+    second monitor, resolution changes on either and DPI changes (100/125/150%) on either leave every work area,
+    bar and maximized window as Explorer's (plus the sidebar's strip); Explorer has the primary's area right at once
+    and refits windows in about 2 s, NeoShell in about 1 s after the change. DPI changes don't reset work areas.
+    Sometimes (with the test app running) NeoShell's windows got `WM_DISPLAYCHANGE` up to 9 s late, its UI thread
+    idle meanwhile; not explained.
 - Rect calculation (unit tested) from monitor bounds and DPI.
 - Recreated on `WM_DISPLAYCHANGE`, on `WM_DPICHANGED` to a DPI other than the monitor's, and on settings changes.
 - Full-screen apps: while the foreground window covers its monitor (or the app marked it with

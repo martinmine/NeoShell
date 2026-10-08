@@ -23,9 +23,8 @@ public static class ShellWorkArea
     private static Task s_pending = Task.CompletedTask;
     private static volatile bool s_exiting;
 
-    // UI thread only: the monitors whose reservation changed since changes last went out, and what went out last.
+    // UI thread only: the monitors whose reservation changed since changes last went out.
     private static readonly HashSet<RectInt32> s_unsent = [];
-    private static readonly Dictionary<RectInt32, RectInt32> s_sent = [];
 
     /// <summary>What's reserved on a monitor changed (raised on the UI thread with the monitor's bounds).</summary>
     public static event Action<RectInt32>? Changed;
@@ -60,6 +59,17 @@ public static class ShellWorkArea
         new(monitor.X, monitor.Y, monitor.Width - right, monitor.Height - bottom);
 
     /// <summary>
+    /// Every monitor's reservation goes out again where Windows' work area differs from it. Windows gives each monitor
+    /// its whole screen as work area when the displays change (monitors come or go, a resolution changes), though
+    /// nothing reserved there changed; Explorer works out every work area again then (<c>CTray::RecomputeAllWorkareas</c>).
+    /// </summary>
+    public static void SendAgain()
+    {
+        foreach (RectInt32 monitor in s_reserved.Keys)
+            Unsent(monitor);
+    }
+
+    /// <summary>
     /// NeoShell is exiting: from now on changes are only noted, for <see cref="Restore"/>. One going out would wait for
     /// NeoShell's own windows, which are closing and no longer answer.
     /// </summary>
@@ -70,8 +80,8 @@ public static class ShellWorkArea
     /// </summary>
     public static void Restore()
     {
-        foreach ((RectInt32 monitor, Reservation reserved) in s_reserved)
-            Apply(Compute(monitor, reserved), waitForWindows: false);
+        foreach (RectInt32 monitor in s_reserved.Keys)
+            Apply(monitor, waitForWindows: false);
     }
 
     private static Reservation Reserved(RectInt32 monitor) => s_reserved.GetValueOrDefault(monitor);
@@ -99,43 +109,44 @@ public static class ShellWorkArea
         if (s_exiting)
             return true;
         if (now)
-        {
-            s_sent[monitor] = Compute(monitor, reserved);
-            Apply(s_sent[monitor], waitForWindows: false);
-        }
+            Apply(monitor, waitForWindows: false);
         else
-        {
-            // What's reserved together goes out as one change once the UI thread is done, as Explorer defers work area
-            // changes: a taskbar made again gives its space back and takes it again, and each change goes out resizing
-            // the maximized windows (WorkArea.Set), which would grow under the taskbar and shrink back.
-            if (s_unsent.Count == 0)
-                DispatcherQueue.GetForCurrentThread().Post(SendUnsent);
-            s_unsent.Add(monitor);
-        }
+            Unsent(monitor);
         Changed?.Invoke(monitor);
         return true;
+    }
+
+    // What's reserved together goes out as one change once the UI thread is done, as Explorer defers work area changes:
+    // a taskbar made again gives its space back and takes it again, and each change goes out resizing the maximized
+    // windows (WorkArea.Set), which would grow under the taskbar and shrink back.
+    private static void Unsent(RectInt32 monitor)
+    {
+        if (s_unsent.Count == 0)
+            DispatcherQueue.GetForCurrentThread().Post(SendUnsent);
+        s_unsent.Add(monitor);
     }
 
     private static void SendUnsent()
     {
         foreach (RectInt32 monitor in s_unsent)
         {
-            RectInt32 area = Compute(monitor, Reserved(monitor));
-            if (s_sent.TryGetValue(monitor, out RectInt32 sent) && sent == area)
-                continue;
-
-            s_sent[monitor] = area;
             s_pending = s_pending.ContinueWith(_ =>
             {
                 if (!s_exiting)
-                    Apply(Compute(monitor, Reserved(monitor)), waitForWindows: true);
+                    Apply(monitor, waitForWindows: true);
             }, TaskScheduler.Default);
         }
         s_unsent.Clear();
     }
 
-    private static void Apply(RectInt32 area, bool waitForWindows)
+    /// <summary>Sets the monitor's work area to what's reserved there, unless Windows has that already.</summary>
+    private static void Apply(RectInt32 monitor, bool waitForWindows)
     {
+        // Compared with Windows' work area as it is now, as Explorer does (CTray::RecomputeWorkArea), not with what went
+        // out last: Windows may have given the monitor its whole screen back since. A monitor that's gone has none.
+        RectInt32 area = Compute(monitor, Reserved(monitor));
+        if (WorkArea.Get(monitor) is not { } current || current == area)
+            return;
         try
         {
             WorkArea.Set(area, waitForWindows);

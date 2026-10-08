@@ -27,4 +27,18 @@ public static unsafe class WorkArea
         if (!waitForWindows)
             User32.SendNotifyMessage(User32.HWND_BROADCAST, WindowMessages.SettingChange, (nint)User32.SPI_SETWORKAREA, 0);
     }
+
+    /// <summary>
+    /// The work area Windows has now for the monitor with the bounds <paramref name="monitor"/>, or null when no monitor
+    /// has those bounds (any more).
+    /// </summary>
+    public static RectInt32? Get(RectInt32 monitor)
+    {
+        User32.RECT bounds = User32.RECT.From(monitor);
+        var info = new User32.MONITORINFO { cbSize = (uint)sizeof(User32.MONITORINFO) };
+        nint handle = User32.MonitorFromRect(&bounds, User32.MONITOR_DEFAULTTONULL);
+        if (handle == 0 || !User32.GetMonitorInfo(handle, &info) || info.rcMonitor.ToRectInt32() != monitor)
+            return null;
+        return info.rcWork.ToRectInt32();
+    }
 }
