@@ -88,7 +88,8 @@ internal sealed class ShellSession : IDisposable
                     bool switcherKey = _altTabKeys.OnKey(key, down, out SwitcherCommand? switcherCommand);
                     if (switcherCommand is { } command)
                     {
-                        if (command is SwitcherCommand.Open or SwitcherCommand.OpenBackwards)
+                        if (command is SwitcherCommand.Open or SwitcherCommand.OpenBackwards
+                            or SwitcherCommand.OpenSticky or SwitcherCommand.OpenStickyBackwards)
                             KeyboardHook.MaskModifierKeys();
                         _dispatcher.Post(() => switcher.Run(command));
                     }

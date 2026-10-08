@@ -24,6 +24,7 @@ internal static unsafe partial class User32
     public const uint SWP_FRAMECHANGED = 0x0020;
     public const uint SWP_SHOWWINDOW = 0x0040;
     public const uint SWP_HIDEWINDOW = 0x0080;
+    public const uint SWP_ASYNCWINDOWPOS = 0x4000;
 
     public static readonly nint HWND_TOP = 0;
     public static readonly nint HWND_TOPMOST = -1;
@@ -41,7 +42,9 @@ internal static unsafe partial class User32
 
     public const uint WS_EX_APPWINDOW = 0x0004_0000;
     public const uint WS_EX_NOACTIVATE = 0x0800_0000;
+    public const uint WS_EX_LAYERED = 0x0008_0000;
 
+    public const int SW_HIDE = 0;
     public const int SW_SHOWNORMAL = 1;
     public const int SW_MAXIMIZE = 3;
     public const int SW_MINIMIZE = 6;
@@ -53,6 +56,7 @@ internal static unsafe partial class User32
     public const uint GW_HWNDPREV = 3;
     public const uint GW_OWNER = 4;
     public const uint GA_ROOT = 2;
+    public const uint GA_ROOTOWNER = 3;
 
     public const uint WM_GETICON = 0x007F;
     public const uint WM_COMMAND = 0x0111;
@@ -517,6 +521,17 @@ internal static unsafe partial class User32
         public nint lpData;
     }
 
+    // What HSHELL_GETMINRECT passes: user32 reads the rectangle back as four 16-bit values, which Explorer's taskbar
+    // writes, not the RECT the documentation has.
+    public struct SHELLHOOKINFO
+    {
+        public nint hwnd;
+        public short left;
+        public short top;
+        public short right;
+        public short bottom;
+    }
+
     [LibraryImport("user32.dll", EntryPoint = "SendNotifyMessageW")]
     [return: MarshalAs(UnmanagedType.Bool)]
     public static partial bool SendNotifyMessage(nint hwnd, uint message, nint wParam, nint lParam);
@@ -730,4 +745,16 @@ internal static unsafe partial class User32
 
     [LibraryImport("user32.dll")]
     public static partial int SetDisplayConfig(uint pathCount, void* paths, uint modeCount, void* modes, uint flags);
+
+    public const uint LWA_ALPHA = 0x2;
+
+    [LibraryImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static partial bool SetLayeredWindowAttributes(nint hwnd, uint colorKey, byte alpha, uint flags);
+
+    public const uint MSGFLT_ALLOW = 1;
+
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static partial bool ChangeWindowMessageFilterEx(nint hwnd, uint message, uint action, void* changeFilterStruct);
 }

@@ -308,7 +308,7 @@ internal sealed class ThumbnailPopup : Window
             return [];
         List<nint> open = [.. _tracker.Windows.Select(w => w.Handle)];
         HashSet<nint> mine = [.. button.Windows.Select(w => w.Handle)];
-        IReadOnlyList<nint> order = AltTabLayout.Order(open, TopLevelWindows.GetAll(), TopLevelWindows.GetForeground());
+        IReadOnlyList<nint> order = AltTabLayout.Order(open, _tracker.RecentlyActive, TopLevelWindows.GetAll(), TopLevelWindows.GetForeground());
         return [.. snapping.Groups.All
             .Where(group => group.Any(mine.Contains))
             .Select(group => (IReadOnlyList<nint>)[.. order.Where(group.Contains)])

@@ -18,6 +18,8 @@ public sealed unsafe class TrayHost : IDisposable
     private const nint AppBarData = 0;
     private const nint TrayData = 1;
     private const nint IconRectRequest = 3;
+    // What uxtheme in every app posts to Shell_TrayWnd when its window's title bar is shaken (lParam: the window).
+    private const uint WM_SHAKE = 0x04F2;
 
     private readonly Func<NotifyIconData, bool> _onCommand;
     private readonly Func<NotifyIconRectRequest, RectInt32?> _onRectRequest;
@@ -37,6 +39,8 @@ public sealed unsafe class TrayHost : IDisposable
         // Apps' ITaskbarList3 (progress, overlay icons) finds the task band through this property of Shell_TrayWnd.
         _taskbandWindow = new MessageWindow("MSTaskSwWClass", OnTaskbandMessage, _trayWindow.Handle, User32.WS_CHILD, 0);
         User32.SetProp(_trayWindow.Handle, "TaskbandHWND", _taskbandWindow.Handle);
+        // From apps at any integrity level, as Explorer allows it.
+        User32.ChangeWindowMessageFilterEx(_trayWindow.Handle, WM_SHAKE, User32.MSGFLT_ALLOW, null);
 
         // Apps already running re-add their icons when told the taskbar was created.
         User32.SendNotifyMessage(User32.HWND_BROADCAST, User32.RegisterWindowMessage("TaskbarCreated"), 0, 0);
@@ -95,6 +99,13 @@ public sealed unsafe class TrayHost : IDisposable
     /// <summary>Someone set a work area and told every window (<c>WM_SETTINGCHANGE</c> for <c>SPI_SETWORKAREA</c>).</summary>
     public event Action? WorkAreaChanged;
 
+    /// <summary>
+    /// A window's title bar was shaken (or Esc pressed while it's still held after a shake), by its handle. uxtheme
+    /// spots the shake in the app's own process, if "Title bar window shake" is on, and tells the shell; only windows
+    /// uxtheme counts as shakable are passed on.
+    /// </summary>
+    public event Action<nint>? WindowShaken;
+
     private nint? OnTaskbandMessage(uint message, nint wParam, nint lParam)
     {
         if (ThumbBarCall.KindOf(message) is { } kind)
@@ -141,6 +152,12 @@ public sealed unsafe class TrayHost : IDisposable
     {
         if (message == WindowMessages.SettingChange && wParam == SPI_SETWORKAREA)
             WorkAreaChanged?.Invoke();
+        if (message == WM_SHAKE)
+        {
+            if (TopLevelWindows.IsShakable(lParam))
+                WindowShaken?.Invoke(lParam);
+            return 0;
+        }
         if (message != WM_COPYDATA || lParam == 0)
             return null;
 

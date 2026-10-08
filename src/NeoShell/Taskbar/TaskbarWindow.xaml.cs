@@ -613,6 +613,15 @@ internal sealed partial class TaskbarWindow : Window
         return element is null ? null : BoundsOnScreen(element);
     }
 
+    /// <summary>The button of a window on screen, or null when it has none on this taskbar.</summary>
+    public RectInt32? TaskButtonBounds(nint hwnd)
+    {
+        TaskButton? button = _tasks.FirstOrDefault(b => b.Windows.Any(w => w.Handle == hwnd));
+        if (button is null || TaskList.ContainerFromItem(button) is not FrameworkElement { ActualWidth: > 0 } element)
+            return null;
+        return BoundsOnScreen(element);
+    }
+
     /// <summary>An element's place on screen, in pixels.</summary>
     private RectInt32 BoundsOnScreen(FrameworkElement element)
     {

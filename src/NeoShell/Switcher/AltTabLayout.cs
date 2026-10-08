@@ -11,16 +11,25 @@ public sealed record SwitcherEntry(nint Window, IReadOnlyList<nint>? Group = nul
 public static class AltTabLayout
 {
     /// <summary>
-    /// The windows to switch between, most recently used first: the one in front, then the others as they're stacked
-    /// (<paramref name="zOrder"/>, topmost first). Windows the z-order doesn't know go last.
+    /// The windows to switch between, most recently used first, as Explorer orders them by when each was last in front:
+    /// the one in front, then <paramref name="recentlyActive"/>'s order, then any never in front as they're stacked
+    /// (<paramref name="zOrder"/>, topmost first). A minimized window keeps its place, where the stack has it last.
     /// </summary>
-    public static IReadOnlyList<nint> Order(IReadOnlyList<nint> windows, IReadOnlyList<nint> zOrder, nint foreground)
+    public static IReadOnlyList<nint> Order(IReadOnlyList<nint> windows, IReadOnlyList<nint> recentlyActive, IReadOnlyList<nint> zOrder, nint foreground)
     {
-        var depth = new Dictionary<nint, int>();
-        for (int i = 0; i < zOrder.Count; i++)
-            depth.TryAdd(zOrder[i], i);
+        var recency = Ranks(recentlyActive);
+        var depth = Ranks(zOrder);
         return [.. windows
-            .OrderBy(w => w == foreground ? -1 : depth.GetValueOrDefault(w, int.MaxValue))];
+            .OrderBy(w => w == foreground ? -1 : recency.GetValueOrDefault(w, int.MaxValue))
+            .ThenBy(w => depth.GetValueOrDefault(w, int.MaxValue))];
+    }
+
+    private static Dictionary<nint, int> Ranks(IReadOnlyList<nint> windows)
+    {
+        var ranks = new Dictionary<nint, int>();
+        for (int i = 0; i < windows.Count; i++)
+            ranks.TryAdd(windows[i], i);
+        return ranks;
     }
 
     /// <summary>

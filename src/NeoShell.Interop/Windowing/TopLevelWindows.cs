@@ -57,6 +57,15 @@ public static unsafe class TopLevelWindows
 
     public static nint GetForeground() => User32.GetForegroundWindow();
 
+    /// <summary>The window's owner's owner and so on: the app window an owned window (a dialog) belongs to.</summary>
+    public static nint RootOwner(nint hwnd) => User32.GetAncestor(hwnd, User32.GA_ROOTOWNER);
+
+    /// <summary>
+    /// Whether a title bar shake or Win+Home may keep this window up and minimize the rest, as Explorer checks it
+    /// (uxtheme's own test): an app's top-level window, not the desktop or the taskbar.
+    /// </summary>
+    public static bool IsShakable(nint hwnd) => hwnd != 0 && UxTheme.IsValidShakeWindow(hwnd);
+
     /// <summary>The top-level window under the screen point, or 0.</summary>
     public static nint RootAt(PointInt32 point)
     {
@@ -320,8 +329,17 @@ public static unsafe class TopLevelWindows
     public static void Minimize(nint hwnd) => Show(hwnd, User32.SW_SHOWMINNOACTIVE, User32.SC_MINIMIZE);
 
     /// <param name="activate">False restores it without activating it: the window in front stays in front.</param>
-    public static void Restore(nint hwnd, bool activate = true) =>
+    /// <param name="below">A window to put it just below, rather than on top of the others.</param>
+    public static void Restore(nint hwnd, bool activate = true, nint below = 0)
+    {
         Show(hwnd, activate ? User32.SW_RESTORE : User32.SW_SHOWNOACTIVATE, User32.SC_RESTORE);
+        // Queued for the window's thread too, so after the restore.
+        if (below != 0)
+        {
+            User32.SetWindowPos(hwnd, below, 0, 0, 0, 0,
+                User32.SWP_NOMOVE | User32.SWP_NOSIZE | User32.SWP_NOACTIVATE | User32.SWP_ASYNCWINDOWPOS);
+        }
+    }
 
     /// <summary>
     /// Minimizes, restores or maximizes a window. Windows refuses that for a window of an app running as administrator

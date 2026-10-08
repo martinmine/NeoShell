@@ -9,6 +9,7 @@ using NeoShell.Interop.Tray;
 using NeoShell.Interop.Windowing;
 using NeoShell.Logging;
 using NeoShell.Settings;
+using Windows.Graphics;
 
 namespace NeoShell.Taskbar;
 
@@ -36,6 +37,8 @@ internal sealed class WindowTracker : IDisposable
     private readonly Dictionary<nint, ImageSource> _overlays = [];
     private readonly HashSet<nint> _markedFullScreen = [];
     private readonly Dictionary<nint, ThumbBar> _thumbBars = [];
+    // Windows by when they were last in front, most recent first.
+    private readonly List<nint> _activated = [];
     private readonly AppBadges _badges = new();
     private readonly RegistryWatcher _explorerSettings = new(ExplorerAdvancedKey);
     private bool _showBadges = ReadShowBadges();
@@ -77,13 +80,25 @@ internal sealed class WindowTracker : IDisposable
 
     public nint Foreground { get; private set; }
 
+    /// <summary>
+    /// Windows by when they were last in front, most recent first: Alt+Tab's order, as Explorer keeps it (each window's
+    /// last activation). Windows that were there before NeoShell come in their z-order.
+    /// </summary>
+    public IReadOnlyList<nint> RecentlyActive => _activated;
+
+    /// <summary>
+    /// A window's taskbar button on screen, which Windows animates it to when it's minimized (and from when it's
+    /// restored); null for none. Only the shell's taskbar answers: alongside, Explorer's does.
+    /// </summary>
+    public Func<nint, RectInt32?>? ButtonBounds { get; set; }
+
     public void Start()
     {
         _windowEvents = new WindowEvents();
         _windowEvents.Raised += OnWindowEvent;
         try
         {
-            _shellHook = new ShellHook();
+            _shellHook = new ShellHook { MinimizeRect = hwnd => ButtonBounds?.Invoke(hwnd) };
             _shellHook.Raised += OnShellHook;
         }
         catch (InvalidOperationException ex)
@@ -93,9 +108,11 @@ internal sealed class WindowTracker : IDisposable
         }
 
         // EnumWindows lists the top window first; older windows tend to be further down.
-        foreach (nint hwnd in TopLevelWindows.GetAll().Reverse())
+        IReadOnlyList<nint> zOrder = TopLevelWindows.GetAll();
+        foreach (nint hwnd in zOrder.Reverse())
             Update(hwnd);
-        Foreground = TopLevelWindows.GetForeground();
+        _activated.AddRange(zOrder.Where(IsTracked));
+        SetForeground(TopLevelWindows.GetForeground());
         Log.Info($"Tracking {_windows.Count} window(s)");
     }
 
@@ -249,6 +266,7 @@ internal sealed class WindowTracker : IDisposable
                 Update(hwnd);
                 break;
             case ShellHookEvent.WindowDestroyed:
+                _activated.Remove(hwnd);
                 Remove(hwnd);
                 break;
             default:
@@ -265,6 +283,7 @@ internal sealed class WindowTracker : IDisposable
                 SetForeground(hwnd);
                 break;
             case WindowEvent.Destroyed:
+                _activated.Remove(hwnd);
                 Remove(hwnd);
                 break;
             case WindowEvent.NameChanged:
@@ -340,6 +359,13 @@ internal sealed class WindowTracker : IDisposable
     private void SetForeground(nint hwnd)
     {
         Foreground = hwnd;
+        // A dialog in front puts the app window it belongs to first.
+        nint window = TopLevelWindows.RootOwner(hwnd);
+        if (window != 0)
+        {
+            _activated.Remove(window);
+            _activated.Insert(0, window);
+        }
         _flashing.Remove(hwnd);
         QueueChanged();
         QueueForegroundChanged();

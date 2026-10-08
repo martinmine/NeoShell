@@ -94,6 +94,13 @@ internal sealed class NotificationArea : IDisposable
         remove => _host.WorkAreaChanged -= value;
     }
 
+    /// <summary>A window's title bar was shaken (see <see cref="TrayHost.WindowShaken"/>).</summary>
+    public event Action<nint>? WindowShaken
+    {
+        add => _host.WindowShaken += value;
+        remove => _host.WindowShaken -= value;
+    }
+
     /// <summary>Publishes an edge's auto-hide bar for shell32 (see <see cref="TrayHost.PublishAutoHideBar"/>).</summary>
     public void PublishAutoHideBar(nint taskbarMonitor, nint monitor, AppBarEdge edge, nint bar) =>
         _host.PublishAutoHideBar(taskbarMonitor, monitor, edge, bar);

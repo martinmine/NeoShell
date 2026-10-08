@@ -17,7 +17,8 @@ namespace NeoShell.Switcher;
 /// <summary>
 /// Alt+Tab as the shell: live previews of the open windows in rows on an acrylic panel in the middle of the screen,
 /// most recently used first, the chosen one outlined. Driven by <see cref="AltTabKeys"/>; a click on a preview
-/// switches to it, its close button (or Delete) closes it.
+/// switches to it, its close button (or Delete) closes it. Opened with Ctrl+Alt+Tab it stays up, in front, until a
+/// window is chosen, Esc, or a click elsewhere.
 /// </summary>
 internal sealed class WindowSwitcher : Window
 {
@@ -45,10 +46,15 @@ internal sealed class WindowSwitcher : Window
     private readonly FramelessWindow _frameless;
     private readonly PinnedWindow _placement;
     private readonly DispatcherQueueTimer _showTimer;
+    // Behind a sticky switcher, over the work area: a click outside it only closes it, as with Explorer's.
+    private readonly ClickCatcher _clickCatcher = new();
     private readonly List<Item> _items = [];
     private IReadOnlyList<SwitcherSlot> _slots = [];
     private int _selected = -1;
     private bool _visible;
+    private bool _sticky;
+    // The window in front when it opened, which gets the foreground back when a sticky switcher is cancelled.
+    private nint _previous;
 
     /// <param name="theme">The theme the taskbar shows, read each time the switcher opens.</param>
     /// <param name="snapping">Snap, whose snap groups the switcher shows as items of their own.</param>
@@ -80,6 +86,23 @@ internal sealed class WindowSwitcher : Window
         _showTimer.IsRepeating = false;
         _showTimer.Tick += (_, _) => ShowPanel();
         tracker.Changed += OnWindowsChanged;
+        _clickCatcher.Clicked += () =>
+        {
+            if (_sticky && _visible)
+            {
+                Cancel();
+                Dismissed?.Invoke();
+            }
+        };
+        // A sticky switcher has the foreground; anything else taking it (a click on the taskbar) closes it too.
+        Activated += (_, e) =>
+        {
+            if (e.WindowActivationState == WindowActivationState.Deactivated && _sticky && _visible)
+            {
+                Hide();
+                Dismissed?.Invoke();
+            }
+        };
 
         Closed += (_, _) =>
         {
@@ -88,10 +111,12 @@ internal sealed class WindowSwitcher : Window
             Clear();
             _placement.Dispose();
             _frameless.Dispose();
+            _clickCatcher.Dispose();
         };
     }
 
-    /// <summary>The switcher closed by itself: a preview was clicked, or the last window closed.</summary>
+    /// <summary>The switcher closed by itself: a preview was clicked, the last window closed, or (sticky) it lost the
+    /// foreground.</summary>
     public event Action? Dismissed;
 
     public void Run(SwitcherCommand command)
@@ -99,7 +124,10 @@ internal sealed class WindowSwitcher : Window
         switch (command)
         {
             case SwitcherCommand.Open or SwitcherCommand.OpenBackwards:
-                Open(backwards: command == SwitcherCommand.OpenBackwards);
+                Open(backwards: command == SwitcherCommand.OpenBackwards, sticky: false);
+                break;
+            case SwitcherCommand.OpenSticky or SwitcherCommand.OpenStickyBackwards:
+                Open(backwards: command == SwitcherCommand.OpenStickyBackwards, sticky: true);
                 break;
             case SwitcherCommand.Next:
                 Select(AltTabLayout.Step(_selected, _items.Count, 1));
@@ -117,7 +145,7 @@ internal sealed class WindowSwitcher : Window
                 SwitchTo(_selected);
                 break;
             case SwitcherCommand.Cancel:
-                Hide();
+                Cancel();
                 break;
             case SwitcherCommand.CloseWindow:
                 CloseWindow(_selected);
@@ -125,11 +153,12 @@ internal sealed class WindowSwitcher : Window
         }
     }
 
-    private void Open(bool backwards)
+    private void Open(bool backwards, bool sticky)
     {
         int ownProcess = Environment.ProcessId;
         Dictionary<nint, WindowInfo> windows = _tracker.Windows.Where(w => w.ProcessId != ownProcess).ToDictionary(w => w.Handle);
-        IReadOnlyList<nint> order = AltTabLayout.Order([.. windows.Keys], TopLevelWindows.GetAll(), TopLevelWindows.GetForeground());
+        IReadOnlyList<nint> order = AltTabLayout.Order(
+            [.. windows.Keys], _tracker.RecentlyActive, TopLevelWindows.GetAll(), TopLevelWindows.GetForeground());
         // "Show my snapped windows ... when I press Alt+Tab": each snap group before its windows, as Explorer's.
         IReadOnlyList<SwitcherEntry> entries = _snapping is not null && WindowSnapping.ShowGroups
             ? AltTabLayout.WithGroups(order, _snapping.Groups.All)
@@ -139,7 +168,13 @@ internal sealed class WindowSwitcher : Window
         foreach (SwitcherEntry entry in entries)
             _items.Add(new Item(windows[entry.Window], entry.Group));
         _selected = AltTabLayout.FirstSelection(entries, backwards);
-        _showTimer.Start();
+        _sticky = sticky;
+        _previous = TopLevelWindows.GetForeground();
+        // Ctrl+Alt+Tab isn't a quick switch: it shows at once.
+        if (sticky)
+            ShowPanel();
+        else
+            _showTimer.Start();
     }
 
     private void Select(int index)
@@ -165,6 +200,16 @@ internal sealed class WindowSwitcher : Window
             TopLevelWindows.SwitchTo(item.Window.Handle);
     }
 
+    private void Cancel()
+    {
+        bool hadForeground = _sticky && _visible;
+        Hide();
+        // Explorer leaves the foreground on its hidden switcher, so keys go nowhere; the window that was in front
+        // gets it back instead.
+        if (hadForeground && TopLevelWindows.Exists(_previous))
+            TopLevelWindows.SwitchTo(_previous);
+    }
+
     private void Hide()
     {
         _showTimer.Stop();
@@ -172,6 +217,7 @@ internal sealed class WindowSwitcher : Window
         {
             _visible = false;
             AppWindow.Hide();
+            _clickCatcher.Hide();
         }
         Clear();
     }
@@ -261,6 +307,12 @@ internal sealed class WindowSwitcher : Window
         {
             _visible = true;
             AppWindow.Show(activateWindow: false);
+            // The keys went to the app in front; a sticky switcher takes the foreground, as Explorer's does.
+            if (_sticky)
+            {
+                _clickCatcher.Show(monitor.WorkArea, _hwnd);
+                TopLevelWindows.SwitchTo(_hwnd);
+            }
         }
     }
 

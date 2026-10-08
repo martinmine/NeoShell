@@ -13,6 +13,7 @@ public sealed class SwitcherTests
     private const int Down = 0x28;
     private const int Delete = 0x2E;
     private const int Enter = 0x0D;
+    private const int Space = 0x20;
 
     [Fact]
     public void Alt_Tab_opens_the_switcher_and_letting_go_of_Alt_switches()
@@ -48,16 +49,78 @@ public sealed class SwitcherTests
     }
 
     [Fact]
-    public void Tab_without_Alt_or_with_Ctrl_is_left_alone()
+    public void Tab_without_Alt_is_left_alone()
     {
         var keys = new AltTabKeys();
         Assert.False(keys.OnKey(Tab, true, out SwitcherCommand? command));
         Assert.Null(command);
         Assert.False(keys.OnKey(Tab, false, out _));
+    }
 
+    [Fact]
+    public void Ctrl_Alt_Tab_opens_it_to_stay_after_the_keys_are_let_go()
+    {
+        var keys = new AltTabKeys();
         keys.OnKey(Control, true, out _);
         keys.OnKey(Alt, true, out _);
-        Assert.False(keys.OnKey(Tab, true, out command));
+
+        Assert.True(keys.OnKey(Tab, true, out SwitcherCommand? command));
+        Assert.Equal(SwitcherCommand.OpenSticky, command);
+        Assert.True(keys.OnKey(Tab, false, out _));
+        Assert.False(keys.OnKey(Alt, false, out command));
+        Assert.Null(command);
+        keys.OnKey(Control, false, out _);
+        Assert.True(keys.IsOpen);
+
+        // Tab and Shift+Tab move on their own, as do the arrows; Space switches, as Enter does.
+        Assert.True(keys.OnKey(Tab, true, out command));
+        Assert.Equal(SwitcherCommand.Next, command);
+        keys.OnKey(Shift, true, out _);
+        Assert.True(keys.OnKey(Tab, true, out command));
+        Assert.Equal(SwitcherCommand.Previous, command);
+        keys.OnKey(Shift, false, out _);
+        Assert.True(keys.OnKey(Left, true, out command));
+        Assert.Equal(SwitcherCommand.Previous, command);
+        Assert.True(keys.OnKey(Space, true, out command));
+        Assert.Equal(SwitcherCommand.Switch, command);
+        Assert.False(keys.IsOpen);
+    }
+
+    [Fact]
+    public void Ctrl_Alt_Shift_Tab_opens_it_backwards_and_Alt_Tab_moves_on_while_it_stays()
+    {
+        var keys = new AltTabKeys();
+        keys.OnKey(Control, true, out _);
+        keys.OnKey(Alt, true, out _);
+        keys.OnKey(Shift, true, out _);
+        keys.OnKey(Tab, true, out SwitcherCommand? command);
+        Assert.Equal(SwitcherCommand.OpenStickyBackwards, command);
+        keys.OnKey(Tab, false, out _);
+        keys.OnKey(Shift, false, out _);
+        keys.OnKey(Control, false, out _);
+        keys.OnKey(Alt, false, out _);
+
+        keys.OnKey(Alt, true, out _);
+        Assert.True(keys.OnKey(Tab, true, out command));
+        Assert.Equal(SwitcherCommand.Next, command);
+        keys.OnKey(Tab, false, out _);
+        keys.OnKey(Alt, false, out command);
+        Assert.Null(command);
+        Assert.True(keys.IsOpen);
+
+        Assert.True(keys.OnKey(Escape, true, out command));
+        Assert.Equal(SwitcherCommand.Cancel, command);
+        Assert.False(keys.IsOpen);
+    }
+
+    [Fact]
+    public void Space_is_left_alone_while_Alt_Tab_is_held()
+    {
+        var keys = new AltTabKeys();
+        keys.OnKey(Alt, true, out _);
+        keys.OnKey(Tab, true, out _);
+
+        Assert.False(keys.OnKey(Space, true, out SwitcherCommand? command));
         Assert.Null(command);
     }
 
@@ -98,12 +161,32 @@ public sealed class SwitcherTests
     }
 
     [Fact]
-    public void Order_is_the_window_in_front_then_the_stack()
+    public void Order_is_the_window_in_front_then_the_stack_for_windows_never_in_front()
     {
         nint[] windows = [1, 2, 3, 4];
         nint[] zOrder = [100, 3, 1, 4]; // 100 is someone else's topmost window; 2 isn't listed
 
-        Assert.Equal(new nint[] { 4, 3, 1, 2 }, AltTabLayout.Order(windows, zOrder, foreground: 4));
+        Assert.Equal(new nint[] { 4, 3, 1, 2 }, AltTabLayout.Order(windows, [], zOrder, foreground: 4));
+    }
+
+    [Fact]
+    public void Order_is_by_when_each_was_last_in_front_not_the_stack()
+    {
+        // 2 was minimized after being in front (the stack has it last), 1 was put on top without being activated:
+        // as in Explorer, 2 stays second and 1 keeps its place.
+        nint[] windows = [1, 2, 3, 4];
+        nint[] recentlyActive = [3, 2, 4, 1];
+        nint[] zOrder = [1, 3, 4, 2];
+
+        Assert.Equal(new nint[] { 3, 2, 4, 1 }, AltTabLayout.Order(windows, recentlyActive, zOrder, foreground: 3));
+    }
+
+    [Fact]
+    public void Windows_never_in_front_come_after_the_others_in_stack_order()
+    {
+        nint[] windows = [1, 2, 3, 4];
+
+        Assert.Equal(new nint[] { 4, 2, 3, 1 }, AltTabLayout.Order(windows, [4, 2], zOrder: [3, 1, 2, 4], foreground: 4));
     }
 
     [Theory]

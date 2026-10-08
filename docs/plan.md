@@ -441,7 +441,15 @@ Each item is done when it looks and behaves as Explorer's (layout, behaviour, an
       same to the pixel — differs: no move animation (Explorer's ~250 ms slide, as for every Win+arrow), a DPI-unaware
       window's own bounds 1 px off at 125% — not run live: three or more monitors (order of Win+Left/Right), monitors
       offset vertically (unit tested)
-- [ ] T29 Title-bar shake; Ctrl+Alt+Tab
+- [x] T29 Title-bar shake; Ctrl+Alt+Tab — found with cdb and Ghidra that the shake is spotted by uxtheme in each
+      app's process and posted to `Shell_TrayWnd` (0x4F2), which NeoShell owns as the shell: it now does Explorer's
+      part (setting off by default, policy, `IsValidShakeWindow`, toggle per window shared with Win+Home, restored
+      behind the shaken window); minimize/restore animations as the shell (`HSHELL_GETMINRECT` answered with the
+      taskbar button), recorded at 60 fps against Explorer's; Ctrl+Alt+Tab sticky switcher (keys, Space, focus,
+      click outside, Delete, no wheel) compared live with Explorer's; Alt+Tab, Snap Assist and the previews' groups
+      now by last activation, as Explorer — differs: after Esc or a click outside NeoShell gives the foreground back
+      (Explorer leaves it on its hidden switcher); Edge's tabs in Alt+Tab (private `WindowTabHost`) not shown — not
+      run live: the shake policy, a low-integrity app's shake
 - [ ] T30 Win+V, Win+Period, Win+H, Win+Shift+R, Copilot key
 - [ ] T31 Snips: freeform, window and full-screen modes, the toolbar, opening in Snipping Tool
 - [ ] T32 Quick Settings: brightness, mobile hotspot, VPN, rotation lock, keyboard layout; night light and nearby

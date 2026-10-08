@@ -720,6 +720,30 @@ Shell mode only, like the wallpaper: alongside Explorer, Explorer's desktop has 
   restores those still minimized; Explorer's own toggle isn't available as the shell. `ShowDesktop` also does
   Win+M (minimize all, adding to those minimized before), Win+Shift+M (restore them) and Win+Home (all but the
   window in front; again restores them without activating, though some apps, Chromium's, activate themselves).
+- Title bar shake and Win+Home are one command in Explorer (`CTray::_ShakeTriggered`, trigger 1 the key, 2 the
+  shake). Windows itself has no shake: uxtheme, in every themed app's own process (`CShakeWnd`,
+  `OnPreWindowMovingShakeHandler` on `WM_MOVING`), spots it and posts `0x4F2` (lParam: the window) to
+  `FindWindow("Shell_TrayWnd")`, after `AllowSetForegroundWindow` for it; Explorer lets that message through UIPI
+  (`ChangeWindowMessageFilterEx`). As the shell NeoShell owns `Shell_TrayWnd`, so it gets the message and does the
+  same (`TrayHost.WindowShaken`). uxtheme's detection (constants read from its data): strokes start above 600 px/s
+  between `WM_MOVING`s and end below 600 px/s; a stroke 1–2000 px long, at least 157.5° from the one before
+  (cos² ≥ cos²(157.5°)) and within 5× its length counts; three such strokes within 1 s of the first's start trigger;
+  a pause of 0.25 s between moves starts over, and after a trigger nothing more until a 0.4 s pause. Esc while the
+  window is still held posts the message again (a GetMessage hook), undoing it. Both uxtheme and Explorer read
+  `DisallowShaking` (HKCU …\Explorer\Advanced) with `SHRegGetBoolUSValue` defaulting to true: absent means off,
+  Windows 11's default; Settings' "Title bar window shake" writes 0 (on) or 1. The policy
+  `NoWindowMinimizingShortcuts` (Software\Policies\Microsoft\Windows\Explorer) turns off the shake but not
+  Win+Home. Explorer then checks the window with uxtheme's `IsValidShakeWindow` (ordinal 86: a top-level window
+  with no owner or `WS_EX_APPWINDOW`, not the taskbar or the desktop) — the foreground window for Win+Home, so Win+Home
+  with the desktop in front does nothing — minimizes every window but its root owner, and remembers it: the same
+  again for the same window restores the others behind it (it stays on top; NeoShell restores them with
+  `SWP_ASYNCWINDOWPOS` just below it); for another window it minimizes all but that one. Win+D/Win+M forget it.
+  Both minimize and restore with Windows' own animation to and from the taskbar button (recorded at 60 fps, ~150 ms).
+- Minimize and restore animations need the shell: win32k sends `WM_KLUDGEMINRECT` (0x8B) to every shell hook window
+  (100 ms timeout), whose `DefWindowProc` turns it into `HSHELL_GETMINRECT` with a `SHELLHOOKINFO`; user32 reads the
+  rectangle back as four 16-bit values, which Explorer's `CTaskBand::_HandleGetMinRect` writes (not the RECT the
+  documentation has). Without an answer windows minimize and restore with no animation; as the shell NeoShell
+  answers with the window's taskbar button (`ShellHook.MinimizeRect`, `TaskbarWindow.TaskButtonBounds`).
 
 ### Layout (left → right, or centred like Windows 11 by setting)
 
@@ -2091,9 +2115,29 @@ shutdownux.dll's choices (`CShutdownChoices`, read with its PDB in Ghidra). Each
 - Keys from the keyboard hook (`AltTabKeys`, unit tested): Alt+Tab opens it, Tab/Shift+Tab and the arrow keys move,
   letting go of Alt or Enter switches, Esc cancels, Delete closes the chosen window. Its keys are swallowed (down,
   repeats and up); Alt always passes, masked with vkE8 so the app in front doesn't open its menu bar.
-- `WindowSwitcher`: the taskbar's windows of other processes, the one in front first and then by z-order (most
-  recently used, `AltTabLayout.Order`), the previous one chosen (Shift: the last). Shown after 100 ms, so a quick
-  Alt+Tab switches without the panel flashing up; moving on shows it at once.
+- `WindowSwitcher`: the taskbar's windows of other processes, most recently used first (`AltTabLayout.Order`), the
+  previous one chosen (Shift: the last). Shown after 100 ms, so a quick Alt+Tab switches without the panel flashing
+  up; moving on shows it at once.
+- Most recently used is when each window was last in front, as Explorer keeps it (twinui.pcshell's
+  `CWin32ApplicationView::SetLastActivationTimestamp`, sorted by `SwitchItem::GetLastActivationTimestamp`), not the
+  z-order: a window minimized from the front stays second, though the stack has it last. `WindowTracker.RecentlyActive`
+  moves a window (a dialog's root owner) first on each foreground change; windows that were there before NeoShell
+  start in their z-order, and ones never in front go after the rest in z-order. Snap Assist's suggestions and the
+  taskbar previews' snap groups use the same order.
+- Ctrl+Alt+Tab (Shift: backwards, from the last) opens it to stay, as Explorer's (`CAltTabViewHost::IsSticky`),
+  measured on Explorer: shown at once (no animation, opening or closing), with the same first choice; it takes the
+  foreground; letting go of the keys switches nothing; Tab and Shift+Tab move without Alt, as do the arrows,
+  Ctrl+Alt+Tab and Alt+Tab; Enter or Space switch, as does a click on a card; Delete closes the chosen window and
+  the panel stays, re-laid; the mouse wheel does nothing; hovering shows a card's close button but doesn't choose it;
+  Esc, or a click outside, closes it. Explorer's window covers the work area, so a click outside only closes it:
+  NeoShell puts an all but transparent `ClickCatcher` over the work area under the panel; a click on the taskbar (or
+  the widget sidebar, outside the work area) closes it by taking the foreground. After Esc or a click outside,
+  Explorer leaves the foreground on its hidden switcher window, so keys go nowhere; NeoShell gives it back to the
+  window that was in front.
+- Explorer's "Show tabs from apps when snapping or pressing Alt+Tab" (`MultiTaskingAltTabFilter`: 0 the 20 most
+  recent tabs, 1 five, 2 three, the default when absent, 3 none) adds Edge's tabs, which Edge hands the shell through
+  `Windows.UI.Shell.WindowTabManager`, served by twinui.pcshell's private `WindowTabHost`: no public way to read them,
+  so NeoShell shows windows only (as with 3).
 - Explorer's look: an acrylic panel centred on the monitor of the window in front; cards in centred rows
   (`AltTabLayout.Arrange`), each the window's colours with icon and title over a live DWM thumbnail 132 epx high
   (a minimized window shows its icon), the chosen one ringed in the accent colour 3 epx off the card; the close button

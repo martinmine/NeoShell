@@ -238,7 +238,7 @@ internal sealed class WindowSnapping : IDisposable
         Dictionary<nint, WindowInfo> windows = _tracker.Windows
             .Where(w => w.ProcessId != ownProcess && !exclude.Contains(w.Handle) && TopLevelWindows.CanResize(w.Handle))
             .ToDictionary(w => w.Handle);
-        return [.. AltTabLayout.Order([.. windows.Keys], TopLevelWindows.GetAll(), TopLevelWindows.GetForeground()).Select(h => windows[h])];
+        return [.. AltTabLayout.Order([.. windows.Keys], _tracker.RecentlyActive, TopLevelWindows.GetAll(), TopLevelWindows.GetForeground()).Select(h => windows[h])];
     }
 
     /// <summary>

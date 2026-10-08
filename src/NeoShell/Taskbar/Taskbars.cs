@@ -57,6 +57,8 @@ internal sealed class Taskbars : IDisposable
         uint dpi = DisplayMonitor.GetAll().Select(m => m.Dpi).DefaultIfEmpty(96u).Max();
         Icons = new AppIcons((int)Math.Round(32 * dpi / 96.0));
         Tracker = new WindowTracker(new AppIcons((int)Math.Round(24 * dpi / 96.0)), announceButtons: runMode == RunMode.Shell);
+        if (runMode == RunMode.Shell)
+            Tracker.ButtonBounds = hwnd => _windows.Select(w => w.TaskButtonBounds(hwnd)).FirstOrDefault(b => b is not null);
         Tracker.Changed += RefreshTasks;
         Tracker.ForegroundChanged += UpdateFullScreen;
         Settings.Changed += OnSettingsChanged;
@@ -135,6 +137,7 @@ internal sealed class Taskbars : IDisposable
             Tray.IconBounds = icon => PrimaryWindow?.TrayIconBounds(icon);
             Tray.TaskbarListCalled += Tracker.Apply;
             Tray.ThumbBarCalled += Tracker.Apply;
+            Tray.WindowShaken += OnWindowShaken;
             Tray.BalloonRequested += ShowBalloon;
             Tray.BalloonWithdrawn += key => _toasts?.Hide(key);
             _appBars = new AppBars(Tray, () => PrimaryWindow?.ScreenBounds, () => _windowSettings.AutoHide);
@@ -371,8 +374,20 @@ internal sealed class Taskbars : IDisposable
     /// <summary>Win+Shift+M.</summary>
     public void RestoreMinimized() => _showDesktop.Restore();
 
-    /// <summary>Win+Home: every window but the one in front.</summary>
-    public void ToggleAllButForeground() => _showDesktop.ToggleAllBut(TopLevelWindows.GetForeground());
+    /// <summary>Win+Home: every window but the one in front; nothing when that's the desktop or the taskbar.</summary>
+    public void ToggleAllButForeground()
+    {
+        nint foreground = TopLevelWindows.GetForeground();
+        if (TopLevelWindows.IsShakable(foreground))
+            _showDesktop.ToggleAllBut(foreground);
+    }
+
+    // Shaking a window's title bar is Win+Home for that window, when the setting allows it.
+    private void OnWindowShaken(nint window)
+    {
+        if (ShowDesktop.ShakingAllowed())
+            _showDesktop.ToggleAllBut(window);
+    }
 
     public void OpenTaskManager()
     {

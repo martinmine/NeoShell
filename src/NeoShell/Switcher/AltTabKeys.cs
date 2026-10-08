@@ -1,12 +1,13 @@
 namespace NeoShell.Switcher;
 
 /// <summary>What a key does to the window switcher.</summary>
-public enum SwitcherCommand { Open, OpenBackwards, Next, Previous, Up, Down, Switch, Cancel, CloseWindow }
+public enum SwitcherCommand { Open, OpenBackwards, OpenSticky, OpenStickyBackwards, Next, Previous, Up, Down, Switch, Cancel, CloseWindow }
 
 /// <summary>
 /// Spots Alt+Tab in a stream of key presses, then drives the window switcher while Alt is held, as Explorer's does:
 /// Tab and Shift+Tab, the arrow keys, Enter (or letting go of Alt) to switch, Esc to cancel and Delete to close the
-/// chosen window.
+/// chosen window. Ctrl+Alt+Tab opens it to stay: letting go of the keys switches nothing, Tab moves on without Alt
+/// and Space switches too.
 /// </summary>
 /// <remarks>
 /// The switcher's keys are swallowed (down, repeats and up) so neither the app in front nor Windows' own Alt+Tab sees
@@ -20,6 +21,7 @@ public sealed class AltTabKeys
     private const int VK_CONTROL = 0x11;
     private const int VK_MENU = 0x12;
     private const int VK_ESCAPE = 0x1B;
+    private const int VK_SPACE = 0x20;
     private const int VK_LEFT = 0x25;
     private const int VK_UP = 0x26;
     private const int VK_RIGHT = 0x27;
@@ -39,6 +41,7 @@ public sealed class AltTabKeys
     private bool _shiftDown;
     private bool _controlDown;
     private bool _winDown;
+    private bool _sticky;
 
     /// <summary>Whether the switcher is up (or about to show), so its keys are taken.</summary>
     public bool IsOpen { get; private set; }
@@ -51,7 +54,7 @@ public sealed class AltTabKeys
         {
             case VK_MENU or VK_LMENU or VK_RMENU:
                 _altDown = down;
-                if (!down && IsOpen)
+                if (!down && IsOpen && !_sticky)
                 {
                     IsOpen = false;
                     command = SwitcherCommand.Switch;
@@ -72,17 +75,24 @@ public sealed class AltTabKeys
         if (!down)
             return _swallowing.Remove(virtualKey);
 
-        if (virtualKey == VK_TAB && _altDown && !_controlDown && !_winDown)
+        if (virtualKey == VK_TAB && _altDown && !_winDown && !IsOpen)
         {
-            command = IsOpen
-                ? (_shiftDown ? SwitcherCommand.Previous : SwitcherCommand.Next)
-                : (_shiftDown ? SwitcherCommand.OpenBackwards : SwitcherCommand.Open);
+            _sticky = _controlDown;
+            command = (_sticky, _shiftDown) switch
+            {
+                (false, false) => SwitcherCommand.Open,
+                (false, true) => SwitcherCommand.OpenBackwards,
+                (true, false) => SwitcherCommand.OpenSticky,
+                (true, true) => SwitcherCommand.OpenStickyBackwards,
+            };
             IsOpen = true;
         }
         else if (IsOpen)
         {
             command = virtualKey switch
             {
+                VK_TAB when _altDown || _sticky => _shiftDown ? SwitcherCommand.Previous : SwitcherCommand.Next,
+                VK_SPACE when _sticky => SwitcherCommand.Switch,
                 VK_LEFT => SwitcherCommand.Previous,
                 VK_RIGHT => SwitcherCommand.Next,
                 VK_UP => SwitcherCommand.Up,
@@ -102,6 +112,9 @@ public sealed class AltTabKeys
         return true;
     }
 
-    /// <summary>The switcher closed by other means (a click): its keys pass through again until the next Alt+Tab.</summary>
+    /// <summary>
+    /// The switcher closed by other means (a click, or another window taking the foreground): its keys pass through
+    /// again until the next Alt+Tab.
+    /// </summary>
     public void Close() => IsOpen = false;
 }
