@@ -65,10 +65,16 @@ internal sealed class DesktopIcon(DesktopEntry entry) : INotifyPropertyChanged
 
     public double OverlaySize => Math.Min(_size, MaxOverlaySize);
 
-    /// <summary>Where the icon is: a monitor and a cell of its grid; set by <see cref="DesktopIcons"/>, null until placed.</summary>
-    public IconPlace? Place { get; set; }
+    /// <summary>
+    /// Where the icon is: a monitor and a point on its grid, off the cells only while icons aren't aligned to the grid;
+    /// set by <see cref="DesktopIcons"/>, null until placed.
+    /// </summary>
+    public IconPosition? Position { get; set; }
 
-    /// <summary>The icon's cell on its monitor's grid.</summary>
+    /// <summary>The monitor and the cell nearest to the icon.</summary>
+    public IconPlace? Place => Position?.Nearest;
+
+    /// <summary>The icon's cell on its monitor's grid (the nearest one, off the grid).</summary>
     public GridCell Cell => Place?.Cell ?? default;
 
     /// <summary>The name and flags Explorer's saved layouts know the item by (<see cref="IconLayouts"/>).</summary>

@@ -118,9 +118,9 @@ public sealed class DesktopLayoutTests
         var twoMonitors = DesktopLayout.SavedPlaces(layouts, TwoMonitors());
         var oneMonitor = DesktopLayout.SavedPlaces(layouts, PrimaryOnly());
 
-        Assert.Equal(new IconPlace(1, new GridCell(3, 2)), twoMonitors[(RecycleBin, LayoutIconFlags.Marked)]);
-        Assert.Equal(new IconPlace(0, new GridCell(0, 0)), oneMonitor[(RecycleBin, LayoutIconFlags.Marked)]);
-        Assert.Equal(new IconPlace(0, new GridCell(0, 3)), oneMonitor[("TOOL.EXE", LayoutIconFlags.Marked)]);
+        Assert.Equal(new IconPosition(1, 3, 2), twoMonitors[(RecycleBin, LayoutIconFlags.Marked)]);
+        Assert.Equal(new IconPosition(0, 0, 0), oneMonitor[(RecycleBin, LayoutIconFlags.Marked)]);
+        Assert.Equal(new IconPosition(0, 0, 3), oneMonitor[("TOOL.EXE", LayoutIconFlags.Marked)]);
     }
 
     [Fact]
@@ -132,12 +132,12 @@ public sealed class DesktopLayoutTests
         IReadOnlyList<DesktopWorkspace> narrowed = DesktopLayout.Workspaces(
             [(new RectInt32(0, 0, 1444, 940), 96u, true), (new RectInt32(1764, 0, 1280, 752), 96u, false)], DesktopViewSettings.MediumIcons);
 
-        Assert.Equal(new IconPlace(1, new GridCell(3, 2)), DesktopLayout.SavedPlaces(layouts, narrowed)[(RecycleBin, LayoutIconFlags.Marked)]);
+        Assert.Equal(new IconPosition(1, 3, 2), DesktopLayout.SavedPlaces(layouts, narrowed)[(RecycleBin, LayoutIconFlags.Marked)]);
 
         // ...and the places saved for it replace that other desktop's, which would otherwise bring old places back.
-        IconLayouts saved = DesktopLayout.WithPlaces(layouts, narrowed, [(RecycleBin, LayoutIconFlags.Marked, new IconPlace(0, new GridCell(5, 5)))]);
+        IconLayouts saved = DesktopLayout.WithPlaces(layouts, narrowed, [(RecycleBin, LayoutIconFlags.Marked, new IconPosition(0, 5, 5))]);
         Assert.Equal(["01:(023x009)", "01:(019x009)_00:(016x007)"], saved.Desktops.Select(desktop => desktop.Key));
-        Assert.Equal(new IconPlace(0, new GridCell(5, 5)), DesktopLayout.SavedPlaces(saved, TwoMonitors())[(RecycleBin, LayoutIconFlags.Marked)]);
+        Assert.Equal(new IconPosition(0, 5, 5), DesktopLayout.SavedPlaces(saved, TwoMonitors())[(RecycleBin, LayoutIconFlags.Marked)]);
     }
 
     [Fact]
@@ -148,11 +148,11 @@ public sealed class DesktopLayoutTests
         // fit on for the second, so the first wins and the Recycle Bin goes back to the primary monitor.
         IconLayouts layouts = IconLayouts.Parse(ExplorerLayouts)!;
         IconLayouts moved = DesktopLayout.WithPlaces(layouts, TwoMonitors(),
-            [(RecycleBin, LayoutIconFlags.Marked, new IconPlace(1, new GridCell(14, 6)))]);
+            [(RecycleBin, LayoutIconFlags.Marked, new IconPosition(1, 14, 6))]);
 
         var places = DesktopLayout.SavedPlaces(moved, TwoMonitors(secondWidth: 1024));
 
-        Assert.Equal(new IconPlace(0, new GridCell(0, 0)), places[(RecycleBin, LayoutIconFlags.Marked)]);
+        Assert.Equal(new IconPosition(0, 0, 0), places[(RecycleBin, LayoutIconFlags.Marked)]);
     }
 
     [Fact]
@@ -162,8 +162,8 @@ public sealed class DesktopLayoutTests
 
         var places = DesktopLayout.SavedPlaces(layouts, PrimaryOnly(1600, 852));
 
-        Assert.Equal(new IconPlace(0, new GridCell(0, 0)), places[(RecycleBin, LayoutIconFlags.Marked)]);
-        Assert.Equal(new IconPlace(0, new GridCell(12, 6)), places[("Projects", LayoutIconFlags.Marked | LayoutIconFlags.Folder)]);
+        Assert.Equal(new IconPosition(0, 0, 0), places[(RecycleBin, LayoutIconFlags.Marked)]);
+        Assert.Equal(new IconPosition(0, 12, 6), places[("Projects", LayoutIconFlags.Marked | LayoutIconFlags.Folder)]);
     }
 
     [Fact]
@@ -177,7 +177,7 @@ public sealed class DesktopLayoutTests
 
         // ...and the Recycle Bin, on the monitor that's gone, joins the new icons.
         Assert.False(places.ContainsKey((RecycleBin, LayoutIconFlags.Marked)));
-        Assert.Equal(new IconPlace(0, new GridCell(0, 2)), places[("Microsoft Edge.lnk", LayoutIconFlags.Marked | LayoutIconFlags.Common)]);
+        Assert.Equal(new IconPosition(0, 0, 2), places[("Microsoft Edge.lnk", LayoutIconFlags.Marked | LayoutIconFlags.Common)]);
     }
 
     [Fact]
@@ -187,8 +187,8 @@ public sealed class DesktopLayoutTests
 
         IconLayouts saved = DesktopLayout.WithPlaces(layouts, TwoMonitors(),
         [
-            (RecycleBin, LayoutIconFlags.Marked, new IconPlace(1, new GridCell(15, 6))),
-            ("Notes.txt", LayoutIconFlags.Marked, new IconPlace(0, new GridCell(4, 4))),
+            (RecycleBin, LayoutIconFlags.Marked, new IconPosition(1, 15, 6)),
+            ("Notes.txt", LayoutIconFlags.Marked, new IconPosition(0, 4, 4)),
         ]);
         IconLayouts read = IconLayouts.Parse(saved.Serialize())!;
 
@@ -250,5 +250,50 @@ public sealed class DesktopLayoutTests
 
         Assert.Equal(new IconPlace(1, new GridCell(0, 0)), moved[0]);
         Assert.Equal(new IconPlace(1, new GridCell(2, 1)), moved[1]);
+    }
+
+    [Fact]
+    public void Off_the_grid_icons_stay_where_they_were_put_and_new_ones_take_cells_no_icon_covers()
+    {
+        // As on Explorer's desktop with Align icons to grid off: one icon 0.7 of a row down covers the first column's
+        // first two cells, another overlaps it, and the new icon goes to the first cell neither touches.
+        IconPosition[] positions = DesktopGrid.ArrangeFree(
+            [new IconPosition(0, 0, 0.7), new IconPosition(0, 0.25, 0.9), null],
+            [new GridSize(4, 5)],
+            primary: 0);
+
+        Assert.Equal(new IconPosition(0, 0, 0.7), positions[0]);
+        Assert.Equal(new IconPosition(0, 0.25, 0.9), positions[1]);
+        Assert.Equal(new IconPosition(0, 0, 2), positions[2]);
+    }
+
+    [Fact]
+    public void Off_the_grid_icons_stay_on_their_monitor()
+    {
+        // Explorer kept an icon dragged past the VM's 1764x940 work area at 1702,839: its whole 76x101 cell on it.
+        DesktopWorkspace workspace = PrimaryOnly(1764, 940)[0];
+
+        IconPosition clamped = workspace.Clamp(new IconPosition(0, 30, -0.4));
+
+        Assert.Equal(1764 / 76.0 - 1, clamped.X, 6);
+        Assert.Equal(0, clamped.Y);
+        Assert.Equal(940 / 101.0 - 1, workspace.Clamp(new IconPosition(0, 0, 9)).Y, 6);
+    }
+
+    [Theory]
+    [InlineData(2.49, 0.5, 2, 1)]
+    [InlineData(20.868, 3.96, 21, 4)]
+    public void An_icon_off_the_grid_snaps_to_the_nearest_cell(double x, double y, int column, int row) =>
+        Assert.Equal(new IconPlace(0, new GridCell(column, row)), new IconPosition(0, x, y).Nearest);
+
+    [Fact]
+    public void Places_off_the_grid_are_saved_as_Explorer_saves_them()
+    {
+        IconLayouts layouts = IconLayouts.Parse(ExplorerLayouts)!;
+
+        IconLayouts saved = DesktopLayout.WithPlaces(layouts, PrimaryOnly(), [("Notes.txt", LayoutIconFlags.Marked, new IconPosition(0, 20.868421f, 3.960396f))]);
+
+        Assert.Equal(new LayoutIcon("Notes.txt", LayoutIconFlags.Marked, 20.868421f, 3.960396f), Assert.Single(saved.Find("01:(023x009)")!.Workspaces[0].Icons));
+        Assert.Equal(new IconPosition(0, 20.868421f, 3.960396f), DesktopLayout.SavedPlaces(saved, PrimaryOnly())[("Notes.txt", LayoutIconFlags.Marked)]);
     }
 }

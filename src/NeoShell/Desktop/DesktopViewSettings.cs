@@ -9,9 +9,10 @@ namespace NeoShell.Desktop;
 /// <param name="IconSize">Icon size in effective pixels: 32 small, 48 medium, 96 large.</param>
 /// <param name="HiddenSystemIcons">The <c>HideDesktopIcons\NewStartPanel</c> values by CLSID: 1 hides, 0 shows.</param>
 /// <param name="AutoArrange">"Auto arrange icons": they stay packed in sort order and can't be put anywhere else.</param>
+/// <param name="AlignToGrid">"Align icons to grid": icons go to the nearest cell; off, they stay where they're put.</param>
 public sealed record DesktopViewSettings(
     bool ShowIcons, int IconSize, bool ShowHidden, bool ShowProtected, IReadOnlyDictionary<string, int> HiddenSystemIcons,
-    bool AutoArrange)
+    bool AutoArrange, bool AlignToGrid)
 {
     public const int SmallIcons = 32;
     public const int MediumIcons = 48;
@@ -19,9 +20,12 @@ public sealed record DesktopViewSettings(
 
     private const string AdvancedKey = @"Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced";
     private const string DesktopBagKey = @"Software\Microsoft\Windows\Shell\Bags\1\Desktop";
-    /// <summary>The desktop view's folder flags; <c>FWF_AUTOARRANGE</c> is the first bit.</summary>
+    /// <summary>The desktop view's folder flags (<c>FOLDERFLAGS</c>).</summary>
     private const string FlagsValue = "FFlags";
-    private const int AutoArrangeFlag = 0x1;
+    private const int AutoArrangeFlag = 0x1; // FWF_AUTOARRANGE
+    private const int AlignToGridFlag = 0x4; // FWF_SNAPTOGRID
+    /// <summary>Explorer's flags for the desktop until it first writes its own: Align icons to grid is on.</summary>
+    private const int DefaultFlags = 0x40200224;
     private const string HideDesktopIconsKey = @"Software\Microsoft\Windows\CurrentVersion\Explorer\HideDesktopIcons\NewStartPanel";
 
     public static DesktopViewSettings Read()
@@ -29,6 +33,7 @@ public sealed record DesktopViewSettings(
         using RegistryKey? advanced = Registry.CurrentUser.OpenSubKey(AdvancedKey);
         using RegistryKey? bag = Registry.CurrentUser.OpenSubKey(DesktopBagKey);
         using RegistryKey? hideIcons = Registry.CurrentUser.OpenSubKey(HideDesktopIconsKey);
+        int flags = bag?.GetValue(FlagsValue) as int? ?? DefaultFlags;
 
         var hiddenSystemIcons = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
         foreach (string name in hideIcons?.GetValueNames() ?? [])
@@ -43,7 +48,8 @@ public sealed record DesktopViewSettings(
             advanced?.GetValue("Hidden") is 1,
             advanced?.GetValue("ShowSuperHidden") is 1,
             hiddenSystemIcons,
-            bag?.GetValue(FlagsValue) is int flags && (flags & AutoArrangeFlag) != 0);
+            (flags & AutoArrangeFlag) != 0,
+            (flags & AlignToGridFlag) != 0);
     }
 
     /// <summary>Explorer also sizes desktop icons freely with Ctrl+wheel; anything unusable means medium.</summary>
@@ -53,12 +59,15 @@ public sealed record DesktopViewSettings(
 
     public static void SaveIconSize(int size) => Save(DesktopBagKey, "IconSize", size);
 
-    public static void SaveAutoArrange(bool autoArrange)
+    public static void SaveAutoArrange(bool autoArrange) => SaveFlag(AutoArrangeFlag, autoArrange);
+
+    public static void SaveAlignToGrid(bool alignToGrid) => SaveFlag(AlignToGridFlag, alignToGrid);
+
+    private static void SaveFlag(int flag, bool on)
     {
         using RegistryKey? bag = Registry.CurrentUser.OpenSubKey(DesktopBagKey);
-        // Explorer's defaults, when it hasn't written any flags yet.
-        int flags = bag?.GetValue(FlagsValue) as int? ?? 0x40200224;
-        Save(DesktopBagKey, FlagsValue, autoArrange ? flags | AutoArrangeFlag : flags & ~AutoArrangeFlag);
+        int flags = bag?.GetValue(FlagsValue) as int? ?? DefaultFlags;
+        Save(DesktopBagKey, FlagsValue, on ? flags | flag : flags & ~flag);
     }
 
     private static void Save(string keyPath, string name, int value)

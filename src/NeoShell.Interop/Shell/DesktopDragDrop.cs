@@ -219,6 +219,8 @@ public sealed unsafe partial class DesktopDragDrop : IDisposable
         private DesktopItem? _item;
         private IDropTarget? _shellTarget;
         private bool _tracking;
+        /// <summary>The icon under the drag whose target refused it; it counts as the desktop.</summary>
+        private string? _refused;
 
         private bool IsOwnDrag => owner.OwnItems is not null;
 
@@ -295,12 +297,18 @@ public sealed unsafe partial class DesktopDragDrop : IDisposable
         /// <param name="effect">What the source allows; on return, what a drop would do.</param>
         public void Over(uint keyState, User32.POINT point, uint* effect)
         {
+            uint allowed = *effect;
             DesktopItem? item = owner._itemAt(point.x, point.y);
-            // Over a file that takes no drops, or over a dragged item itself, it's the desktop's.
-            if (item is not null && (!item.IsDropTarget || owner.OwnItems?.Any(own => own.ParsingName == item.ParsingName) == true))
+            if (item?.ParsingName != _refused)
+                _refused = null;
+            // Over a file that takes no drops, over a dragged item itself, or over an icon whose target refused this
+            // drag (most files claim drops: a handler registered for every file takes only some), it's the desktop's,
+            // as in Explorer's view: the desktop's own icons move there, over that icon.
+            if (item is not null && (!item.IsDropTarget || _refused is not null || owner.OwnItems?.Any(own => own.ParsingName == item.ParsingName) == true))
                 item = null;
 
-            if (!_tracking || item?.ParsingName != _item?.ParsingName)
+            bool entered = !_tracking || item?.ParsingName != _item?.ParsingName;
+            if (entered)
             {
                 if (_shellTarget is { } previous)
                 {
@@ -308,21 +316,31 @@ public sealed unsafe partial class DesktopDragDrop : IDisposable
                     previous.DragLeave();
                 }
                 _tracking = true;
-                _item = item;
-                owner.TargetChanged?.Invoke(item);
-
                 // The desktop's own items over the desktop itself only move around on it.
                 _shellTarget = item is null && IsOwnDrag ? null : owner.ShellDropTarget(item);
-                if (_shellTarget is not null)
-                {
-                    _shellTarget.DragEnter(_dataObject, keyState, point, effect);
-                    return;
-                }
+                _shellTarget?.DragEnter(_dataObject, keyState, point, effect);
+            }
+            else
+            {
+                _shellTarget?.DragOver(keyState, point, effect);
             }
 
-            if (_shellTarget is not null)
-                _shellTarget.DragOver(keyState, point, effect);
-            else
+            if (item is not null && (_shellTarget is null || *effect == 0))
+            {
+                _shellTarget?.DragLeave();
+                _shellTarget = null;
+                _tracking = false;
+                _refused = item.ParsingName;
+                *effect = allowed;
+                Over(keyState, point, effect);
+                return;
+            }
+            if (entered)
+            {
+                _item = item;
+                owner.TargetChanged?.Invoke(item);
+            }
+            if (_shellTarget is null)
                 *effect = item is null && IsOwnDrag ? *effect & (uint)DropEffect.Move : 0;
         }
 
@@ -364,6 +382,7 @@ public sealed unsafe partial class DesktopDragDrop : IDisposable
                 owner.TargetChanged?.Invoke(null);
             _item = null;
             _tracking = false;
+            _refused = null;
             if (_dataObject != 0)
                 Marshal.Release(_dataObject);
             _dataObject = 0;

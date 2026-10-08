@@ -164,4 +164,17 @@ internal static unsafe partial class Shell32
     [LibraryImport("shell32.dll", EntryPoint = "ShellExecuteExW", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     public static partial bool ShellExecuteEx(SHELLEXECUTEINFOW* info);
+
+    // Undocumented exports behind the shell's undo history (see Shell\ShellUndo.cs).
+
+    /// <summary>The calling thread's undo manager (an <c>IOleUndoManager</c>), over the session's desktop one.</summary>
+    [LibraryImport("shell32.dll", EntryPoint = "SHELL32_SHGetThreadUndoManager")]
+    public static partial int GetThreadUndoManager(nint* manager, int localOnly);
+
+    /// <summary>
+    /// rundll32's entry for serving one of the shell's local server classes (the CLSID as text): unless the shell
+    /// window's process takes the class on, serves it on the calling thread until a <c>WM_QUIT</c>.
+    /// </summary>
+    [LibraryImport("shell32.dll", EntryPoint = "SHCreateLocalServerRunDll")]
+    public static partial void CreateLocalServerRunDll(nint hwnd, nint instance, byte* classId, int show);
 }

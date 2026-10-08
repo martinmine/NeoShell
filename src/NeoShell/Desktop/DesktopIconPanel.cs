@@ -5,7 +5,10 @@ using Windows.Foundation;
 
 namespace NeoShell.Desktop;
 
-/// <summary>The desktop's items panel: each icon's container goes at its cell (<see cref="DesktopIcon.Cell"/>), one item in size.</summary>
+/// <summary>
+/// The desktop's items panel: each icon's container goes at its position (<see cref="DesktopIcon.Position"/>, in cells),
+/// one item in size.
+/// </summary>
 internal sealed partial class DesktopIconPanel : Panel
 {
     private Size _item = new(80, 100);
@@ -25,14 +28,14 @@ internal sealed partial class DesktopIconPanel : Panel
 
     protected override Size MeasureOverride(Size availableSize)
     {
-        int columns = 0, rows = 0;
+        double columns = 0, rows = 0;
         foreach (UIElement child in Children)
         {
             child.Measure(_item);
-            if (Icon(child) is { } icon)
+            if (Icon(child)?.Position is { } position)
             {
-                columns = Math.Max(columns, icon.Cell.Column + 1);
-                rows = Math.Max(rows, icon.Cell.Row + 1);
+                columns = Math.Max(columns, position.X + 1);
+                rows = Math.Max(rows, position.Y + 1);
             }
         }
         return new Size(columns * _item.Width, rows * _item.Height);
@@ -43,7 +46,10 @@ internal sealed partial class DesktopIconPanel : Panel
         foreach (UIElement child in Children)
         {
             if (Icon(child) is { } icon)
-                child.Arrange(new Rect(icon.Cell.Column * _item.Width, icon.Cell.Row * _item.Height, _item.Width, _item.Height));
+            {
+                IconPosition position = icon.Position ?? default;
+                child.Arrange(new Rect(position.X * _item.Width, position.Y * _item.Height, _item.Width, _item.Height));
+            }
         }
         return finalSize;
     }

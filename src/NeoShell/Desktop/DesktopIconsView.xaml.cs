@@ -531,6 +531,12 @@ internal sealed partial class DesktopIconsView : UserControl
             case VirtualKey.V when control:
                 Paste("paste");
                 break;
+            case VirtualKey.Z when control:
+                ShellUndo.Undo();
+                break;
+            case VirtualKey.Y when control:
+                ShellUndo.Redo();
+                break;
             case VirtualKey.Left:
                 _icons.SelectNext(FocusedIcon(), -1, 0);
                 break;
@@ -612,6 +618,11 @@ internal sealed partial class DesktopIconsView : UserControl
         AutomationProperties.SetAutomationId(autoArrange, "DesktopAutoArrangeMenuItem");
         autoArrange.Click += (_, _) => _icons.SetAutoArrange(autoArrange.IsChecked);
         view.Items.Add(autoArrange);
+        var alignToGrid = new ToggleMenuFlyoutItem { Text = "Align icons to grid", IsChecked = _icons.View.AlignToGrid };
+        AutomationProperties.SetAutomationId(alignToGrid, "DesktopAlignToGridMenuItem");
+        alignToGrid.Click += (_, _) => _icons.SetAlignToGrid(alignToGrid.IsChecked);
+        view.Items.Add(alignToGrid);
+        view.Items.Add(new MenuFlyoutSeparator());
         var showIcons = new ToggleMenuFlyoutItem { Text = "Show desktop icons", IsChecked = _icons.View.ShowIcons };
         AutomationProperties.SetAutomationId(showIcons, "DesktopShowIconsMenuItem");
         showIcons.Click += (_, _) => _icons.SetShowIcons(showIcons.IsChecked);
@@ -631,7 +642,7 @@ internal sealed partial class DesktopIconsView : UserControl
 
         MenuFlyout menu = Menu(
             [view, sort, MenuItem("Refresh", "", "DesktopRefreshMenuItem", () => _ = _icons.RefreshAsync())],
-            [paste, pasteShortcut]);
+            [paste, pasteShortcut, UndoItem(undo: true), UndoItem(undo: false)]);
         AddShellItems(menu, ShellMenu.ForBackground(_hwnd), point, renameTarget: null);
         return menu;
     }
@@ -759,6 +770,21 @@ internal sealed partial class DesktopIconsView : UserControl
         var item = new RadioMenuFlyoutItem { Text = text, GroupName = "SortOrder", IsChecked = _icons.SortOrder == order };
         AutomationProperties.SetAutomationId(item, $"DesktopSort{order}MenuItem");
         item.Click += (_, _) => _icons.SetSortOrder(order);
+        return item;
+    }
+
+    /// <summary>
+    /// Explorer's "Undo Delete" or "Redo Rename" (Ctrl+Z, Ctrl+Y): the session's latest file operation, from any app,
+    /// with the shell's own text for it. Like Explorer's, shown only when there is something to undo or redo.
+    /// </summary>
+    private static MenuFlyoutItem? UndoItem(bool undo)
+    {
+        if ((undo ? ShellUndo.UndoText() : ShellUndo.RedoText()) is not { } text)
+            return null;
+        MenuFlyoutItem item = undo
+            ? MenuItem(text, "", "DesktopUndoMenuItem", ShellUndo.Undo)
+            : MenuItem(text, "", "DesktopRedoMenuItem", ShellUndo.Redo);
+        item.KeyboardAcceleratorTextOverride = undo ? "Ctrl+Z" : "Ctrl+Y";
         return item;
     }
 

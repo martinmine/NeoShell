@@ -203,6 +203,12 @@ internal static unsafe partial class User32
     [return: MarshalAs(UnmanagedType.Bool)]
     public static partial bool PostMessage(nint hwnd, uint message, nint wParam, nint lParam);
 
+    public const uint WM_QUIT = 0x0012;
+
+    [LibraryImport("user32.dll", EntryPoint = "PostThreadMessageW", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static partial bool PostThreadMessage(uint threadId, uint message, nint wParam, nint lParam);
+
     [LibraryImport("user32.dll", EntryPoint = "SendMessageW")]
     public static partial nint SendMessage(nint hwnd, uint message, nint wParam, nint lParam);
 

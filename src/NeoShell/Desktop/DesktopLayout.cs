@@ -18,6 +18,24 @@ public sealed record DesktopWorkspace(RectInt32 WorkArea, uint Dpi, bool IsPrima
     /// <summary>The top left corner of a cell on the screen.</summary>
     public PointInt32 CellOrigin(GridCell cell) => new(WorkArea.X + cell.Column * CellWidth, WorkArea.Y + cell.Row * CellHeight);
 
+    /// <summary>The top left corner on the screen of an icon at a point of the grid (a cell's, while on the grid).</summary>
+    public PointInt32 Origin(double x, double y) =>
+        new(WorkArea.X + (int)Math.Round(x * CellWidth), WorkArea.Y + (int)Math.Round(y * CellHeight));
+
+    /// <summary>
+    /// An icon's position kept within the work area, as Explorer keeps an icon dragged off the grid: the whole cell on
+    /// it (measured on the VM: at most 1702,839 for 76x101 cells in 1764x940).
+    /// </summary>
+    public IconPosition Clamp(IconPosition position) => position with
+    {
+        X = Math.Clamp(position.X, 0, Math.Max(0, WorkArea.Width / (double)CellWidth - 1)),
+        Y = Math.Clamp(position.Y, 0, Math.Max(0, WorkArea.Height / (double)CellHeight - 1)),
+    };
+
+    /// <summary>A point on the screen as a point of the grid, in cells.</summary>
+    public (double X, double Y) GridPoint(PointInt32 point) =>
+        ((point.X - WorkArea.X) / (double)CellWidth, (point.Y - WorkArea.Y) / (double)CellHeight);
+
     /// <summary>
     /// The cell whose top left corner is nearest to a point on the screen (it may be off the grid); halfway rounds up,
     /// as in Explorer.
@@ -126,9 +144,9 @@ public static class DesktopLayout
     /// of the same grid size, then in order), and the one whose icons fit those monitors' grids best wins. Icons of a
     /// monitor with no counterpart aren't placed; they join the new icons.
     /// </summary>
-    public static Dictionary<(string Name, LayoutIconFlags Flags), IconPlace> SavedPlaces(IconLayouts layouts, IReadOnlyList<DesktopWorkspace> workspaces)
+    public static Dictionary<(string Name, LayoutIconFlags Flags), IconPosition> SavedPlaces(IconLayouts layouts, IReadOnlyList<DesktopWorkspace> workspaces)
     {
-        var places = new Dictionary<(string, LayoutIconFlags), IconPlace>(LayoutNameComparer.Instance);
+        var places = new Dictionary<(string, LayoutIconFlags), IconPosition>(LayoutNameComparer.Instance);
         if (workspaces.Count == 0)
             return places;
 
@@ -152,10 +170,7 @@ public static class DesktopLayout
             if (map[i] < 0 || map[i] >= workspaces.Count)
                 continue;
             foreach (LayoutIcon icon in desktop.Workspaces[i].Icons)
-            {
-                var cell = new GridCell((int)Math.Round(icon.X), (int)Math.Round(icon.Y));
-                places.TryAdd((icon.Name, icon.Flags), new IconPlace(map[i], cell));
-            }
+                places.TryAdd((icon.Name, icon.Flags), new IconPosition(map[i], icon.X, icon.Y));
         }
         return places;
     }
@@ -167,10 +182,10 @@ public static class DesktopLayout
     /// beside this would bring back old places.
     /// </summary>
     public static IconLayouts WithPlaces(
-        IconLayouts layouts, IReadOnlyList<DesktopWorkspace> workspaces, IEnumerable<(string Name, LayoutIconFlags Flags, IconPlace Place)> icons)
+        IconLayouts layouts, IReadOnlyList<DesktopWorkspace> workspaces, IEnumerable<(string Name, LayoutIconFlags Flags, IconPosition Position)> icons)
     {
         LayoutDesktop? saved = layouts.Find(Key(workspaces));
-        ILookup<int, (string Name, LayoutIconFlags Flags, IconPlace Place)> byWorkspace = icons.ToLookup(icon => icon.Place.Workspace);
+        ILookup<int, (string Name, LayoutIconFlags Flags, IconPosition Position)> byWorkspace = icons.ToLookup(icon => icon.Position.Workspace);
         var desktop = new LayoutDesktop(
             LayoutDesktop.CurrentVersion,
             LinkedKey: null,
@@ -185,7 +200,7 @@ public static class DesktopLayout
                         workspace.Grid.Columns,
                         workspace.Grid.Rows,
                         workspace.IsPrimary ? LayoutWorkspace.PrimaryFlag : 0,
-                        [.. byWorkspace[index].Select(icon => new LayoutIcon(icon.Name, icon.Flags, icon.Place.Cell.Column, icon.Place.Cell.Row))]);
+                        [.. byWorkspace[index].Select(icon => new LayoutIcon(icon.Name, icon.Flags, (float)icon.Position.X, (float)icon.Position.Y))]);
                 }),
             ],
             LinkFlags: null);

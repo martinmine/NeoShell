@@ -419,8 +419,9 @@ Shell mode only, like the wallpaper: alongside Explorer, Explorer's desktop has 
   (Name, Size, Item type, Date modified; `ShellSettings.DesktopSortOrder`) and then by name, numbers compared by
   value.
 - **Places** (`DesktopGrid`, `DesktopLayout`, unit tested): like Explorer's, one desktop spans every monitor. Each
-  monitor's work area is a grid of cells from its top left corner (no margin), with Align icons to grid (always on
-  here); an icon's place is a monitor and a cell. New icons fill the primary monitor's columns from the top left, then
+  monitor's work area is a grid of cells from its top left corner (no margin); an icon's place is a monitor and a
+  point of its grid in cells, whole while icons are aligned to the grid (`IconPosition`; its nearest cell is
+  `IconPlace`). New icons fill the primary monitor's columns from the top left, then
   the other monitors', then columns past the primary's edge (they scroll). Icons can be dragged anywhere, to any
   monitor: a drag moves them by as much as the pointer moved, each to the cell nearest to where it lands (halfway
   rounds up, as in Explorer) on the monitor it lands on, or the nearest free one. Files dropped on the desktop, and
@@ -428,6 +429,19 @@ Shell mode only, like the wallpaper: alongside Explorer, Explorer's desktop has 
   each monitor's icons again in that order on that monitor, and Auto arrange keeps them packed so (Explorer keeps each
   icon on its monitor for both; checked live). Arrow keys move the selection to the nearest icon that way on the
   screen, across monitors, keeping to the row or column where they can.
+- **"Align icons to grid" off** (View menu, `FWF_SNAPTOGRID`; `DesktopGrid.ArrangeFree`, unit tested), as measured on
+  Explorer's desktop with `IFolderView::GetItemPosition` through `IShellWindows`:
+  - A dragged icon moves by exactly as much as the pointer (a drag of 1492,65 moved it by 1492,65), over other icons
+    too: Explorer lets icons overlap. It stays wholly in the work area: Explorer stopped one at 1702,839 in 1764x940
+    with 76x101 cells, so a position is kept within 0 to (work area / cell) - 1 cells (`DesktopWorkspace.Clamp`).
+  - New icons (a file created, one restored) still take the first free cell in Explorer's order, and a cell is free
+    only while no icon overlaps any of it: an icon 0.6 of a column or 0.7 of a row off its cell kept the cells on both
+    sides taken.
+  - Turning it on again puts each icon on its nearest cell, or the nearest free one (of two icons wanting the same
+    cell one moves next to it), as `DesktopGrid.Arrange` does with saved places. Auto arrange and Sort by pack on the
+    grid either way.
+  - Moving icons on the desktop is not part of the undo history (Explorer's menu still offered "Undo Delete" after
+    several moves).
 - **Explorer's saved places** (`IconLayouts`, unit tested with a value Explorer wrote): positions live where Explorer
   keeps them, `HKCU\Software\Microsoft\Windows\Shell\Bags\1\Desktop\IconLayouts` (binary; `IconNameVersion` = 1),
   so icons stay put when switching shells (checked both ways on the VM). Read from shell32's `IconLayoutEngine`,
@@ -454,6 +468,10 @@ Shell mode only, like the wallpaper: alongside Explorer, Explorer's desktop has 
     target. NeoShell's widget sidebar narrows the primary as the shell (19 columns here instead of 23), so NeoShell
     takes such a twin's places and, when saving, replaces every twin with its own desktop; otherwise Explorer may show
     an older twin's places (seen once before this was handled).
+  - Off the grid an icon's column and row are fractions. Explorer saves an item at listview position x,y as
+    ((x - 14) / 76, y / 101) for medium icons: the 14 is the icon's inset in its cell, but its 2 pixel inset from the
+    cell's top isn't taken off, so an icon left where the grid put it reads row + 0.0198 once saved off the grid.
+    NeoShell saves the point it shows the icon at (whole rows for those), so such icons differ by those 2 pixels.
   - Explorer writes the value when its desktop closes (a clean exit, or now and then after a move), and reads it when
     it starts; NeoShell reads it at start and writes 0.5 s after icons move, keeping every other desktop as read.
     A value in another format isn't read and is never written over.
@@ -470,7 +488,9 @@ Shell mode only, like the wallpaper: alongside Explorer, Explorer's desktop has 
   125% monitor as Explorer's do (an image loaded at that monitor's pixel size).
 - **View settings** live where Explorer keeps them, so they carry over when switching shells: the icon size in
   `HKCU\Software\Microsoft\Windows\Shell\Bags\1\Desktop\IconSize` (32/48/96), "Auto arrange icons" as `FWF_AUTOARRANGE`
-  (bit 0x1) of that key's `FFlags` (each monitor's icons stay packed in sort order on it), "Show
+  (bit 0x1) and "Align icons to grid" as `FWF_SNAPTOGRID` (bit 0x4; checked against Explorer's
+  `IFolderView2::GetCurrentFolderFlags`: 0x40200224 on, 0x40200220 off; on is also Explorer's default) of that key's
+  `FFlags` (each monitor's icons stay packed in sort order on it), "Show
   desktop icons" in `Explorer\Advanced\HideIcons`.
 - **Images** come from `IShellItemImageFactory` without `SIIGBF_ICONONLY`, so pictures get thumbnails, loaded off the
   UI thread at physical pixel size. Shortcuts get the stock link overlay (`SHGetStockIconInfo(SIID_LINK)`) in the
@@ -492,7 +512,9 @@ Shell mode only, like the wallpaper: alongside Explorer, Explorer's desktop has 
   drops (`SFGAO_DROPTARGET`: a folder, the Recycle Bin, an app) or on the desktop itself goes to the shell's own
   `IDropTarget` for it (`GetUIObjectOf` for an icon, `CreateViewObject` for the desktop: the Desktop folder), so
   moving, copying and linking by the keys held, confirmations and progress are Explorer's. The icon under a drag is
-  highlighted.
+  highlighted. An icon whose target refuses the drag counts as the desktop, as in Explorer's view: nearly every file
+  claims drops (`SFGAO_DROPTARGET`; a handler registered for all files takes only some data), so the desktop's own
+  icons let go over a text file move there (over it, with Align icons to grid off) rather than nowhere.
   - From other apps: a native OLE drop target, registered on WinUI's content window
     (`Microsoft.UI.Content.DesktopChildSiteBridge`) — OLE looks only at the window under the pointer, so one on the
     top-level window is never asked. The shell's targets need the drag's own data object, which WinUI's drop events
@@ -522,14 +544,47 @@ Shell mode only, like the wallpaper: alongside Explorer, Explorer's desktop has 
     Rename, Properties, installed apps' commands...).
   - Desktop: what Explorer's view adds itself, View (icon size, Show desktop icons), Sort by, Refresh, Paste and
     Paste shortcut, then the shell's menu: installed apps' commands, New (the shell's New menu: Folder, Shortcut and
-    every registered file type) and Display settings / Personalize. Explorer's Undo is left out: its undo history
-    is Explorer's own.
+    every registered file type) and Display settings / Personalize. View is Explorer's: Large, Medium, Small icons,
+    a separator, Auto arrange icons, Align icons to grid, a separator, Show desktop icons. After Paste and Paste
+    shortcut come "Undo <action>" (Ctrl+Z) and "Redo <action>" (Ctrl+Y), each only while there is something to undo
+    or redo (see **Undo** below).
   - Display settings and Personalize open the Settings app, which can't start while NeoShell is the shell (the only
     time the desktop is NeoShell's), and Control Panel's pages for them open Settings too. They open the classic
     dialogs left instead: the display adapter's properties (`display.dll,ShowAdapterSettings`, with List All Modes)
     and Desktop icon settings (`desk.cpl,,0`).
   - Rename comes back to NeoShell (only the view can edit a name); an item made from New is renamed straight away,
     as in Explorer.
+- **Undo** (`ShellUndo`, `ShellUndoServer`, Interop), as on Explorer's desktop: "Undo Delete", "Undo Rename", "Undo
+  Copy", "Undo Move", "Undo New" and "Redo ..." for the session's latest file operation, whichever app did it.
+  Read from shell32 with cdb and Ghidra (undomgr.cpp):
+  - Shell file operations that keep an undo record (`IFileOperation` with `FOFX_ADDUNDORECORD`, which the shell's own
+    menus, rename (`SetNameOf`) and drop targets use) add it to the calling thread's undo manager
+    (`SHGetThreadUndoManager`, exported as `SHELL32_SHGetThreadUndoManager`; kept in TLS, freed with its last
+    reference), which passes it on to the session's desktop undo manager: `CLSID_DesktopUndoManager`
+    {3eef301f-b596-4c0b-bd92-013beafce793}, a local server. To get it shell32 sends `WM_USER+24` to the shell window
+    (`GetShellWindow`) with the class's index in its table of desktop local servers (`_CreateDesktopLocalServer`):
+    Explorer then serves it on a thread of its own process, so File Explorer windows, the desktop and every app share
+    one history. Without an answer COM starts its `LocalServer32`, `rundll32 shell32.dll,SHCreateLocalServerRunDll
+    {clsid}`, which asks the shell window once more and then serves it itself. (A newer path, behind a feature flag,
+    looks for it in the running object table first.)
+  - As the shell NeoShell serves it as Explorer does, by running that same rundll32 entry on a thread of its own
+    (`ShellUndoServer`, started with the shell session, ended with `WM_QUIT`). It has to be in the shell's process: a
+    test app enumerating the units from another process got `E_ABORT`, so only the serving process can ask a unit for
+    its text, and the history lives as long as the shell, as Explorer's does.
+  - The menu's items are shell32's `_InitEditUndoRedo`: whether there is something (`CanDo`: an undo or redo
+    description exists and no undo is running; NeoShell asks File Explorer's Undo and Redo commands,
+    `CLSID_UndoExplorerCommand` {0dbd7044-...} and `CLSID_RedoExplorerCommand` {1cc6b704-...}, through `GetState`),
+    the text from the latest unit (`EnumUndoable`/`EnumRedoable`, then `GetUndoText` of the undocumented
+    {33747358-8a56-4a62-9342-f4b86d97a8e4}, the slot after `IOleUndoUnit`'s: "&Undo %s\tCtrl+Z" from windows.storage's
+    strings), else plain "Undo"/"Redo" (shell32's strings 0x1045/0x104A). On the desktop's menu an item that can't be
+    done is left out (`DeleteMenu`), not greyed.
+  - Undo and Redo run the same commands' `Invoke`: a new thread (`_UndoThread`) undoes the latest unit with the wait
+    cursor and beeps when there's nothing; the shell's own progress and confirmations show. A redone operation can't
+    be undone again (the history is empty after it, in Explorer too). Ctrl+Z and Ctrl+Y on the desktop do the same.
+  - The UI thread keeps its undo manager (shell32 frees one with its last reference and clears its TLS slot), and
+    releases the units' wrappers right away, each a wrapper of its own (`ComPointer.TakeOwnershipUnique`): a cached
+    .NET wrapper of a freed manager, handed out again for the next one at the same address, dropped that one's
+    reference and corrupted the heap.
 - **Rename**: a text box in a flyout over the label, with the name selected without its extension; Enter or a click
   elsewhere renames through `IShellFolder::SetNameOf` (keeps a hidden extension, reports errors in the shell's
   dialogs), Esc cancels.

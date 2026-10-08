@@ -403,7 +403,18 @@ Each item is done when it looks and behaves as Explorer's (layout, behaviour, an
       spacing's label height is a constant (44 at 96 DPI; Explorer measures the icon font and text scaling), and
       with mixed DPI Explorer's spacing came out 76x98, NeoShell's 76x101 — not run live: Auto arrange toggled with
       icons on two monitors in NeoShell (unit tested; Explorer's checked), Ctrl+A (no letter keys)
-- [ ] T26 Desktop: Undo; "Align icons to grid" off
+- [x] T26 Desktop: Undo; "Align icons to grid" off — found with cdb and Ghidra in shell32 that the session's undo
+      history is the desktop undo manager, a local server the shell's process serves (Explorer on request, else
+      rundll32); as the shell NeoShell now serves it on a thread of its own, so every app's file operations land there
+      and the desktop's menu shows the units' own "Undo Delete"/"Redo Rename" (Ctrl+Z, Ctrl+Y), only when there's
+      something, after Paste, as Explorer's; checked live for delete (NeoShell's menu, a drop on the Recycle Bin, another
+      app's IFileOperation), rename, copy/paste and New folder, undo and redo, against Explorer's menu. Align icons to
+      grid off (Explorer's `FWF_SNAPTOGRID` in `FFlags`): icons stay exactly where dropped, overlapping, kept in the work
+      area, new icons in cells no icon overlaps, snapped to the nearest cells when turned on again, saved as fractions
+      in IconLayouts, each measured on Explorer's desktop through `IFolderView` and compared; drops on an icon whose
+      target refuses fall back to the desktop as in Explorer — not run live: Ctrl+Z/Ctrl+Y (letter keys), Undo Move
+      (same path as the others); differs: an icon placed by the grid and then saved off it is 2 px higher in Explorer's
+      saved rows (its unsubtracted top inset)
 - [ ] T27 Snap Assist, snap groups, Snap layouts on the maximize button and at the top edge
 - [ ] T28 Win+Shift+arrows and Win+Left/Right across monitors
 - [ ] T29 Title-bar shake; Ctrl+Alt+Tab

@@ -27,7 +27,7 @@ internal sealed class DesktopIcons : IDisposable
     private readonly Dictionary<int, ImageSource?> _overlays = [];
     /// <summary>Explorer's saved layouts; null when they couldn't be read, and then they're never written over.</summary>
     private IconLayouts? _layouts = IconLayouts.Read();
-    private Dictionary<(string Name, LayoutIconFlags Flags), IconPlace> _saved = [];
+    private Dictionary<(string Name, LayoutIconFlags Flags), IconPosition> _saved = [];
     private IReadOnlyList<DesktopWorkspace> _workspaces = [];
     private IReadOnlyList<DisplayMonitor> _monitors = [];
     private string? _key;
@@ -36,7 +36,7 @@ internal sealed class DesktopIcons : IDisposable
     private bool _reloadImages;
     private bool _pack;
     private NewItemsPlace? _newItemsAt;
-    private readonly Dictionary<string, IconPlace> _renamed = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, IconPosition> _renamed = new(StringComparer.OrdinalIgnoreCase);
     private bool _loaded;
 
     public DesktopIcons(SettingsStore settings)
@@ -176,9 +176,20 @@ internal sealed class DesktopIcons : IDisposable
     }
 
     /// <summary>
+    /// "Align icons to grid": turned off, icons stay wherever they're put; turned on, each goes to the cell nearest to
+    /// it (or the nearest free one), as in Explorer.
+    /// </summary>
+    public void SetAlignToGrid(bool alignToGrid)
+    {
+        DesktopViewSettings.SaveAlignToGrid(alignToGrid);
+        _ = RefreshAsync();
+    }
+
+    /// <summary>
     /// Gives every icon its place for the monitors there are now: where it was left (in this arrangement's saved
     /// layout, or the one that fits best when the arrangement is new), packed while icons are auto-arranged, the
-    /// first free cells for icons new to the desktop, or where they were dropped (<see cref="ExpectNewItemsAt"/>).
+    /// first free cells for icons new to the desktop, or where they were dropped (<see cref="ExpectNewItemsAt"/>). On
+    /// the grid each goes to the nearest cell no icon before it took; off it, exactly where it was left.
     /// </summary>
     public void Arrange()
     {
@@ -201,7 +212,7 @@ internal sealed class DesktopIcons : IDisposable
             _key = key;
             _saved = _layouts is null ? [] : DesktopLayout.SavedPlaces(_layouts, workspaces);
             foreach (DesktopIcon icon in Icons)
-                icon.Place = null;
+                icon.Position = null;
             Log.Info($"Desktop icons: {key}, {_saved.Count} saved place(s)");
         }
         _monitors = monitors;
@@ -209,30 +220,34 @@ internal sealed class DesktopIcons : IDisposable
 
         IReadOnlyList<GridSize> grids = [.. _workspaces.Select(workspace => workspace.Grid)];
         int primary = Math.Max(0, _workspaces.ToList().FindIndex(workspace => workspace.IsPrimary));
-        IconPlace?[] wanted = [.. Icons.Select(Wanted)];
-        IconPlace[] places = View.AutoArrange || _pack
-            ? DesktopGrid.Pack([.. wanted.Select(place => place?.Workspace)], grids, primary)
-            : DesktopGrid.Arrange(wanted, grids, primary);
+        IconPosition?[] wanted = [.. Icons.Select(Wanted)];
+        IconPosition[] positions =
+            View.AutoArrange || _pack ? Positions(DesktopGrid.Pack([.. wanted.Select(position => position?.Workspace)], grids, primary))
+            : View.AlignToGrid ? Positions(DesktopGrid.Arrange([.. wanted.Select(position => position?.Nearest)], grids, primary))
+            : DesktopGrid.ArrangeFree([.. wanted.Select(Clamped)], grids, primary);
         _pack = false;
         _renamed.Clear();
 
         if (_newItemsAt is { } newPlace && !View.AutoArrange)
         {
-            List<(int, IconPlace)> moves = [.. Icons
+            List<(int Index, IconPlace Target)> moves = [.. Icons
                 .Select((icon, index) => (icon, index))
                 .Where(pair => !newPlace.Existing.Contains(pair.icon.Item.ParsingName))
                 .Select(pair => (pair.index, newPlace.Place))];
             if (moves.Count > 0 || DateTime.UtcNow > newPlace.Until)
                 _newItemsAt = null;
-            places = DesktopGrid.Move(places, moves, grids);
+            IconPlace[] moved = DesktopGrid.Move([.. positions.Select(position => position.Nearest)], moves, grids);
+            foreach ((int index, _) in moves)
+                positions[index] = IconPosition.Of(moved[index]);
         }
 
-        Apply(places);
+        Apply(positions);
     }
 
     /// <summary>
-    /// Moves icons by a distance on the screen (physical pixels), as when they're dragged: each to the cell nearest to
-    /// where it lands, on the monitor it lands on (or the nearest one). Auto-arranged icons only change monitor.
+    /// Moves icons by a distance on the screen (physical pixels), as when they're dragged, onto the monitor each lands
+    /// on (or the nearest one): to the cell nearest to where it lands, or with "Align icons to grid" off exactly
+    /// there, over another icon too, as in Explorer. Auto-arranged icons only change monitor.
     /// </summary>
     public void MoveBy(IReadOnlyList<DesktopIcon> icons, int dx, int dy)
     {
@@ -240,31 +255,39 @@ internal sealed class DesktopIcons : IDisposable
             return;
 
         IReadOnlyList<GridSize> grids = [.. _workspaces.Select(workspace => workspace.Grid)];
-        var moves = new List<(int, IconPlace)>();
+        var moves = new List<(int Index, IconPosition Target)>();
         foreach (DesktopIcon icon in icons)
         {
-            if (Icons.IndexOf(icon) is int index and >= 0 && WorkspaceOf(icon) is { } from)
+            if (Icons.IndexOf(icon) is int index and >= 0 && WorkspaceOf(icon) is { } from && icon.Position is { } position)
             {
-                PointInt32 origin = from.CellOrigin(icon.Place!.Value.Cell);
+                PointInt32 origin = from.Origin(position.X, position.Y);
                 var landed = new PointInt32(origin.X + dx, origin.Y + dy);
                 var center = new PointInt32(landed.X + from.CellWidth / 2, landed.Y + from.CellHeight / 2);
                 int workspace = Enumerable.Range(0, _workspaces.Count).MinBy(i => _workspaces[i].DistanceSquared(center));
-                moves.Add((index, new IconPlace(workspace, _workspaces[workspace].NearestCell(landed))));
+                (double x, double y) = _workspaces[workspace].GridPoint(landed);
+                moves.Add((index, new IconPosition(workspace, x, y)));
             }
         }
 
-        IconPlace[] places = [.. Icons.Select(icon => icon.Place ?? new IconPlace(0, new GridCell(0, 0)))];
+        IconPosition[] positions = [.. Icons.Select(icon => icon.Position ?? default)];
         if (View.AutoArrange)
         {
-            int?[] workspaces = [.. places.Select(place => (int?)place.Workspace)];
-            foreach ((int index, IconPlace target) in moves)
+            int?[] workspaces = [.. positions.Select(position => (int?)position.Workspace)];
+            foreach ((int index, IconPosition target) in moves)
                 workspaces[index] = target.Workspace;
             int primary = Math.Max(0, _workspaces.ToList().FindIndex(workspace => workspace.IsPrimary));
-            Apply(DesktopGrid.Pack(workspaces, grids, primary));
+            Apply(Positions(DesktopGrid.Pack(workspaces, grids, primary)));
+        }
+        else if (View.AlignToGrid)
+        {
+            Apply(Positions(DesktopGrid.Move(
+                [.. positions.Select(position => position.Nearest)], [.. moves.Select(move => (move.Index, move.Target.Nearest))], grids)));
         }
         else
         {
-            Apply(DesktopGrid.Move(places, moves, grids));
+            foreach ((int index, IconPosition target) in moves)
+                positions[index] = _workspaces[target.Workspace].Clamp(target);
+            Apply(positions);
         }
     }
 
@@ -294,8 +317,8 @@ internal sealed class DesktopIcons : IDisposable
     /// <summary>A renamed item keeps its place.</summary>
     public void Renamed(string oldParsingName, string newParsingName)
     {
-        if (Find(oldParsingName)?.Place is { } place)
-            _renamed[newParsingName] = place;
+        if (Find(oldParsingName)?.Position is { } position)
+            _renamed[newParsingName] = position;
     }
 
     // The selection is shared by every monitor's view, as in Explorer's one desktop window.
@@ -378,20 +401,26 @@ internal sealed class DesktopIcons : IDisposable
         _watchers.Clear();
     }
 
-    private IconPlace? Wanted(DesktopIcon icon) =>
-        icon.Place
-        ?? (_renamed.TryGetValue(icon.Item.ParsingName, out IconPlace renamed) ? renamed
-            : _saved.TryGetValue((icon.LayoutName, icon.LayoutFlags), out IconPlace saved) ? saved
+    private IconPosition? Wanted(DesktopIcon icon) =>
+        icon.Position
+        ?? (_renamed.TryGetValue(icon.Item.ParsingName, out IconPosition renamed) ? renamed
+            : _saved.TryGetValue((icon.LayoutName, icon.LayoutFlags), out IconPosition saved) ? saved
             : null);
 
+    /// <summary>A position kept on its monitor, if that's there.</summary>
+    private IconPosition? Clamped(IconPosition? position) =>
+        position is { } wanted && wanted.Workspace >= 0 && wanted.Workspace < _workspaces.Count ? _workspaces[wanted.Workspace].Clamp(wanted) : position;
+
+    private static IconPosition[] Positions(IEnumerable<IconPlace> places) => [.. places.Select(IconPosition.Of)];
+
     /// <summary>Gives the icons their places, moves them between the monitors' lists, and saves the places.</summary>
-    private void Apply(IReadOnlyList<IconPlace> places)
+    private void Apply(IReadOnlyList<IconPosition> positions)
     {
         bool changed = false;
         for (int i = 0; i < Icons.Count; i++)
         {
-            changed |= Icons[i].Place != places[i];
-            Icons[i].Place = places[i];
+            changed |= Icons[i].Position != positions[i];
+            Icons[i].Position = positions[i];
         }
         SyncMonitorLists();
         LoadImages();
@@ -444,12 +473,12 @@ internal sealed class DesktopIcons : IDisposable
         return -1;
     }
 
-    /// <summary>The middle of an icon's cell on the screen.</summary>
+    /// <summary>The middle of an icon on the screen.</summary>
     private PointInt32? Center(DesktopIcon icon)
     {
-        if (WorkspaceOf(icon) is not { } workspace)
+        if (WorkspaceOf(icon) is not { } workspace || icon.Position is not { } position)
             return null;
-        PointInt32 origin = workspace.CellOrigin(icon.Cell);
+        PointInt32 origin = workspace.Origin(position.X, position.Y);
         return new PointInt32(origin.X + workspace.CellWidth / 2, origin.Y + workspace.CellHeight / 2);
     }
 
@@ -462,7 +491,7 @@ internal sealed class DesktopIcons : IDisposable
         _layouts = DesktopLayout.WithPlaces(
             _layouts,
             _workspaces,
-            Icons.Where(icon => icon.Place is not null).Select(icon => (icon.LayoutName, icon.LayoutFlags, icon.Place!.Value)));
+            Icons.Where(icon => icon.Position is not null).Select(icon => (icon.LayoutName, icon.LayoutFlags, icon.Position!.Value)));
         _layouts.Save();
     }
 

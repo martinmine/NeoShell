@@ -10,6 +10,18 @@ public readonly record struct GridSize(int Columns, int Rows);
 public readonly record struct IconPlace(int Workspace, GridCell Cell);
 
 /// <summary>
+/// Where an icon is, as Explorer saves it: a monitor and a point on its grid, in cells from the top left. Whole numbers
+/// while icons are aligned to the grid; with "Align icons to grid" off, anywhere.
+/// </summary>
+public readonly record struct IconPosition(int Workspace, double X, double Y)
+{
+    public static IconPosition Of(IconPlace place) => new(place.Workspace, place.Cell.Column, place.Cell.Row);
+
+    /// <summary>The cell nearest to it; halfway rounds up, as in Explorer.</summary>
+    public IconPlace Nearest => new(Workspace, new GridCell((int)Math.Floor(X + 0.5), (int)Math.Floor(Y + 0.5)));
+}
+
+/// <summary>
 /// Where the desktop's icons go: cells of each monitor's grid, filled column by column from the top left as on
 /// Explorer's desktop, the primary monitor first, except where the user has put an icon.
 /// </summary>
@@ -55,6 +67,48 @@ public static class DesktopGrid
             taken.Add(next.Current);
         }
         return [.. places.Select(place => place!.Value)];
+    }
+
+    /// <summary>
+    /// Each icon's position with "Align icons to grid" off, as Explorer places them: an icon stays exactly where it's
+    /// wanted on its monitor, over another icon if that's where it was put; the rest
+    /// (new ones, ones from a monitor that's gone) take the cells new icons take (<see cref="Arrange"/>), a cell being
+    /// free only while no icon covers any of it.
+    /// </summary>
+    /// <param name="wanted">Where each icon wants to be, or null.</param>
+    public static IconPosition[] ArrangeFree(IReadOnlyList<IconPosition?> wanted, IReadOnlyList<GridSize> grids, int primary)
+    {
+        var positions = new IconPosition?[wanted.Count];
+        var taken = new HashSet<IconPlace>();
+        for (int i = 0; i < wanted.Count; i++)
+        {
+            if (wanted[i] is not { } position || position.Workspace < 0 || position.Workspace >= grids.Count)
+                continue;
+            positions[i] = position;
+            taken.UnionWith(Covered(position));
+        }
+
+        using IEnumerator<IconPlace> next = FreePlaces(grids, primary, taken).GetEnumerator();
+        for (int i = 0; i < wanted.Count; i++)
+        {
+            if (positions[i] is not null)
+                continue;
+            next.MoveNext();
+            positions[i] = IconPosition.Of(next.Current);
+            taken.Add(next.Current);
+        }
+        return [.. positions.Select(position => position!.Value)];
+    }
+
+    /// <summary>The cells an icon covers: it is a cell in size, so off the grid it overlaps up to four.</summary>
+    private static IEnumerable<IconPlace> Covered(IconPosition position)
+    {
+        int left = (int)Math.Floor(position.X), top = (int)Math.Floor(position.Y);
+        for (int column = left; column < position.X + 1; column++)
+        {
+            for (int row = top; row < position.Y + 1; row++)
+                yield return new IconPlace(position.Workspace, new GridCell(column, row));
+        }
     }
 
     /// <summary>

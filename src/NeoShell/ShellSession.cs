@@ -35,6 +35,7 @@ internal sealed class ShellSession : IDisposable
     private KeyboardHook? _keyboardHook;
     private ShellServiceObjects? _serviceObjects;
     private VolumeAutoPlay? _autoPlay;
+    private ShellUndoServer? _undoServer;
 
     /// <param name="endSession">Saves and cleans up before Windows ends the process at sign-out or shutdown.</param>
     public ShellSession(ShellRegistration registration, Taskbars taskbars, Action endSession)
@@ -51,6 +52,10 @@ internal sealed class ShellSession : IDisposable
 
         _registration.Complete();
         Log.Info("Shell ready");
+
+        // The session's undo history for file operations lives with the shell, as with Explorer's desktop: other
+        // processes' operations go to it, and the desktop's menu can tell what Undo would undo.
+        _undoServer = ShellUndoServer.Start();
 
         // Without Explorer, Windows snaps no windows: dragged against an edge or with Win+arrows.
         _snapping = new WindowSnapping(() => _taskbars.Theme);
@@ -160,6 +165,7 @@ internal sealed class ShellSession : IDisposable
         _switcher?.Close();
         _snapping?.Dispose();
         _autoPlay?.Dispose();
+        _undoServer?.Dispose();
         // Explorer waits for them however long they take; a shell that's exiting can't.
         if (_serviceObjects is not null && !_serviceObjects.Stop(TimeSpan.FromSeconds(3)))
             Log.Warn("Shell service objects didn't close within 3 seconds");

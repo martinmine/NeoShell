@@ -12,4 +12,18 @@ internal static unsafe class ComPointer
         Marshal.Release(pointer);
         return wrapper;
     }
+
+    /// <summary>
+    /// As <see cref="TakeOwnership"/>, but always a wrapper of its own, never the one cached for an object that was at
+    /// the same address: for wrappers released early with <see cref="ComObject.FinalRelease"/>, whose cache entries
+    /// outlive their objects (handed out for a new object, one would drop that object's reference instead).
+    /// </summary>
+    public static T TakeOwnershipUnique<T>(nint pointer)
+    {
+        var wrapper = (T)Wrappers.GetOrCreateObjectForComInstance(pointer, CreateObjectFlags.UniqueInstance);
+        Marshal.Release(pointer);
+        return wrapper;
+    }
+
+    private static readonly StrategyBasedComWrappers Wrappers = new();
 }
