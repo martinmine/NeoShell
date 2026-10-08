@@ -76,14 +76,27 @@ internal sealed class WindowSnapping : IDisposable
         TopLevelWindows.SwitchTo(windows[0]);
     }
 
-    /// <summary>Win+arrow on the window in front.</summary>
+    /// <summary>
+    /// Whether NeoShell does what a Win+arrow key does to the window in front, as the key goes down: always, but for the
+    /// keys Windows does itself (Win+Shift+Left/Right/Down), which only a window NeoShell snapped or stretched needs
+    /// from NeoShell; Windows takes others to another monitor or restores them as Explorer would.
+    /// </summary>
+    public bool Takes(SnapKey key)
+    {
+        if (key is not (SnapKey.ShiftLeft or SnapKey.ShiftRight or SnapKey.ShiftDown))
+            return true;
+        nint hwnd = TopLevelWindows.GetForeground();
+        return SnapSettings.Read().Enabled && CanSnap(hwnd)
+            && PositionOf(hwnd) is not (SnapPosition.None or SnapPosition.Maximized or SnapPosition.Minimized);
+    }
+
+    /// <summary>Win+arrow (or Win+Shift+arrow) on the window in front.</summary>
     public void SnapForeground(SnapKey key)
     {
         nint hwnd = TopLevelWindows.GetForeground();
         if (!CanSnap(hwnd) || MonitorOf(hwnd) is not { } monitor)
             return;
         SnapPosition current = PositionOf(hwnd);
-        SnapPosition position = WindowSnap.AfterKey(current, key);
         // With "Snap windows" off, only maximizing (up) and restoring or minimizing (down) are left.
         if (!SnapSettings.Read().Enabled)
         {
@@ -93,9 +106,81 @@ internal sealed class WindowSnapping : IDisposable
                 Snap(hwnd, current == SnapPosition.Maximized ? SnapPosition.None : SnapPosition.Minimized, monitor);
             return;
         }
-        Snap(hwnd, position, monitor);
-        if (WindowSnap.Zone(position) is not null)
-            AfterSnap(hwnd, monitor);
+
+        SnapMove move = WindowSnap.AfterKey(current, key);
+        if (move == new SnapMove(current))
+            return;
+        DisplayMonitor target = move.Monitor == 0 ? monitor : Neighbour(monitor, move.Monitor, byPlace: key is SnapKey.Left or SnapKey.Right);
+        // With one monitor Win+Left/Right go round it; Win+Shift+Left/Right do nothing.
+        if (target.Handle == monitor.Handle && key is SnapKey.ShiftLeft or SnapKey.ShiftRight)
+            return;
+        if (target.Handle == monitor.Handle)
+            Snap(hwnd, move.Position, monitor);
+        else
+            SnapAcross(hwnd, move.Position, monitor, target);
+        // Shift's keys offer no Snap Assist, as with Explorer.
+        if (WindowSnap.Zone(move.Position) is not null && key is SnapKey.Left or SnapKey.Right or SnapKey.Up or SnapKey.Down)
+            AfterSnap(hwnd, target);
+    }
+
+    /// <summary>
+    /// The monitor next to <paramref name="monitor"/>, round from the last to the first: Win+Left/Right go by where the
+    /// monitors are (left to right); Win+Shift+Left/Right by Windows' list of them, as Windows does for windows that
+    /// aren't snapped (win32k's <c>xxxArrangeWindow</c>).
+    /// </summary>
+    private static DisplayMonitor Neighbour(DisplayMonitor monitor, int step, bool byPlace)
+    {
+        IReadOnlyList<DisplayMonitor> monitors = DisplayMonitor.GetAll();
+        if (byPlace)
+            monitors = [.. monitors.OrderBy(m => m.Bounds.X).ThenBy(m => m.Bounds.Y)];
+        int index = monitors.ToList().FindIndex(m => m.Handle == monitor.Handle);
+        return index < 0 ? monitor : monitors[WindowSnap.Neighbour(monitors.Count, index, step)];
+    }
+
+    /// <summary>
+    /// Puts a window in a position on another monitor: its own bounds go along, as Windows moves a window there
+    /// (<see cref="WindowSnap.OnMonitor"/>), and it's snapped there or, stretched, maximized there.
+    /// </summary>
+    private void SnapAcross(nint hwnd, SnapPosition position, DisplayMonitor from, DisplayMonitor to)
+    {
+        if (position == SnapPosition.Maximized)
+        {
+            // Maximized where it is and then moved, as Windows moves a maximized window: restored, it's back where
+            // it was, stretched (so it is with Explorer).
+            TopLevelWindows.Maximize(hwnd);
+            int border = TopLevelWindows.ResizeBorder(to.Dpi);
+            TopLevelWindows.SetBounds(hwnd, new RectInt32(to.WorkArea.X - border, to.WorkArea.Y - border,
+                to.WorkArea.Width + 2 * border, to.WorkArea.Height + 2 * border));
+            return;
+        }
+
+        // Its own bounds come from the monitor they're on, which needn't be the window's (it was dragged across).
+        _snapped.TryGetValue(hwnd, out Snapped? snapped);
+        RectInt32 restore = snapped?.Restore ?? TopLevelWindows.GetBounds(hwnd);
+        nint restoreOn = DisplayMonitor.HandleFromRect(restore, nearest: true);
+        if (restoreOn != to.Handle)
+            restore = OnMonitor(hwnd, restore, DisplayMonitor.GetAll().FirstOrDefault(m => m.Handle == restoreOn) ?? from, to);
+        // Placed twice: an app may size its window for the other monitor's DPI as it gets there, and its invisible
+        // borders change with the DPI.
+        RectInt32 zone = ZoneBounds(position, to);
+        TopLevelWindows.Place(hwnd, zone);
+        TopLevelWindows.Place(hwnd, zone);
+        Groups.Leave(hwnd);
+        _snapped[hwnd] = new Snapped(position, zone, restore);
+    }
+
+    /// <summary>A window's bounds (invisible borders included) moved from one monitor to another, as Windows moves them.</summary>
+    private static RectInt32 OnMonitor(nint hwnd, RectInt32 bounds, DisplayMonitor from, DisplayMonitor to)
+    {
+        RectInt32 outer = TopLevelWindows.GetBounds(hwnd);
+        RectInt32 visible = TopLevelWindows.GetVisibleBounds(hwnd);
+        // A standard window's invisible borders grow with the DPI as Windows' resize border does.
+        int grow = TopLevelWindows.ResizeBorder(to.Dpi) - TopLevelWindows.ResizeBorder(MonitorOf(hwnd)?.Dpi ?? from.Dpi);
+        var borders = new WindowBorders(Border(visible.X - outer.X), Border(visible.Y - outer.Y),
+            Border(outer.X + outer.Width - visible.X - visible.Width), Border(outer.Y + outer.Height - visible.Y - visible.Height));
+        return WindowSnap.OnMonitor(bounds, borders, from.Bounds, to.Bounds, to.WorkArea, from.Dpi, to.Dpi, TopLevelWindows.CanResize(hwnd));
+
+        int Border(int width) => width > 0 ? Math.Max(0, width + grow) : 0;
     }
 
     /// <summary>Win+Z: the Snap layouts flyout under the window's maximize button, for the keyboard.</summary>
@@ -414,7 +499,10 @@ internal sealed class WindowSnapping : IDisposable
         }
     }
 
-    /// <summary>Puts the window in the position on the monitor; restoring it from a half or a quarter gives it its own bounds back.</summary>
+    /// <summary>
+    /// Puts the window in the position on the monitor; restoring it from a half, a quarter or stretched gives it its own
+    /// bounds back.
+    /// </summary>
     /// <param name="before">Its bounds before it was snapped, when known; otherwise where it is now.</param>
     private void Snap(nint hwnd, SnapPosition position, DisplayMonitor monitor, RectInt32? before = null)
     {
@@ -441,7 +529,9 @@ internal sealed class WindowSnapping : IDisposable
                 if (TopLevelWindows.IsMaximized(hwnd))
                     TopLevelWindows.RestoreNow(hwnd);
                 RectInt32 restore = before ?? snapped?.Restore ?? TopLevelWindows.GetBounds(hwnd);
-                RectInt32 zone = ZoneBounds(position, monitor);
+                RectInt32 zone = position == SnapPosition.Tall
+                    ? WindowSnap.Tall(TopLevelWindows.GetVisibleBounds(hwnd), monitor.WorkArea)
+                    : ZoneBounds(position, monitor);
                 TopLevelWindows.Place(hwnd, zone);
                 if (snapped?.Zone != zone)
                     Groups.Leave(hwnd);

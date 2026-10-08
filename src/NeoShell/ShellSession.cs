@@ -28,7 +28,7 @@ internal sealed class ShellSession : IDisposable
     private readonly AltTabKeys _altTabKeys = new();
     private readonly PeekKeys _peekKeys = new();
     private readonly InputSwitchKeys _inputSwitchKeys = new();
-    private readonly SnapKeys _snapKeys = new();
+    private readonly SnapKeys _snapKeys;
     // What each hotkey does, by its ID less one.
     private readonly List<Action> _hotkeyActions = [];
     private WindowSwitcher? _switcher;
@@ -47,6 +47,7 @@ internal sealed class ShellSession : IDisposable
         _taskbars = taskbars;
         _wallpaperOn = wallpaperOn;
         _endSession = endSession;
+        _snapKeys = new SnapKeys(key => _snapping?.Takes(key) ?? false);
     }
 
     public void Start()

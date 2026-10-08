@@ -90,22 +90,143 @@ public sealed class SnapTests
 
     [Theory]
     [InlineData(SnapPosition.None, SnapKey.Left, SnapPosition.Left)]
-    [InlineData(SnapPosition.Maximized, SnapKey.Left, SnapPosition.Left)]
+    [InlineData(SnapPosition.Tall, SnapKey.Left, SnapPosition.Left)]
+    [InlineData(SnapPosition.Maximized, SnapKey.Left, SnapPosition.None)]
     [InlineData(SnapPosition.Right, SnapKey.Left, SnapPosition.None)]
     [InlineData(SnapPosition.TopRight, SnapKey.Left, SnapPosition.TopLeft)]
     [InlineData(SnapPosition.Left, SnapKey.Right, SnapPosition.None)]
+    [InlineData(SnapPosition.Maximized, SnapKey.Right, SnapPosition.None)]
     [InlineData(SnapPosition.BottomLeft, SnapKey.Right, SnapPosition.BottomRight)]
     [InlineData(SnapPosition.None, SnapKey.Up, SnapPosition.Maximized)]
+    [InlineData(SnapPosition.Tall, SnapKey.Up, SnapPosition.Maximized)]
     [InlineData(SnapPosition.Left, SnapKey.Up, SnapPosition.TopLeft)]
+    [InlineData(SnapPosition.TopLeft, SnapKey.Up, SnapPosition.Maximized)]
     [InlineData(SnapPosition.BottomRight, SnapKey.Up, SnapPosition.Right)]
     [InlineData(SnapPosition.Maximized, SnapKey.Down, SnapPosition.None)]
+    [InlineData(SnapPosition.Tall, SnapKey.Down, SnapPosition.None)]
     [InlineData(SnapPosition.Right, SnapKey.Down, SnapPosition.BottomRight)]
     [InlineData(SnapPosition.TopLeft, SnapKey.Down, SnapPosition.Left)]
     [InlineData(SnapPosition.None, SnapKey.Down, SnapPosition.Minimized)]
     [InlineData(SnapPosition.BottomLeft, SnapKey.Down, SnapPosition.Minimized)]
+    [InlineData(SnapPosition.None, SnapKey.ShiftUp, SnapPosition.Tall)]
+    [InlineData(SnapPosition.Left, SnapKey.ShiftUp, SnapPosition.Left)]
+    [InlineData(SnapPosition.TopLeft, SnapKey.ShiftUp, SnapPosition.Left)]
+    [InlineData(SnapPosition.BottomRight, SnapKey.ShiftUp, SnapPosition.Right)]
+    [InlineData(SnapPosition.Maximized, SnapKey.ShiftUp, SnapPosition.Maximized)]
+    [InlineData(SnapPosition.Tall, SnapKey.ShiftDown, SnapPosition.None)]
+    [InlineData(SnapPosition.TopRight, SnapKey.ShiftDown, SnapPosition.None)]
+    [InlineData(SnapPosition.Maximized, SnapKey.ShiftDown, SnapPosition.None)]
+    [InlineData(SnapPosition.None, SnapKey.ShiftDown, SnapPosition.None)]
     public void Win_arrows_move_between_halves_quarters_and_maximized(SnapPosition from, SnapKey key, SnapPosition to)
     {
-        Assert.Equal(to, WindowSnap.AfterKey(from, key));
+        Assert.Equal(new SnapMove(to), WindowSnap.AfterKey(from, key));
+    }
+
+    [Theory]
+    [InlineData(SnapPosition.Right, SnapKey.Right, SnapPosition.Left, 1)]
+    [InlineData(SnapPosition.TopRight, SnapKey.Right, SnapPosition.TopLeft, 1)]
+    [InlineData(SnapPosition.BottomRight, SnapKey.Right, SnapPosition.BottomLeft, 1)]
+    [InlineData(SnapPosition.Left, SnapKey.Left, SnapPosition.Right, -1)]
+    [InlineData(SnapPosition.TopLeft, SnapKey.Left, SnapPosition.TopRight, -1)]
+    [InlineData(SnapPosition.BottomLeft, SnapKey.Left, SnapPosition.BottomRight, -1)]
+    [InlineData(SnapPosition.Left, SnapKey.ShiftRight, SnapPosition.Left, 1)]
+    [InlineData(SnapPosition.BottomRight, SnapKey.ShiftLeft, SnapPosition.BottomRight, -1)]
+    [InlineData(SnapPosition.Tall, SnapKey.ShiftRight, SnapPosition.Maximized, 1)]
+    public void Win_arrows_go_on_to_the_next_monitor(SnapPosition from, SnapKey key, SnapPosition to, int monitor)
+    {
+        Assert.Equal(new SnapMove(to, monitor), WindowSnap.AfterKey(from, key));
+    }
+
+    [Fact]
+    public void Monitors_go_round_from_the_last_to_the_first()
+    {
+        Assert.Equal(1, WindowSnap.Neighbour(3, 0, 1));
+        Assert.Equal(0, WindowSnap.Neighbour(3, 2, 1));
+        Assert.Equal(2, WindowSnap.Neighbour(3, 0, -1));
+        Assert.Equal(0, WindowSnap.Neighbour(2, 1, -1));
+    }
+
+    [Fact]
+    public void Stretched_a_window_keeps_its_place_across_and_fills_the_height()
+    {
+        Assert.Equal(new RectInt32(307, 0, 686, 940), WindowSnap.Tall(new RectInt32(307, 200, 686, 493), new RectInt32(0, 0, 1764, 940)));
+    }
+
+    // The VM's monitors as measured: 1764x988 and 1280x800 on its right, each with a 48 epx taskbar.
+    private static readonly RectInt32 Primary = new(0, 0, 1764, 988);
+    private static readonly RectInt32 PrimaryWork = new(0, 0, 1764, 940);
+    private static readonly RectInt32 Second = new(1764, 0, 1280, 800);
+    private static readonly WindowBorders Borders96 = new(7, 0, 7, 7);
+
+    [Theory]
+    [InlineData(100, 100, 400, 300, 1836, 82)]
+    [InlineData(10, 10, 400, 300, 1770, 9)]
+    [InlineData(600, 400, 400, 300, 2198, 325)]
+    [InlineData(1000, 300, 400, 300, 2489, 244)]
+    [InlineData(300, 200, 700, 500, 1981, 163)]
+    public void A_window_moved_to_another_monitor_keeps_its_share_of_the_way_across(int x, int y, int width, int height, int toX, int toY)
+    {
+        // Measured on Explorer (Win+Shift+Right), what's drawn of the window rounded as win32k rounds.
+        RectInt32 moved = WindowSnap.OnMonitor(new RectInt32(x, y, width, height), Borders96, Primary, Second,
+            new RectInt32(1764, 0, 1280, 752), 96, 96, resizable: true);
+
+        Assert.Equal(new RectInt32(toX, toY, width, height), moved);
+    }
+
+    [Fact]
+    public void A_window_moved_back_comes_out_where_Explorer_put_it()
+    {
+        RectInt32 moved = WindowSnap.OnMonitor(new RectInt32(1981, 163, 700, 500), Borders96, Second, Primary, PrimaryWork, 96, 96, true);
+
+        Assert.Equal(new RectInt32(302, 201, 700, 500), moved);
+    }
+
+    [Fact]
+    public void A_window_moved_against_the_far_edges_is_kept_in_the_work_area()
+    {
+        RectInt32 work = new(1764, 0, 1280, 752);
+
+        // What's drawn of it ends at the screen's right edge and the taskbar.
+        Assert.Equal(new RectInt32(2651, 82, 400, 300),
+            WindowSnap.OnMonitor(new RectInt32(1300, 100, 400, 300), Borders96, Primary, Second, work, 96, 96, true));
+        Assert.Equal(new RectInt32(2351, 259, 700, 500),
+            WindowSnap.OnMonitor(new RectInt32(1064, 440, 700, 500), Borders96, Primary, Second, work, 96, 96, true));
+    }
+
+    [Theory]
+    [InlineData(10, 10, 400, 300, 1770, 9, 500, 375)]
+    [InlineData(100, 100, 400, 300, 1835, 82, 500, 375)]
+    [InlineData(600, 500, 400, 300, 2198, 373, 500, 375)]
+    [InlineData(1064, 440, 700, 500, 2177, 123, 875, 625)]
+    public void A_window_moved_to_a_monitor_at_125_percent_grows_with_it(int x, int y, int width, int height, int toX, int toY, int toWidth, int toHeight)
+    {
+        // Measured on Explorer with the second monitor at 125% (its taskbar 60 pixels high); borders 8 there.
+        RectInt32 moved = WindowSnap.OnMonitor(new RectInt32(x, y, width, height), new WindowBorders(8, 0, 8, 8), Primary, Second,
+            new RectInt32(1764, 0, 1280, 740), 96, 120, resizable: true);
+
+        Assert.Equal(new RectInt32(toX, toY, toWidth, toHeight), moved);
+    }
+
+    [Fact]
+    public void A_monitor_lower_down_or_above_moves_the_window_with_it()
+    {
+        RectInt32 lower = new(1764, 300, 1280, 800);
+        RectInt32 above = new(0, -800, 1280, 800);
+
+        Assert.Equal(new RectInt32(1836, 382, 400, 300),
+            WindowSnap.OnMonitor(new RectInt32(100, 100, 400, 300), Borders96, Primary, lower, new RectInt32(1764, 300, 1280, 752), 96, 96, true));
+        Assert.Equal(new RectInt32(72, -718, 400, 300),
+            WindowSnap.OnMonitor(new RectInt32(100, 100, 400, 300), Borders96, Primary, above, new RectInt32(0, -800, 1280, 752), 96, 96, true));
+    }
+
+    [Fact]
+    public void A_window_too_big_for_the_other_work_area_is_cut_to_it_if_it_can_be_resized()
+    {
+        RectInt32 work = new(1764, 0, 1280, 752);
+        RectInt32 big = new(0, 0, 1500, 900);
+
+        Assert.Equal(new RectInt32(1757, 0, 1294, 759), WindowSnap.OnMonitor(big, Borders96, Primary, Second, work, 96, 96, resizable: true));
+        Assert.Equal(new RectInt32(1757, 0, 1500, 900), WindowSnap.OnMonitor(big, Borders96, Primary, Second, work, 96, 96, resizable: false));
     }
 
     [Fact]
@@ -133,7 +254,7 @@ public sealed class SnapTests
     [Fact]
     public void Win_arrow_snaps_once_per_press_and_the_arrow_is_swallowed()
     {
-        var keys = new SnapKeys();
+        var keys = new SnapKeys(_ => true);
 
         Assert.False(keys.OnKey(0x5B, true, out _));
         Assert.True(keys.OnKey(0x25, true, out SnapKey? key));
@@ -148,14 +269,39 @@ public sealed class SnapTests
     [Fact]
     public void Arrows_without_Win_or_with_other_modifiers_pass()
     {
-        var keys = new SnapKeys();
+        var keys = new SnapKeys(_ => true);
 
         Assert.False(keys.OnKey(0x26, true, out SnapKey? key)); // an arrow on its own
         keys.OnKey(0x26, false, out _);
         keys.OnKey(0x5C, true, out _);
-        keys.OnKey(0xA0, true, out _);                            // Win+Shift+Left moves to another monitor
+        keys.OnKey(0xA2, true, out _);                            // Win+Ctrl+Left switches virtual desktops
         Assert.False(keys.OnKey(0x25, true, out key));
         Assert.Null(key);
+    }
+
+    [Fact]
+    public void Win_Shift_arrows_pass_to_Windows_unless_NeoShell_takes_them()
+    {
+        // Windows moves a window that isn't snapped to the other monitor itself.
+        List<SnapKey> asked = [];
+        var keys = new SnapKeys(key =>
+        {
+            asked.Add(key);
+            return key != SnapKey.ShiftRight;
+        });
+
+        keys.OnKey(0x5B, true, out _);
+        keys.OnKey(0xA1, true, out _);
+        Assert.False(keys.OnKey(0x27, true, out SnapKey? key));
+        Assert.Null(key);
+        Assert.False(keys.OnKey(0x27, false, out _));
+        Assert.True(keys.OnKey(0x26, true, out key));
+        Assert.Equal(SnapKey.ShiftUp, key);
+        Assert.True(keys.OnKey(0x26, false, out _));
+        keys.OnKey(0xA1, false, out _);
+        Assert.True(keys.OnKey(0x27, true, out key));
+        Assert.Equal(SnapKey.Right, key);
+        Assert.Equal([SnapKey.ShiftRight, SnapKey.ShiftUp, SnapKey.Right], asked);
     }
 
     [Fact]

@@ -150,15 +150,60 @@ public static unsafe class TopLevelWindows
         if (User32.IsZoomed(hwnd) || User32.IsIconic(hwnd))
             Show(hwnd, User32.SW_RESTORE, User32.SC_RESTORE, wait: true);
 
-        // The invisible borders stay outside the bounds, as wide as they are now.
-        RectInt32 outer = GetBounds(hwnd);
+        // A window that isn't aware of each monitor's DPI sees each monitor scaled to its own scale, and is placed in
+        // those coordinates: in screen pixels Windows scales it again on a monitor at another scale, or rounds it a
+        // pixel short where it reaches one.
         RectInt32 visible = GetVisibleBounds(hwnd);
-        int left = visible.X - outer.X;
-        int top = visible.Y - outer.Y;
-        int right = outer.X + outer.Width - (visible.X + visible.Width);
-        int bottom = outer.Y + outer.Height - (visible.Y + visible.Height);
-        User32.SetWindowPos(hwnd, 0, bounds.X - left, bounds.Y - top, bounds.Width + left + right, bounds.Height + top + bottom,
-            User32.SWP_NOZORDER | User32.SWP_NOACTIVATE);
+        nint context = User32.GetWindowDpiAwarenessContext(hwnd);
+        bool scaled = User32.GetAwarenessFromDpiAwarenessContext(context) != User32.DPI_AWARENESS_PER_MONITOR_AWARE;
+        if (scaled)
+        {
+            visible = ScaledFor(visible, context);
+            bounds = ScaledFor(bounds, context);
+        }
+        nint previous = scaled ? User32.SetThreadDpiAwarenessContext(context) : 0;
+        try
+        {
+            // The invisible borders stay outside the bounds, as wide as they are now.
+            RectInt32 outer = GetBounds(hwnd);
+            int left = visible.X - outer.X;
+            int top = visible.Y - outer.Y;
+            int right = outer.X + outer.Width - (visible.X + visible.Width);
+            int bottom = outer.Y + outer.Height - (visible.Y + visible.Height);
+            User32.SetWindowPos(hwnd, 0, bounds.X - left, bounds.Y - top, bounds.Width + left + right, bounds.Height + top + bottom,
+                User32.SWP_NOZORDER | User32.SWP_NOACTIVATE);
+        }
+        finally
+        {
+            if (scaled)
+                User32.SetThreadDpiAwarenessContext(previous);
+        }
+    }
+
+    /// <summary>
+    /// A rectangle in screen pixels as a thread of this DPI awareness sees it: its monitor scaled to the monitor as that
+    /// thread sees it.
+    /// </summary>
+    private static RectInt32 ScaledFor(RectInt32 rect, nint context)
+    {
+        User32.RECT r = User32.RECT.From(rect);
+        nint monitor = User32.MonitorFromRect(&r, User32.MONITOR_DEFAULTTONEAREST);
+        var physical = new User32.MONITORINFO { cbSize = (uint)sizeof(User32.MONITORINFO) };
+        var logical = physical;
+        nint previous = User32.SetThreadDpiAwarenessContext(context);
+        bool known = User32.GetMonitorInfo(monitor, &logical);
+        User32.SetThreadDpiAwarenessContext(previous);
+        if (!known || !User32.GetMonitorInfo(monitor, &physical))
+            return rect;
+
+        RectInt32 from = physical.rcMonitor.ToRectInt32(), to = logical.rcMonitor.ToRectInt32();
+        int left = Scale(rect.X - from.X, to.Width, from.Width) + to.X;
+        int top = Scale(rect.Y - from.Y, to.Height, from.Height) + to.Y;
+        int right = Scale(rect.X + rect.Width - from.X, to.Width, from.Width) + to.X;
+        int bottom = Scale(rect.Y + rect.Height - from.Y, to.Height, from.Height) + to.Y;
+        return new RectInt32(left, top, right - left, bottom - top);
+
+        static int Scale(int value, int by, int over) => (int)Math.Round(value * (double)by / over, MidpointRounding.AwayFromZero);
     }
 
     /// <summary>
@@ -180,6 +225,13 @@ public static unsafe class TopLevelWindows
         }
         Place(hwnd, bounds);
     }
+
+    /// <summary>
+    /// How wide a standard window's resize border is at <paramref name="dpi"/>, the visible pixel of it included: its
+    /// invisible border is one less (7 at 96 DPI, 8 at 120).
+    /// </summary>
+    public static int ResizeBorder(uint dpi) =>
+        User32.GetSystemMetricsForDpi(User32.SM_CXSIZEFRAME, dpi) + User32.GetSystemMetricsForDpi(User32.SM_CXPADDEDBORDER, dpi);
 
     /// <summary>Moves and sizes the window, invisible borders included (as <see cref="GetBounds"/> measures it).</summary>
     public static void SetBounds(nint hwnd, RectInt32 bounds) =>

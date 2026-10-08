@@ -428,7 +428,19 @@ Each item is done when it looks and behaves as Explorer's (layout, behaviour, an
       flyout (UIPI), suggestions follow NeoShell's z-order rather than Explorer's activation order, the Maximize
       tooltip shows briefly before NeoShell hides it — not run live: a second monitor, light theme colours (dark
       measured), screens of 1920+ epx (thirds layouts)
-- [ ] T28 Win+Shift+arrows and Win+Left/Right across monitors
+- [x] T28 Win+Shift+arrows and Win+Left/Right across monitors — studied on Explorer with a second monitor (VMware
+      Tools; 1280x800 beside 1764x988, at 100% and 125%) and with none: every key from every state (normal, halves,
+      quarters, maximized, stretched), extended frame bounds and Snap Assist recorded; win32k's own share found with
+      cdb and Ghidra (Win+Shift+Left/Right move ordinary windows and Win+Shift+Down restores maximized ones without
+      Explorer; its hotkey table, monitor order and rectangle transform), so NeoShell takes those keys only for windows
+      it snapped or stretched; Win+Left/Right go on to the next monitor and round, Win+Shift+Up stretches, the window's
+      own bounds move as win32k moves them (tested against Explorer's numbers, DPI and vertical offsets unit tested);
+      Win+Left/Right restore a maximized window and Win+Up maximizes a top quarter, as Explorer does (were wrong);
+      DPI-unaware windows are now placed in their own coordinates (they came out a pixel narrow or scaled twice next
+      to a 125% monitor). Compared side by side: 13 sequences with two monitors at 100% and 125% and 6 with one, the
+      same to the pixel — differs: no move animation (Explorer's ~250 ms slide, as for every Win+arrow), a DPI-unaware
+      window's own bounds 1 px off at 125% — not run live: three or more monitors (order of Win+Left/Right), monitors
+      offset vertically (unit tested)
 - [ ] T29 Title-bar shake; Ctrl+Alt+Tab
 - [ ] T30 Win+V, Win+Period, Win+H, Win+Shift+R, Copilot key
 - [ ] T31 Snips: freeform, window and full-screen modes, the toolbar, opening in Snipping Tool

@@ -266,6 +266,12 @@ internal static unsafe partial class User32
     [LibraryImport("user32.dll")]
     public static partial int GetSystemMetrics(int index);
 
+    public const int SM_CXSIZEFRAME = 32;
+    public const int SM_CXPADDEDBORDER = 92;
+
+    [LibraryImport("user32.dll")]
+    public static partial int GetSystemMetricsForDpi(int index, uint dpi);
+
     public const int ARW_HIDE = 0x0008;
 
     [StructLayout(LayoutKind.Sequential)]
@@ -570,6 +576,17 @@ internal static unsafe partial class User32
 
     [LibraryImport("user32.dll")]
     public static partial uint GetDpiForWindow(nint hwnd);
+
+    public const int DPI_AWARENESS_PER_MONITOR_AWARE = 2;
+
+    [LibraryImport("user32.dll")]
+    public static partial nint GetWindowDpiAwarenessContext(nint hwnd);
+
+    [LibraryImport("user32.dll")]
+    public static partial int GetAwarenessFromDpiAwarenessContext(nint context);
+
+    [LibraryImport("user32.dll")]
+    public static partial nint SetThreadDpiAwarenessContext(nint context);
 
     public const uint WM_NCHITTEST = 0x0084;
     public const int HTMAXBUTTON = 9;

@@ -2191,11 +2191,52 @@ nothing (they stay registered as hotkeys, so the keyboard hook takes them: `Snap
   clicked on its title bar), it gets that size back under the pointer, at the same share of its width as where it was
   grabbed (`WindowSnap.Unsnapped`, tested). A maximized window dragged is restored by Windows itself first. A snapped
   window stays snapped underneath when maximized, as in Windows; sized by hand, it isn't snapped any more.
-- **Win+arrows** (`WindowSnap.AfterKey`, tested), Windows 11's moves: Left/Right snap to that half, cross over to the
-  other quarter, and from the other half give the window its own bounds back; Up goes from a half to its top quarter
-  and from a bottom quarter to the half, and maximizes a window that isn't snapped; Down undoes those, restores a
-  maximized window and minimizes what's left. Once per press.
-- Not done: Win+Shift+arrows and moving across monitors with Win+Left/Right (T28).
+- **Win+arrows** (`WindowSnap.AfterKey`, tested), Windows 11's moves, as measured on Explorer with one and two
+  monitors: Left/Right snap to that half, cross over to the other quarter, give the window its own bounds back from
+  the other half or from maximized, and from the far half or quarter go on to the next monitor's near one (Win+Right
+  on the right half: the next monitor's left half; the top right quarter: its top left one), round from the last
+  monitor to the first; with one monitor round the same one (right half, Win+Right: left half). Up goes from a half
+  to its top quarter, from a bottom quarter to the half, and maximizes the rest (a top quarter too); Down undoes
+  those, restores a maximized or stretched window and minimizes what's left. Once per press. Win+Left/Right go
+  through the monitors left to right (by their left edges); the window's own bounds go along to the other monitor as
+  Windows moves them (below), and Snap Assist comes up there as after any snap.
+- **Win+Shift+arrows.** Windows itself (win32k's `xxxArrangeWindow`, its hotkey table read with cdb) still does two
+  of them without Explorer: Win+Shift+Left/Right move a window to the previous/next monitor in its list of them
+  (`EnumDisplayMonitors`' order), round from the last to the first, with more than one monitor; Win+Shift+Down
+  restores a maximized window. A maximized window stays maximized; restored after the move it goes back to where it
+  was on the first monitor (Windows' own, with or without Explorer). Win+Shift+Up (stretch) and Win+Up/Down/Left/Right
+  are left to the shell and do nothing without it. So `SnapKeys` lets Win+Shift+Left/Right/Down pass to Windows unless
+  `WindowSnapping.Takes` says the window in front is one NeoShell snapped or stretched (Windows would move or leave
+  it as an ordinary window); Win+Shift+Up it always takes. What each does, as Explorer's:
+  - Up stretches the window to the work area's height at its own place and width (`SnapPosition.Tall`; Explorer's
+    vertical maximize); a quarter becomes its half; halves, maximized and stretched windows stay. No Snap Assist.
+  - Down gives a snapped, stretched or maximized window its own bounds back; a window that's neither stays.
+  - Left/Right take a snapped window to the same zone of the other monitor, its own bounds going along; a stretched
+    one is maximized there (Explorer's, oddly: restored, it's back stretched on the first monitor). With one monitor
+    nothing happens. No Snap Assist.
+- **Its own bounds on another monitor** (`WindowSnap.OnMonitor`, tested against Explorer's results; win32k's
+  `AdvancedWindowPos::xxxTransformRectToMonitor`, decompiled with Ghidra): the size is scaled by the monitors' DPIs
+  (`MulDiv`, for a per-monitor aware window); what's drawn of the window (the bounds less the invisible borders at
+  the new DPI, `WindowMargins::ReduceRect`) keeps its share of the way across and down the monitor, not the work
+  area: `x + (from.Width / 2 + x * (to.Width - from.Width)) / from.Width` from the monitor's corner, in C's integer
+  division; then `FitRectToWorkArea`: pushed back in from the right and the bottom, then the left and the top, and cut
+  to the work area where a resizable window is still too big. Measured, 1764x988 to 1280x800 on its right: a window at
+  (300, 200) comes out at (1981, 163); at 125% it grows to 875x625 at (1980, 123), its 8 pixel borders there instead of
+  7 (`TopLevelWindows.ResizeBorder`: `SM_CXSIZEFRAME` + `SM_CXPADDEDBORDER` less one). A window snapped by dragging
+  from another monitor keeps its own bounds there; they're moved from the monitor they're on.
+- **Placing windows that aren't per-monitor DPI aware.** `TopLevelWindows.Place` moves a DPI-unaware or system-aware
+  window in its own coordinates (the thread switched to the window's DPI awareness, the rectangle scaled to the
+  monitor as that window sees it): placed in screen pixels, Windows scaled such a window again on the monitor at 125%
+  (a 740 high zone came out 927 high), and on the 100% monitor beside it a right half came out a pixel narrow where
+  its invisible border reached the 125% monitor. A window moved to a monitor at another DPI is placed twice: its app
+  may size it for the new DPI as it arrives, and its invisible borders change.
+- Compared side by side with Explorer (two monitors, the second at 100% and at 125%, and one monitor): the same
+  13 key sequences on a fresh per-monitor aware window each, every state's extended frame bounds, the same to the
+  pixel, Snap Assist coming up after the same keys. Differs: Explorer animates each move (about 250 ms, the window
+  sliding and scaling from its old place to its new one; Win+Shift moves about 170 ms), NeoShell's windows jump as
+  they do for every Win+arrow; a DPI-unaware window's own bounds can land a pixel off on a monitor at another scale
+  (Windows works them out in the window's scaled coordinates); Win+Left/Right go round monitors left to right, which
+  may not be Explorer's order with three or more (only two could be tried).
 
 ### Snap Assist (`SnapAssist`, `SnapAssistPlan`, unit tested)
 
