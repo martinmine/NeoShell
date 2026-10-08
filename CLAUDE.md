@@ -71,7 +71,8 @@ src/NeoShell/                 WinUI app
   QuickSettings/              Quick Settings: tiles, Wi-Fi, Bluetooth, Accessibility, Cast, Project and Sound output pages
   StartMenu/                  StartMenuWindow, app list, search results, power menu
   Switcher/                   Alt+Tab window switcher (shell mode)
-  Snap/                       Win+Z Snap layouts, window snapping by dragging and Win+arrows (shell mode)
+  Snap/                       Snap (shell mode): layouts flyout (maximize button hover, Win+Z), Snap bar, dragging and
+                              Win+arrows, Snap Assist, snap groups, the Multitasking settings
   Capture/                    Screenshots: Win+PrtScn, Win+Shift+S snip (shell mode)
   AutoPlay/                   AutoPlay for inserted media (shell mode): content and choices, toast, Windows 8 flyout
   Widgets/                    Widget sidebar, floating widgets, and the widgets (profile, resources, pictures, media,
@@ -190,7 +191,8 @@ the desktop and back. Full spec in docs/design.md ("Widgets").
   tray icon order and drag targets,
   app bar placing, search ranking,
   indexer query building, startup entries, settings, wallpaper style mapping, AppBar rects, desktop icon
-  filtering, sorting and grid places, icon spacing and Explorer's saved icon layouts (IconLayouts), icons off the grid, wallpaper per monitor, slideshow order and timing, Explorer's wallpaper and slideshow formats, snap zones and keys, Start's pin folders and folder buttons, Start's All categories, order, New/System and tile store, the taskbar search setting and its collapse, thumbnail toolbar data and image lists, pinning by drag, clock settings and notification bell, widget placement and order, MET forecast parsing, wireless device protocols, Windows product name,
+  filtering, sorting and grid places, icon spacing and Explorer's saved icon layouts (IconLayouts), icons off the grid, wallpaper per monitor, slideshow order and timing, Explorer's wallpaper and slideshow formats, snap zones and keys, Snap's settings, suggestions, Snap Assist's zones and card rows, snap groups and their
+  Alt+Tab items, finding a maximize button, Start's pin folders and folder buttons, Start's All categories, order, New/System and tile store, the taskbar search setting and its collapse, thumbnail toolbar data and image lists, pinning by drag, clock settings and notification bell, widget placement and order, MET forecast parsing, wireless device protocols, Windows product name,
   AutoPlay content, events, choice lists and saving, autorun.inf parsing, optical drive names, toast sounds,
   input indicator labels and Win+Space keys, task button badges, Start account menu order and "…".
 - When testing the UI live, drive it through UI Automation (set `AutomationProperties.AutomationId` on interactive

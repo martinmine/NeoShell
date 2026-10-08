@@ -21,6 +21,7 @@ internal sealed class SnapPreview : Window
 
     private readonly Border _outline = new() { CornerRadius = new CornerRadius(8), BorderThickness = new Thickness(1) };
     private readonly ShellBackdrop _backdrop = new(Backdrop.Acrylic);
+    private readonly nint _hwnd;
     private readonly FramelessWindow _frameless;
     private readonly PinnedWindow _placement;
     private bool _shown;
@@ -37,16 +38,11 @@ internal sealed class SnapPreview : Window
         presenter.IsMinimizable = false;
         AppWindow.SetPresenter(presenter);
 
-        nint hwnd = Win32Interop.GetWindowFromWindowId(AppWindow.Id);
+        nint hwnd = _hwnd = Win32Interop.GetWindowFromWindowId(AppWindow.Id);
         WindowStyles.AddExtended(hwnd, ExtendedWindowStyles.ToolWindow | ExtendedWindowStyles.NoActivate);
         _frameless = new FramelessWindow(hwnd, roundedCorners: true);
         _placement = new PinnedWindow(hwnd, default, PinnedLayer.Normal);
 
-        Closed += (_, _) =>
-        {
-            _placement.Dispose();
-            _frameless.Dispose();
-        };
     }
 
     /// <summary>Shows the zone (screen pixels) just behind <paramref name="dragged"/>.</summary>
@@ -67,6 +63,15 @@ internal sealed class SnapPreview : Window
             AppWindow.Show(activateWindow: false);
             _placement.SetLayer(PinnedLayer.Normal, above: dragged);
         }
+    }
+
+    /// <summary>Closes it, letting go of the window first: WinUI can crash handling a move of a window it's tearing down.</summary>
+    public void Shut()
+    {
+        _placement.Dispose();
+        _frameless.Dispose();
+        WindowClosing.IgnoreMoves(_hwnd);
+        Close();
     }
 
     public void Hide()

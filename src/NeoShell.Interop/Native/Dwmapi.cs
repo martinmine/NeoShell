@@ -4,6 +4,7 @@ namespace NeoShell.Interop.Native;
 
 internal static unsafe partial class Dwmapi
 {
+    public const uint DWMWA_CAPTION_BUTTON_BOUNDS = 5;
     public const uint DWMWA_EXTENDED_FRAME_BOUNDS = 9;
     public const uint DWMWA_EXCLUDED_FROM_PEEK = 12;
     public const uint DWMWA_CLOAK = 13;
@@ -21,6 +22,7 @@ internal static unsafe partial class Dwmapi
 
     public const uint DWM_TNP_RECTDESTINATION = 0x01;
     public const uint DWM_TNP_RECTSOURCE = 0x02;
+    public const uint DWM_TNP_OPACITY = 0x04;
     public const uint DWM_TNP_VISIBLE = 0x08;
     public const uint DWM_TNP_SOURCECLIENTAREAONLY = 0x10;
 

@@ -5,6 +5,15 @@ namespace NeoShell.Snap;
 /// <summary>A zone of a snap layout, as fractions of the work area.</summary>
 public sealed record SnapZone(double X, double Y, double Width, double Height);
 
+/// <summary>
+/// A layout as offered, with what goes in each zone: -1 for the window being snapped, otherwise the index of a
+/// suggested window (Windows 11 24H2's suggestions: other apps' windows shown by their icons).
+/// </summary>
+public sealed record SnapChoice(IReadOnlyList<SnapZone> Zones, IReadOnlyList<int> Suggested)
+{
+    public bool IsSuggestion => Suggested.Any(index => index >= 0);
+}
+
 /// <summary>The layouts Win+Z offers, as Windows 11's Snap layouts: more of them on a wide screen.</summary>
 public static class SnapLayouts
 {
@@ -24,16 +33,35 @@ public static class SnapLayouts
         }
 
         IReadOnlyList<SnapZone> halves = [new(0, 0, 0.5, 1), new(0.5, 0, 0.5, 1)];
-        IReadOnlyList<SnapZone> twoThirds = [new(0, 0, 2 * Third, 1), new(2 * Third, 0, Third, 1)];
         IReadOnlyList<SnapZone> halfAndStack = [new(0, 0, 0.5, 1), new(0.5, 0, 0.5, 0.5), new(0.5, 0.5, 0.5, 0.5)];
         IReadOnlyList<SnapZone> quarters = [new(0, 0, 0.5, 0.5), new(0.5, 0, 0.5, 0.5), new(0, 0.5, 0.5, 0.5), new(0.5, 0.5, 0.5, 0.5)];
         // Columns of a third and the wide middle only once there's room for them: 1920 effective pixels, as Windows.
+        // Below that the uneven pair is 60 and 40 (measured on Explorer at 1764 wide: a 1058 pixel zone).
         if (workArea.Width * 96.0 / dpi < 1920)
-            return [halves, twoThirds, halfAndStack, quarters];
+            return [halves, [new(0, 0, 0.6, 1), new(0.6, 0, 0.4, 1)], halfAndStack, quarters];
+
+        IReadOnlyList<SnapZone> twoThirds = [new(0, 0, 2 * Third, 1), new(2 * Third, 0, Third, 1)];
 
         IReadOnlyList<SnapZone> thirds = [new(0, 0, Third, 1), new(Third, 0, Third, 1), new(2 * Third, 0, Third, 1)];
         IReadOnlyList<SnapZone> wideMiddle = [new(0, 0, 0.25, 1), new(0.25, 0, 0.5, 1), new(0.75, 0, 0.25, 1)];
         return [halves, twoThirds, thirds, halfAndStack, quarters, wideMiddle];
+    }
+
+    /// <summary>
+    /// The layouts as Explorer's flyouts offer them: first, given windows of other apps to suggest, the halves with the
+    /// window beside the first of them and (on a landscape screen) a half beside the first two stacked; then
+    /// <see cref="For"/>'s.
+    /// </summary>
+    public static IReadOnlyList<SnapChoice> Choices(RectInt32 workArea, uint dpi, int suggestions)
+    {
+        IReadOnlyList<IReadOnlyList<SnapZone>> layouts = For(workArea, dpi);
+        var choices = new List<SnapChoice>();
+        if (suggestions >= 1)
+            choices.Add(new SnapChoice(layouts[0], [-1, 0]));
+        if (suggestions >= 2 && workArea.Width >= workArea.Height)
+            choices.Add(new SnapChoice([new(0, 0, 0.5, 1), new(0.5, 0, 0.5, 0.5), new(0.5, 0.5, 0.5, 0.5)], [-1, 0, 1]));
+        choices.AddRange(layouts.Select(zones => new SnapChoice(zones, [.. zones.Select(_ => -1)])));
+        return choices;
     }
 
     /// <summary>

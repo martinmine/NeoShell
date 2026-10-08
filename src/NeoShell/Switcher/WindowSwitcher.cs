@@ -7,6 +7,7 @@ using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
 using NeoShell.Interop.Windowing;
 using NeoShell.Settings;
+using NeoShell.Snap;
 using NeoShell.Taskbar;
 using Windows.Graphics;
 using Windows.UI;
@@ -37,6 +38,7 @@ internal sealed class WindowSwitcher : Window
 
     private readonly WindowTracker _tracker;
     private readonly Func<ElementTheme> _theme;
+    private readonly WindowSnapping? _snapping;
     private readonly nint _hwnd;
     private readonly ShellBackdrop _backdrop = new(Backdrop.Acrylic);
     private readonly Canvas _canvas = new();
@@ -49,10 +51,12 @@ internal sealed class WindowSwitcher : Window
     private bool _visible;
 
     /// <param name="theme">The theme the taskbar shows, read each time the switcher opens.</param>
-    public WindowSwitcher(WindowTracker tracker, Func<ElementTheme> theme)
+    /// <param name="snapping">Snap, whose snap groups the switcher shows as items of their own.</param>
+    public WindowSwitcher(WindowTracker tracker, Func<ElementTheme> theme, WindowSnapping? snapping)
     {
         _tracker = tracker;
         _theme = theme;
+        _snapping = snapping;
         Content = _canvas;
         SystemBackdrop = _backdrop;
         // Explorer's switcher's name, for UI Automation.
@@ -126,11 +130,15 @@ internal sealed class WindowSwitcher : Window
         int ownProcess = Environment.ProcessId;
         Dictionary<nint, WindowInfo> windows = _tracker.Windows.Where(w => w.ProcessId != ownProcess).ToDictionary(w => w.Handle);
         IReadOnlyList<nint> order = AltTabLayout.Order([.. windows.Keys], TopLevelWindows.GetAll(), TopLevelWindows.GetForeground());
+        // "Show my snapped windows ... when I press Alt+Tab": each snap group before its windows, as Explorer's.
+        IReadOnlyList<SwitcherEntry> entries = _snapping is not null && WindowSnapping.ShowGroups
+            ? AltTabLayout.WithGroups(order, _snapping.Groups.All)
+            : [.. order.Select(hwnd => new SwitcherEntry(hwnd))];
 
         Clear();
-        foreach (nint hwnd in order)
-            _items.Add(new Item(windows[hwnd]));
-        _selected = AltTabLayout.FirstSelection(_items.Count, backwards);
+        foreach (SwitcherEntry entry in entries)
+            _items.Add(new Item(windows[entry.Window], entry.Group));
+        _selected = AltTabLayout.FirstSelection(entries, backwards);
         _showTimer.Start();
     }
 
@@ -149,10 +157,12 @@ internal sealed class WindowSwitcher : Window
 
     private void SwitchTo(int index)
     {
-        nint? target = index >= 0 && index < _items.Count ? _items[index].Window.Handle : null;
+        Item? item = index >= 0 && index < _items.Count ? _items[index] : null;
         Hide();
-        if (target is { } hwnd)
-            TopLevelWindows.SwitchTo(hwnd);
+        if (item?.Group is { } group)
+            WindowSnapping.ActivateGroup(group);
+        else if (item is not null)
+            TopLevelWindows.SwitchTo(item.Window.Handle);
     }
 
     private void Hide()
@@ -168,7 +178,8 @@ internal sealed class WindowSwitcher : Window
 
     private void CloseWindow(int index)
     {
-        if (index < 0 || index >= _items.Count)
+        // A group's item closes nothing.
+        if (index < 0 || index >= _items.Count || _items[index].Group is not null)
             return;
 
         TopLevelWindows.Close(_items[index].Window.Handle);
@@ -178,6 +189,7 @@ internal sealed class WindowSwitcher : Window
     private void Remove(int index)
     {
         _items[index].Thumbnail?.Dispose();
+        _items[index].GroupPreview?.Dispose();
         _items.RemoveAt(index);
         if (_items.Count == 0)
         {
@@ -217,7 +229,12 @@ internal sealed class WindowSwitcher : Window
         _canvas.RequestedTheme = theme;
         _backdrop.Theme = theme;
         foreach (Item item in _items)
-            item.Thumbnail ??= TryRegister(item.Window.Handle);
+        {
+            if (item.Group is { } group && _snapping is not null)
+                item.GroupPreview ??= new SnapGroupPreview(_hwnd, group, _snapping);
+            else
+                item.Thumbnail ??= TryRegister(item.Window.Handle);
+        }
 
         // As many rows as the screen takes; with more, the previews get smaller (Explorer's scroll instead).
         double maxGridWidth = monitor.WorkArea.Width / scale - 2 * (ScreenMargin + PanelPadding);
@@ -252,9 +269,12 @@ internal sealed class WindowSwitcher : Window
     private static double CardWidth(Item item, double previewHeight) =>
         Math.Max(MinCardWidth, PreviewWidth(item, previewHeight) + 2 * CardInset);
 
-    // The window's shape at the preview's height; a minimized window shows its icon in a preview of the usual shape.
+    // The window's shape at the preview's height; a minimized window shows its icon in a preview of the usual shape. A
+    // group's is its screen's.
     private static double PreviewWidth(Item item, double height)
     {
+        if (item.GroupPreview is { } group)
+            return height * group.Aspect;
         SizeInt32 source = item.Thumbnail?.SourceSize ?? default;
         if (TopLevelWindows.IsMinimized(item.Window.Handle) || source.Width <= 0 || source.Height <= 0)
             return height * 16 / 10;
@@ -318,10 +338,12 @@ internal sealed class WindowSwitcher : Window
             header.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
             header.ColumnDefinitions.Add(new ColumnDefinition());
             header.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-            header.Children.Add(new Image { Source = _tracker.WindowIcon(item.Window), Width = 16, Height = 16 });
+            // A group's title has no icon, as in Explorer.
+            if (item.Group is null)
+                header.Children.Add(new Image { Source = _tracker.WindowIcon(item.Window), Width = 16, Height = 16 });
             var title = new TextBlock
             {
-                Text = item.Window.Title,
+                Text = item.Group is { } members ? GroupTitle(members) : item.Window.Title,
                 FontSize = 14,
                 VerticalAlignment = VerticalAlignment.Center,
                 TextTrimming = TextTrimming.CharacterEllipsis,
@@ -342,11 +364,12 @@ internal sealed class WindowSwitcher : Window
             AutomationProperties.SetName(close, "Close " + item.Window.Title);
             AutomationProperties.SetAutomationId(close, "SwitcherCloseButton");
             Grid.SetColumn(close, 2);
-            header.Children.Add(close);
+            if (item.Group is null)
+                header.Children.Add(close);
             cell.Children.Add(header);
 
-            bool minimized = TopLevelWindows.IsMinimized(item.Window.Handle);
-            if (item.Thumbnail is null || minimized)
+            bool minimized = item.Group is null && TopLevelWindows.IsMinimized(item.Window.Handle);
+            if (item.Group is null && (item.Thumbnail is null || minimized))
             {
                 var icon = new Image { Source = _tracker.WindowIcon(item.Window), Width = 48, Height = 48 };
                 Grid.SetRow(icon, 1);
@@ -373,6 +396,16 @@ internal sealed class WindowSwitcher : Window
             };
             close.Click += (_, _) => CloseWindow(_items.IndexOf(current));
             _canvas.Children.Add(cell);
+
+            if (item.GroupPreview is { } groupPreview)
+            {
+                double groupWidth = previewHeight * groupPreview.Aspect;
+                groupPreview.Show(new RectInt32(
+                    (int)Math.Round((x + (slot.Width - groupWidth) / 2) * scale),
+                    (int)Math.Round((y + HeaderHeight) * scale),
+                    (int)Math.Round(groupWidth * scale),
+                    (int)Math.Round(previewHeight * scale)));
+            }
 
             // DWM draws the live preview over the card, under its title, in the window's pixels.
             if (item.Thumbnail is { } thumbnail && !minimized)
@@ -433,7 +466,10 @@ internal sealed class WindowSwitcher : Window
     private void Clear()
     {
         foreach (Item item in _items)
+        {
             item.Thumbnail?.Dispose();
+            item.GroupPreview?.Dispose();
+        }
         _items.Clear();
         _slots = [];
         _selected = -1;
@@ -450,9 +486,18 @@ internal sealed class WindowSwitcher : Window
         return false;
     }
 
-    private sealed class Item(WindowInfo window)
+    private string GroupTitle(IReadOnlyList<nint> group)
+    {
+        Dictionary<nint, WindowInfo> windows = _tracker.Windows.ToDictionary(w => w.Handle);
+        return SnapGroups.Title([.. group.Select(h => windows.TryGetValue(h, out WindowInfo? w) ? w.Title : "")]);
+    }
+
+    /// <summary>A window's item, or a snap group's (<see cref="Window"/> is then its most recently used).</summary>
+    private sealed class Item(WindowInfo window, IReadOnlyList<nint>? group)
     {
         public WindowInfo Window { get; } = window;
+        public IReadOnlyList<nint>? Group { get; } = group;
+        public SnapGroupPreview? GroupPreview { get; set; }
         public DwmThumbnail? Thumbnail { get; set; }
         public Border? Ring { get; set; }
     }

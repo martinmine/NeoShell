@@ -415,7 +415,19 @@ Each item is done when it looks and behaves as Explorer's (layout, behaviour, an
       target refuses fall back to the desktop as in Explorer — not run live: Ctrl+Z/Ctrl+Y (letter keys), Undo Move
       (same path as the others); differs: an icon placed by the grid and then saved off it is 2 px higher in Explorer's
       saved rows (its unsubtracted top inset)
-- [ ] T27 Snap Assist, snap groups, Snap layouts on the maximize button and at the top edge
+- [x] T27 Snap Assist, snap groups, Snap layouts on the maximize button and at the top edge — studied in Explorer
+      with WinForms test windows (standard and a custom title bar answering `HTMAXBUTTON`), 60 fps recordings, UIA
+      and pixel scans; the flyout (hover, ~630 ms, closing 230 ms after leaving; Win+Z with numbers) matches Explorer's
+      to the pixel in size, layouts and zone geometry (60/40 uneven pair below 1920 epx) and colours (dark), with 24H2's
+      suggestions; the Snap bar (peek, reach, slide timings, place and size measured at 60 fps); Snap Assist (layout
+      choice, panels, card rows and sizes, order, keys, closing; minimized windows' previews); snap groups on the
+      taskbar previews and in Alt+Tab (placement, title, first selection, restoring); the five Multitasking settings
+      and "Snap windows" (registry values found by toggling them) honoured live, each checked — differs: Assist's
+      cards fade in (Explorer's fly in from their windows, appearing later), the dragged window isn't shrunk over the
+      bar, with `DITest` off Windows' own top-edge maximize still answers within 6 px, elevated apps get no hover
+      flyout (UIPI), suggestions follow NeoShell's z-order rather than Explorer's activation order, the Maximize
+      tooltip shows briefly before NeoShell hides it — not run live: a second monitor, light theme colours (dark
+      measured), screens of 1920+ epx (thirds layouts)
 - [ ] T28 Win+Shift+arrows and Win+Left/Right across monitors
 - [ ] T29 Title-bar shake; Ctrl+Alt+Tab
 - [ ] T30 Win+V, Win+Period, Win+H, Win+Shift+R, Copilot key

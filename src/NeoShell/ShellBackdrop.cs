@@ -35,6 +35,9 @@ internal sealed class ShellBackdrop(Backdrop kind) : SystemBackdrop
         }
     }
 
+    /// <summary>How much of <see cref="Tint"/> and of its luminosity covers what's behind (0.75 and 0.9 unless set).</summary>
+    public (float Tint, float Luminosity) TintOpacities { get; init; } = (0.75f, 0.9f);
+
     /// <summary>A colour in place of the theme's grey: the accent colour, when Windows shows it on Start and taskbar.</summary>
     public Color? Tint
     {
@@ -112,8 +115,7 @@ internal sealed class ShellBackdrop(Backdrop kind) : SystemBackdrop
     private void ApplyTint()
     {
         // Mostly colour, as on Windows' own taskbar, with a little of what's behind showing through.
-        const float tintOpacity = 0.75f;
-        const float luminosityOpacity = 0.9f;
+        (float tintOpacity, float luminosityOpacity) = TintOpacities;
         if (_acrylic is not null)
         {
             if (_tint is { } tint)

@@ -51,7 +51,7 @@ internal sealed class WallpaperWindow : Window
         };
 
         // Not AppWindow.IsShownInSwitchers: it goes through the taskbar and throws when there is none.
-        nint hwnd = Win32Interop.GetWindowFromWindowId(AppWindow.Id);
+        nint hwnd = Handle = Win32Interop.GetWindowFromWindowId(AppWindow.Id);
         WindowStyles.AddExtended(hwnd, ExtendedWindowStyles.ToolWindow);
         _frameless = new FramelessWindow(hwnd);
         Peek.Exclude(hwnd);
@@ -82,6 +82,25 @@ internal sealed class WallpaperWindow : Window
     }
 
     public DisplayMonitor Monitor => _monitor;
+
+    public nint Handle { get; }
+
+    /// <summary>
+    /// A copy of the picture as it's drawn, sharing its decoded image, in effective pixels from the monitor's corner:
+    /// for what shows the desktop behind it (Snap Assist).
+    /// </summary>
+    public Canvas CopyPicture()
+    {
+        var copy = new Canvas { Background = _canvas.Background };
+        foreach (Image image in _canvas.Children.OfType<Image>())
+        {
+            var element = new Image { Source = image.Source, Stretch = Stretch.Fill, Width = image.Width, Height = image.Height };
+            Canvas.SetLeft(element, Canvas.GetLeft(image));
+            Canvas.SetTop(element, Canvas.GetTop(image));
+            copy.Children.Add(element);
+        }
+        return copy;
+    }
 
     /// <summary>Formats a rectangle for the log as <c>WxH at (X,Y)</c>.</summary>
     public static string Format(RectInt32 rect) => $"{rect.Width}x{rect.Height} at ({rect.X},{rect.Y})";

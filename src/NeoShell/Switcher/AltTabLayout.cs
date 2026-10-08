@@ -3,6 +3,10 @@ namespace NeoShell.Switcher;
 /// <summary>Where an item of the window switcher goes: its row, and its left edge and width in that row.</summary>
 public readonly record struct SwitcherSlot(int Row, double X, double Width);
 
+/// <summary>An item of the window switcher: a window, or a snap group of windows (<paramref name="Group"/>, most
+/// recently used first), which comes just before the first of them.</summary>
+public sealed record SwitcherEntry(nint Window, IReadOnlyList<nint>? Group = null);
+
 /// <summary>The window switcher's order and grid, as Explorer's Alt+Tab lays them out.</summary>
 public static class AltTabLayout
 {
@@ -19,9 +23,43 @@ public static class AltTabLayout
             .OrderBy(w => w == foreground ? -1 : depth.GetValueOrDefault(w, int.MaxValue))];
     }
 
-    /// <summary>The item chosen first: the window before the one in front, or the last one going backwards.</summary>
-    public static int FirstSelection(int count, bool backwards) =>
-        count == 0 ? -1 : backwards ? count - 1 : Math.Min(1, count - 1);
+    /// <summary>
+    /// The windows with their snap groups (Explorer's "Show my snapped windows ... when I press Alt+Tab"): each group
+    /// of two or more of them just before the first of its windows, which still have items of their own.
+    /// </summary>
+    public static IReadOnlyList<SwitcherEntry> WithGroups(IReadOnlyList<nint> order, IReadOnlyList<IReadOnlyList<nint>> groups)
+    {
+        var entries = new List<SwitcherEntry>();
+        var shown = new HashSet<IReadOnlyList<nint>>();
+        foreach (nint window in order)
+        {
+            IReadOnlyList<nint>? group = groups.FirstOrDefault(g => g.Contains(window));
+            if (group is not null && shown.Add(group))
+            {
+                List<nint> members = [.. order.Where(group.Contains)];
+                if (members.Count >= 2)
+                    entries.Add(new SwitcherEntry(window, members));
+            }
+            entries.Add(new SwitcherEntry(window));
+        }
+        return entries;
+    }
+
+    /// <summary>
+    /// The item chosen first: the one after the window in front (the first window's own item, past its group), or the
+    /// last one going backwards.
+    /// </summary>
+    public static int FirstSelection(IReadOnlyList<SwitcherEntry> entries, bool backwards)
+    {
+        if (entries.Count == 0)
+            return -1;
+        if (backwards)
+            return entries.Count - 1;
+        int front = 0;
+        while (front < entries.Count - 1 && entries[front].Group is not null)
+            front++;
+        return Math.Min(front + 1, entries.Count - 1);
+    }
 
     /// <summary>
     /// Rows of items (of <paramref name="widths"/>) no wider than <paramref name="maxWidth"/>, each centred in the

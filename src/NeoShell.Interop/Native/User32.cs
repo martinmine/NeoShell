@@ -34,6 +34,7 @@ internal static unsafe partial class User32
     public const uint WS_POPUP = 0x8000_0000;
     public const uint WS_CHILD = 0x4000_0000;
     public const uint WS_MINIMIZEBOX = 0x0002_0000;
+    public const uint WS_MAXIMIZEBOX = 0x0001_0000;
     public const uint WS_THICKFRAME = 0x0004_0000;
     public const uint WS_EX_TOPMOST = 0x0000_0008;
     public const uint WS_EX_TOOLWINDOW = 0x0000_0080;
@@ -538,6 +539,40 @@ internal static unsafe partial class User32
     [LibraryImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     public static partial bool GetCursorPos(out POINT point);
+
+    [LibraryImport("user32.dll")]
+    public static partial nint WindowFromPoint(POINT point);
+
+    public const uint WPF_RESTORETOMAXIMIZED = 0x0002;
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct WINDOWPLACEMENT
+    {
+        public uint length;
+        public uint flags;
+        public uint showCmd;
+        public POINT ptMinPosition;
+        public POINT ptMaxPosition;
+        public RECT rcNormalPosition;
+    }
+
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static partial bool GetWindowPlacement(nint hwnd, WINDOWPLACEMENT* placement);
+
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static partial bool SetWindowPlacement(nint hwnd, WINDOWPLACEMENT* placement);
+
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static partial bool ClientToScreen(nint hwnd, ref POINT point);
+
+    [LibraryImport("user32.dll")]
+    public static partial uint GetDpiForWindow(nint hwnd);
+
+    public const uint WM_NCHITTEST = 0x0084;
+    public const int HTMAXBUTTON = 9;
 
     [LibraryImport("user32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]

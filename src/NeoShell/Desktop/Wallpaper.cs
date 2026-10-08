@@ -44,6 +44,9 @@ internal sealed class Wallpaper(SettingsStore settings, Action closeRequested) :
         }
     }
 
+    /// <summary>The window showing the wallpaper on the monitor (<see cref="DisplayMonitor.Handle"/>), if any.</summary>
+    public WallpaperWindow? WindowOn(nint monitor) => _windows.FirstOrDefault(window => window.Monitor.Handle == monitor);
+
     public void Dispose()
     {
         _updateVersion++;

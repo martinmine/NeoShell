@@ -31,13 +31,19 @@ public static class WindowSnap
     /// </summary>
     /// <param name="pointer">The pointer, in screen pixels.</param>
     /// <param name="dragArea">Where the pointer can go on the monitor it's on while the window is dragged.</param>
-    public static SnapPosition AtPointer(PointInt32 pointer, RectInt32 dragArea, uint dpi)
+    /// <param name="nearEdge">
+    /// "Let me snap it without dragging all the way to the screen edge" (<see cref="SnapSettings.NearEdge"/>): the
+    /// sides then count from 63 effective pixels away and the top from 7, as measured on Explorer; otherwise only the
+    /// edge itself.
+    /// </param>
+    public static SnapPosition AtPointer(PointInt32 pointer, RectInt32 dragArea, uint dpi, bool nearEdge = false)
     {
         // A couple of pixels' slack catches the pointer on an edge shared with another monitor too, which it crosses.
-        int edge = Math.Max(2, (int)Math.Round(2 * dpi / 96.0));
+        int side = Math.Max(2, (int)Math.Round((nearEdge ? 63 : 2) * dpi / 96.0));
+        int edge = nearEdge ? (int)Math.Round(7 * dpi / 96.0) : 1;
         int corner = Math.Min(dragArea.Width, dragArea.Height) / 8;
-        bool left = pointer.X < dragArea.X + edge;
-        bool right = pointer.X >= dragArea.X + dragArea.Width - edge;
+        bool left = pointer.X < dragArea.X + side;
+        bool right = pointer.X >= dragArea.X + dragArea.Width - side;
         bool top = pointer.Y < dragArea.Y + edge;
         bool nearTop = pointer.Y < dragArea.Y + corner;
         bool nearBottom = pointer.Y >= dragArea.Y + dragArea.Height - corner;

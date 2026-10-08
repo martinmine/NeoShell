@@ -877,6 +877,7 @@ have their icons (loaded in the background) and open on click.
   straight away, and it ends when the pointer leaves the thumbnails, on a click (after switching) or when the popup
   closes. DWM ignores a second peek while one is on, so moving it ends the first, which crossfades. The taskbar,
   popup and wallpaper windows set `DWMWA_EXCLUDED_FROM_PEEK` to stay visible, as Explorer's do.
+- As the shell, snap groups with one of the button's windows come first (see Snap groups).
 
 ### Dragging over the taskbar (`TaskbarDrop`, unit tested)
 
@@ -2097,23 +2098,68 @@ shutdownux.dll's choices (`CShutdownChoices`, read with its PDB in Ghidra). Each
   (`AltTabLayout.Arrange`), each the window's colours with icon and title over a live DWM thumbnail 132 epx high
   (a minimized window shows its icon), the chosen one ringed in the accent colour 3 epx off the card; the close button
   shows over a card. More windows than fit make the previews smaller (Explorer's panel scrolls instead).
+- Snap groups show as items of their own, just before their first window (see Snap groups).
 - Switching: `SetForegroundWindow` after a key of NeoShell's own (vkE8), which lifts the foreground lock (the keys
   went to the app in front). `SwitchToThisWindow` sends the window left behind to the bottom of the stack, which
   breaks the most recently used order.
 
 ## Snap layouts (`Snap/`)
 
-- Win+Z: `SnapLayoutsWindow` for the window in front, if it's another process's resizable window, at its top right
-  below the title bar (where Explorer shows them under the maximize button), kept on the monitor. Acrylic, rounded,
-  topmost; closes on Esc or when it loses activation.
-- The layouts (`SnapLayouts`, unit tested) are Windows 11's: halves, two thirds and a third, a half and two
-  quarters, four quarters, and with at least 1920 effective pixels of work area also thirds and a wide middle;
-  stacked rows on a portrait screen. Previews in the work area's shape, numbered.
-- A click on a zone (the zone under the pointer or keyboard takes the accent colour), Enter on a focused one (the
-  first has the keyboard; arrows move), or a layout's number and then the zone's (shown once the layout is picked)
-  places the window: restored if maximized, then sized so its visible frame (`DWMWA_EXTENDED_FRAME_BOUNDS`) fills
-  the zone of the work area exactly, its invisible resize borders outside it (`TopLevelWindows.Place`). Zone edges
-  are rounded on their own, so neighbours share them.
+Windows leaves all of Snap to Explorer (twinui.pcshell's `SnapComponent`, `SnapAssistController`, `TaskGroups`,
+fed by win32k through the private `NtUserRegisterWindowArrangementCallout`): as the shell NeoShell does it itself.
+
+### Settings (`SnapSettings`, unit tested)
+
+Settings → System → Multitasking → Snap windows, found by toggling each checkbox and diffing the registry; read each
+time they're needed, so changes count at once. The checkboxes are on unless their value is 0; with "Snap windows" off
+none of them count, and Win+Left/Right do nothing (Up still maximizes, Down restores or minimizes).
+
+| Setting | Value |
+|---|---|
+| Snap windows | `HKCU\Control Panel\Desktop\WindowArrangementActive` (string, `SPI_SETWINARRANGING`) |
+| When I snap a window, suggest what I can snap next to it | `Explorer\Advanced\SnapAssist` |
+| Show snap layouts when I hover over a window's maximize button | `Explorer\Advanced\EnableSnapAssistFlyout` |
+| Show snap layouts when I drag a window to the top of my screen | `Explorer\Advanced\EnableSnapBar` |
+| Show my snapped windows when I hover over taskbar apps, in Task View, and when I press Alt+Tab | `Explorer\Advanced\EnableTaskGroups` |
+| When I drag a window, let me snap it without dragging all the way to the screen edge | `Explorer\Advanced\DITest` |
+
+(`JointResize`, `SnapFill` and `SnapTabs` are older values the 25H2 page no longer shows.)
+
+### The layouts (`SnapLayouts`, `SnapLayoutPicker`, unit tested)
+
+- Windows 11's: halves, an uneven pair, a half and two quarters, four quarters; with at least 1920 effective pixels
+  of work area also thirds and a wide middle; stacked rows on a portrait screen. Below 1920 the uneven pair is 60/40,
+  not two thirds (Explorer's zone was 1058 of 1764 pixels); above, two thirds (not checked: no such screen here).
+- Before them, 24H2's suggestions: the halves with another app's window beside this one, and a half beside two
+  stacked, each zone of a suggested window showing its icon instead of the fill. The windows suggested are the most
+  recently used of other apps, one each (the window's own app counts when it has other windows). Picking any zone of
+  a suggestion puts the window in its own zone and the suggested windows in theirs, and makes them a group.
+- Measured at 100% (Explorer's dark theme): previews 98x64, 12 apart; zones 4 apart with only the layout's outer
+  corners rounded (4); fill white at 16%, outline white at 42%; the zone under the pointer fills with the accent
+  (`SystemAccentColorLight2`), a suggestion layout lights its own zone and outlines the suggested ones. The flyout's
+  acrylic is darker than the system default (measured #152E20 over a #2E8B57 window; NeoShell's: tint opacity 0,
+  luminosity 0.66, giving #102F1E). The light theme's colours are the dark ones in black, not measured.
+
+### The flyout: hover and Win+Z (`SnapLayoutsWindow`, `MaximizeButtonHover`, `MaximizeButton`)
+
+- Explorer shows one flyout for both: centred under the window's maximize button, its top a pixel below the button;
+  233x244 at 100% (13 from the edge to the layouts, 14 at the top), two columns. Win+Z adds each layout's number in
+  its middle (an opaque #767676 block 13x24, white digit) and takes the keyboard: nothing is chosen until an arrow
+  key, Enter picks, a number picks a layout and then a zone (`SnapLayoutsWindow`), Esc or a click elsewhere closes it.
+- Hover: the pointer resting on the button opens the flyout about 630 ms later (Explorer's: 636-640 ms to its window,
+  then a 100 ms fade); leaving both the button and the flyout closes it 230 ms later (Explorer's: 228 ms); a click
+  anywhere else closes it at once. It doesn't take the focus. It shows for maximized windows (on the restore button)
+  too. Windows hides the button's own "Maximize" tooltip under Explorer's; NeoShell hides it
+  (`TopLevelWindows.HideCaptionTooltip`).
+- Finding the button: the pointer is followed on the thread pool every 50 ms (`MaximizeButtonHover`), since asking a
+  window waits for its thread. Windows' own caption buttons are DWM's: `DWMWA_CAPTION_BUTTON_BOUNDS`, the middle of the
+  three 46 effective pixel buttons from the right; `WM_NCHITTEST` there answers with the caption's old metrics, about
+  20 pixels to the right of what's drawn. Windows with their own title bars (WinUI, Chromium, Electron, the test
+  app's) answer `WM_NCHITTEST` with `HTMAXBUTTON` for theirs, as Windows asks them to; the button's extent is found
+  by asking point by point (`MaximizeButton`). Explorer gets it from win32k instead. Apps running as administrator
+  answer nothing to a medium process (UIPI), so they get no hover flyout from NeoShell.
+- New WinUI windows are black until their first frames are drawn: the flyout opens off the screen and moves into
+  place once drawn (`FirstFrame`), then fades in.
 
 ### Window snapping (`WindowSnapping`, shell mode)
 
@@ -2123,13 +2169,24 @@ nothing (they stay registered as hotkeys, so the keyboard hook takes them: `Snap
 - **Dragging.** `EVENT_SYSTEM_MOVESIZESTART`/`END` (WinEvents) bracket the app's own move loop; in between the pointer
   is polled every 30 ms. A window whose size changes is being resized, not moved, and doesn't snap. The zone under
   the pointer (`WindowSnap.AtPointer`, tested): against the left or right edge a half, within an eighth of the work
-  area's shorter side from a corner a quarter, against the top edge maximized (a quarter near its corners). During a
-  move Windows keeps the pointer inside the work area (`ClipCursor`), which left windows unable to go over the widget
-  sidebar; as a move starts NeoShell widens the clip over the sidebar's strip (`ShellWorkArea.DragArea`: the work
-  area without the sidebar's share), and Windows frees it when the move ends. The edges are that area's: the
-  taskbar's edge at the bottom, the screen's beside the sidebar. While the pointer is in a zone, `SnapPreview` shows it: an acrylic,
+  area's shorter side from a corner a quarter, against the top edge maximized (a quarter near its corners). With
+  "snap without dragging all the way to the screen edge" (`DITest`, on by default) the sides count from 63 effective
+  pixels away and the top from 7, as measured on Explorer; off, only the edge. (With it off, Windows' own top-edge
+  maximize still answers within 6 pixels of the top without Explorer; Explorer suppresses it.) During a move Windows
+  keeps the pointer inside the work area (`ClipCursor`), which left windows unable to go over the widget sidebar; as a
+  move starts NeoShell widens the clip over the sidebar's strip (`ShellWorkArea.DragArea`: the work area without the
+  sidebar's share), and Windows frees it when the move ends. The edges are that area's: the taskbar's edge at the
+  bottom, the screen's beside the sidebar. While the pointer is in a zone, `SnapPreview` shows it: an acrylic,
   rounded outline 8 epx inside the zone, just behind the dragged window (`PinnedLayer.Normal` below it). Let go, the
   window fills the zone (`TopLevelWindows.Place`, as Win+Z) or is maximized.
+- **The Snap bar** (`SnapBar`, with "Show snap layouts when I drag a window to the top"): once the window moves, a bar
+  of the layouts in a row (one suggestion and the four or six layouts; 562x88 at 100% with 12 around the layouts)
+  slides in to peek 10 epx down from the top centre of the monitor (70 ms; Explorer's starts about 100 ms after the
+  move and takes about 67 ms). The pointer within 12 epx of the top over the bar brings it down to 25 from the top
+  (180 ms, decelerating; Explorer's measured 180 ms); leaving it sideways or below sends it back (200 ms). The zone
+  under the pointer lights up and the screen shows its preview; let go there, the window goes into it (a
+  suggestion's windows too). The app's move loop has the mouse, so the bar follows the polled pointer. Not done:
+  Explorer shrinks the dragged window while it's over the bar (a DWM effect on another process's window).
 - **Its own size back.** The bounds a window had before it was snapped are kept; dragged out of its zone (not just
   clicked on its title bar), it gets that size back under the pointer, at the same share of its width as where it was
   grabbed (`WindowSnap.Unsnapped`, tested). A maximized window dragged is restored by Windows itself first. A snapped
@@ -2138,8 +2195,47 @@ nothing (they stay registered as hotkeys, so the keyboard hook takes them: `Snap
   other quarter, and from the other half give the window its own bounds back; Up goes from a half to its top quarter
   and from a bottom quarter to the half, and maximizes a window that isn't snapped; Down undoes those, restores a
   maximized window and minimizes what's left. Once per press.
-- Not done: Snap Assist (offering the other windows for the rest of the screen), snap groups, the layouts flyout at
-  the top edge, Win+Shift+arrows and moving across monitors with Win+Left/Right.
+- Not done: Win+Shift+arrows and moving across monitors with Win+Left/Right (T28).
+
+### Snap Assist (`SnapAssist`, `SnapAssistPlan`, unit tested)
+
+- After a snap into a zone (dragging, the bar, the flyout, Win+arrows), the layout it starts or completes is worked
+  out as Explorer does (`SnapAssistPlan.EmptyZones`): of the layouts with that zone, the one the other snapped windows
+  on the monitor (each exactly in its zone, not minimized) fill most of; then one of zones the zone's size; then the
+  fewest zones. So a half alone leaves the other half, a quarter alone the other three quarters (in reading order),
+  a quarter beside a window in the other half the last quarter; a half beside one in the other half completes the
+  layout (no Assist). A layout picked in the flyout or bar is its own. The windows in a layout's zones form a group.
+- The empty zones show as panels 12 epx inside them, rounded 8, of blurred wallpaper (only the wallpaper: windows
+  behind don't show, as in Explorer); around them the wallpaper sharp. The first zone has the windows as cards: the
+  other windows of the taskbar that can be resized, most recently used first (as Alt+Tab orders them), minimized ones
+  too, showing the picture DWM keeps of them. A card is a 40 epx title (icon, title, a close button over the card)
+  above the live preview, the card as wide as the preview's shape (what's drawn of the window, without its invisible
+  borders). Rows as Alt+Tab's, as many as the square root of the number of windows (rounded), the previews as high as
+  fits across and down, rows centred (`SnapAssistPlan.Arrange`; Explorer's measured: right half with four windows
+  260 high, a quarter with five 178, cards 24 apart, 18 in from the panel's sides). Explorer's scrolls when they don't
+  fit; NeoShell's shrink.
+- Picking a card (a click, or arrows and Enter) puts its window in the zone without activating it and moves on to the
+  next zone; after the last the window picked comes to the front. Arrows go round the cards and wrap (Up from the top
+  row goes to the bottom one), Home and End jump, the chosen card is ringed in the accent once the keyboard is used,
+  Esc ends it and gives the focus back to the snapped window, as does a click elsewhere (deactivation, or another
+  window coming to the front).
+- Explorer's appears about 450 ms after the snap, the cards flying in from their windows over about 430 ms;
+  NeoShell's appears about 170 ms after (its windows don't animate into place) and fades in over 300 ms.
+- A WinUI window that's new, shown again or resized is black for about 100-150 ms, and WinUI doesn't draw a window
+  that's hidden, off the screen or cloaked: Snap Assist is one window over the monitor's work area, kept shown and cut
+  to the zones by its region (nothing between showings), which draws the cards before its region shows them.
+
+### Snap groups (`SnapGroups`, unit tested)
+
+- Windows snapped together into a layout (by Assist, a suggestion, or snapping into the space the others leave) are a
+  group; a window leaves when it's dragged out of its zone, resized by hand, snapped elsewhere or closed, and a group
+  of one is no group. Minimizing keeps it.
+- With "Show my snapped windows ..." on, the taskbar's previews of an app with a grouped window start with the group:
+  its windows' icons and "Group | <most recent window> and 1 other window", over the work area in small (the wallpaper
+  window's DWM preview, cut to the work area, with each window's preview where it is, inset 2% across and 9% down so
+  the wallpaper shows round them, as Explorer's). Alt+Tab shows the group just before the first of its windows (no
+  icon), and starts on the window after the one in front, as Explorer's (`AltTabLayout.WithGroups`, tested). Clicking
+  either restores the windows and brings them to the front, the most recently used last.
 
 ## Screenshots (`Capture/`)
 

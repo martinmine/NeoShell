@@ -1503,7 +1503,7 @@ internal sealed partial class TaskbarWindow : Window
 
     private void ShowThumbnails(TaskButton button, FrameworkElement element)
     {
-        _thumbnails.Show(button, BoundsOnScreen(element), _monitor, _theme);
+        _thumbnails.Show(button, BoundsOnScreen(element), _monitor, _theme, _owner.Snapping);
     }
 
     // Centred above the button rather than at the pointer, as Explorer shows a jump list.

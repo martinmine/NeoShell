@@ -83,7 +83,8 @@ public partial class App : Application
 
         if (_shellRegistration is not null)
         {
-            _shellSession = new ShellSession(_shellRegistration, _taskbars, Shutdown);
+            Wallpaper? wallpaper = _wallpaper;
+            _shellSession = new ShellSession(_shellRegistration, _taskbars, monitor => wallpaper?.WindowOn(monitor), Shutdown);
             _shellSession.Start();
         }
 

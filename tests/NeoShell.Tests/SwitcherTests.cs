@@ -113,7 +113,30 @@ public sealed class SwitcherTests
     [InlineData(5, true, 4)]
     public void First_selection_is_the_previous_window(int count, bool backwards, int expected)
     {
-        Assert.Equal(expected, AltTabLayout.FirstSelection(count, backwards));
+        SwitcherEntry[] entries = [.. Enumerable.Range(1, count).Select(i => new SwitcherEntry(i))];
+
+        Assert.Equal(expected, AltTabLayout.FirstSelection(entries, backwards));
+    }
+
+    [Fact]
+    public void A_snap_group_comes_before_its_first_window()
+    {
+        // As Explorer's: B in front, grouped with C; the group, B, C, then the rest.
+        IReadOnlyList<SwitcherEntry> entries = AltTabLayout.WithGroups([2, 3, 4, 5], [[3, 2], [5, 9]]);
+
+        Assert.Equal(5, entries.Count);
+        Assert.Equal(new nint[] { 2, 3 }, entries[0].Group);
+        Assert.Equal([2, 3, 4, 5], entries.Skip(1).Select(e => e.Window));
+        Assert.All(entries.Skip(1), e => Assert.Null(e.Group)); // 5's group has only one of its windows open
+    }
+
+    [Fact]
+    public void First_selection_skips_the_group_of_the_window_in_front()
+    {
+        IReadOnlyList<SwitcherEntry> entries = AltTabLayout.WithGroups([2, 3, 4], [[2, 3]]);
+
+        Assert.Equal(2, AltTabLayout.FirstSelection(entries, backwards: false)); // C, as Explorer chooses
+        Assert.Equal(3, AltTabLayout.FirstSelection(entries, backwards: true));
     }
 
     [Fact]

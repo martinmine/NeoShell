@@ -1,6 +1,7 @@
 using Microsoft.UI.Dispatching;
 using NeoShell.AutoPlay;
 using NeoShell.Capture;
+using NeoShell.Desktop;
 using NeoShell.Interop.Shell;
 using NeoShell.Interop.Windowing;
 using NeoShell.Logging;
@@ -19,6 +20,7 @@ internal sealed class ShellSession : IDisposable
 {
     private readonly ShellRegistration _registration;
     private readonly Taskbars _taskbars;
+    private readonly Func<nint, WallpaperWindow?> _wallpaperOn;
     private readonly Action _endSession;
     private readonly DispatcherQueue _dispatcher = DispatcherQueue.GetForCurrentThread();
     private readonly StartKeyDetector _startKeys = new();
@@ -37,11 +39,13 @@ internal sealed class ShellSession : IDisposable
     private VolumeAutoPlay? _autoPlay;
     private ShellUndoServer? _undoServer;
 
+    /// <param name="wallpaperOn">The wallpaper's window on a monitor, which Snap Assist shows behind its cards.</param>
     /// <param name="endSession">Saves and cleans up before Windows ends the process at sign-out or shutdown.</param>
-    public ShellSession(ShellRegistration registration, Taskbars taskbars, Action endSession)
+    public ShellSession(ShellRegistration registration, Taskbars taskbars, Func<nint, WallpaperWindow?> wallpaperOn, Action endSession)
     {
         _registration = registration;
         _taskbars = taskbars;
+        _wallpaperOn = wallpaperOn;
         _endSession = endSession;
     }
 
@@ -57,12 +61,14 @@ internal sealed class ShellSession : IDisposable
         // processes' operations go to it, and the desktop's menu can tell what Undo would undo.
         _undoServer = ShellUndoServer.Start();
 
-        // Without Explorer, Windows snaps no windows: dragged against an edge or with Win+arrows.
-        _snapping = new WindowSnapping(() => _taskbars.Theme);
+        // Without Explorer, Windows snaps no windows: dragged against an edge or with Win+arrows, Snap layouts, Snap
+        // Assist and snap groups (which the taskbar and Alt+Tab show).
+        _snapping = new WindowSnapping(_taskbars.Tracker, () => _taskbars.Theme, _wallpaperOn);
+        _taskbars.Snapping = _snapping;
         RegisterHotkeys();
 
         // Without Explorer, Alt+Tab is Windows' old icon grid; the hook takes it for NeoShell's switcher.
-        var switcher = new WindowSwitcher(_taskbars.Tracker, () => _taskbars.Theme);
+        var switcher = new WindowSwitcher(_taskbars.Tracker, () => _taskbars.Theme, _snapping);
         switcher.Dismissed += _altTabKeys.Close;
         _switcher = switcher;
 
@@ -163,6 +169,7 @@ internal sealed class ShellSession : IDisposable
         _keyboardHook?.Dispose();
         _hotkeys?.Dispose();
         _switcher?.Close();
+        _taskbars.Snapping = null;
         _snapping?.Dispose();
         _autoPlay?.Dispose();
         _undoServer?.Dispose();
@@ -199,7 +206,7 @@ internal sealed class ShellSession : IDisposable
         Register("Win+Alt+K", 'K', _taskbars.ToggleMicrophoneMute, Alt);
         Register("Win+Shift+S", 'S', ScreenSnip.Start, Shift);
         Register("Win+PrtScn", VK_SNAPSHOT, () => Screenshots.CaptureScreen(_taskbars.PrimaryHandle));
-        Register("Win+Z", 'Z', () => SnapLayoutsWindow.Open(TopLevelWindows.GetForeground(), _taskbars.Theme));
+        Register("Win+Z", 'Z', () => _snapping?.OpenLayouts(TopLevelWindows.GetForeground()));
         for (int n = 1; n <= 9; n++)
         {
             int index = n - 1;

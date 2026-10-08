@@ -8,6 +8,8 @@ using Microsoft.UI.Xaml.Media;
 using NeoShell.Interop.Tray;
 using NeoShell.Interop.Windowing;
 using NeoShell.Settings;
+using NeoShell.Snap;
+using NeoShell.Switcher;
 using Windows.ApplicationModel.DataTransfer;
 using Windows.Foundation;
 using Windows.Graphics;
@@ -43,6 +45,7 @@ internal sealed class ThumbnailPopup : Window
     private readonly Grid _root = new() { Padding = new Thickness(Padding) };
     private readonly StackPanel _cells = new() { Orientation = Orientation.Horizontal, Spacing = Gap };
     private readonly List<DwmThumbnail> _thumbnails = [];
+    private readonly List<SnapGroupPreview> _groupPreviews = [];
     // The thumbnail toolbars shown, by window, to follow the app's changes while open.
     private readonly Dictionary<nint, StackPanel> _toolbars = [];
     private readonly FramelessWindow _frameless;
@@ -135,8 +138,11 @@ internal sealed class ThumbnailPopup : Window
     /// <summary>The drag left the previews.</summary>
     public event Action? DragLeft;
 
-    /// <summary>Shows the button's windows centred above <paramref name="anchor"/> (screen pixels).</summary>
-    public void Show(TaskButton button, RectInt32 anchor, DisplayMonitor monitor, ElementTheme theme)
+    /// <summary>
+    /// Shows the button's windows centred above <paramref name="anchor"/> (screen pixels), after the snap groups any
+    /// of them is in (as the shell, when the settings show them).
+    /// </summary>
+    public void Show(TaskButton button, RectInt32 anchor, DisplayMonitor monitor, ElementTheme theme, WindowSnapping? snapping)
     {
         Button = button;
         EndPeek();
@@ -147,11 +153,14 @@ internal sealed class ThumbnailPopup : Window
         ClipThumbnails(_visible ? _placement.Bounds.Y : _taskbarTop);
 
         double scale = monitor.Dpi / 96.0;
-        int count = button.Windows.Count;
+        IReadOnlyList<IReadOnlyList<nint>> groups = GroupsOf(button, snapping);
+        int count = button.Windows.Count + groups.Count;
         double maxCellWidth = (monitor.WorkArea.Width / scale - 2 * Padding - (count - 1) * Gap) / count;
         double cellWidth = Math.Max(MinCellWidth, Math.Min(CellWidth, maxCellWidth));
         // All the previews get a toolbar's room if one has a toolbar, so they stay in line.
         bool toolbars = button.Windows.Any(window => _tracker.ThumbBarOf(window.Handle).Buttons.Any(b => !b.IsHidden));
+        foreach (IReadOnlyList<nint> group in groups)
+            _cells.Children.Add(CreateGroupCell(group, snapping!, cellWidth, theme, toolbars));
         foreach (WindowInfo window in button.Windows)
             _cells.Children.Add(CreateCell(window, cellWidth, theme, toolbars));
 
@@ -292,6 +301,98 @@ internal sealed class ThumbnailPopup : Window
         return cell;
     }
 
+    // The snap groups with one of the button's windows in them, their windows most recently used first.
+    private IReadOnlyList<IReadOnlyList<nint>> GroupsOf(TaskButton button, WindowSnapping? snapping)
+    {
+        if (snapping is null || !WindowSnapping.ShowGroups)
+            return [];
+        List<nint> open = [.. _tracker.Windows.Select(w => w.Handle)];
+        HashSet<nint> mine = [.. button.Windows.Select(w => w.Handle)];
+        IReadOnlyList<nint> order = AltTabLayout.Order(open, TopLevelWindows.GetAll(), TopLevelWindows.GetForeground());
+        return [.. snapping.Groups.All
+            .Where(group => group.Any(mine.Contains))
+            .Select(group => (IReadOnlyList<nint>)[.. order.Where(group.Contains)])
+            .Where(group => group.Count >= 2)];
+    }
+
+    /// <summary>
+    /// A snap group's preview, as Explorer's: its windows' icons and "Group | ..." over the screen in small with the
+    /// windows where they are; a click brings them all back.
+    /// </summary>
+    private Grid CreateGroupCell(IReadOnlyList<nint> group, WindowSnapping snapping, double width, ElementTheme theme, bool toolbar)
+    {
+        bool dark = theme == ElementTheme.Dark;
+        var hover = new SolidColorBrush(dark ? Color.FromArgb(0x0F, 0xFF, 0xFF, 0xFF) : Color.FromArgb(0x09, 0, 0, 0));
+        var pressed = new SolidColorBrush(dark ? Color.FromArgb(0x0A, 0xFF, 0xFF, 0xFF) : Color.FromArgb(0x06, 0, 0, 0));
+        var idle = new SolidColorBrush(Colors.Transparent);
+        Dictionary<nint, WindowInfo> windows = _tracker.Windows.ToDictionary(w => w.Handle);
+        string title = SnapGroups.Title([.. group.Select(h => windows.TryGetValue(h, out WindowInfo? w) ? w.Title : "")]);
+
+        var cell = new Grid
+        {
+            Width = width,
+            CornerRadius = new CornerRadius(4),
+            Background = idle,
+            RowDefinitions =
+            {
+                new RowDefinition { Height = new GridLength(HeaderHeight) },
+                new RowDefinition { Height = new GridLength(PreviewHeight) },
+            },
+        };
+        if (toolbar)
+            cell.RowDefinitions.Add(new RowDefinition { Height = new GridLength(ToolbarHeight) });
+        AutomationProperties.SetName(cell, title);
+        AutomationProperties.SetAutomationId(cell, "ThumbnailGroupCell");
+        cell.PointerEntered += (_, _) => cell.Background = hover;
+        cell.PointerExited += (_, _) => cell.Background = idle;
+        cell.PointerPressed += (_, _) => cell.Background = pressed;
+        cell.PointerReleased += (_, _) => cell.Background = hover;
+        cell.Tapped += (_, _) =>
+        {
+            WindowSnapping.ActivateGroup(group);
+            Hide();
+        };
+
+        var header = new StackPanel { Orientation = Orientation.Horizontal, Padding = new Thickness(6, 0, 6, 0), Spacing = 8 };
+        foreach (nint hwnd in group.Take(2))
+        {
+            if (windows.TryGetValue(hwnd, out WindowInfo? window))
+                header.Children.Add(new Image { Source = _tracker.WindowIcon(window), Width = 16, Height = 16 });
+        }
+        header.Children.Add(new TextBlock
+        {
+            Text = title,
+            FontSize = 12,
+            VerticalAlignment = VerticalAlignment.Center,
+            TextTrimming = TextTrimming.CharacterEllipsis,
+            MaxWidth = Math.Max(0, width - 12 - 24 * Math.Min(2, group.Count)),
+        });
+        cell.Children.Add(header);
+
+        var placeholder = new Border { Margin = new Thickness(6) };
+        Grid.SetRow(placeholder, 1);
+        cell.Children.Add(placeholder);
+        var preview = new SnapGroupPreview(_hwnd, group, snapping);
+        preview.Clip(_thumbnailsBottom);
+        _groupPreviews.Add(preview);
+        placeholder.SizeChanged += (_, _) =>
+        {
+            if (placeholder.XamlRoot is null)
+                return;
+            double scale = placeholder.XamlRoot.RasterizationScale;
+            Point origin = placeholder.TransformToVisual(_root).TransformPoint(default);
+            double areaWidth = placeholder.ActualWidth * scale, areaHeight = placeholder.ActualHeight * scale;
+            double previewWidth = Math.Min(areaWidth, areaHeight * preview.Aspect);
+            double previewHeight = previewWidth / preview.Aspect;
+            preview.Show(new RectInt32(
+                (int)(origin.X * scale + (areaWidth - previewWidth) / 2),
+                (int)(origin.Y * scale + (areaHeight - previewHeight) / 2),
+                (int)previewWidth,
+                (int)previewHeight));
+        };
+        return cell;
+    }
+
     /// <summary>
     /// The app's thumbnail toolbar under its window's preview, as in Explorer: its buttons' images, tooltips and
     /// states; a click goes to the window as <c>THBN_CLICKED</c>.
@@ -406,6 +507,8 @@ internal sealed class ThumbnailPopup : Window
         _thumbnailsBottom = _taskbarTop - top;
         foreach (DwmThumbnail thumbnail in _thumbnails)
             thumbnail.Clip(_thumbnailsBottom);
+        foreach (SnapGroupPreview preview in _groupPreviews)
+            preview.Clip(_thumbnailsBottom);
     }
 
     private void DragOver(Point point)
@@ -458,6 +561,9 @@ internal sealed class ThumbnailPopup : Window
         foreach (DwmThumbnail thumbnail in _thumbnails)
             thumbnail.Dispose();
         _thumbnails.Clear();
+        foreach (SnapGroupPreview preview in _groupPreviews)
+            preview.Dispose();
+        _groupPreviews.Clear();
         _toolbars.Clear();
         _cells.Children.Clear();
     }

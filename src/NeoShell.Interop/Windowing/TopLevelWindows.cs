@@ -57,6 +57,75 @@ public static unsafe class TopLevelWindows
 
     public static nint GetForeground() => User32.GetForegroundWindow();
 
+    /// <summary>The top-level window under the screen point, or 0.</summary>
+    public static nint RootAt(PointInt32 point)
+    {
+        nint hwnd = User32.WindowFromPoint(new User32.POINT { x = point.X, y = point.Y });
+        return hwnd == 0 ? 0 : User32.GetAncestor(hwnd, User32.GA_ROOT);
+    }
+
+    /// <summary>
+    /// The maximize button of a window with Windows' own caption buttons (DWM draws them), in screen pixels: the middle
+    /// of the three 46 effective pixel buttons at the right of <c>DWMWA_CAPTION_BUTTON_BOUNDS</c>. Null for a window
+    /// without them, or whose own title bar covers them (its client area reaches over the caption).
+    /// </summary>
+    /// <remarks>
+    /// Not <c>WM_NCHITTEST</c>: <c>DefWindowProc</c> answers it with the caption's old metrics, which put the buttons
+    /// a good 20 pixels right of where Windows 11 draws them.
+    /// </remarks>
+    public static RectInt32? CaptionMaximizeButton(nint hwnd)
+    {
+        if (((uint)User32.GetWindowLongPtr(hwnd, User32.GWL_STYLE) & User32.WS_MAXIMIZEBOX) == 0)
+            return null;
+        User32.RECT buttons;
+        if (Dwmapi.DwmGetWindowAttribute(hwnd, Dwmapi.DWMWA_CAPTION_BUTTON_BOUNDS, &buttons, (uint)sizeof(User32.RECT)) != 0
+            || buttons.right <= buttons.left || buttons.bottom <= buttons.top)
+        {
+            return null;
+        }
+        RectInt32 window = GetBounds(hwnd);
+        var client = new User32.POINT();
+        if (!User32.ClientToScreen(hwnd, ref client) || client.y < window.Y + buttons.bottom)
+            return null;
+        uint dpi = User32.GetDpiForWindow(hwnd);
+        int width = (int)Math.Round(46 * (dpi == 0 ? 96 : dpi) / 96.0);
+        return new RectInt32(window.X + buttons.right - 2 * width, window.Y + buttons.top, width, buttons.bottom - buttons.top);
+    }
+
+    /// <summary>
+    /// Hides the tooltip Windows shows over a window's caption button ("Maximize"): with Explorer, Windows leaves it
+    /// out over the maximize button, where Snap layouts show instead.
+    /// </summary>
+    public static void HideCaptionTooltip(nint hwnd)
+    {
+        const int SW_HIDE = 0;
+        uint thread = User32.GetWindowThreadProcessId(hwnd, out _);
+        for (nint tip = User32.FindWindowEx(0, 0, "MicrosoftWindowsTooltip", null); tip != 0;
+            tip = User32.FindWindowEx(0, tip, "MicrosoftWindowsTooltip", null))
+        {
+            if (User32.IsWindowVisible(tip) && User32.GetWindowThreadProcessId(tip, out _) == thread)
+                User32.ShowWindowAsync(tip, SW_HIDE);
+        }
+    }
+
+    /// <summary>
+    /// Whether the window says the screen point is on its maximize button (<c>WM_NCHITTEST</c>'s <c>HTMAXBUTTON</c>),
+    /// as Windows 11 asks windows with their own title bars (WinUI, Chromium, Electron) to, for Snap layouts; so may
+    /// the child window under the point. A hung window, or one of an app running as administrator (UIPI), says nothing.
+    /// </summary>
+    public static bool AnswersMaximizeButton(nint hwnd, PointInt32 point)
+    {
+        nint lParam = (nint)(((point.Y & 0xFFFF) << 16) | (point.X & 0xFFFF));
+        if (Answers(hwnd, lParam))
+            return true;
+        nint child = User32.WindowFromPoint(new User32.POINT { x = point.X, y = point.Y });
+        return child != 0 && child != hwnd && Answers(child, lParam);
+
+        static bool Answers(nint target, nint lParam) =>
+            User32.SendMessageTimeout(target, User32.WM_NCHITTEST, 0, lParam, User32.SMTO_ABORTIFHUNG, 100, out nint result) != 0
+            && result == User32.HTMAXBUTTON;
+    }
+
     /// <summary>The window's rectangle on screen, in pixels.</summary>
     public static RectInt32 GetBounds(nint hwnd) => User32.GetWindowRect(hwnd, out User32.RECT rect) ? rect.ToRectInt32() : default;
 
@@ -90,6 +159,26 @@ public static unsafe class TopLevelWindows
         int bottom = outer.Y + outer.Height - (visible.Y + visible.Height);
         User32.SetWindowPos(hwnd, 0, bounds.X - left, bounds.Y - top, bounds.Width + left + right, bounds.Height + top + bottom,
             User32.SWP_NOZORDER | User32.SWP_NOACTIVATE);
+    }
+
+    /// <summary>
+    /// <see cref="Place"/> for a window that isn't to come to the front (Snap Assist keeps the keyboard while it fills
+    /// the next zone): a minimized or maximized one is restored without activating it. A window of an app running as
+    /// administrator refuses (UIPI) and is left as it is.
+    /// </summary>
+    public static void PlaceInBackground(nint hwnd, RectInt32 bounds)
+    {
+        if (User32.IsZoomed(hwnd) || User32.IsIconic(hwnd))
+        {
+            var placement = new User32.WINDOWPLACEMENT { length = (uint)sizeof(User32.WINDOWPLACEMENT) };
+            if (!User32.GetWindowPlacement(hwnd, &placement))
+                return;
+            placement.flags &= ~User32.WPF_RESTORETOMAXIMIZED;
+            placement.showCmd = User32.SW_SHOWNOACTIVATE;
+            if (!User32.SetWindowPlacement(hwnd, &placement))
+                return;
+        }
+        Place(hwnd, bounds);
     }
 
     /// <summary>Moves and sizes the window, invisible borders included (as <see cref="GetBounds"/> measures it).</summary>
@@ -201,6 +290,16 @@ public static unsafe class TopLevelWindows
     {
         User32.GetWindowThreadProcessId(hwnd, out uint processId);
         return (int)processId;
+    }
+
+    /// <summary>
+    /// Hides or shows the window on screen through DWM while it stays shown to Windows (and its content keeps being
+    /// drawn): a window can draw itself there before it appears.
+    /// </summary>
+    public static void Cloak(nint hwnd, bool cloak)
+    {
+        int value = cloak ? 1 : 0;
+        Dwmapi.DwmSetWindowAttribute(hwnd, Dwmapi.DWMWA_CLOAK, &value, sizeof(int));
     }
 
     internal static bool IsCloaked(nint hwnd)

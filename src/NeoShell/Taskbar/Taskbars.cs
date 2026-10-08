@@ -10,6 +10,7 @@ using NeoShell.Notifications;
 using NeoShell.QuickSettings;
 using NeoShell.Interop.Tray;
 using NeoShell.Settings;
+using NeoShell.Snap;
 using NeoShell.Tray;
 using NeoShell.StartMenu;
 using Windows.Graphics;
@@ -100,6 +101,9 @@ internal sealed class Taskbars : IDisposable
     public AppIcons Icons { get; }
 
     public WindowTracker Tracker { get; }
+
+    /// <summary>Snap as the shell, whose snap groups the previews show; null alongside Explorer.</summary>
+    public WindowSnapping? Snapping { get; set; }
 
     /// <summary>
     /// Button keys in the order last shown, shared by the taskbars and kept when they're recreated (see
