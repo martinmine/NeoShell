@@ -483,7 +483,13 @@ Each item is done when it looks and behaves as Explorer's (layout, behaviour, an
       settings itself (Windows' manager needs Explorer to start the Clock app), so no Clock timer and no chime there —
       differs: no "Do not disturb is on" banner in the notification center (Explorer shows one for any Do not
       disturb) — not run live: a session left running when switching to shell mode
-- [ ] T36 UWP (CoreWindow) apps, Settings among them, in shell mode
+- [ ] T36 UWP (CoreWindow) apps, Settings among them, in shell mode — not possible: UWP activation needs Explorer's
+      immersive shell (twinui.pcshell's Immersive Shell Builder), which starts only in the process that owns the shell
+      window and then needs window bands and the shell cloak, which win32k grants only to Microsoft-signed `.imrsiv`
+      images (explorer.exe, CustomShellHost for Shell Launcher/Assigned Access, ShellAppRuntime for Windows 365
+      Boot). Reproduced with Calculator, traced in the app with cdb, and tried with a test host started as
+      CustomShellHost starts it (fail-fast in `CFallbackWindow`'s `CreateWindowInBand`); the Control Panel fallbacks
+      stay — see design.md, "UWP (CoreWindow) apps as the shell"
 
 ## Future work
 

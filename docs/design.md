@@ -276,6 +276,51 @@ through the hardware service's device events, not volumes.
 Start menu button → confirmation dialog → delete the per-user `Winlogon\Shell` value (HKCU only) → start
 `explorer.exe` → exit NeoShell cleanly (so the AppBar space and `Shell_TrayWnd` are released first, then Explorer starts).
 
+### UWP (CoreWindow) apps as the shell: not possible (T36)
+
+As the shell, UWP apps (Settings, Calculator, Clock…) and `ms-settings:` links can't work, so NeoShell keeps its
+Control Panel fallbacks (`Launcher.OpenSettings`). Packaged desktop apps (Notepad, Terminal, Paint) and WinUI 3 apps
+are unaffected. Found on 25H2 (twinui.pcshell 10.0.26100.9444) with cdb, Ghidra and test hosts:
+
+- **What fails.** `ActivateApplication` for Calculator starts `CalculatorApp.exe`, which never creates a window and
+  is gone within seconds; the call returns `0x80040900` after ~45 s and TWinUI/Operational logs event 5961
+  ("Activation phase: COM App activation"). The app's main thread sits in twinapi.appcore
+  `CoreApplication::ActivateForeground` → `GetWindowFactory`, which `CoCreateInstance`s
+  `ShellServiceHostBrokerProvider` {3480A401-BDE9-4407-BC02-798A866AC051} (AppID RunAs Interactive User, no server
+  on disk: the running shell registers it) and asks it (`QueryService`) for `IApplicationActivationBroker` to get
+  the factory for its `CoreWindow`. Nothing serves it without Explorer.
+- **Who serves it.** Explorer's immersive shell: twinui.pcshell's `CImmersiveShellBuilder` (CLSID
+  {C71C41F1-DDAD-42DC-A8FC-F5BFC61DF957}, `IImmersiveShellBuilder` {1C56B3E4-E6EA-4CED-8A74-73B72C6BD435}:
+  `CreateImmersiveShellController`; `IImmersiveShellBuilder2` {2EB59B15-1487-40CE-916E-EF65330DD224}:
+  `SetShellScenario`) makes windows.immersiveshell.serviceprovider's `CImmersiveShellController`
+  ({23650F94-…}; `Start`, `Stop`, `SetCreationBehavior`), whose components thread creates `CApplicationManager`
+  (view management, frames with ApplicationFrameHost, PLM), `CLSID_ImmersiveShell` and the broker provider. Explorer
+  starts it from `CTray::_StartImmersiveShell`; the only other callers are Microsoft's own shell hosts:
+  CustomShellHost.exe (Shell Launcher v2 and Assigned Access: it runs only when
+  `CustomShellExperienceRepository.ActiveExperience` finds one of those configured, otherwise it starts Explorer;
+  scenario 0), ShellAppRuntime.exe (Windows 365 Boot) and rdpinit.exe (RemoteApp). Each creates its own `Progman`
+  desktop window, and optionally `Shell_TrayWnd`, in the same process before `Start`.
+- **Two gates keep it out of NeoShell.** Tried with a test host calling the builder exactly as CustomShellHost does:
+  1. `CImmersiveShellController::Start` fails with `RPC_E_WRONG_THREAD` (immersiveshellcontroller.cpp line 926)
+     unless `GetShellWindow()` belongs to the calling process, so it can't live in a helper next to NeoShell; with
+     no shell window at all it fails the same way.
+  2. Given a shell window of its own (`SetShellWindow` in the host), `Start` succeeds, but the components thread
+     fail-fasts the process (`CCriticalFailureHandler`, `0x80270233`) in `CApplicationManager::
+     _InitializeIAMSubcomponents`: `CFallbackWindow` creates `ApplicationManager_ImmersiveShellWindow` with
+     `CreateWindowInBand(…, ZBID_IMMERSIVE_BACKGROUND = 12)`, and the view manager needs `SetWindowBand` and the
+     shell cloak (`DwmSetWindowAttribute(DWMWA_CLOAK)` with user32 ordinal 2510 around it) for every app frame.
+     win32k allows these only to an immersive broker (`win32kbase!IsImmersiveBroker`: DWM, CSRSS, or a process
+     `UserProcessImmersiveType` marks at creation because its image has a `.imrsiv` PE section and a Windows
+     signing level). explorer.exe, CustomShellHost, ShellAppRuntime, rdpinit, ShellHost and ApplicationFrameHost
+     have that section; NeoShell can't (it needs Microsoft's signature). Measured from a medium-integrity test
+     process: `CreateWindowInBand` with bands 2, 3 and 12 and `SetWindowBand(…, 12)` fail with access denied (5).
+- **Rejected alternatives.** Configuring Shell Launcher/Assigned Access so CustomShellHost hosts it (Enterprise/
+  Education/IoT features, machine-wide kiosk policy, and the host would own `Progman` and `Shell_TrayWnd`);
+  starting ShellAppRuntime (the Windows 365 Boot shell); `explorer.exe /factory` (the controller still needs the
+  shell window in that process); serving `IApplicationActivationBroker` and ApplicationFrameHost's frame interfaces
+  from NeoShell (the app's `CoreWindow` is created shell-cloaked, and uncloaking, banding and placing it are the
+  broker-only calls above). What does work is Explorer as the shell with NeoShell alongside.
+
 ## Wallpaper (`Desktop/`)
 
 - One `WallpaperWindow` per monitor covering the full monitor bounds, kept there and at `HWND_BOTTOM` by
@@ -847,8 +892,9 @@ Shell mode only, like the wallpaper: alongside Explorer, Explorer's desktop has 
   records a packaged app's start" under Start); other apps through `shell:AppsFolder\<AUMID>` when there is an AUMID,
   otherwise `ShellExecuteEx` on the path. Opening `shell:AppsFolder\<packaged AUMID>` needs a handler hosted by
   Explorer and fails without it ("Class not registered").
-- UWP (CoreWindow) apps, Settings and Calculator among them, can't show in shell mode: their windows stay cloaked
-  without Explorer's view management, and activation fails. Packaged desktop apps (Notepad, Terminal) work.
+- UWP (CoreWindow) apps, Settings and Calculator among them, can't show in shell mode: activation fails without
+  Explorer's immersive shell, which only a Microsoft-signed process can host (see "UWP (CoreWindow) apps as the
+  shell"). Packaged desktop apps (Notepad, Terminal) work.
 - Pinning from the Start menu and from a task button's context menu.
 - The first time Start's catalog loads, Explorer's taskbar pins are added once (`ExplorerTaskbarPinsImported`),
   matched to catalog apps as Start's are. The shortcuts in `User Pinned\TaskBar` have no order and packaged apps
