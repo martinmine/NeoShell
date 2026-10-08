@@ -42,6 +42,8 @@ internal sealed partial class QuickSettingsPanel : UserControl
     private int _tilePage;
     private bool _isOpen;
     private bool _updatingVolumeSlider;
+    private bool _updatingBrightnessSlider;
+    private bool _brightnessSliderPressed;
     private bool _volumeSliderPressed;
     private bool _updatingLists;
     private IReadOnlyList<AudioDevice> _outputs = [];
@@ -61,6 +63,9 @@ internal sealed partial class QuickSettingsPanel : UserControl
         VolumeSlider.AddHandler(PointerPressedEvent, new PointerEventHandler(VolumeSlider_PointerPressed), handledEventsToo: true);
         VolumeSlider.AddHandler(PointerReleasedEvent, new PointerEventHandler(VolumeSlider_PointerReleased), handledEventsToo: true);
         VolumeSlider.AddHandler(PointerCaptureLostEvent, new PointerEventHandler(VolumeSlider_PointerReleased), handledEventsToo: true);
+        BrightnessSlider.AddHandler(PointerPressedEvent, new PointerEventHandler((_, _) => _brightnessSliderPressed = true), handledEventsToo: true);
+        BrightnessSlider.AddHandler(PointerReleasedEvent, new PointerEventHandler((_, _) => _brightnessSliderPressed = false), handledEventsToo: true);
+        BrightnessSlider.AddHandler(PointerCaptureLostEvent, new PointerEventHandler((_, _) => _brightnessSliderPressed = false), handledEventsToo: true);
 
         _tiles.AddRange(
         [
@@ -68,11 +73,14 @@ internal sealed partial class QuickSettingsPanel : UserControl
             new QuickTile(QuickTileKind.Bluetooth, "Bluetooth", "") { Name = "Bluetooth", HasSwitch = true, HasPage = true },
             new QuickTile(QuickTileKind.AirplaneMode, "Airplane mode", "") { Name = "Airplane mode", HasSwitch = true },
             new QuickTile(QuickTileKind.Accessibility, "Accessibility", "") { Name = "Accessibility", HasPage = true },
+            // These show and switch Windows' own quick actions (QuickActions), hidden until Windows says the PC has them.
+            new QuickTile(QuickTileKind.Vpn, "VPN", "") { Name = "VPN", HasSwitch = true, HasPage = true, IsShown = false, PageName = "Manage VPN connections" },
+            new QuickTile(QuickTileKind.RotationLock, "Rotation lock", "") { Name = "Rotation lock", HasSwitch = true, IsShown = false },
             new QuickTile(QuickTileKind.EnergySaver, "Energy saver", "") { Name = "Energy saver", HasSwitch = true },
             new QuickTile(QuickTileKind.LiveCaptions, "Live captions", "") { Name = "Live captions", HasSwitch = true },
-            // Night light and Nearby sharing keep their state in private stores of Windows': their tiles open Settings.
-            new QuickTile(QuickTileKind.NightLight, "Night light", "") { Name = "Night light" },
-            new QuickTile(QuickTileKind.NearbySharing, "Nearby sharing", "") { Name = "Nearby sharing" },
+            new QuickTile(QuickTileKind.NightLight, "Night light", "") { Name = "Night light", HasSwitch = true, IsShown = false },
+            new QuickTile(QuickTileKind.MobileHotspot, "Mobile hotspot", "") { Name = "Mobile hotspot", HasSwitch = true, IsShown = false },
+            new QuickTile(QuickTileKind.NearbySharing, "Nearby sharing", "") { Name = "Nearby sharing", HasSwitch = true, HasPage = true, IsShown = false },
             new QuickTile(QuickTileKind.Cast, "Cast", "") { Name = "Cast", HasPage = true },
             new QuickTile(QuickTileKind.Project, "Project", "") { Name = "Project", HasPage = true },
         ]);
@@ -108,9 +116,6 @@ internal sealed partial class QuickSettingsPanel : UserControl
         _indicators = indicators;
         _runMode = runMode;
         _icons = icons;
-        // Settings can't open while NeoShell is the shell, and these have no classic dialog.
-        Hide(QuickTileKind.NightLight, runMode == RunMode.Shell);
-        Hide(QuickTileKind.NearbySharing, runMode == RunMode.Shell);
         indicators.Changed += Refresh;
         icons.Loaded += RefreshMixerIcons;
         Refresh();
@@ -150,6 +155,7 @@ internal sealed partial class QuickSettingsPanel : UserControl
 
         RefreshTiles(indicators);
         RefreshVolume(indicators);
+        RefreshBrightness(indicators.QuickActions.State.Brightness);
         if (indicators.Battery is { } battery)
         {
             BatteryInfo.Visibility = Visibility.Visible;
@@ -177,6 +183,14 @@ internal sealed partial class QuickSettingsPanel : UserControl
         {
             _ = RefreshBluetoothAsync();
         }
+        else if (_page == VpnPage)
+        {
+            RefreshVpn();
+        }
+        else if (_page == NearbySharingPage)
+        {
+            RefreshNearbySharing();
+        }
     }
 
     // Assistive technologies report no changes; they're read when a page showing them opens, not on every change of
@@ -190,6 +204,7 @@ internal sealed partial class QuickSettingsPanel : UserControl
 
     private void RefreshTiles(Indicators indicators)
     {
+        QuickActionsState actions = indicators.QuickActions.State;
         bool hasWifi = indicators.HasRadio(RadioType.WiFi);
         bool hasBluetooth = indicators.HasRadio(RadioType.Bluetooth);
         foreach (QuickTile tile in _tiles)
@@ -213,6 +228,21 @@ internal sealed partial class QuickSettingsPanel : UserControl
                     tile.IsShown = indicators.IsEnergySaverAvailable;
                     tile.IsOn = indicators.IsEnergySaverOn;
                     break;
+                case QuickTileKind.Vpn:
+                    tile.Show(actions.Vpn);
+                    break;
+                case QuickTileKind.RotationLock:
+                    tile.Show(actions.RotationLock);
+                    break;
+                case QuickTileKind.NightLight:
+                    tile.Show(actions.NightLight);
+                    break;
+                case QuickTileKind.MobileHotspot:
+                    tile.Show(actions.MobileHotspot);
+                    break;
+                case QuickTileKind.NearbySharing:
+                    tile.Show(actions.NearbySharing);
+                    break;
             }
         }
         ShowTiles(_tilePage, direction: 0);
@@ -225,8 +255,6 @@ internal sealed partial class QuickSettingsPanel : UserControl
         QuickSettingsPage.Project => ProjectPage,
         _ => MainPage,
     };
-
-    private void Hide(QuickTileKind kind, bool hidden) => _tiles.First(tile => tile.Kind == kind).IsShown = !hidden;
 
     // Tiles
 
@@ -318,11 +346,23 @@ internal sealed partial class QuickSettingsPanel : UserControl
             case QuickTileKind.Project:
                 ShowPage(ProjectPage, animate: true);
                 break;
+            case QuickTileKind.Vpn when !tile.HasSwitch:
+                ShowPage(VpnPage, animate: true);
+                break;
+            case QuickTileKind.Vpn:
+                indicators.QuickActions.ToggleVpn(on);
+                break;
+            case QuickTileKind.RotationLock:
+                indicators.QuickActions.SetRotationLock(on);
+                break;
             case QuickTileKind.NightLight:
-                OpenSettings("Night light settings", "ms-settings:nightlight");
+                indicators.QuickActions.SetNightLight(on);
+                break;
+            case QuickTileKind.MobileHotspot:
+                indicators.QuickActions.SetMobileHotspot(on);
                 break;
             case QuickTileKind.NearbySharing:
-                OpenSettings("Nearby sharing settings", "ms-settings:crossdevice");
+                indicators.QuickActions.SetNearbySharing(on);
                 break;
         }
         button.IsChecked = tile.IsOn;
@@ -334,7 +374,13 @@ internal sealed partial class QuickSettingsPanel : UserControl
             return;
 
         button.IsChecked = tile.IsOn;
-        ShowPage(tile.Kind == QuickTileKind.WiFi ? WifiPage : BluetoothPage, animate: true);
+        ShowPage(tile.Kind switch
+        {
+            QuickTileKind.WiFi => WifiPage,
+            QuickTileKind.Bluetooth => BluetoothPage,
+            QuickTileKind.Vpn => VpnPage,
+            _ => NearbySharingPage,
+        }, animate: true);
     }
 
     // Pages
@@ -345,7 +391,7 @@ internal sealed partial class QuickSettingsPanel : UserControl
     private void ShowPage(FrameworkElement page, bool animate)
     {
         bool forward = page != MainPage;
-        foreach (FrameworkElement each in (FrameworkElement[])[MainPage, SoundOutputPage, WifiPage, BluetoothPage, AccessibilityPage, CastPage, ProjectPage])
+        foreach (FrameworkElement each in (FrameworkElement[])[MainPage, SoundOutputPage, WifiPage, BluetoothPage, AccessibilityPage, CastPage, ProjectPage, VpnPage, NearbySharingPage])
             each.Visibility = each == page ? Visibility.Visible : Visibility.Collapsed;
         _page = page;
 
@@ -430,6 +476,27 @@ internal sealed partial class QuickSettingsPanel : UserControl
     }
 
     private void SoundOutputButton_Click(object sender, RoutedEventArgs e) => ShowPage(SoundOutputPage, animate: true);
+
+    // Brightness: only where Windows can set the screen's (an internal panel, or a monitor it controls).
+
+    private void RefreshBrightness(int? percent)
+    {
+        Visibility visibility = percent is null ? Visibility.Collapsed : Visibility.Visible;
+        BrightnessIcon.Visibility = BrightnessSlider.Visibility = visibility;
+        // What the slider sets comes back here, a moment later; don't move it back while it's being dragged.
+        if (percent is { } value && !_brightnessSliderPressed)
+        {
+            _updatingBrightnessSlider = true;
+            BrightnessSlider.Value = value;
+            _updatingBrightnessSlider = false;
+        }
+    }
+
+    private void BrightnessSlider_ValueChanged(object sender, RangeBaseValueChangedEventArgs e)
+    {
+        if (!_updatingBrightnessSlider)
+            _indicators?.QuickActions.SetBrightness((int)e.NewValue);
+    }
 
     private void RefreshOutputs()
     {
@@ -740,6 +807,90 @@ internal sealed partial class QuickSettingsPanel : UserControl
     // As the shell: Devices and Printers, where Bluetooth devices are added and removed.
     private void BluetoothSettings_Click(object sender, RoutedEventArgs e) =>
         OpenSettings("Bluetooth settings", "ms-settings:bluetooth", "/name Microsoft.DevicesAndPrinters");
+
+    // VPN
+
+    private void RefreshVpn()
+    {
+        IReadOnlyList<VpnConnection> connections;
+        try
+        {
+            connections = VpnConnections.List();
+        }
+        catch (Exception ex)
+        {
+            Log.Warn("Listing the VPN connections failed", ex);
+            connections = [];
+        }
+
+        // Read again on every network change: keep the list (and the chosen connection) unless something changed.
+        var items = VpnList.ItemsSource as IReadOnlyList<VpnItem>;
+        if (items is null || !items.Select(item => item.Connection).SequenceEqual(connections))
+        {
+            string? chosen = (VpnList.SelectedItem as VpnItem)?.Name;
+            items = [.. connections.Select(connection => new VpnItem(connection))];
+            VpnList.ItemsSource = items;
+            VpnList.SelectedItem = items.FirstOrDefault(item => item.Name == chosen);
+        }
+        VpnMessage.Visibility = items.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private void VpnList_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        foreach (VpnItem item in VpnList.Items.Cast<VpnItem>())
+            item.IsExpanded = ReferenceEquals(item, VpnList.SelectedItem);
+    }
+
+    // Connecting opens Windows' own dialog, which asks for what isn't saved; it takes the focus, so Quick Settings closes.
+    private void VpnAction_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement { DataContext: VpnItem item })
+            return;
+
+        try
+        {
+            if (item.Connection.IsConnected)
+            {
+                VpnConnections.Disconnect(item.Connection);
+                Log.Info($"VPN: disconnected from {item.Name}");
+                RefreshVpn();
+            }
+            else
+            {
+                CloseRequested?.Invoke();
+                VpnConnections.Connect(item.Connection);
+                Log.Info($"VPN: connecting to {item.Name}");
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.Warn($"VPN: could not {(item.Connection.IsConnected ? "disconnect from" : "connect to")} {item.Name}", ex);
+        }
+    }
+
+    // As the shell, Network Connections, which lists the VPN connections too.
+    private void VpnSettings_Click(object sender, RoutedEventArgs e) =>
+        OpenSettings("VPN settings", "ms-settings:network-vpn", "ncpa.cpl");
+
+    // Nearby sharing
+
+    private void RefreshNearbySharing()
+    {
+        bool on = _indicators?.QuickActions.State.NearbySharing.IsOn == true;
+        _updatingLists = true;
+        NearbySharingSwitch.IsOn = on;
+        _updatingLists = false;
+        (NearbySharingTitle.Text, NearbySharingText.Text) = QuickSettingsDisplay.NearbySharingText(on);
+    }
+
+    private void NearbySharingSwitch_Toggled(object sender, RoutedEventArgs e)
+    {
+        if (!_updatingLists)
+            _indicators?.QuickActions.SetNearbySharing(NearbySharingSwitch.IsOn);
+    }
+
+    private void NearbySharingSettings_Click(object sender, RoutedEventArgs e) =>
+        OpenSettings("Nearby sharing settings", "ms-settings:crossdevice");
 
     // Accessibility
 

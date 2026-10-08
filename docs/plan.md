@@ -465,8 +465,11 @@ Each item is done when it looks and behaves as Explorer's (layout, behaviour, an
       is a banner only (not kept in the notification center); freeform smoothing differs for sparse pointer input —
       not run live: the MakePrintScreenKeyYieldable policy, Snipping Tool's keyboard handling (no keys pressed with
       Explorer running)
-- [ ] T32 Quick Settings: brightness, mobile hotspot, VPN, rotation lock, keyboard layout; night light and nearby
-      sharing working as the shell
+- [ ] T32 Quick Settings: brightness, mobile hotspot, VPN, rotation lock; night light and nearby sharing working as
+      the shell — through Windows' own Settings handlers, as its Quick Settings does. No keyboard layout tile: 25H2's
+      Quick Settings has none. Not compared side by side: Windows' Quick Settings wouldn't open on the VM this session.
+      Not run live: brightness (no controllable display), rotation lock (no sensor), the hotspot actually sharing (no
+      Wi-Fi: Windows' handler fails with 0x80070426), a VPN connecting (a throwaway profile with no server)
 - [ ] T33 Bluetooth page: connect and disconnect paired devices
 - [ ] T34 Accessibility page: switch Colour filters and Mono audio
 - [ ] T35 Focus sessions: hide badges and flashing, end chime

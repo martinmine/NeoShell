@@ -107,6 +107,36 @@ internal sealed class WifiItem(WifiNetwork network) : Observable
     public override string ToString() => Name;
 }
 
+/// <summary>A VPN connection on the VPN page; choosing it opens it up to connect or disconnect.</summary>
+internal sealed class VpnItem(VpnConnection connection) : Observable
+{
+    private bool _isExpanded;
+
+    public VpnConnection Connection { get; } = connection;
+
+    public string Name => Connection.Name;
+
+    public string Status => Connection.IsConnected ? "Connected" : "";
+
+    public Visibility StatusVisibility => Connection.IsConnected ? Visibility.Visible : Visibility.Collapsed;
+
+    public string ActionText => Connection.IsConnected ? "Disconnect" : "Connect";
+
+    public bool IsExpanded
+    {
+        get => _isExpanded;
+        set
+        {
+            if (Set(ref _isExpanded, value))
+                Raise(nameof(ExpandedVisibility));
+        }
+    }
+
+    public Visibility ExpandedVisibility => IsExpanded ? Visibility.Visible : Visibility.Collapsed;
+
+    public override string ToString() => Name;
+}
+
 /// <summary>A paired device on the Bluetooth page.</summary>
 internal sealed class BluetoothItem(PairedDevice device)
 {

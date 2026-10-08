@@ -68,7 +68,9 @@ src/NeoShell/                 WinUI app
   Taskbar/                    TaskbarWindow, task list + grouping, pinned apps, thumbnail popup, clock
   Tray/                       Tray area, overflow flyout, network/volume/battery/mic/input indicators, input switcher
   Notifications/              Notification center + calendar (two panel windows), toasts (shell mode), focus sessions
-  QuickSettings/              Quick Settings: tiles, Wi-Fi, Bluetooth, Accessibility, Cast, Project and Sound output pages
+  QuickSettings/              Quick Settings: tiles, Windows' quick actions (night light, nearby sharing, hotspot, VPN,
+                              rotation lock, brightness), Wi-Fi, Bluetooth, Accessibility, VPN, Nearby sharing, Cast,
+                              Project and Sound output pages
   StartMenu/                  StartMenuWindow, app list, search results, power menu
   Switcher/                   Alt+Tab window switcher (shell mode)
   Snap/                       Snap (shell mode): layouts flyout (maximize button hover, Win+Z), Snap bar, dragging and
@@ -80,18 +82,18 @@ src/NeoShell/                 WinUI app
   Settings/                   Settings record + JSON load/save (%LOCALAPPDATA%\NeoShell\settings.json)
 src/NeoShell.Interop/
   Native/                     LibraryImport: User32, Shell32, Dwmapi, Kernel32, Advapi32, PowrProf, Comctl32, Pdh, Hid,
-                              Wintrust, Combase
+                              Wintrust, Combase, Rasapi32
   Com/                        Core Audio, IShellItem/IShellItemImageFactory, IPropertyStore, ITaskbarList, ISearchQueryHelper,
                               IQuietHoursSettings, IHWEventHandler
   Windowing/                  MessageWindow, WindowSubclass, AppBar, ShellHook, DwmThumbnail, KeyboardHook, WindowInfo
   Imaging/                    IconBitmap (BGRA pixels), ScreenCapture (screen pixels, clipboard, PNG), Pictures (decode)
   Tray/                       TrayHost (owns Shell_TrayWnd), NOTIFYICONDATA parsing (32/64-bit)
   Audio/                      AudioEndpoint (volume/mute + events), mixer, outputs
-  Network/                    NetworkStatus (WinRT NetworkInformation), WifiNetworks (WinRT WiFiAdapter)
+  Network/                    NetworkStatus (WinRT NetworkInformation), WifiNetworks (WinRT WiFiAdapter), VpnConnections
   Radios/                     RadioSwitches (Wi-Fi/Bluetooth radios), AirplaneMode (Radio Management API)
   Bluetooth/                  BluetoothDevices (paired devices)
   Power/                      EnergySaver, BatteryMonitor
-  Display/                    DisplayProjection (Win+P modes)
+  Display/                    DisplayProjection (Win+P modes), AutoRotation
   Accessibility/              StickyKeys
   Performance/                SystemUsage (CPU, disk and memory use through PDH)
   Media/                      NowPlaying (system media transport controls)
@@ -103,7 +105,8 @@ src/NeoShell.Interop/
   Search/                     IndexSearch (ISearchQueryHelper + OleDb against Search.CollatorDSO)
   Shell/                      AppCatalog (shell:AppsFolder), DesktopFolder, ShellContextMenu, ShellMenu, Launcher, Power,
                               ShellRegistration, StartupApps, VolumeArrivals, AutoPlayVolumes/Handlers, OpticalDrives,
-                              StartPlaces, DesktopWallpaperServer (IDesktopWallpaper), DesktopBackground
+                              StartPlaces, DesktopWallpaperServer (IDesktopWallpaper), DesktopBackground, SystemSetting
+                              (Windows' Settings handlers: ISettingItem)
 tests/NeoShell.Tests/         xunit tests for logic that runs without UI
 tools/                        start-shell.ps1 (this session), set-shell.ps1, restore-explorer.ps1
 docs/                         design.md, plan.md
@@ -194,6 +197,7 @@ the desktop and back. Full spec in docs/design.md ("Widgets").
   filtering, sorting and grid places, icon spacing and Explorer's saved icon layouts (IconLayouts), icons off the grid, wallpaper per monitor, slideshow order and timing, Explorer's wallpaper and slideshow formats, snap zones and keys, windows moved to another monitor, Snap's settings, suggestions, Snap Assist's zones and card rows, snap groups and their
   Alt+Tab items, finding a maximize button, Start's pin folders and folder buttons, Start's All categories, order, New/System and tile store, the taskbar search setting and its collapse, thumbnail toolbar data and image lists, pinning by drag, clock settings and notification bell, widget placement and order, MET forecast parsing, wireless device protocols, Windows product name,
   AutoPlay content, events, choice lists and saving, autorun.inf parsing, optical drive names, toast sounds,
+  Quick Settings' rotation lock tile and VPN phonebook entries,
   input indicator labels and Win+Space keys, the Copilot key and its choice, task button badges, Start account menu order and "…",
   Alt+Tab's keys (Ctrl+Alt+Tab) and most-recently-used order, the title bar shake setting, snips (window targets,
   freeform masks, Snipping Tool's settings and editor link, the Print Screen key).

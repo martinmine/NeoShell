@@ -14,6 +14,7 @@ internal sealed class QuickTile(QuickTileKind kind, string label, string glyph) 
     private bool _isOn;
     private bool _isAvailable = true;
     private bool _isShown = true;
+    private bool _hasSwitch;
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
@@ -27,7 +28,20 @@ internal sealed class QuickTile(QuickTileKind kind, string label, string glyph) 
     /// <summary>The name for UI Automation and the tooltip: the feature's own, whatever the label shows.</summary>
     public required string Name { get; init; }
 
-    public bool HasSwitch { get; init; }
+    /// <summary>A VPN tile has its switch only while Windows has a VPN for it to switch.</summary>
+    public bool HasSwitch
+    {
+        get => _hasSwitch;
+        set
+        {
+            if (_hasSwitch == value)
+                return;
+
+            _hasSwitch = value;
+            foreach (string name in (string[])[nameof(HasSwitch), nameof(IsSplit), nameof(MainColumnSpan), nameof(MainCornerRadius), nameof(SplitVisibility), nameof(InlineChevronVisibility)])
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
+        }
+    }
 
     public bool HasPage { get; init; }
 
@@ -38,6 +52,16 @@ internal sealed class QuickTile(QuickTileKind kind, string label, string glyph) 
 
     /// <summary>Whether the PC has it at all: tiles without hardware or support aren't shown, as in Windows.</summary>
     public bool IsShown { get => _isShown; set => Set(ref _isShown, value); }
+
+    /// <summary>Shows a quick action's state as Windows reports it.</summary>
+    public void Show(QuickActionState state)
+    {
+        IsShown = state.IsShown;
+        IsAvailable = state.IsAvailable;
+        IsOn = state.IsOn;
+        Label = state.Label ?? Name;
+        HasSwitch = state.HasSwitch;
+    }
 
     public bool IsSplit => HasSwitch && HasPage;
 
@@ -50,7 +74,8 @@ internal sealed class QuickTile(QuickTileKind kind, string label, string glyph) 
     /// <summary>A page-only tile shows its chevron next to the glyph.</summary>
     public Visibility InlineChevronVisibility => HasPage && !HasSwitch ? Visibility.Visible : Visibility.Collapsed;
 
-    public string PageName => $"{Name} settings";
+    /// <summary>The page button's name and tooltip.</summary>
+    public string PageName { get; init; } = $"{label} settings";
 
     public string TileId => $"{Kind}Tile";
 
@@ -75,9 +100,12 @@ internal enum QuickTileKind
     Bluetooth,
     AirplaneMode,
     Accessibility,
+    Vpn,
+    RotationLock,
     EnergySaver,
     LiveCaptions,
     NightLight,
+    MobileHotspot,
     NearbySharing,
     Cast,
     Project,

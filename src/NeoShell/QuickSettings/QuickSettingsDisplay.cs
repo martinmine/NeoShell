@@ -1,4 +1,5 @@
 using NeoShell.Interop.Bluetooth;
+using NeoShell.Interop.Display;
 using NeoShell.Interop.Network;
 using NeoShell.Interop.Power;
 
@@ -52,4 +53,16 @@ public static class QuickSettingsDisplay
 
     public static string BatteryToolTip(BatteryState battery) =>
         $"Battery: {battery.Percent}% {(battery.IsCharging ? "charging" : "remaining")}";
+
+    /// <summary>
+    /// Rotation lock's tile: only where the screen can turn (an orientation sensor), greyed while the lock can't change
+    /// (docked, several screens, a remote session), on while the screen stays put.
+    /// </summary>
+    public static QuickActionState RotationLockTile(AutoRotation rotation) =>
+        rotation.IsSupported ? new QuickActionState(true, rotation.CanChange, rotation.IsLocked) : QuickActionState.Hidden;
+
+    /// <summary>The Nearby sharing page's heading and text, as Windows' (ControlCenter's NearShareL2Page strings).</summary>
+    public static (string Title, string Text) NearbySharingText(bool on) => on
+        ? ("Nearby sharing is on", "Bluetooth and WLAN have been turned on to help you quickly share files and more.")
+        : ("Nearby sharing is off", "Bluetooth and WLAN must be on to use nearby sharing. When you turn on nearby sharing, Bluetooth and WLAN will be turned on automatically.");
 }

@@ -8,6 +8,7 @@ using NeoShell.Interop.Privacy;
 using NeoShell.Interop.Radios;
 using NeoShell.Interop.Shell;
 using NeoShell.Logging;
+using NeoShell.QuickSettings;
 
 namespace NeoShell.Tray;
 
@@ -29,6 +30,7 @@ internal sealed class Indicators : IDisposable
     private readonly EnergySaver _energySaver = new();
     private readonly BatteryMonitor _battery = new();
     private readonly InputMethods? _inputMethods;
+    private readonly QuickActions _quickActions = new();
     // How many input methods the switcher counted when the list was last read.
     private int _listedInputMethods = -1;
     private int _updateQueued;
@@ -43,6 +45,7 @@ internal sealed class Indicators : IDisposable
         _battery.Changed += QueueUpdate;
         _microphoneUsage.Changed += QueueUpdate;
         _locationUsage.Changed += QueueUpdate;
+        _quickActions.Changed += QueueUpdate;
         try
         {
             _audio = new AudioEndpoint();
@@ -72,6 +75,9 @@ internal sealed class Indicators : IDisposable
 
     /// <summary>Raised on the UI thread after any of the state changed.</summary>
     public event Action? Changed;
+
+    /// <summary>Windows' own quick actions (night light, nearby sharing, hotspot, VPN, rotation lock, brightness).</summary>
+    public QuickActions QuickActions => _quickActions;
 
     public NetworkState Network { get; private set; } = NetworkState.Disconnected;
 
@@ -321,6 +327,7 @@ internal sealed class Indicators : IDisposable
         _locationUsage.Dispose();
         _mixer?.Dispose();
         _inputMethods?.Dispose();
+        _quickActions.Dispose();
     }
 
     /// <summary>The name the mixer shows: the session's own, else the app's, else the executable's description.</summary>

@@ -1,4 +1,5 @@
 using NeoShell.Interop.Bluetooth;
+using NeoShell.Interop.Display;
 using NeoShell.Interop.Network;
 using NeoShell.Interop.Power;
 using NeoShell.QuickSettings;
@@ -92,6 +93,54 @@ public sealed class QuickSettingsTests
     {
         Assert.Equal("Battery: 54% remaining", QuickSettingsDisplay.BatteryToolTip(new BatteryState(54, false)));
         Assert.Equal("Battery: 80% charging", QuickSettingsDisplay.BatteryToolTip(new BatteryState(80, true)));
+    }
+
+    [Theory]
+    [InlineData(0x10, false, false, false)] // AR_NOSENSOR: a desktop or this VM, no tile
+    [InlineData(0x20, false, false, false)] // AR_NOT_SUPPORTED
+    [InlineData(0x00, true, true, false)]   // free to turn
+    [InlineData(0x01, true, true, true)]    // AR_DISABLED: locked
+    [InlineData(0x08, true, false, true)]   // AR_MULTIMON: greyed, the screen stays put
+    [InlineData(0x40, true, false, true)]   // AR_DOCKED
+    [InlineData(0x80, true, false, true)]   // AR_LAPTOP: a convertible used as a laptop
+    [InlineData(0x04, true, false, true)]   // AR_REMOTESESSION
+    public void Rotation_lock_shows_only_with_a_sensor_and_greys_while_it_cant_change(int state, bool shown, bool available, bool on)
+    {
+        QuickActionState tile = QuickSettingsDisplay.RotationLockTile(AutoRotation.From(state));
+
+        Assert.Equal(shown, tile.IsShown);
+        Assert.Equal(available, tile.IsAvailable);
+        Assert.Equal(on, tile.IsOn);
+    }
+
+    [Fact]
+    public void Vpn_connections_are_the_phonebooks_entries_of_type_two()
+    {
+        const string phonebook = """
+            [Office]
+            Encoding=1
+            Type=2
+            PreferredDevice=WAN Miniport (IKEv2)
+
+            [Dial-up]
+            Type=1
+
+            [Broadband]
+            Type=5
+            [Home lab]
+            Type=2
+            """;
+
+        Assert.Equal(["Office", "Home lab"], VpnConnections.VpnEntries(phonebook));
+        Assert.Equal(["Crlf"], VpnConnections.VpnEntries("[Crlf]\r\nType=2\r\n"));
+        Assert.Empty(VpnConnections.VpnEntries(""));
+    }
+
+    [Fact]
+    public void Nearby_sharing_page_says_whether_it_is_on()
+    {
+        Assert.Equal("Nearby sharing is on", QuickSettingsDisplay.NearbySharingText(true).Title);
+        Assert.StartsWith("Bluetooth and WLAN must be on", QuickSettingsDisplay.NearbySharingText(false).Text);
     }
 
     private const int Win = 0x5B;

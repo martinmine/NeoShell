@@ -760,4 +760,8 @@ internal static unsafe partial class User32
     [LibraryImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     public static partial bool ChangeWindowMessageFilterEx(nint hwnd, uint message, uint action, void* changeFilterStruct);
+
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static partial bool GetAutoRotationState(out int state);
 }
