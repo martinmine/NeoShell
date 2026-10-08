@@ -9,6 +9,10 @@ internal static unsafe partial class Kernel32
     [LibraryImport("kernel32.dll", EntryPoint = "GetModuleHandleW", StringMarshalling = StringMarshalling.Utf16)]
     public static partial nint GetModuleHandle(string? moduleName);
 
+    /// <summary>The full names of a package family's installed packages; ERROR_INSUFFICIENT_BUFFER asks for more room.</summary>
+    [LibraryImport("kernel32.dll", StringMarshalling = StringMarshalling.Utf16)]
+    public static partial int GetPackagesByPackageFamily(string familyName, ref uint count, nint* fullNames, ref uint bufferLength, char* buffer);
+
     public const uint EVENT_MODIFY_STATE = 0x0002;
 
     [LibraryImport("kernel32.dll")]

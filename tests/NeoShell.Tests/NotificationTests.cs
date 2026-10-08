@@ -82,15 +82,30 @@ public sealed class NotificationTests
         Assert.Equal(less, NotificationDisplay.LessFocus(minutes));
     }
 
-    [Theory]
-    [InlineData(1499.2, "25:00")]
-    [InlineData(59, "00:59")]
-    [InlineData(3725, "1:02:05")]
-    [InlineData(-3, "00:00")]
-    public void Focus_time_left_counts_down_in_minutes_and_seconds(double seconds, string expected)
+    [Fact]
+    public void A_focus_session_hides_badges_and_flashing_as_its_settings_say_then_puts_back_what_was_there()
     {
-        Assert.Equal(expected, NotificationDisplay.RemainingText(TimeSpan.FromSeconds(seconds)));
+        var all = new FocusSettings(ClockTimer: true, HideBadges: true, HideFlashing: true, DoNotDisturb: true);
+        Assert.Equal(new Dictionary<string, int> { ["TaskbarBadges"] = 0, ["TaskbarFlashing"] = 0 }, FocusChanges.During(all));
+        // Badges were turned off by the user, flashing never set (on): Windows writes back 0 and 1.
+        var before = new Dictionary<string, object?> { ["TaskbarBadges"] = 0 };
+        Assert.Equal(new Dictionary<string, int> { ["TaskbarBadges"] = 0, ["TaskbarFlashing"] = 1 },
+            FocusChanges.After(all, name => before.GetValueOrDefault(name)));
+
+        var badgesOnly = all with { HideFlashing = false };
+        Assert.Equal(["TaskbarBadges"], FocusChanges.During(badgesOnly).Keys);
+        Assert.Equal(["TaskbarBadges"], FocusChanges.After(badgesOnly, _ => null).Keys);
+        Assert.Empty(FocusChanges.During(all with { HideBadges = false, HideFlashing = false }));
     }
+
+    [Theory]
+    [InlineData("ms-resource:FocusSessionCompletedTitle", "ms-resource://Microsoft.WindowsAlarms/Resources/FocusSessionCompletedTitle")]
+    [InlineData("ms-resource:Strings/Title", "ms-resource://Microsoft.WindowsAlarms/Strings/Title")]
+    [InlineData("ms-resource:///Resources/Title", "ms-resource://Microsoft.WindowsAlarms/Resources/Title")]
+    [InlineData("ms-resource://Other.App/Resources/Title", "ms-resource://Other.App/Resources/Title")]
+    [InlineData("Great job!", null)]
+    public void Toast_texts_naming_app_resources_are_looked_up_in_the_package(string text, string? uri) =>
+        Assert.Equal(uri, UserNotifications.ResourceUri(text, "Microsoft.WindowsAlarms"));
 
     [Fact]
     public void Toast_audio_is_read_from_the_audio_element_and_scenario()

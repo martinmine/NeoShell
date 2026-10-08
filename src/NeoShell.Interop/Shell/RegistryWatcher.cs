@@ -39,6 +39,9 @@ public sealed class RegistryWatcher : IDisposable
 
     public event Action? Changed;
 
+    /// <summary>False when the key didn't exist when the watcher was made.</summary>
+    public bool IsWatching => _wait is not null;
+
     public void Dispose()
     {
         _wait?.Unregister(null);

@@ -200,7 +200,8 @@ the desktop and back. Full spec in docs/design.md ("Widgets").
   Quick Settings' rotation lock tile and VPN phonebook entries,
   input indicator labels and Win+Space keys, the Copilot key and its choice, task button badges, Start account menu order and "…",
   Alt+Tab's keys (Ctrl+Alt+Tab) and most-recently-used order, the title bar shake setting, snips (window targets,
-  freeform masks, Snipping Tool's settings and editor link, the Print Screen key).
+  freeform masks, Snipping Tool's settings and editor link, the Print Screen key), what a focus session changes in
+  Explorer's settings, the taskbar flashing setting, toast texts naming app resources.
 - When testing the UI live, drive it through UI Automation (set `AutomationProperties.AutomationId` on interactive
   controls). Never use global keystrokes like SendKeys: they go to whichever window has focus.
 - Always stop a running NeoShell with `/exit` (or its taskbar menu), never by killing the process. A kill leaves the

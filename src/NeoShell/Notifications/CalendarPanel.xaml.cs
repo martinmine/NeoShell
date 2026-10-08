@@ -10,6 +10,7 @@ public sealed partial class CalendarPanel : UserControl
 {
     private readonly SettingsStore _settings;
     private readonly FocusSession _focus;
+    private int _focusMinutes = NotificationDisplay.DefaultFocusMinutes;
 
     internal CalendarPanel(SettingsStore settings, FocusSession focus)
     {
@@ -22,6 +23,9 @@ public sealed partial class CalendarPanel : UserControl
     /// <summary>The month was folded away or shown again; the window should be measured again.</summary>
     public event Action? ContentResized;
 
+    /// <summary>A focus session started: Explorer's flyout closes then.</summary>
+    public event Action? CloseRequested;
+
     /// <summary>Shows today, in the regional formats as they are now.</summary>
     public void Opening()
     {
@@ -32,6 +36,8 @@ public sealed partial class CalendarPanel : UserControl
         Calendar.DisplayMode = CalendarViewDisplayMode.Month;
         Calendar.SetDisplayDate(today);
         ShowCollapsed();
+        // Explorer's calendar starts from half an hour each time it opens.
+        _focusMinutes = NotificationDisplay.DefaultFocusMinutes;
         ShowFocus();
     }
 
@@ -47,17 +53,18 @@ public sealed partial class CalendarPanel : UserControl
 
     private void ShowFocus()
     {
-        bool running = _focus.EndsAt is not null;
-        int minutes = _settings.Current.FocusMinutes;
-        FocusLength.Visibility = running ? Visibility.Collapsed : Visibility.Visible;
-        FocusRemainingText.Visibility = running ? Visibility.Visible : Visibility.Collapsed;
-        FocusRemainingText.Text = NotificationDisplay.RemainingText(_focus.Remaining);
-        FocusMinutesRun.Text = minutes.ToString(CultureInfo.CurrentCulture) + " ";
-        AutomationProperties.SetName(FocusLengthText, $"{minutes} minutes");
-        LessFocusButton.IsEnabled = minutes > NotificationDisplay.MinFocusMinutes;
-        MoreFocusButton.IsEnabled = minutes < NotificationDisplay.MaxFocusMinutes;
-        FocusGlyph.Glyph = running ? "" : "";
-        FocusButtonText.Text = running ? "Stop focus" : "Focus";
+        bool active = _focus.IsActive;
+        FocusLength.Visibility = active ? Visibility.Collapsed : Visibility.Visible;
+        FocusingText.Visibility = active ? Visibility.Visible : Visibility.Collapsed;
+        FocusMinutesRun.Text = _focusMinutes.ToString(CultureInfo.CurrentCulture) + " ";
+        AutomationProperties.SetName(FocusLengthText, $"{_focusMinutes} minutes");
+        LessFocusButton.IsEnabled = _focusMinutes > NotificationDisplay.MinFocusMinutes;
+        MoreFocusButton.IsEnabled = _focusMinutes < NotificationDisplay.MaxFocusMinutes;
+        // Explorer's filled square and triangle.
+        FocusGlyph.Glyph = active ? "" : "";
+        FocusButtonText.Text = active ? "End session" : "Focus";
+        AutomationProperties.SetName(FocusButton, FocusButtonText.Text);
+        FocusButton.IsEnabled = _focus.IsAvailable;
     }
 
     private void CollapseButton_Click(object sender, RoutedEventArgs e)
@@ -67,21 +74,24 @@ public sealed partial class CalendarPanel : UserControl
         ContentResized?.Invoke();
     }
 
-    private void LessFocusButton_Click(object sender, RoutedEventArgs e) => SetFocusMinutes(NotificationDisplay.LessFocus(_settings.Current.FocusMinutes));
+    private void LessFocusButton_Click(object sender, RoutedEventArgs e) => SetFocusMinutes(NotificationDisplay.LessFocus(_focusMinutes));
 
-    private void MoreFocusButton_Click(object sender, RoutedEventArgs e) => SetFocusMinutes(NotificationDisplay.MoreFocus(_settings.Current.FocusMinutes));
+    private void MoreFocusButton_Click(object sender, RoutedEventArgs e) => SetFocusMinutes(NotificationDisplay.MoreFocus(_focusMinutes));
 
     private void SetFocusMinutes(int minutes)
     {
-        _settings.Update(_settings.Current with { FocusMinutes = minutes });
+        _focusMinutes = minutes;
         ShowFocus();
     }
 
     private void FocusButton_Click(object sender, RoutedEventArgs e)
     {
-        if (_focus.EndsAt is null)
-            _focus.Start(_settings.Current.FocusMinutes);
+        if (_focus.IsActive)
+            _focus.End();
         else
-            _focus.Stop();
+        {
+            _focus.Start(_focusMinutes);
+            CloseRequested?.Invoke();
+        }
     }
 }

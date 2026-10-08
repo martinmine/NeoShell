@@ -45,6 +45,7 @@ internal sealed class ClockFlyout : IDisposable
         _notificationPanel.ContentResized += Relayout;
         _notificationPanel.CloseRequested += Hide;
         _calendarPanel.ContentResized += Relayout;
+        _calendarPanel.CloseRequested += Hide;
         center.Changed += OnNotificationsChanged;
         center.DoNotDisturbChanged += OnNotificationsChanged;
         foreach (PanelWindow window in (PanelWindow[])[_notifications, _calendar])

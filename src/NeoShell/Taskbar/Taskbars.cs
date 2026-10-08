@@ -145,7 +145,7 @@ internal sealed class Taskbars : IDisposable
         // Created up front, so it opens instantly and its app catalog is already loaded.
         _startMenu = new StartMenuWindow(this);
         Notifications = new NotificationCenter();
-        _focus = new FocusSession(Notifications);
+        _focus = new FocusSession(Notifications, asShell: RunMode == RunMode.Shell);
         _clockFlyout = new ClockFlyout(Notifications, _focus, Settings, RunMode);
         // Explorer shows toasts itself while it runs.
         if (RunMode == RunMode.Shell)

@@ -61,7 +61,7 @@
                 DayItemFontSize="14" />
         </Grid>
 
-        <!-- Focus: its length and Start, or what's left of a running session and Stop. -->
+        <!-- Focus: its length and Start, or Focusing and End session while a session runs. -->
         <Grid
             Grid.Row="2"
             Height="50"
@@ -100,19 +100,21 @@
                 </Button>
             </StackPanel>
             <TextBlock
-                x:Name="FocusRemainingText"
-                AutomationProperties.AutomationId="FocusRemainingText"
+                x:Name="FocusingText"
+                Margin="1,0,0,0"
+                AutomationProperties.AutomationId="FocusingText"
                 VerticalAlignment="Center"
-                FontWeight="SemiBold"
+                Text="Focusing"
                 Visibility="Collapsed" />
             <Button
                 x:Name="FocusButton"
                 Grid.Column="2"
                 Height="28"
-                Padding="10,0"
+                MinWidth="72"
+                Padding="8,0"
                 AutomationProperties.AutomationId="FocusButton"
                 Click="FocusButton_Click">
-                <StackPanel Orientation="Horizontal" Spacing="8">
+                <StackPanel Orientation="Horizontal" Spacing="4">
                     <FontIcon x:Name="FocusGlyph" Glyph="&#xF5B0;" FontSize="12" />
                     <TextBlock x:Name="FocusButtonText" FontSize="12" Text="Focus" />
                 </StackPanel>

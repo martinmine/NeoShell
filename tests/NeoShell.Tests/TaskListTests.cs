@@ -215,4 +215,12 @@ public sealed class TaskListTests
         Assert.False(TaskEnding.EndsPackage([Window(1, appId: Terminal, className: "CASCADIA_HOSTING_WINDOW_CLASS")], Terminal));
         Assert.False(TaskEnding.EndsPackage([Window(1)], null));
     }
+
+    [Theory]
+    [InlineData(null, true)]
+    [InlineData(1, true)]
+    [InlineData(0, false)]  // what a focus session writes while it hides flashing
+    [InlineData("0", true)] // not a DWORD
+    public void Flashing_buttons_show_unless_turned_off(object? setting, bool shown) =>
+        Assert.Equal(shown, TaskFilter.ShowsFlashing(setting));
 }

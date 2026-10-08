@@ -112,8 +112,6 @@ public sealed record ShellSettings
     public IReadOnlyList<string> StartAppsOpened { get; set; } = [];
     /// <summary>The calendar under the notification center folded away to its heading, as the user left it.</summary>
     public bool CalendarCollapsed { get; set; }
-    /// <summary>The length of a focus session, as last chosen in the calendar.</summary>
-    public int FocusMinutes { get; set; } = 30;
     public DesktopSortOrder DesktopSortOrder { get; set; } = DesktopSortOrder.Name;
     public bool ShowWidgetSidebar { get; set; } = true;
     /// <summary>The sidebar's own backdrop behind its widgets; without it, only the widgets show, each on its own.</summary>

@@ -53,7 +53,8 @@ public static class UserNotifications
 
             (string title, string body) = Texts(notification.Notification.Visual);
             ToastAudio? audio = AudioOf(app.AppUserModelId, title, body, histories);
-            toasts.Add(new ToastInfo(notification.Id, app.AppUserModelId, app.DisplayInfo.DisplayName, notification.CreationTime, title, body, audio));
+            toasts.Add(new ToastInfo(notification.Id, app.AppUserModelId, app.DisplayInfo.DisplayName, notification.CreationTime,
+                Localized(title, app), Localized(body, app), audio));
         }
         return toasts;
     }
@@ -137,6 +138,53 @@ public static class UserNotifications
         {
             return null;
         }
+    }
+
+    // A packaged app's toast may name strings of its own resources (the Clock app's "focus session completed"
+    // toast does): the listener gives them as written, and Explorer shows them in the user's language.
+    private static unsafe string Localized(string text, AppInfo app)
+    {
+        if (!text.Contains("ms-resource:", StringComparison.Ordinal) || PackageFullName(app.PackageFamilyName) is not { } fullName)
+            return text;
+        string packageName = fullName[..fullName.IndexOf('_', StringComparison.Ordinal)];
+        string[] lines = text.Split('\n');
+        char* buffer = stackalloc char[1024];
+        for (int i = 0; i < lines.Length; i++)
+        {
+            if (ResourceUri(lines[i], packageName) is { } uri
+                && Shlwapi.SHLoadIndirectString($"@{{{fullName}?{uri}}}", buffer, 1024, 0) == 0)
+                lines[i] = new string(buffer);
+        }
+        return string.Join("\n", lines);
+    }
+
+    // AppInfo.Package isn't available to this process (it fails with "specified cast is not valid").
+    private static unsafe string? PackageFullName(string familyName)
+    {
+        if (string.IsNullOrEmpty(familyName))
+            return null;
+        uint count = 1;
+        uint length = 256;
+        nint* names = stackalloc nint[1];
+        char* buffer = stackalloc char[256];
+        return Kernel32.GetPackagesByPackageFamily(familyName, ref count, names, ref length, buffer) == 0 && count > 0
+            ? new string((char*)names[0])
+            : null;
+    }
+
+    /// <summary>
+    /// The full <c>ms-resource</c> URI of a toast text naming one of the app's strings, or null for plain text: a bare
+    /// name is in the app's Resources, a path is from the package's root.
+    /// </summary>
+    internal static string? ResourceUri(string text, string packageName)
+    {
+        const string scheme = "ms-resource:";
+        if (!text.StartsWith(scheme, StringComparison.OrdinalIgnoreCase))
+            return null;
+        string reference = text[scheme.Length..];
+        if (reference.StartsWith("//", StringComparison.Ordinal))
+            return reference.StartsWith("///", StringComparison.Ordinal) ? $"ms-resource://{packageName}/{reference[3..]}" : text;
+        return reference.Contains('/') ? $"ms-resource://{packageName}/{reference.TrimStart('/')}" : $"ms-resource://{packageName}/Resources/{reference}";
     }
 
     // The first text is the title, the rest the body. Toasts in the old templates (ToastText02 and so on) come

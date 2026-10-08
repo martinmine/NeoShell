@@ -9,6 +9,7 @@ public sealed record NotificationGroup(string AppId, string AppName, IReadOnlyLi
 /// <summary>How the notification center and the calendar present things, as Explorer does.</summary>
 public static class NotificationDisplay
 {
+    public const int DefaultFocusMinutes = 30;
     public const int MinFocusMinutes = 5;
     public const int MaxFocusMinutes = 240;
 
@@ -74,11 +75,4 @@ public static class NotificationDisplay
     public static int MoreFocus(int minutes) => Math.Min(MaxFocusMinutes, minutes < 30 ? minutes + 5 : minutes + 15);
 
     public static int LessFocus(int minutes) => Math.Max(MinFocusMinutes, minutes <= 30 ? minutes - 5 : minutes - 15);
-
-    /// <summary>What's left of a focus session: "24:59", or "1:04:59" for an hour or more.</summary>
-    public static string RemainingText(TimeSpan remaining)
-    {
-        var seconds = TimeSpan.FromSeconds(Math.Ceiling(Math.Max(0, remaining.TotalSeconds)));
-        return seconds.TotalHours >= 1 ? seconds.ToString(@"h\:mm\:ss", CultureInfo.InvariantCulture) : seconds.ToString(@"mm\:ss", CultureInfo.InvariantCulture);
-    }
 }

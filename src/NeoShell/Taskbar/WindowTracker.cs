@@ -42,6 +42,7 @@ internal sealed class WindowTracker : IDisposable
     private readonly AppBadges _badges = new();
     private readonly RegistryWatcher _explorerSettings = new(ExplorerAdvancedKey);
     private bool _showBadges = ReadShowBadges();
+    private bool _showFlashing = ReadShowFlashing();
     private ShellHook? _shellHook;
     private WindowEvents? _windowEvents;
     private bool _changeQueued;
@@ -57,10 +58,15 @@ internal sealed class WindowTracker : IDisposable
         _announceButtons = announceButtons;
         _appIcons.Loaded += QueueChanged;
         _badges.Changed += _ => _dispatcher.TryEnqueue(QueueChanged);
-        // Explorer follows "Show badges on taskbar apps" as Settings writes it, with no message.
+        // Explorer follows "Show badges on taskbar apps" and "Show flashing on taskbar apps" as Settings (or a focus
+        // session) writes them, with no message.
         _explorerSettings.Changed += () => _dispatcher.TryEnqueue(() =>
         {
             _showBadges = ReadShowBadges();
+            _showFlashing = ReadShowFlashing();
+            // Explorer forgets the flashing buttons: they don't come back when flashing is shown again.
+            if (!_showFlashing)
+                _flashing.Clear();
             QueueChanged();
         });
     }
@@ -233,6 +239,12 @@ internal sealed class WindowTracker : IDisposable
         return BadgeLook.AreShown(key?.GetValue("TaskbarBadges"));
     }
 
+    private static bool ReadShowFlashing()
+    {
+        using RegistryKey? key = Registry.CurrentUser.OpenSubKey(ExplorerAdvancedKey);
+        return TaskFilter.ShowsFlashing(key?.GetValue("TaskbarFlashing"));
+    }
+
     private static string? FileDescription(string? path)
     {
         if (path is null)
@@ -257,7 +269,7 @@ internal sealed class WindowTracker : IDisposable
                 SetForeground(hwnd);
                 break;
             case ShellHookEvent.Flash:
-                if (hwnd != Foreground && IsTracked(hwnd) && _flashing.Add(hwnd))
+                if (_showFlashing && hwnd != Foreground && IsTracked(hwnd) && _flashing.Add(hwnd))
                     QueueChanged();
                 break;
             case ShellHookEvent.Redraw:

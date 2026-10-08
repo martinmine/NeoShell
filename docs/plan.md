@@ -472,7 +472,17 @@ Each item is done when it looks and behaves as Explorer's (layout, behaviour, an
       Wi-Fi: Windows' handler fails with 0x80070426), a VPN connecting (a throwaway profile with no server)
 - [ ] T33 Bluetooth page: connect and disconnect paired devices
 - [ ] T34 Accessibility page: switch Colour filters and Mono audio
-- [ ] T35 Focus sessions: hide badges and flashing, end chime
+- [x] T35 Focus sessions: hide badges and flashing, end chime — NeoShell's calendar now runs Windows' own session
+      alongside Explorer (Explorer's undocumented focus theme manager, as Explorer's calendar does), so sessions
+      started in Explorer, Settings or the Clock app show in NeoShell and NeoShell's everywhere; Windows hides badges
+      and flashing (`TaskbarBadges` / `TaskbarFlashing`, which NeoShell's taskbar now follows, forgetting flashes as
+      Explorer does), turns on the focus quiet moment (NeoShell's bell and toasts now count it as Do not disturb),
+      opens the Clock app's timer and its end-of-session toast is the chime (Alarm04, its `ms-resource:` texts now
+      looked up); footer "Focusing" / End session, 30 minutes on each opening, matched to the pixel against
+      Explorer's; recorded at 60 fps with loopback audio and Process Monitor — as the shell NeoShell applies the
+      settings itself (Windows' manager needs Explorer to start the Clock app), so no Clock timer and no chime there —
+      differs: no "Do not disturb is on" banner in the notification center (Explorer shows one for any Do not
+      disturb) — not run live: a session left running when switching to shell mode
 - [ ] T36 UWP (CoreWindow) apps, Settings among them, in shell mode
 
 ## Future work

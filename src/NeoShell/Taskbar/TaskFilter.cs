@@ -2,7 +2,7 @@ using NeoShell.Interop.Windowing;
 
 namespace NeoShell.Taskbar;
 
-/// <summary>Which windows get a taskbar button, by Explorer's rules.</summary>
+/// <summary>Which windows get a taskbar button, and whether a flashing one shows it, by Explorer's rules.</summary>
 public static class TaskFilter
 {
     // A top-level CoreWindow is a shell surface such as Explorer's Start or Search; a UWP app's button belongs to its
@@ -15,4 +15,10 @@ public static class TaskFilter
         && window.ProcessId != ownProcessId
         && window.ClassName != CoreWindowClass
         && (window.IsAppWindow || (window.Owner == 0 && !window.IsToolWindow && !window.IsNoActivate));
+
+    /// <summary>
+    /// "Show flashing on taskbar apps" (<c>TaskbarFlashing</c> under Explorer\Advanced, which a focus session turns
+    /// off): on unless it's 0.
+    /// </summary>
+    public static bool ShowsFlashing(object? taskbarFlashing) => taskbarFlashing is not int value || value != 0;
 }

@@ -999,7 +999,7 @@ whether or not the app runs, so a pinned app shows it too.
   (the right one stays): Explorer's implicit `Offset` animation slides it there over 333 ms (0.55,0,0,1); NeoShell
   animates `Translation` from the old place, only for a badge already shown (a new one pops in where it belongs).
 - Explorer once missed the badge of a UWP app whose button existed when Explorer started, until the app restarted;
-  NeoShell shows it. A focus session hides Explorer's badges (T35).
+  NeoShell shows it. A focus session hides badges by writing `TaskbarBadges` = 0 (see Focus).
 
 **Thumbnail toolbars** (a player's previous, play/pause and next under its preview; `ThumbBarCall`, `ThumbBar`, unit
 tested). The thumbnail toolbar calls carry their data in shared memory from `SHAllocShared`, its handle duplicated
@@ -1573,11 +1573,54 @@ notification center 12 epx above it and as tall as its notifications need, up to
   for several cultures) and a button folding the month away (remembered in settings); a `CalendarView` restyled as
   Explorer's (no borders or backgrounds, other months' days dimmed, today in the accent circle), starting the week
   on Windows' regional first day rather than the display language's; the footer with the focus length (−/+: 5
-  minutes at a time to 30, then 15, between 5 and 240; remembered) and Focus.
-- **Focus** (`FocusSession`): Windows' own focus sessions (`Windows.UI.Shell.FocusSessionManager`) are a limited
-  access feature only Microsoft's apps can unlock ("Access is denied"), so NeoShell runs its own: Do not disturb for
-  the chosen time with a countdown and Stop focus in the footer, then Do not disturb as it was before (also on exit).
-  Unlike Windows', it doesn't hide taskbar badges or flashing, and there's no chime at the end.
+  minutes at a time to 30, then 15, between 5 and 240; back to 30 each time the flyout opens, as Explorer's) and
+  Focus.
+- **Focus** (`FocusSession`, Interop `FocusSessions`; Windows 11 25H2, studied live with Explorer's calendar, Settings
+  and the Clock app, ffmpeg at 60 fps, a WASAPI loopback recording and Process Monitor, and read with cdb):
+  - **Windows' sessions.** The public `Windows.UI.Shell.FocusSessionManager` (Windows.UI.Accessibility.dll) reads
+    freely (`IsFocusActive`, `IsFocusActiveChanged`) but starts and ends sessions only for apps that unlock the
+    limited access feature `com.microsoft.windows.focussessionmanager.1` (Microsoft's: ShellExperienceHost's
+    calendar, Settings, the Clock app). It hands everything to the undocumented `Windows.Internal.Shell.
+    FocusSessionThemeManager` (same DLL, in-process, base trust; `IFocusSessionThemeManager` `ae042191-…`: current,
+    off and default theme IDs, `InitializeTimer`, `AddSession(themeId, end)`, `RemoveSession`, `RemoveAllSessions`)
+    of Explorer's immersive shell: twinui.pcshell's `FocusSessionComponent` holds the one that runs and calls
+    `InitializeTimer`; other processes reach it as a service of `CLSID_ImmersiveShell` (SID `7cefd1e5-…`,
+    `IFocusSessionComponent` `b4c18645-…`, `get_ThemeManager`), with registered proxies. NeoShell does the same
+    alongside Explorer: Focus is `AddSession(DefaultThemeId, now + length)` (what `TryStartFocusSession` does), End
+    session `RemoveAllSessions` (`DeactivateFocus`), a session runs while the current theme isn't the off theme
+    (`IsFocusActive`). Sessions are a list (ID, theme, end as a FILETIME) in the cloud store
+    (`…\CloudStore\Store\DefaultAccount\Current\default$windows.data.shell.focusactivesessions\…`, Bond), so
+    NeoShell follows that key: a session started in Settings or the Clock app shows in NeoShell's calendar, and
+    NeoShell's shows in Explorer's, Settings and the Clock app. The manager keeps cloud store objects of the
+    apartment it was made in and uses them from its thread-pool timer: made on an STA it fails fast
+    (`RPC_E_WRONG_THREAD` in Windows.CloudStore), so NeoShell makes and calls it on the thread pool.
+  - **What a session does** is the default theme (`Windows.Data.Shell.FocusSessionActiveTheme`, read through
+    `Windows.Internal.Shell.FocusSessionActiveTheme`), Settings → System → Focus, all on by default: "Show the timer
+    in the Clock app", "Hide badges on taskbar apps", "Hide flashing on taskbar apps", "Turn on do not disturb". The
+    manager applies it (`ApplyActiveTheme`): `TaskbarBadges` and `TaskbarFlashing` (Explorer\Advanced) = 0, which
+    Explorer's taskbar (and NeoShell's) simply follows; the notification platform's focus quiet moment
+    (`QuietHoursSettingsInterop.FocusQuietMomentApplicable`, which leaves the user's Do not disturb choice alone);
+    `ms-clock://createfocustimer?…&endTime=…` with `ShellExecuteEx`, which opens the Clock app's always-on-top focus
+    timer. At the end (`ApplyOffTheme`) it writes back whether badges and flashing were shown before (1 or 0, kept
+    in the off theme), ends the quiet moment and stops the Clock app's timer. Explorer forgets flashing buttons when
+    flashing is hidden: they don't come back afterwards (recorded: the next flash shows, nothing before).
+  - **During a session** Explorer's calendar footer shows "Focusing" and ■ End session (no countdown; the flyout
+    closes when Focus is clicked, not on End session; the length goes back to 30 minutes whenever it opens); the
+    bell shows Do not disturb, as the active quiet hours profile (`WNF_SHEL_QUIETHOURS_ACTIVE_PROFILE_CHANGED`, 0 off,
+    1 priority only) is no longer 0, and toasts are held back. The clock itself shows nothing more. NeoShell's
+    `DoNotDisturb.Read` counts that WNF state too. Footer measured against Explorer's at the same place: "Focusing"
+    17 px in; the button 72 px wide at least, padding 8, 4 px between the glyph (U+F5B0 / U+EE95 at 12) and its text.
+  - **The end chime** is the Clock app's: when its timer runs out it posts a toast ("Great job!" — the text comes as
+    `ms-resource:` strings, which NeoShell now looks up in the app's package) with
+    `ms-winsoundevent:Notification.Looping.Alarm4` (Media\Alarm04.wav, 2.1 s), played by the toast host. With "Show
+    the timer in the Clock app" off, or without the Clock app, a session ends silently; ending one early is silent
+    too. Explorer itself plays nothing.
+  - **As the shell** the manager can't be used: its `ShellExecuteEx` of `ms-clock:` fails without Explorer
+    (0x80040900) and shows an error box, and the Clock app (a UWP app) can't run anyway (T36). So NeoShell runs its
+    own session there: it reads the focus settings, writes `TaskbarBadges` / `TaskbarFlashing` as the manager does
+    (`FocusChanges`, unit tested), turns on Do not disturb if it was off, and puts everything back when its timer
+    runs out, on End session or when NeoShell exits. No Clock timer, so no chime; Settings and the Clock app can't
+    start sessions without Explorer either.
 - **Toasts** (`ToastPopups`, shell mode only): without Explorer no toasts show at all — they belong to the
   ShellExperienceHost that Explorer runs — though the notifications are still stored. Each notification that
   arrives while NeoShell runs (not those already there at start, not while Do not disturb is on or the flyout is
