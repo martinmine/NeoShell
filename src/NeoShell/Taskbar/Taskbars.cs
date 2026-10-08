@@ -241,6 +241,15 @@ internal sealed class Taskbars : IDisposable
             ToggleStartMenu(window);
     }
 
+    /// <summary>The Copilot key set to search: Start with its search box, or closed if it's open (Explorer's search toggles).</summary>
+    public void ToggleStartSearch()
+    {
+        if (IsStartMenuOpen)
+            HideStartMenu();
+        else
+            OpenStartMenu();
+    }
+
     /// <summary>Win+A, Win+Ctrl+V, Win+K, Win+P: Quick Settings on the primary taskbar, open on the page.</summary>
     public void ShowQuickSettings(QuickSettingsPage page) => PrimaryWindow?.ShowQuickSettings(page);
 

@@ -450,7 +450,13 @@ Each item is done when it looks and behaves as Explorer's (layout, behaviour, an
       now by last activation, as Explorer — differs: after Esc or a click outside NeoShell gives the foreground back
       (Explorer leaves it on its hidden switcher); Edge's tabs in Alt+Tab (private `WindowTabHost`) not shown — not
       run live: the shake policy, a low-integrity app's shake
-- [ ] T30 Win+V, Win+Period, Win+H, Win+Shift+R, Copilot key
+- [ ] T30 Win+V, Win+Period, Win+H, Win+Shift+R, Copilot key — partly: the Copilot key (Win+Shift+F23) and Win+C done as
+      Explorer's (`BrandedKey` choice: app toggled or started, search; tested), compared live with the choice unset
+      (Explorer opens Settings' page, which can't show as the shell, NeoShell searches); not run live: the "App" and
+      "Search" choices (the setting is protected, only Settings writes it), press-and-hold for apps with the
+      copilotkeyprovider extension; not possible: Win+V, Win+Period/Semicolon and Win+H (TextInputHost's panels are
+      hosted by Explorer's immersive shell in its own window band) and Win+Shift+R (Snipping Tool can't capture a
+      monitor without Explorer; Windows.Graphics.Capture's monitor items come from Explorer) — see design.md, Hotkeys
 - [ ] T31 Snips: freeform, window and full-screen modes, the toolbar, opening in Snipping Tool
 - [ ] T32 Quick Settings: brightness, mobile hotspot, VPN, rotation lock, keyboard layout; night light and nearby
       sharing working as the shell

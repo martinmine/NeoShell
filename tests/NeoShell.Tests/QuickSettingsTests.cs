@@ -117,6 +117,7 @@ public sealed class QuickSettingsTests
     [InlineData('V', true, PanelShortcut.SoundOutput)]
     [InlineData('N', false, PanelShortcut.NotificationCenter)]
     [InlineData('X', false, PanelShortcut.QuickLinks)]
+    [InlineData('C', false, PanelShortcut.Copilot)]
     public void Win_shortcuts_open_their_panel(char key, bool control, PanelShortcut expected)
     {
         var keys = new PanelKeys();
@@ -140,6 +141,40 @@ public sealed class QuickSettingsTests
         Assert.False(keys.OnKey('V', true, out _));     // Win+V is the clipboard
         keys.OnKey(Control, true, out _);
         Assert.False(keys.OnKey('A', true, out _));     // Win+Ctrl+A isn't Quick Settings
+    }
+
+    [Fact]
+    public void The_Copilot_key_is_Win_Shift_F23_and_its_F23_is_swallowed()
+    {
+        const int Shift = 0xA0, F23 = 0x86;
+        var keys = new PanelKeys();
+        keys.OnKey(Win, true, out _);
+        keys.OnKey(Shift, true, out _);
+
+        Assert.True(keys.OnKey(F23, true, out PanelShortcut? shortcut));
+        Assert.Equal(PanelShortcut.Copilot, shortcut);
+        Assert.True(keys.OnKey(F23, false, out _));
+        Assert.False(keys.OnKey(Shift, false, out _));
+        Assert.False(keys.OnKey(F23, true, out _)); // F23 without Win and Shift is some other key
+    }
+
+    [Theory]
+    [InlineData(false, null, null, "App:Microsoft.Copilot_8wekyb3d8bbwe!App")] // never set: the Copilot app
+    [InlineData(true, "App", "Microsoft.Paint_8wekyb3d8bbwe!App", "App:Microsoft.Paint_8wekyb3d8bbwe!App")]
+    [InlineData(true, "AppEnforcedByPolicy", "Contoso.App_abc!App", "App:Contoso.App_abc!App")]
+    [InlineData(true, "App", "", "Unset")]
+    [InlineData(true, "Search", "Microsoft.Paint_8wekyb3d8bbwe!App", "Search")]
+    [InlineData(true, null, null, "Unset")]
+    [InlineData(true, "Copilot", null, "Unset")]
+    public void Copilot_key_target_follows_Explorers_reading_of_BrandedKey(bool keyExists, string? choice, string? aumid, string expected)
+    {
+        string actual = CopilotKey.Choose(keyExists, choice, aumid) switch
+        {
+            CopilotKeyTarget.App app => "App:" + app.AppUserModelId,
+            CopilotKeyTarget.Search => "Search",
+            _ => "Unset",
+        };
+        Assert.Equal(expected, actual);
     }
 
     [Theory]

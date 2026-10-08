@@ -1069,10 +1069,54 @@ Win+arrows and Ctrl+Shift+Esc; the rest were Explorer's.
   The comma is swallowed and Win masked as for Quick Settings' keys.
 - Start closed because another window took the foreground (deactivation) doesn't hand the foreground back to the
   previous app — that would take it from the window being activated, e.g. the taskbar for Win+T.
+- The Copilot key (`CopilotKey`, unit tested): keyboards send it as Win+Shift+F23; Win+C does the same (Settings says
+  "the Copilot key or Windows logo key + C"). Both are hotkeys Windows keeps for the shell whether Explorer runs or
+  not (`RegisterHotKey` fails with 1409 without Explorer), and delivers to the immersive shell's hotkey service in
+  Explorer (`IMMERSIVE_HOT_KEY_ID` 0x70 and 0x6F), so the hook takes them as Quick Settings' keys (`PanelKeys`: F23
+  or C swallowed, Win masked). What Explorer does (twinui.pcshell `CopilotHotkeyManager::InvokeCopilotOrCustomOption`
+  and `TryInvokeCopilotOrCustomAppFromHardwareKeyAsync`, read in Ghidra) is set in Settings → Bluetooth & devices →
+  Keyboard → "Customise Copilot key on keyboard", stored in `HKCU\Software\Microsoft\Windows\Shell\BrandedKey`
+  (a protected key: only Settings may write it, other processes get access denied):
+  - `BrandedKeyChoiceType` "App" (or "AppEnforcedByPolicy", from the `SetCopilotHardwareKey` policy) with `AppAumid`:
+    that app. If it has a window, the window comes to the front (`SwitchToThisWindow`), or is minimized
+    (`SC_MINIMIZE`) when it's in front already; otherwise the app is started (`IApplicationActivationManager`, no
+    arguments). Apps declaring the `com.microsoft.windows.copilotkeyprovider` extension get a URI and press-and-hold
+    signals instead; NeoShell starts them as any app.
+  - "Search": Windows Search with `QuerySource=HWCoPilot`, or closed if it's open. NeoShell opens Start with its
+    search box (as Win+S), or closes it.
+  - No BrandedKey key at all: the Copilot app (`Microsoft.Copilot_8wekyb3d8bbwe!App`).
+  - Anything else, or the app failed to start: in regions whose policy asks for it (the EEA, this VM's Norway)
+    Settings opens on the key's setting ("The Copilot key isn't connected to an action"), elsewhere search. Settings
+    is a UWP app and can't show without Explorer, so NeoShell searches. Compared on the VM with the choice left at
+    an uninstalled Microsoft 365 Copilot ("None selected"): Explorer opened Settings' page for both keys, NeoShell
+    opens and closes Start's search; neither types F23 or C into the app in front.
 - Not done: Task View and virtual desktops (Win+Tab, Win+Ctrl+D/F4/arrows; out of scope, and the desktops live in
-  Explorer), Widgets (Win+W), the Snipping Tool video (Win+Shift+R: Snipping Tool shows nothing without Explorer),
-  and the clipboard history, emoji panel and voice typing (Win+V, Win+Period, Win+H), which Explorer passes to
-  Windows' text input host through no public API.
+  Explorer) and Widgets (Win+W). These can't be done without Explorer (studied on 25H2 for T30):
+  - **Win+V, Win+Period / Win+Semicolon, Win+H** (clipboard history, emoji panel, voice typing). They are ordinary
+    hotkeys of Explorer's (`CTray::_HandleClipboardViewerHotKey`, `_HandleExpressiveInputHotKey`,
+    `_HandleDictationHotKey`), and free without it. Each asks the immersive shell (`QueryService` on Explorer's
+    service provider, SID = IID {9516D866-CA0F-40CA-8997-EFA618B50F99}, `ITouchKeyboardExperienceManager`) to show a
+    view of the input app: method 4 with 1 (emoji), 2 (dictation) or 3 (clipboard). That manager, twinui.pcshell's
+    `TouchKeyboardExperienceManager2`, starts TextInputHost.exe (`MicrosoftWindows.Client.CBS_cw5n1h2txyewy!InputApp`,
+    a composable CoreWindow app) and shows its panels inside frames of its own: the panel seen on screen is an
+    `ApplicationFrameWindow` of explorer.exe in window band 3 (`ZBID_IMMERSIVE_IHM`), while TextInputHost's own
+    `Windows.UI.Core.CoreWindow` stays full-screen and shell-cloaked (DWM cloak 2). Without Explorer nothing hosts
+    them: Win+Period just types a period, activating the InputApp directly hangs (`ActivateApplication` never
+    returns, TextInputHost doesn't start), and band 3 is Explorer's alone (`CreateWindowInBand` from another
+    medium-integrity process: band 1 and 16 work, bands 2, 3, 4, 7 and 13 fail with access denied). The public
+    `CoreInputView.TryShow(Emoji/Clipboard/Dictation)` asks the same manager.
+  - **Win+Shift+R** (Snipping Tool's screen recording). Explorer (`CScreenClippingExperienceManager::LaunchSnippingToolApp`)
+    only opens `ms-screenclip://?source=ScreenRecorderHotKey&type=recording` when Snipping Tool is the `ms-screenclip`
+    handler; Snipping Tool draws its overlay itself (an ordinary topmost `XamlWindow`). Without Explorer it starts,
+    shows nothing and idles: watched with cdb, its `GraphicsCaptureItem.TryCreateFromDisplayId` fails with access
+    denied and `CreateForMonitor` with "Could not capture the given monitor" (E_INVALIDARG). Monitor capture through
+    Windows.Graphics.Capture needs Explorer for every app: CaptureService asks the `Windows.Internal.CaptureItemProvider`
+    contract (Windows.Internal.CapturePicker.Desktop.dll, `CaptureDesktopItemProviderImpl`), which finds monitors
+    through the immersive shell's `IImmersiveMonitor` services in Explorer. A test app's
+    `IGraphicsCaptureItemInterop::CreateForMonitor` returned E_INVALIDARG with NeoShell as the shell and an item
+    ("Display 1 1764x988") with Explorer. Snips and recordings of the screen by Snipping Tool (Win+Shift+S too, see
+    Screenshots) therefore can't work as the shell; Win+Shift+R is left unregistered rather than start a Snipping
+    Tool that idles.
 
 ### Search on the taskbar (`TaskbarSearch`, unit tested)
 
@@ -2329,7 +2373,8 @@ nothing (they stay registered as hotkeys, so the keyboard hook takes them: `Snap
   as Windows names them: "Screenshot 2026-10-05 183207.png", " (2)" on for more in the same second
   (`Screenshots`, unit tested).
 - Win+PrtScn: the whole virtual screen.
-- Win+Shift+S: Snipping Tool (`ms-screenclip:`) starts without Explorer but shows nothing and quits, so NeoShell snips
+- Win+Shift+S: Snipping Tool (`ms-screenclip:`) starts without Explorer but shows nothing (it can't capture a monitor
+  without Explorer's immersive shell; see Hotkeys, Win+Shift+R), so NeoShell snips
   itself (`ScreenSnip`): each monitor's picture is taken first, then shown frozen in a topmost window per monitor,
   dimmed, with a crosshair. Dragging out a rectangle shows it at full brightness, outlined; letting go keeps that
   part of the picture, as above. A click without a drag snips nothing; Esc or a right-click cancels. Rectangle

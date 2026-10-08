@@ -131,6 +131,8 @@ internal sealed class ShellSession : IDisposable
                             _dispatcher.Post(() => _taskbars.ShowQuickSettings(page));
                         else if (pressed == PanelShortcut.QuickLinks)
                             _dispatcher.Post(_taskbars.ToggleQuickLinks);
+                        else if (pressed == PanelShortcut.Copilot)
+                            _dispatcher.Post(() => CopilotKey.Press(_taskbars));
                         else
                             _dispatcher.Post(_taskbars.ToggleNotificationCenter);
                     }

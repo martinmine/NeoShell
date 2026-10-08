@@ -3,17 +3,18 @@ using NeoShell.QuickSettings;
 namespace NeoShell;
 
 /// <summary>What a panel shortcut opens.</summary>
-public enum PanelShortcut { QuickSettings, SoundOutput, Cast, Project, NotificationCenter, QuickLinks }
+public enum PanelShortcut { QuickSettings, SoundOutput, Cast, Project, NotificationCenter, QuickLinks, Copilot }
 
 /// <summary>
 /// Spots the shortcuts of Quick Settings and the notification center in a stream of key presses: Win+A (the tiles),
-/// Win+Ctrl+V (Sound output), Win+K (Cast), Win+P (Project) and Win+N (notifications and calendar); and Start's Quick
-/// Link menu, Win+X.
+/// Win+Ctrl+V (Sound output), Win+K (Cast), Win+P (Project) and Win+N (notifications and calendar); Start's Quick
+/// Link menu, Win+X; and the Copilot key, which keyboards send as Win+Shift+F23, or Win+C.
 /// </summary>
 /// <remarks>
 /// Windows' own Quick Settings host keeps its shortcuts registered as hotkeys after Explorer has gone, so NeoShell
 /// can't register them; it takes them from the keyboard hook instead, and swallows the letter (down, repeats and up)
-/// so Windows' panel doesn't open as well.
+/// so Windows' panel doesn't open as well. Win+Shift+F23 and Win+C are among the shell's own hotkeys, which Windows
+/// keeps for Explorer whether it runs or not.
 /// </remarks>
 public sealed class PanelKeys
 {
@@ -28,6 +29,7 @@ public sealed class PanelKeys
     private const int VK_RCONTROL = 0xA3;
     private const int VK_LMENU = 0xA4;
     private const int VK_RMENU = 0xA5;
+    private const int VK_F23 = 0x86;
 
     private bool _winDown;
     private bool _controlDown;
@@ -62,7 +64,15 @@ public sealed class PanelKeys
                 _swallowing = null;
             return true;
         }
-        if (!down || !_winDown || _shiftDown || _altDown)
+        if (!down || !_winDown)
+            return false;
+        if (virtualKey == VK_F23 && _shiftDown && !_controlDown && !_altDown)
+        {
+            shortcut = PanelShortcut.Copilot;
+            _swallowing = virtualKey;
+            return true;
+        }
+        if (_shiftDown || _altDown)
             return false;
 
         shortcut = (char)virtualKey switch
@@ -73,6 +83,7 @@ public sealed class PanelKeys
             'V' when _controlDown => PanelShortcut.SoundOutput,
             'N' when !_controlDown => PanelShortcut.NotificationCenter,
             'X' when !_controlDown => PanelShortcut.QuickLinks,
+            'C' when !_controlDown => PanelShortcut.Copilot,
             _ => null,
         };
         if (shortcut is null)
