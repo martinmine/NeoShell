@@ -78,10 +78,14 @@ internal sealed partial class QuickSettingsPanel : UserControl
             new QuickTile(QuickTileKind.RotationLock, "Rotation lock", "") { Name = "Rotation lock", HasSwitch = true, IsShown = false },
             new QuickTile(QuickTileKind.EnergySaver, "Energy saver", "") { Name = "Energy saver", HasSwitch = true },
             new QuickTile(QuickTileKind.LiveCaptions, "Live captions", "") { Name = "Live captions", HasSwitch = true },
-            new QuickTile(QuickTileKind.NightLight, "Night light", "") { Name = "Night light", HasSwitch = true, IsShown = false },
+            // Windows' night light icon is an animation, drawn smaller than its glyph and ending on a moon while it's on.
+            new QuickTile(QuickTileKind.NightLight, "Night light", "")
+            {
+                Name = "Night light", HasSwitch = true, IsShown = false, OffGlyphSize = 14, OnGlyph = "", OnGlyphSize = 12,
+            },
             new QuickTile(QuickTileKind.MobileHotspot, "Mobile hotspot", "") { Name = "Mobile hotspot", HasSwitch = true, IsShown = false },
-            new QuickTile(QuickTileKind.NearbySharing, "Nearby sharing", "") { Name = "Nearby sharing", HasSwitch = true, HasPage = true, IsShown = false },
-            new QuickTile(QuickTileKind.Cast, "Cast", "") { Name = "Cast", HasPage = true },
+            new QuickTile(QuickTileKind.NearbySharing, "Nearby sharing", "") { Name = "Nearby sharing", HasSwitch = true, HasPage = true, IsShown = false },
+            new QuickTile(QuickTileKind.Cast, "Cast", "") { Name = "Cast", HasPage = true },
             new QuickTile(QuickTileKind.Project, "Project", "") { Name = "Project", HasPage = true },
         ]);
 
@@ -134,8 +138,9 @@ internal sealed partial class QuickSettingsPanel : UserControl
     {
         _isOpen = true;
         ShowPage(PageFor(page), animate: false);
-        // Adapters come and go; the tiles follow when they're found.
+        // Adapters come and go, and so do VPNs; the tiles follow when they're found.
         _ = _indicators?.RefreshRadiosAsync();
+        _indicators?.QuickActions.Refresh();
     }
 
     /// <summary>Goes to a page while open, as a shortcut for another page does.</summary>
@@ -221,7 +226,7 @@ internal sealed partial class QuickSettingsPanel : UserControl
                     tile.IsOn = indicators.IsRadioOn(RadioType.Bluetooth);
                     break;
                 case QuickTileKind.AirplaneMode:
-                    tile.IsShown = indicators.AirplaneMode is not null;
+                    tile.IsShown = indicators.AirplaneMode is not null && actions.HasAirplaneMode;
                     tile.IsOn = indicators.AirplaneMode == true;
                     break;
                 case QuickTileKind.EnergySaver:
@@ -242,6 +247,10 @@ internal sealed partial class QuickSettingsPanel : UserControl
                     break;
                 case QuickTileKind.NearbySharing:
                     tile.Show(actions.NearbySharing);
+                    break;
+                case QuickTileKind.Cast:
+                    tile.IsOn = actions.Cast.IsOn;
+                    tile.Label = actions.Cast.Label ?? tile.Name;
                     break;
             }
         }
@@ -407,8 +416,43 @@ internal sealed partial class QuickSettingsPanel : UserControl
             RefreshCast();
         Refresh();
 
-        if (animate)
-            Slide(page, new Vector3(forward ? 60 : -60, 0, 0));
+        if (!animate)
+            return;
+
+        // As Windows' (recorded at 60 fps): a page's header shows almost at once and its content rises into place as
+        // it fades in; going back, the tiles just fade in. Every page is header, content and footer.
+        if (forward && page is Grid { Children: [_, UIElement content, ..] })
+        {
+            FadeIn(page, TimeSpan.FromMilliseconds(80));
+            FadeIn(content, TimeSpan.FromMilliseconds(150));
+            Rise(content);
+        }
+        else
+        {
+            FadeIn(page, TimeSpan.FromMilliseconds(100));
+        }
+    }
+
+    private static void FadeIn(UIElement element, TimeSpan duration)
+    {
+        Compositor compositor = Microsoft.UI.Xaml.Hosting.ElementCompositionPreview.GetElementVisual(element).Compositor;
+        ScalarKeyFrameAnimation fade = compositor.CreateScalarKeyFrameAnimation();
+        fade.InsertKeyFrame(0, 0);
+        fade.InsertKeyFrame(1, 1, compositor.CreateLinearEasingFunction());
+        fade.Target = nameof(UIElement.Opacity);
+        fade.Duration = duration;
+        element.StartAnimation(fade);
+    }
+
+    private static void Rise(UIElement element)
+    {
+        Compositor compositor = Microsoft.UI.Xaml.Hosting.ElementCompositionPreview.GetElementVisual(element).Compositor;
+        Vector3KeyFrameAnimation rise = compositor.CreateVector3KeyFrameAnimation();
+        rise.InsertKeyFrame(0, new Vector3(0, 32, 0));
+        rise.InsertKeyFrame(1, Vector3.Zero, compositor.CreateCubicBezierEasingFunction(new(0, 0), new(0, 1)));
+        rise.Target = nameof(UIElement.Translation);
+        rise.Duration = TimeSpan.FromMilliseconds(300);
+        element.StartAnimation(rise);
     }
 
     private static void Slide(UIElement element, Vector3 from)
@@ -830,7 +874,8 @@ internal sealed partial class QuickSettingsPanel : UserControl
             string? chosen = (VpnList.SelectedItem as VpnItem)?.Name;
             items = [.. connections.Select(connection => new VpnItem(connection))];
             VpnList.ItemsSource = items;
-            VpnList.SelectedItem = items.FirstOrDefault(item => item.Name == chosen);
+            // As Windows: the first one is chosen, ready to connect.
+            VpnList.SelectedItem = items.FirstOrDefault(item => item.Name == chosen) ?? items.FirstOrDefault();
         }
         VpnMessage.Visibility = items.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
     }

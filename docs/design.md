@@ -1736,7 +1736,8 @@ on Start and taskbar" is on, and plain theme acrylic otherwise; it follows theme
 - Two rows of three per page (`QuickSettingsDisplay`, unit tested); more pages are turned with the mouse wheel or the
   arrows beside the page dots, sliding up or down. A tile is a toggle button, accent-filled while its feature is on,
   with its name below: a switch, a page (glyph and chevron), or both split in two halves (left switches, right opens
-  the page). Tiles without hardware or support aren't shown, as in Windows.
+  the page). Tiles without hardware or support aren't shown, as in Windows. A split tile's two 48-wide halves touch:
+  their 1-pixel borders make Windows' 2-pixel divider, and the right half's chevron is 12 pixels (10 inline).
 - Windows' order (its default layout, `HKCU\Control Panel\Quick Actions\Control Center\UserLayoutPaginated`: Wi-Fi,
   Bluetooth, Cellular, Studio effects, Airplane mode, Accessibility, VPN, Rotation lock, Battery/Energy saver, Live
   captions, Night light, Mobile devices, Mobile hotspot, Nearby sharing, Colour profile, Cast, Project; sliders
@@ -1745,7 +1746,8 @@ on Start and taskbar" is on, and plain theme acrylic otherwise; it follows theme
 - **Wi-Fi** and **Bluetooth** (shown when the PC has the radio): the switch turns the radio on or off
   (`RadioSwitches`, WinRT `Windows.Devices.Radios`; `Radio.RequestAccessAsync` once). The Wi-Fi tile shows the
   connected network's name. Radios are looked for again each time Quick Settings opens (adapters come and go).
-- **Airplane mode** (shown when the radio management service answers): every radio off at once through the Radio
+- **Airplane mode** (shown when the radio management service answers and Windows' settings environment offers it:
+  not without radios, below): every radio off at once through the Radio
   Management API (`AirplaneMode`): `IRadioManager` (CLSID `581333F6-…`, RmSvc), undocumented but unchanged since
   Windows 8 and what airplane-mode tools use; there's no public API. No change notification: it's read again
   whenever a radio changes or Quick Settings opens.
@@ -1769,24 +1771,48 @@ on Start and taskbar" is on, and plain theme acrylic otherwise; it follows theme
   applicable, greyed while it isn't enabled (QuickActionsDataModel's `QuickSetting` reads the same two; ControlCenter
   pins inapplicable ones to the end, out of sight). Some settings learn their applicability a moment after they're
   opened (night light reads 0 at first, then reports 1 with SettingChanged), so the state is read again on every
-  SettingChanged, on a thread-pool thread.
+  SettingChanged, on a thread-pool thread, and whenever Quick Settings opens.
+  - **Settings' environment** (Interop `SettingsEnvironment`): the handlers count the VPN, the hotspot and airplane mode
+    as applicable on any PC, yet Windows' Quick Settings hides them without a VPN set up, without Wi-Fi and without
+    radios. Its rule (QuickActionsDataModel's `QuickSetting::get_IsApplicable`): a quick action shows only while its
+    setting ID and the Settings page and group it's registered with (`Page`, `Group` under `…\Quick Actions\All\<id>`:
+    `SettingsPageNetworkVpnQA`, `SettingsGroupInternetSharing`…) are all applicable in Settings' environment, asked
+    through the environment database (`SystemSettings.DataModel.SettingsEnvironmentDatabase`, vtable slot 6
+    `IsSettingApplicable`). That class refuses activation outside its allowed callers (E_ACCESSDENIED,
+    `AppAccessCheck::IsCallerAllowedToActivate`), so NeoShell asks what it wraps: `SettingsEnvironment.Desktop.dll`'s
+    `GetDesktopSettingsEnvironment` (which shell32's `GetSettingsEnvironmentInstance`, ordinal 916, also hands out),
+    an `ISettingsEnvironment` (`{0ADB9837-6628-48D2-AD8A-3C138CDC9B62}`, `SettingsEnvironmentImpl`) whose
+    `IsApplicable(PCWSTR, bool*)` sits after a virtual destructor. An ID it doesn't know (TYPE_E_ELEMENTNOTFOUND) counts
+    as applicable, as in Quick Settings. Some answers are worked out in the background: the VPN's is "no" when first
+    asked and "yes" a few seconds later; there's a change handler but NeoShell asks again on each opening instead. On
+    this VM (no Wi-Fi, Bluetooth or radios, no battery) Windows' 25H2 Quick Settings shows exactly Accessibility,
+    Energy saver, Live captions, Night light, Nearby sharing, Wired display (Cast) and Project, plus VPN after
+    Accessibility once a VPN is set up; NeoShell now shows the same tiles in the same order.
   - **Night light**: `SystemSettings_Display_BlueLight_ManualToggleQuickAction` (SettingsHandlers_Display), a bool
     Value; applicable when the night light state in the cloud store says the display supports it (this VM's does).
   - **Nearby sharing**: `SystemSettings_SharedExperiences_NearShareQuickAction` (SettingsHandlers_SharedExperiences_
-    Rome), a bool Value: the tile turns it on or off (Settings keeps My devices only / Everyone nearby). A split tile;
-    its page has the switch, "Nearby sharing is on/off" with Windows' text about Bluetooth and WLAN (ControlCenter's
-    `NearShareL2Page*` strings), and More Nearby sharing settings (`ms-settings:crossdevice`).
+    Rome), a bool Value: the tile turns it on or off; Settings' three states are `…_NearShareEnabled` (off) and
+    `…_NearShareAuthzLevel` (`…_AuthzLevel_MyDevices` / `…_EveryoneNearby`, a string; the tile is on for both and
+    keeps the level; checked live in both; the level's handler fails fast when it's read while sharing is off). A
+    split tile only while the handler's `QuickActionIsL2TemplateVisible` value is true (a property ControlCenter's
+    templates read; its `NearShareQuickActionButtonTemplate` has the page); it's false on this VM, where Windows shows
+    a plain switch, and so does NeoShell. Its page has the switch, "Nearby sharing is on/off" with Windows' text about
+    Bluetooth and WLAN (ControlCenter's `NearShareL2Page*` strings), and More Nearby sharing settings
+    (`ms-settings:crossdevice`); not compared, as Windows never offered it here.
   - **Mobile hotspot**: `SystemSettings_Network_Tethering_QuickAction` (NetworkMobileSettings, a C++/CX class that
     keeps its state in properties): `QuickActionIsActive`, `QuickActionStatus` (the label: "Mobile hotspot", or how
     many devices are connected), `SetProperty("Value", bool)` shares the connection with Settings' saved name and
     password (`TetheringToggleSharingWithCurrentSettings`). Enabled while there's a connection to share and policy
-    allows it. A switch only: 25H2's Quick Settings has no hotspot page (ControlCenter has pages for Wi-Fi, Bluetooth,
+    allows it, and shown only where Settings' environment offers it (hidden here, without Wi-Fi, in Windows' too). A
+    switch only: 25H2's Quick Settings has no hotspot page (ControlCenter has pages for Wi-Fi, Bluetooth,
     cellular, VPN, mobile devices, nearby sharing, volume, cast and project, and no hotspot strings).
   - **VPN**: `SystemSettings_Network_VPN_QuickAction`: `QuickActionIsActive`, `QuickActionStatus` (the label while it
     says something: "Can't connect", "Connecting"), `QuickActionIsToggleTemplateVisible` (whether there's a VPN for the
     tile's left half to switch; otherwise it's a page tile); `SetProperty("Value", …)` connects the VPN Windows last
     used through the network UX connection flow, or hangs it up if it's connected (`VPNQuickAction::SetProperty`). The
-    right half opens the VPN page ("Manage VPN connections").
+    right half opens the VPN page ("Manage VPN connections"). Shown only while a VPN is set up (Settings' environment),
+    after Accessibility. Checked with a throwaway IKEv2 profile (no server): both tiles appeared split, switching
+    showed "Can't connect" and then "VPN" again, and both went away when the profile was removed.
   - **Rotation lock**: `SystemSettings_Display_IsRotationLockedQuickAction` (SettingsHandlers_PCDisplay) switches it
     (SetValue bool, which calls `user32` ordinal 2507, undocumented). Its handler counts every PC as having it; the tile
     shows only where `GetAutoRotationState` reports a sensor (no AR_NOSENSOR / AR_NOT_SUPPORTED), greyed while docked,
@@ -1799,18 +1825,31 @@ on Start and taskbar" is on, and plain theme acrylic otherwise; it follows theme
     (SettingsHandlers_Display) fails fast a few seconds after it's opened outside Settings (`CShellHintManager::
     OnSingletonInit`), and the PCDisplay handler still held when a process exits leaves its last thread waiting on an
     LPC reply for good, so `SystemSetting.Dispose` releases each handler's object before NeoShell exits.
-  - Glyphs are the registry's: VPN U+E705, Rotation lock U+E755, Mobile hotspot U+E88A, Night light U+F08C, Nearby
-    sharing U+F3E2. These tiles and pages are laid out as NeoShell's others: Windows' own Quick Settings wouldn't open
-    on the VM while they were built (after a display driver crash ShellHost's Control Center ignored every request),
-    so they weren't measured side by side.
+  - **Cast** reads `SystemSettings_DeviceDiscovery_Connect_QuickAction` too: Windows labels the tile with its
+    `QuickActionStatus` and fills it while `QuickActionIsActive`, so on this VM it's "Wired display", on (a monitor on
+    a cable counts); "Cast", off, otherwise. Its glyph is the registry's U+F117 (the screen with the waves at the
+    bottom left).
+  - Glyphs: VPN U+E705, Rotation lock U+E755, Mobile hotspot U+E88A from the registry. ControlCenter draws several
+    tiles as animated icons (`QA_Nightlight`, `QA_NearbySharing`, `QA_VPN`, `QA_MobileHotspot`, `QA_AirplaneMode`:
+    AnimatedVisualSources whose last frame is what shows), which differ from the registry's glyphs: night light is the
+    sun-and-moon U+F08C drawn 14 pixels across (at FontSize 14) and, while on, a filled moon (U+F1DB at 12; Windows'
+    moon keeps faint dots of the sun's rays, which no glyph has); nearby sharing is the share glyph U+E72D, not U+F3E2.
+  - Compared side by side with Windows' own (ShellHost's Control Center, opened with Win+A: on this VM clicking
+    Explorer's network button stopped opening it after Explorer was restarted, and restarting Explorer and ShellHost
+    didn't help), with NeoShell alongside Explorer, at 100%, in dark and light with "Show accent color on Start and
+    taskbar" on and off: zoomed grabs of the tiles, glyphs and pages, and the page transitions at 60 fps.
   - No **Keyboard layout** tile: 25H2's Quick Settings has none (QuickActionsDataModel keeps the string "Keyboard
     layout" from older builds, but no quick action is registered for it and ControlCenter has no template for it); the
     input indicator's switcher is where the input methods are.
 
 ### Pages
 
-Each slides in from the right (back slides the tiles in from the left) and has a header with a back button and, as
-Windows', its shortcut as key caps (`ShortcutKeys`), and a footer with a link to Settings.
+Each has a header with a back button and, as Windows', its shortcut as key caps (`ShortcutKeys`), and a 48-high
+footer with a link to Settings. As Windows' (recorded at 60 fps, VPN and Sound output pages): opening one, the
+flyout takes its height, the header shows almost at once (fading in over 80 ms) and the content below it rises 32
+pixels into place over 300 ms (cubic-bezier 0,0,0,1) while fading in over 150 ms; going back, the tiles fade in over
+100 ms where they are, without sliding. Windows' VPN and Cast pages are 400 high; NeoShell's VPN and Nearby sharing
+pages are at least that.
 
 - **Wi-Fi**: a switch for the radio, a refresh button, and the networks in range (`WifiNetworks`, WinRT
   `WiFiAdapter`): one entry per name at its strongest, the connected one first, then by signal (unit tested), each
@@ -1838,7 +1877,11 @@ Windows', its shortcut as key caps (`ShortcutKeys`), and a footer with a link to
 - **VPN**: the VPN connections set up in Windows (`VpnConnections`): the `Type=2` entries of the user's and all users'
   remote access phonebooks (`%APPDATA%` and `%ProgramData%\Microsoft\Network\Connections\Pbk\rasphone.pbk`; the
   public `VpnManagementAgent.GetProfilesAsync` lists none of them to a desktop app), "Connected" from
-  `RasEnumConnections`. Choosing one opens it up with Connect, or Disconnect for a connected one (`RasHangUp`). Connect
+  `RasEnumConnections`. Choosing one opens it up with Connect, or Disconnect for a connected one (`RasHangUp`); as
+  Windows', the first one is chosen when the page opens. Rows as Windows' (measured): 350 wide (5 from the flyout's
+  sides), the shield at 26 pixels 16 in from the row, the name beside it, the accent Connect button 148 wide, 12 from
+  the right and 8 from the bottom of a 105-high chosen row; More VPN settings is 12-pixel secondary text there, as on
+  Windows' VPN page (its other pages' links are 14). Connect
   opens Windows' own dial dialog (`rasphone -f <phonebook> -d <name>`), which asks for what isn't saved (Explorer's
   page uses the network UX connection flow and its sign-in prompt, which other processes can't host). "No VPN
   connections" without any. More VPN settings (`ms-settings:network-vpn`; shell mode `ncpa.cpl`).

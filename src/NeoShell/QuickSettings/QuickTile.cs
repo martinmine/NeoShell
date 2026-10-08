@@ -15,12 +15,27 @@ internal sealed class QuickTile(QuickTileKind kind, string label, string glyph) 
     private bool _isAvailable = true;
     private bool _isShown = true;
     private bool _hasSwitch;
+    private bool _hasPage;
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
     public QuickTileKind Kind { get; } = kind;
 
-    public string Glyph { get; } = glyph;
+    /// <summary>The glyph, or <see cref="OnGlyph"/> while it's on.</summary>
+    public string Glyph => IsOn && OnGlyph is not null ? OnGlyph : glyph;
+
+    public double GlyphSize => IsOn && OnGlyph is not null ? OnGlyphSize : OffGlyphSize;
+
+    /// <summary>
+    /// Windows draws some tiles' icons as animations whose last frames differ (night light: a sun, a moon while it's
+    /// on); a glyph that looks like the one shown while it's on, or null for the same as while it's off.
+    /// </summary>
+    public string? OnGlyph { get; init; }
+
+    public double OnGlyphSize { get; init; } = 16;
+
+    /// <summary>Some of Windows' animated icons are drawn smaller than its glyphs (night light's).</summary>
+    public double OffGlyphSize { get; init; } = 16;
 
     /// <summary>The feature's name, or what it's connected to (the Wi-Fi network's name).</summary>
     public string Label { get => _label; set => Set(ref _label, value); }
@@ -38,14 +53,37 @@ internal sealed class QuickTile(QuickTileKind kind, string label, string glyph) 
                 return;
 
             _hasSwitch = value;
-            foreach (string name in (string[])[nameof(HasSwitch), nameof(IsSplit), nameof(MainColumnSpan), nameof(MainCornerRadius), nameof(SplitVisibility), nameof(InlineChevronVisibility)])
-                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
+            RaiseLayoutChanged(nameof(HasSwitch));
         }
     }
 
-    public bool HasPage { get; init; }
+    /// <summary>Nearby sharing opens its page only while Windows offers it.</summary>
+    public bool HasPage
+    {
+        get => _hasPage;
+        set
+        {
+            if (_hasPage == value)
+                return;
 
-    public bool IsOn { get => _isOn; set => Set(ref _isOn, value); }
+            _hasPage = value;
+            RaiseLayoutChanged(nameof(HasPage));
+        }
+    }
+
+    public bool IsOn
+    {
+        get => _isOn;
+        set
+        {
+            Set(ref _isOn, value);
+            if (OnGlyph is not null)
+            {
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Glyph)));
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(GlyphSize)));
+            }
+        }
+    }
 
     /// <summary>False while it can't be used (Wi-Fi in airplane mode with no radio left on).</summary>
     public bool IsAvailable { get => _isAvailable; set => Set(ref _isAvailable, value); }
@@ -61,6 +99,7 @@ internal sealed class QuickTile(QuickTileKind kind, string label, string glyph) 
         IsOn = state.IsOn;
         Label = state.Label ?? Name;
         HasSwitch = state.HasSwitch;
+        HasPage = state.HasPage;
     }
 
     public bool IsSplit => HasSwitch && HasPage;
@@ -83,6 +122,12 @@ internal sealed class QuickTile(QuickTileKind kind, string label, string glyph) 
 
     // UI Automation names list items by their ToString.
     public override string ToString() => Name;
+
+    private void RaiseLayoutChanged(string name)
+    {
+        foreach (string each in (string[])[name, nameof(IsSplit), nameof(MainColumnSpan), nameof(MainCornerRadius), nameof(SplitVisibility), nameof(InlineChevronVisibility)])
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(each));
+    }
 
     private void Set<T>(ref T field, T value, [CallerMemberName] string name = "")
     {

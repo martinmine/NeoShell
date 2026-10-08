@@ -9,37 +9,56 @@ namespace NeoShell.QuickSettings;
 /// <param name="IsAvailable">It can be switched now (the setting is enabled).</param>
 /// <param name="Label">What the tile says under it when it isn't its name (the hotspot's state); null for the name.</param>
 /// <param name="HasSwitch">A VPN tile switches the last VPN only while there's one to switch.</param>
-public readonly record struct QuickActionState(bool IsShown, bool IsAvailable, bool IsOn, string? Label = null, bool HasSwitch = true)
+/// <param name="HasPage">Whether it opens a page: the VPN's always, nearby sharing's while Windows offers it.</param>
+public readonly record struct QuickActionState(
+    bool IsShown, bool IsAvailable, bool IsOn, string? Label = null, bool HasSwitch = true, bool HasPage = false)
 {
     public static readonly QuickActionState Hidden = new(false, false, false);
 }
 
-/// <summary>What <see cref="QuickActions"/> last read; <see cref="Brightness"/> is null without a brightness to set.</summary>
+/// <summary>
+/// What <see cref="QuickActions"/> last read; <see cref="Brightness"/> is null without a brightness to set, and
+/// <see cref="HasAirplaneMode"/> says whether Windows offers airplane mode here (it doesn't without radios).
+/// <see cref="Cast"/> is the Cast tile's label and state: "Wired display", on, while a cable's display is in use.
+/// </summary>
 internal sealed record QuickActionsState(
     QuickActionState NightLight,
     QuickActionState NearbySharing,
     QuickActionState MobileHotspot,
     QuickActionState Vpn,
     QuickActionState RotationLock,
-    int? Brightness)
+    QuickActionState Cast,
+    int? Brightness,
+    bool HasAirplaneMode)
 {
     public static readonly QuickActionsState None = new(
-        QuickActionState.Hidden, QuickActionState.Hidden, QuickActionState.Hidden, QuickActionState.Hidden, QuickActionState.Hidden, null);
+        QuickActionState.Hidden, QuickActionState.Hidden, QuickActionState.Hidden, QuickActionState.Hidden, QuickActionState.Hidden,
+        QuickActionState.Hidden, null, false);
 }
 
 /// <summary>
 /// Quick Settings' tiles whose state Windows keeps in its own stores (night light in the cloud data store, nearby
 /// sharing in the Connected Devices Platform, the hotspot and VPN in the network service), read and switched through
-/// the same Settings handlers Windows' Quick Settings uses, so they work as the shell too. They're opened in the
-/// background at start; <see cref="Changed"/> comes on a thread-pool thread.
+/// the same Settings handlers Windows' Quick Settings uses, so they work as the shell too, and shown where Windows'
+/// settings environment says the PC has them, as Windows' Quick Settings does. They're opened in the background at
+/// start; <see cref="Changed"/> comes on a thread-pool thread.
 /// </summary>
 internal sealed class QuickActions : IDisposable
 {
+    private const string NightLightId = "SystemSettings_Display_BlueLight_ManualToggleQuickAction";
+    private const string NearbySharingId = "SystemSettings_SharedExperiences_NearShareQuickAction";
+    private const string MobileHotspotId = "SystemSettings_Network_Tethering_QuickAction";
+    private const string VpnId = "SystemSettings_Network_VPN_QuickAction";
+    private const string AirplaneModeId = "SystemSettings_Radio_IsAirplaneModeEnabled";
+    private const string CastId = "SystemSettings_DeviceDiscovery_Connect_QuickAction";
+
+    private SettingsEnvironment? _environment;
     private SystemSetting? _nightLight;
     private SystemSetting? _nearbySharing;
     private SystemSetting? _mobileHotspot;
     private SystemSetting? _vpn;
     private SystemSetting? _rotationLock;
+    private SystemSetting? _cast;
     private SystemSetting? _brightness;
     private int _refreshQueued;
     private int _brightnessWanted = -1;
@@ -65,6 +84,16 @@ internal sealed class QuickActions : IDisposable
 
     public void SetRotationLock(bool on) => Change(_rotationLock, "Rotation lock", on, setting => setting.SetValue(on));
 
+    /// <summary>
+    /// Reads everything again, in the background: whenever Quick Settings opens, as Windows' settings environment
+    /// learns some answers (whether there's a VPN) a moment after it's asked and says nothing when they change.
+    /// </summary>
+    public void Refresh()
+    {
+        if (Interlocked.Exchange(ref _refreshQueued, 1) == 0)
+            ThreadPool.QueueUserWorkItem(_ => ReadState());
+    }
+
     /// <summary>Sets the brightness (0 to 100); while a slider is dragged only the latest value is sent.</summary>
     public void SetBrightness(int percent)
     {
@@ -76,24 +105,34 @@ internal sealed class QuickActions : IDisposable
     public void Dispose()
     {
         _disposed = true;
-        foreach (SystemSetting? setting in (SystemSetting?[])[_nightLight, _nearbySharing, _mobileHotspot, _vpn, _rotationLock, _brightness])
+        foreach (SystemSetting? setting in (SystemSetting?[])[_nightLight, _nearbySharing, _mobileHotspot, _vpn, _rotationLock, _cast, _brightness])
             setting?.Dispose();
+        _environment?.Dispose();
     }
 
     private void Open()
     {
-        _nightLight = Open("SystemSettings_Display_BlueLight_ManualToggleQuickAction");
-        _nearbySharing = Open("SystemSettings_SharedExperiences_NearShareQuickAction");
-        _mobileHotspot = Open("SystemSettings_Network_Tethering_QuickAction");
-        _vpn = Open("SystemSettings_Network_VPN_QuickAction");
+        try
+        {
+            _environment = SettingsEnvironment.Open();
+        }
+        catch (Exception ex)
+        {
+            Log.Warn("Quick Settings: could not open Windows' settings environment", ex);
+        }
+        _nightLight = Open(NightLightId);
+        _nearbySharing = Open(NearbySharingId);
+        _mobileHotspot = Open(MobileHotspotId);
+        _vpn = Open(VpnId);
         _rotationLock = Open("SystemSettings_Display_IsRotationLockedQuickAction");
+        _cast = Open(CastId);
         // Quick Settings' slider (Microsoft.QuickAction.Brightness). Not SystemSettings_System_Display_Internal_Brightness:
         // opened in another process than Settings', that handler fails fast a few seconds later.
         _brightness = Open("SystemSettings_Display_Brightness");
         if (_disposed)
             Dispose();
         else
-            Refresh();
+            ReadState();
     }
 
     private SystemSetting? Open(string id)
@@ -104,7 +143,7 @@ internal sealed class QuickActions : IDisposable
             if (setting is null)
                 Log.Info($"Quick Settings: Windows has no {id}");
             else
-                setting.Changed += QueueRefresh;
+                setting.Changed += Refresh;
             return setting;
         }
         catch (Exception ex)
@@ -114,13 +153,7 @@ internal sealed class QuickActions : IDisposable
         }
     }
 
-    private void QueueRefresh()
-    {
-        if (Interlocked.Exchange(ref _refreshQueued, 1) == 0)
-            ThreadPool.QueueUserWorkItem(_ => Refresh());
-    }
-
-    private void Refresh()
+    private void ReadState()
     {
         Interlocked.Exchange(ref _refreshQueued, 0);
         if (_disposed)
@@ -129,19 +162,29 @@ internal sealed class QuickActions : IDisposable
         try
         {
             State = new QuickActionsState(
-                Read(_nightLight, setting => setting.GetValue() is true),
-                Read(_nearbySharing, setting => setting.GetValue() is true),
-                Read(_mobileHotspot, setting => setting.GetProperty("QuickActionIsActive") is true) with
+                Read(_nightLight, NightLightId, setting => setting.GetValue() is true),
+                Read(_nearbySharing, NearbySharingId, setting => setting.GetValue() is true) with
+                {
+                    // Its page only while Windows' Quick Settings offers it (shows its chevron).
+                    HasPage = _nearbySharing?.GetValue("QuickActionIsL2TemplateVisible") is true,
+                },
+                Read(_mobileHotspot, MobileHotspotId, setting => setting.GetProperty("QuickActionIsActive") is true) with
                 {
                     Label = _mobileHotspot?.GetProperty("QuickActionStatus") as string,
                 },
-                Read(_vpn, setting => setting.GetProperty("QuickActionIsActive") is true) with
+                Read(_vpn, VpnId, setting => setting.GetProperty("QuickActionIsActive") is true) with
                 {
                     Label = _vpn?.GetProperty("QuickActionStatus") as string,
                     HasSwitch = _vpn?.GetProperty("QuickActionIsToggleTemplateVisible") is true,
+                    HasPage = true,
                 },
                 ReadRotationLock(),
-                _brightness is { IsApplicable: true } brightness && brightness.GetValue() is int percent ? percent : null);
+                Read(_cast, CastId, setting => setting.GetValue("QuickActionIsActive") is true) with
+                {
+                    Label = _cast?.GetValue("QuickActionStatus") as string is { Length: > 0 } status ? status : null,
+                },
+                _brightness is { IsApplicable: true } brightness && brightness.GetValue() is int percent ? percent : null,
+                IsApplicable(AirplaneModeId));
             Changed?.Invoke();
         }
         catch (Exception ex)
@@ -150,8 +193,12 @@ internal sealed class QuickActions : IDisposable
         }
     }
 
-    private static QuickActionState Read(SystemSetting? setting, Func<SystemSetting, bool> isOn) =>
-        setting is { IsApplicable: true } ? new QuickActionState(true, setting.IsEnabled, isOn(setting)) : QuickActionState.Hidden;
+    private QuickActionState Read(SystemSetting? setting, string id, Func<SystemSetting, bool> isOn) =>
+        setting is { IsApplicable: true } && IsApplicable(id)
+            ? new QuickActionState(true, setting.IsEnabled, isOn(setting))
+            : QuickActionState.Hidden;
+
+    private bool IsApplicable(string id) => _environment?.IsQuickActionApplicable(id) ?? true;
 
     // Its handler counts any PC as having it; the tile is only for PCs whose screen can turn (an orientation sensor).
     private QuickActionState ReadRotationLock() =>
@@ -173,7 +220,7 @@ internal sealed class QuickActions : IDisposable
             {
                 Log.Warn($"Could not turn {name} {(on ? "on" : "off")}", ex);
             }
-            QueueRefresh();
+            Refresh();
         });
     }
 

@@ -38,15 +38,17 @@
                 <Setter Property="Margin" Value="4,8,0,8" />
             </Style>
 
-            <!-- The bar at the bottom of a page, with its link to Settings. -->
+            <!-- The bar at the bottom of a page, with its link to Settings: 48 high, as Windows'. -->
             <Style x:Key="PageFooterStyle" TargetType="Border">
-                <Setter Property="Padding" Value="8,6" />
+                <Setter Property="Height" Value="48" />
+                <Setter Property="Padding" Value="8,0" />
                 <Setter Property="Background" Value="{ThemeResource LayerOnAcrylicFillColorDefaultBrush}" />
                 <Setter Property="BorderBrush" Value="{ThemeResource DividerStrokeColorDefaultBrush}" />
                 <Setter Property="BorderThickness" Value="0,1,0,0" />
             </Style>
 
             <Style x:Key="FooterLinkStyle" TargetType="Button">
+                <Setter Property="VerticalAlignment" Value="Center" />
                 <Setter Property="Padding" Value="8,6" />
                 <Setter Property="Background" Value="Transparent" />
                 <Setter Property="BorderThickness" Value="0" />
@@ -124,7 +126,8 @@
                     <ItemsControl.ItemTemplate>
                         <DataTemplate x:DataType="local:QuickTile">
                             <StackPanel Width="96" HorizontalAlignment="Left" Spacing="8">
-                                <Grid ColumnSpacing="2">
+                                <!-- A split tile's halves touch: their borders make Windows' 2-pixel divider. -->
+                                <Grid>
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition />
                                         <ColumnDefinition />
@@ -140,7 +143,7 @@
                                         IsChecked="{x:Bind IsOn, Mode=OneWay}"
                                         Click="Tile_Click">
                                         <StackPanel Orientation="Horizontal" Spacing="8">
-                                            <FontIcon Glyph="{x:Bind Glyph}" FontSize="16" />
+                                            <FontIcon Glyph="{x:Bind Glyph, Mode=OneWay}" FontSize="{x:Bind GlyphSize, Mode=OneWay}" />
                                             <FontIcon Glyph="&#xE76C;" FontSize="10" Visibility="{x:Bind InlineChevronVisibility, Mode=OneWay}" />
                                         </StackPanel>
                                     </ToggleButton>
@@ -155,7 +158,7 @@
                                         IsEnabled="{x:Bind IsAvailable, Mode=OneWay}"
                                         IsChecked="{x:Bind IsOn, Mode=OneWay}"
                                         Click="TilePage_Click">
-                                        <FontIcon Glyph="&#xE76C;" FontSize="10" />
+                                        <FontIcon Glyph="&#xE76C;" FontSize="12" />
                                     </ToggleButton>
                                 </Grid>
                                 <TextBlock
@@ -697,7 +700,7 @@
         </Grid>
 
         <!-- VPN: the VPN connections set up in Windows, connected or hung up from here. -->
-        <Grid x:Name="VpnPage" Visibility="Collapsed">
+        <Grid x:Name="VpnPage" MinHeight="400" Visibility="Collapsed">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
                 <RowDefinition />
@@ -709,30 +712,36 @@
                 </Button>
                 <TextBlock Style="{StaticResource PageTitleStyle}" Text="VPN" />
             </StackPanel>
-            <Grid Grid.Row="1" MinHeight="240" MaxHeight="400">
+            <Grid Grid.Row="1" MaxHeight="400">
                 <ListView
                     x:Name="VpnList"
-                    Padding="8,0,8,8"
+                    Padding="1,4,1,8"
                     AutomationProperties.AutomationId="VpnConnectionList"
                     AutomationProperties.Name="VPN connections"
                     SelectionMode="Single"
                     SelectionChanged="VpnList_SelectionChanged">
+                    <ListView.ItemContainerStyle>
+                        <Style TargetType="ListViewItem" BasedOn="{StaticResource DefaultListViewItemStyle}">
+                            <Setter Property="Padding" Value="16,0,16,0" />
+                        </Style>
+                    </ListView.ItemContainerStyle>
                     <ListView.ItemTemplate>
                         <DataTemplate x:DataType="local:VpnItem">
-                            <StackPanel Padding="0,8" Spacing="8" AutomationProperties.Name="{x:Bind Name}">
+                            <StackPanel Padding="0,8" Spacing="35" AutomationProperties.Name="{x:Bind Name}">
                                 <Grid ColumnSpacing="12">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="Auto" />
                                         <ColumnDefinition />
                                     </Grid.ColumnDefinitions>
-                                    <FontIcon Glyph="&#xE705;" FontSize="16" VerticalAlignment="Top" Margin="0,2,0,0" />
-                                    <StackPanel Grid.Column="1">
+                                    <FontIcon Glyph="&#xE705;" FontSize="26" VerticalAlignment="Top" />
+                                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
                                         <TextBlock Text="{x:Bind Name}" TextTrimming="CharacterEllipsis" />
                                         <TextBlock Style="{StaticResource SecondaryTextStyle}" Text="{x:Bind Status}" Visibility="{x:Bind StatusVisibility}" />
                                     </StackPanel>
                                 </Grid>
                                 <!-- The chosen connection: connect, or disconnect the connected one. -->
                                 <Button
+                                    MinWidth="148"
                                     HorizontalAlignment="Right"
                                     AutomationProperties.AutomationId="VpnConnectButton"
                                     Style="{StaticResource AccentButtonStyle}"
@@ -754,16 +763,19 @@
                     Visibility="Collapsed" />
             </Grid>
             <Border Grid.Row="2" Style="{StaticResource PageFooterStyle}">
+                <!-- Smaller and dimmer than the other pages' links, as Windows'. -->
                 <Button
                     AutomationProperties.AutomationId="MoreVpnSettingsButton"
                     Style="{StaticResource FooterLinkStyle}"
+                    FontSize="12"
+                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                     Content="More VPN settings"
                     Click="VpnSettings_Click" />
             </Border>
         </Grid>
 
         <!-- Nearby sharing: its switch, and what turning it on does. -->
-        <Grid x:Name="NearbySharingPage" Visibility="Collapsed">
+        <Grid x:Name="NearbySharingPage" MinHeight="400" Visibility="Collapsed">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
                 <RowDefinition />
@@ -789,7 +801,7 @@
                     AutomationProperties.Name="Nearby sharing"
                     Toggled="NearbySharingSwitch_Toggled" />
             </Grid>
-            <StackPanel Grid.Row="1" Height="300" Padding="16,24" Spacing="8">
+            <StackPanel Grid.Row="1" Padding="16,24" Spacing="8">
                 <TextBlock x:Name="NearbySharingTitle" Style="{ThemeResource SubtitleTextBlockStyle}" FontSize="18" TextWrapping="Wrap" />
                 <TextBlock x:Name="NearbySharingText" TextWrapping="Wrap" />
             </StackPanel>
