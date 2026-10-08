@@ -100,4 +100,41 @@ public sealed class ShellSessionTests
 
         Assert.Equal((program, arguments), StartupApps.SplitCommandLine(commandLine, existing.Contains));
     }
+
+    private const int PrintScreen = 0x2C, Alt = 0xA4;
+
+    [Fact]
+    public void Print_screen_alone_opens_the_snip_and_is_swallowed_with_its_repeats()
+    {
+        var keys = new PrintScreenKeys();
+        var snips = new List<bool>();
+        bool Press(int key, bool down, bool enabled = true)
+        {
+            bool swallowed = keys.OnKey(key, down, () => enabled, out bool snip);
+            snips.Add(snip);
+            return swallowed;
+        }
+
+        Assert.Equal([true, true, true], [Press(PrintScreen, true), Press(PrintScreen, true), Press(PrintScreen, false)]);
+        Assert.Equal([true, false, false], snips);
+
+        // Alt+PrtScn is Windows' (the window in front), Win+PrtScn a hotkey.
+        snips.Clear();
+        Assert.Equal([false, false, false, false], [Press(Alt, true), Press(PrintScreen, true), Press(PrintScreen, false), Press(Alt, false)]);
+        Assert.Equal([false, false, false, false], [Press(Win, true), Press(PrintScreen, true), Press(PrintScreen, false), Press(Win, false)]);
+        Assert.DoesNotContain(true, snips);
+
+        // Turned off: Windows copies the screen.
+        Assert.Equal([false, false], [Press(PrintScreen, true, enabled: false), Press(PrintScreen, false, enabled: false)]);
+    }
+
+    [Fact]
+    public void Print_screen_opens_the_snip_unless_turned_off_or_kept_by_policy()
+    {
+        Assert.True(PrintScreenKeys.IsEnabled(null, null));
+        Assert.True(PrintScreenKeys.IsEnabled(null, 1));
+        Assert.True(PrintScreenKeys.IsEnabled(1, null));
+        Assert.False(PrintScreenKeys.IsEnabled(null, 0));
+        Assert.False(PrintScreenKeys.IsEnabled(0, 1));
+    }
 }

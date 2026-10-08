@@ -718,6 +718,9 @@ internal static unsafe partial class User32
     [LibraryImport("user32.dll", SetLastError = true)]
     public static partial nint SetClipboardData(uint format, nint data);
 
+    [LibraryImport("user32.dll", EntryPoint = "RegisterClipboardFormatW", StringMarshalling = StringMarshalling.Utf16)]
+    public static partial uint RegisterClipboardFormat(string format);
+
     [LibraryImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     public static partial bool CloseClipboard();

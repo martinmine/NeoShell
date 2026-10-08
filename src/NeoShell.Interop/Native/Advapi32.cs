@@ -65,4 +65,19 @@ internal static unsafe partial class Advapi32
     public static partial int RegQueryInfoKey(
         nint key, char* className, uint* classLength, nint reserved, uint* subKeys, uint* maxSubKeyLength, uint* maxClassLength,
         uint* values, uint* maxValueNameLength, uint* maxValueLength, uint* securityDescriptor, long* lastWriteTime);
+
+    public const int KEY_READ = 0x20019;
+    public const int KEY_SET_VALUE = 0x0002;
+
+    /// <summary>Loads an app's private registry hive (such as a package's settings.dat). Returns a Win32 error code.</summary>
+    [LibraryImport("advapi32.dll", EntryPoint = "RegLoadAppKeyW", StringMarshalling = StringMarshalling.Utf16)]
+    public static partial int RegLoadAppKey(string file, out nint key, int access, uint options, uint reserved);
+
+    /// <summary>Returns a Win32 error code; 0 is success.</summary>
+    [LibraryImport("advapi32.dll", EntryPoint = "RegSetValueExW", StringMarshalling = StringMarshalling.Utf16)]
+    public static partial int RegSetValueEx(nint key, string name, uint reserved, uint type, byte* data, uint size);
+
+    /// <summary>Returns a Win32 error code; 0 is success.</summary>
+    [LibraryImport("advapi32.dll", EntryPoint = "RegQueryValueExW", StringMarshalling = StringMarshalling.Utf16)]
+    public static partial int RegQueryValueEx(nint key, string name, nint reserved, out uint type, byte* data, ref uint size);
 }

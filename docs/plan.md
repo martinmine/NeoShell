@@ -457,7 +457,14 @@ Each item is done when it looks and behaves as Explorer's (layout, behaviour, an
       copilotkeyprovider extension; not possible: Win+V, Win+Period/Semicolon and Win+H (TextInputHost's panels are
       hosted by Explorer's immersive shell in its own window band) and Win+Shift+R (Snipping Tool can't capture a
       monitor without Explorer; Windows.Graphics.Capture's monitor items come from Explorer) — see design.md, Hotkeys
-- [ ] T31 Snips: freeform, window and full-screen modes, the toolbar, opening in Snipping Tool
+- [x] T31 Snips: freeform, window and full-screen modes, the toolbar, opening in Snipping Tool — NeoShell's overlay as
+      Snipping Tool's (toolbar, four modes, Snipping Tool's remembered mode and auto-save setting, clipboard PNG + DIB,
+      Snipping Tool's toast whose click opens its editor, which works as the shell), Print Screen by its setting;
+      compared live (UIA, 60 fps recordings, pixel measurements) with Snipping Tool's under Explorer, two monitors too
+      — differs: no text extractor, colour picker, quick mark-up or recording (recording shown unavailable); the toast
+      is a banner only (not kept in the notification center); freeform smoothing differs for sparse pointer input —
+      not run live: the MakePrintScreenKeyYieldable policy, Snipping Tool's keyboard handling (no keys pressed with
+      Explorer running)
 - [ ] T32 Quick Settings: brightness, mobile hotspot, VPN, rotation lock, keyboard layout; night light and nearby
       sharing working as the shell
 - [ ] T33 Bluetooth page: connect and disconnect paired devices

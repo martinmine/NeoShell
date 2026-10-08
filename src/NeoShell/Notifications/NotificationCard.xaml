@@ -24,18 +24,28 @@
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
         <!-- Lighter under the pointer, as Explorer's cards; over the padding too. -->
         <Border
             x:Name="HoverPlate"
-            Grid.RowSpan="3"
+            Grid.RowSpan="5"
             Margin="-12,0,-4,-12"
             Background="{ThemeResource SubtleFillColorSecondaryBrush}"
             IsHitTestVisible="False"
             Opacity="0" />
 
-        <Grid Height="40">
+        <!-- A toast's hero image across its top, as Snipping Tool's toast shows the snip: 2:1, cropped to fill. -->
+        <Image
+            x:Name="HeroImage"
+            Height="180"
+            Stretch="UniformToFill"
+            VerticalAlignment="Center"
+            Visibility="Collapsed" />
+
+        <Grid Grid.Row="1" Height="40">
             <!-- Only the "…" and close buttons are flat; "+N notifications" is an ordinary button, as in Explorer. -->
             <Grid.Resources>
                 <ResourceDictionary>
@@ -123,7 +133,7 @@
             A tray balloon's picture (its information, warning or error icon) goes beside the text, which centres on it.
             Explorer draws it 40 epx large in a 48 epx place, 16 from the text.
         -->
-        <Grid Grid.Row="1">
+        <Grid Grid.Row="2">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition />
@@ -155,11 +165,21 @@
         </Grid>
         <Button
             x:Name="FooterButton"
-            Grid.Row="2"
+            Grid.Row="3"
             Margin="0,12,0,0"
             Padding="10,4"
             AutomationProperties.AutomationId="NotificationGroupExpandButton"
             Visibility="Collapsed"
             Click="FooterButton_Click" />
+        <!-- A toast's button, across the toast under its text. -->
+        <Button
+            x:Name="ActionButton"
+            Grid.Row="4"
+            Height="32"
+            Margin="0,20,8,0"
+            HorizontalAlignment="Stretch"
+            AutomationProperties.AutomationId="NotificationActionButton"
+            Visibility="Collapsed"
+            Click="ActionButton_Click" />
     </Grid>
 </UserControl>

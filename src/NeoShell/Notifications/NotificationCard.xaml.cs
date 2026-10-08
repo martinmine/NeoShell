@@ -76,6 +76,35 @@ public sealed partial class NotificationCard : UserControl
         }
     }
 
+    /// <summary>
+    /// A picture across the toast's top, above its header, as on Snipping Tool's toast with the snip. Toasts only.
+    /// </summary>
+    public ImageSource? Hero
+    {
+        set
+        {
+            HeroImage.Source = value;
+            HeroImage.Visibility = value is null ? Visibility.Collapsed : Visibility.Visible;
+            // Edge to edge, over the card's padding.
+            HeroImage.Margin = new Thickness(-Root.Padding.Left, -Root.Padding.Top, -Root.Padding.Right, 0);
+        }
+    }
+
+    /// <summary>A button across the toast under its text, raising <see cref="ActionInvoked"/>; null for none.</summary>
+    public string? ActionText
+    {
+        set
+        {
+            ActionButton.Content = value;
+            ActionButton.Visibility = value is null ? Visibility.Collapsed : Visibility.Visible;
+            if (value is not null)
+                Root.Padding = Root.Padding with { Bottom = 16 };
+        }
+    }
+
+    /// <summary>The toast's button was clicked.</summary>
+    public event Action<NotificationCard>? ActionInvoked;
+
     /// <summary>"+3 notifications" or "See fewer" under the card; null for none.</summary>
     public string? FooterText
     {
@@ -153,6 +182,8 @@ public sealed partial class NotificationCard : UserControl
     private void CloseButton_Click(object sender, RoutedEventArgs e) => CloseRequested?.Invoke(this);
 
     private void FooterButton_Click(object sender, RoutedEventArgs e) => FooterClicked?.Invoke(this);
+
+    private void ActionButton_Click(object sender, RoutedEventArgs e) => ActionInvoked?.Invoke(this);
 
     private void TurnOff_Click(object sender, RoutedEventArgs e) => TurnOffRequested?.Invoke(this);
 

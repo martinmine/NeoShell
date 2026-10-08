@@ -28,6 +28,7 @@ internal sealed class ShellSession : IDisposable
     private readonly AltTabKeys _altTabKeys = new();
     private readonly PeekKeys _peekKeys = new();
     private readonly InputSwitchKeys _inputSwitchKeys = new();
+    private readonly PrintScreenKeys _printScreenKeys = new();
     private readonly SnapKeys _snapKeys;
     // What each hotkey does, by its ID less one.
     private readonly List<Action> _hotkeyActions = [];
@@ -75,8 +76,8 @@ internal sealed class ShellSession : IDisposable
 
         // The Windows key on its own isn't a hotkey: only a hook sees it pressed and released by itself. Keys pass
         // through unchanged, so Windows still knows the key is down for Win+ shortcuts; only the panels' own
-        // shortcuts, the switcher's keys, Win+Comma's comma, Win+Space's space and Snap's arrows are taken (see
-        // PanelKeys, AltTabKeys, PeekKeys, InputSwitchKeys, SnapKeys).
+        // shortcuts, the switcher's keys, Win+Comma's comma, Win+Space's space, Snap's arrows and Print Screen are
+        // taken (see PanelKeys, AltTabKeys, PeekKeys, InputSwitchKeys, SnapKeys, PrintScreenKeys).
         try
         {
             _keyboardHook = new KeyboardHook
@@ -121,6 +122,11 @@ internal sealed class ShellSession : IDisposable
                         _dispatcher.Post(() => _snapping?.SnapForeground(pressedArrow));
                     }
                     if (snapKey)
+                        return true;
+                    bool printScreenKey = _printScreenKeys.OnKey(key, down, PrintScreenKeys.ReadSetting, out bool snip);
+                    if (snip)
+                        _dispatcher.Post(StartSnip);
+                    if (printScreenKey)
                         return true;
                     if (!_panelKeys.OnKey(key, down, out PanelShortcut? shortcut))
                         return false;
@@ -208,7 +214,7 @@ internal sealed class ShellSession : IDisposable
         Register("Win+Pause", VK_PAUSE, () => Launcher.OpenSettings(RunMode.Shell, "System", "ms-settings:about", "sysdm.cpl"));
         Register("Win+Alt+D", 'D', _taskbars.ToggleNotificationCenter, Alt);
         Register("Win+Alt+K", 'K', _taskbars.ToggleMicrophoneMute, Alt);
-        Register("Win+Shift+S", 'S', ScreenSnip.Start, Shift);
+        Register("Win+Shift+S", 'S', StartSnip, Shift);
         Register("Win+PrtScn", VK_SNAPSHOT, () => Screenshots.CaptureScreen(_taskbars.PrimaryHandle));
         Register("Win+Z", 'Z', () => _snapping?.OpenLayouts(TopLevelWindows.GetForeground()));
         for (int n = 1; n <= 9; n++)
@@ -222,6 +228,8 @@ internal sealed class ShellSession : IDisposable
             Register($"Win+Alt+{n}", digit, () => _taskbars.ShowJumpList(index), Alt);
         }
     }
+
+    private void StartSnip() => ScreenSnip.Start(_taskbars.PrimaryHandle, () => _taskbars.Toasts, _taskbars.Tracker);
 
     // Win with the key (and modifiers), once per press however long it's held.
     private void Register(string name, uint key, Action action, HotkeyModifiers modifiers = HotkeyModifiers.None)

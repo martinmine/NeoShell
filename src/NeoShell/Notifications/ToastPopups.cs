@@ -1,5 +1,6 @@
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Media;
 using NeoShell.Interop.Audio;
 using NeoShell.Interop.Notifications;
 using NeoShell.Interop.Windowing;
@@ -133,6 +134,33 @@ internal sealed class ToastPopups : IDisposable
         // Windows' system toasts have no logo of their own: the notification UI draws its default app glyph.
         card.ShowDefaultLogo();
         Show(card, key, completed, NotificationCenter.SoundFor(info));
+        return true;
+    }
+
+    /// <summary>
+    /// Shows a toast that an app would show for itself under Explorer, but NeoShell shows in its place (Snipping Tool's
+    /// for a snip, see <see cref="Capture.ScreenSnip"/>): the app's logo and name, a hero image and a button. Only a
+    /// banner, as <see cref="ShowBanner"/>: NeoShell can't store a notification as another app.
+    /// </summary>
+    /// <param name="invoked">The toast was clicked: true on its button, false elsewhere.</param>
+    public bool ShowAppBanner(string key, ToastInfo info, ImageSource hero, string action, Action<bool> invoked)
+    {
+        Hide(key);
+        if (_suppressed() || _anchor() is null || !_center.ShowsBanner(info.AppId))
+            return false;
+
+        var card = new NotificationCard(info, isToast: true) { Hero = hero, ActionText = action };
+        SetLogo(card, info.AppId);
+        card.ActionInvoked += _ =>
+        {
+            Hide(key);
+            invoked(true);
+        };
+        Show(card, key, result =>
+        {
+            if (result == BalloonEvent.Clicked)
+                invoked(false);
+        }, NotificationCenter.SoundFor(info));
         return true;
     }
 

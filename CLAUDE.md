@@ -195,7 +195,8 @@ the desktop and back. Full spec in docs/design.md ("Widgets").
   Alt+Tab items, finding a maximize button, Start's pin folders and folder buttons, Start's All categories, order, New/System and tile store, the taskbar search setting and its collapse, thumbnail toolbar data and image lists, pinning by drag, clock settings and notification bell, widget placement and order, MET forecast parsing, wireless device protocols, Windows product name,
   AutoPlay content, events, choice lists and saving, autorun.inf parsing, optical drive names, toast sounds,
   input indicator labels and Win+Space keys, the Copilot key and its choice, task button badges, Start account menu order and "…",
-  Alt+Tab's keys (Ctrl+Alt+Tab) and most-recently-used order, the title bar shake setting.
+  Alt+Tab's keys (Ctrl+Alt+Tab) and most-recently-used order, the title bar shake setting, snips (window targets,
+  freeform masks, Snipping Tool's settings and editor link, the Print Screen key).
 - When testing the UI live, drive it through UI Automation (set `AutomationProperties.AutomationId` on interactive
   controls). Never use global keystrokes like SendKeys: they go to whichever window has focus.
 - Always stop a running NeoShell with `/exit` (or its taskbar menu), never by killing the process. A kill leaves the

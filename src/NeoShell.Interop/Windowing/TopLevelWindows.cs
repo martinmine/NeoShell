@@ -43,6 +43,9 @@ public static unsafe class TopLevelWindows
 
     public static bool IsMinimized(nint hwnd) => User32.IsIconic(hwnd);
 
+    /// <summary>On screen: visible, not minimized and not cloaked (e.g. on another virtual desktop).</summary>
+    public static bool IsOnScreen(nint hwnd) => User32.IsWindowVisible(hwnd) && !User32.IsIconic(hwnd) && !IsCloaked(hwnd);
+
     public static bool IsMaximized(nint hwnd) => User32.IsZoomed(hwnd);
 
     public static bool Exists(nint hwnd) => User32.IsWindow(hwnd);
