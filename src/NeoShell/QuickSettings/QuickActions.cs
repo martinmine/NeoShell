@@ -20,6 +20,7 @@ public readonly record struct QuickActionState(
 /// What <see cref="QuickActions"/> last read; <see cref="Brightness"/> is null without a brightness to set, and
 /// <see cref="HasAirplaneMode"/> says whether Windows offers airplane mode here (it doesn't without radios).
 /// <see cref="Cast"/> is the Cast tile's label and state: "Wired display", on, while a cable's display is in use.
+/// <see cref="ColorFilters"/> and <see cref="MonoAudio"/> are the Accessibility page's switches.
 /// </summary>
 internal sealed record QuickActionsState(
     QuickActionState NightLight,
@@ -29,19 +30,22 @@ internal sealed record QuickActionsState(
     QuickActionState RotationLock,
     QuickActionState Cast,
     int? Brightness,
-    bool HasAirplaneMode)
+    bool HasAirplaneMode,
+    bool ColorFilters,
+    bool MonoAudio)
 {
     public static readonly QuickActionsState None = new(
         QuickActionState.Hidden, QuickActionState.Hidden, QuickActionState.Hidden, QuickActionState.Hidden, QuickActionState.Hidden,
-        QuickActionState.Hidden, null, false);
+        QuickActionState.Hidden, null, false, false, false);
 }
 
 /// <summary>
 /// Quick Settings' tiles whose state Windows keeps in its own stores (night light in the cloud data store, nearby
 /// sharing in the Connected Devices Platform, the hotspot and VPN in the network service), read and switched through
 /// the same Settings handlers Windows' Quick Settings uses, so they work as the shell too, and shown where Windows'
-/// settings environment says the PC has them, as Windows' Quick Settings does. They're opened in the background at
-/// start; <see cref="Changed"/> comes on a thread-pool thread.
+/// settings environment says the PC has them, as Windows' Quick Settings does; colour filters and mono audio too, which
+/// Windows' Accessibility page switches as quick actions of their own. They're opened in the background at start;
+/// <see cref="Changed"/> comes on a thread-pool thread.
 /// </summary>
 internal sealed class QuickActions : IDisposable
 {
@@ -51,6 +55,12 @@ internal sealed class QuickActions : IDisposable
     private const string VpnId = "SystemSettings_Network_VPN_QuickAction";
     private const string AirplaneModeId = "SystemSettings_Radio_IsAirplaneModeEnabled";
     private const string CastId = "SystemSettings_DeviceDiscovery_Connect_QuickAction";
+    // Microsoft.QuickAction.ColorFilters and .MonoMix, the Accessibility page's (not SettingsHandlers_Accessibility's
+    // ColorFilter_IsEnabled, Settings' own switch for the same state).
+    private const string ColorFiltersId = "SystemSettings_Accessibility_ColorFiltering_IsEnabled";
+    private const string MonoAudioId = "SystemSettings_Accessibility_IsAudioMonoMixStateEnabled";
+    // Where the audio service keeps mono audio: its handler reports only the changes made through itself.
+    private const string MonoAudioKey = @"Software\Microsoft\Multimedia\Audio";
 
     private SettingsEnvironment? _environment;
     private SystemSetting? _nightLight;
@@ -60,6 +70,9 @@ internal sealed class QuickActions : IDisposable
     private SystemSetting? _rotationLock;
     private SystemSetting? _cast;
     private SystemSetting? _brightness;
+    private SystemSetting? _colorFilters;
+    private SystemSetting? _monoAudio;
+    private RegistryWatcher? _monoAudioWatcher;
     private int _refreshQueued;
     private int _brightnessWanted = -1;
     private int _brightnessQueued;
@@ -84,6 +97,10 @@ internal sealed class QuickActions : IDisposable
 
     public void SetRotationLock(bool on) => Change(_rotationLock, "Rotation lock", on, setting => setting.SetValue(on));
 
+    public void SetColorFilters(bool on) => Change(_colorFilters, "Colour filters", on, setting => setting.SetValue(on));
+
+    public void SetMonoAudio(bool on) => Change(_monoAudio, "Mono audio", on, setting => setting.SetValue(on));
+
     /// <summary>
     /// Reads everything again, in the background: whenever Quick Settings opens, as Windows' settings environment
     /// learns some answers (whether there's a VPN) a moment after it's asked and says nothing when they change.
@@ -105,8 +122,9 @@ internal sealed class QuickActions : IDisposable
     public void Dispose()
     {
         _disposed = true;
-        foreach (SystemSetting? setting in (SystemSetting?[])[_nightLight, _nearbySharing, _mobileHotspot, _vpn, _rotationLock, _cast, _brightness])
+        foreach (SystemSetting? setting in (SystemSetting?[])[_nightLight, _nearbySharing, _mobileHotspot, _vpn, _rotationLock, _cast, _brightness, _colorFilters, _monoAudio])
             setting?.Dispose();
+        _monoAudioWatcher?.Dispose();
         _environment?.Dispose();
     }
 
@@ -129,6 +147,10 @@ internal sealed class QuickActions : IDisposable
         // Quick Settings' slider (Microsoft.QuickAction.Brightness). Not SystemSettings_System_Display_Internal_Brightness:
         // opened in another process than Settings', that handler fails fast a few seconds later.
         _brightness = Open("SystemSettings_Display_Brightness");
+        _colorFilters = Open(ColorFiltersId);
+        _monoAudio = Open(MonoAudioId);
+        _monoAudioWatcher = new RegistryWatcher(MonoAudioKey);
+        _monoAudioWatcher.Changed += Refresh;
         if (_disposed)
             Dispose();
         else
@@ -184,7 +206,9 @@ internal sealed class QuickActions : IDisposable
                     Label = _cast?.GetValue("QuickActionStatus") as string is { Length: > 0 } status ? status : null,
                 },
                 _brightness is { IsApplicable: true } brightness && brightness.GetValue() is int percent ? percent : null,
-                IsApplicable(AirplaneModeId));
+                IsApplicable(AirplaneModeId),
+                _colorFilters?.GetValue() is true,
+                _monoAudio?.GetValue() is true);
             Changed?.Invoke();
         }
         catch (Exception ex)

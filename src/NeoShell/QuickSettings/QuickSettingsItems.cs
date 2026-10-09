@@ -208,10 +208,7 @@ internal sealed class BluetoothItem(PairedDevice device) : Observable
     public override string ToString() => Name;
 }
 
-/// <summary>
-/// A row on the Accessibility page: a feature with its switch, or, for features Windows offers no way to switch
-/// from outside Settings, a link to its page there.
-/// </summary>
+/// <summary>A row on the Accessibility page: a feature with its switch.</summary>
 internal sealed class AssistiveFeature : Observable
 {
     private bool _isOn;
@@ -225,14 +222,11 @@ internal sealed class AssistiveFeature : Observable
 
     public required string AutomationId { get; init; }
 
-    /// <summary>Reads whether it's on; null for a link.</summary>
-    public Func<bool>? Read { get; init; }
+    /// <summary>Reads whether it's on.</summary>
+    public required Func<bool> Read { get; init; }
 
-    /// <summary>Turns it on or off; null for a link.</summary>
-    public Action<bool>? Write { get; init; }
-
-    /// <summary>The feature's page in Settings, for a link.</summary>
-    public string? SettingsUri { get; init; }
+    /// <summary>Turns it on or off.</summary>
+    public required Action<bool> Write { get; init; }
 
     public bool IsOn
     {
@@ -244,24 +238,15 @@ internal sealed class AssistiveFeature : Observable
 
             Raise(nameof(StateText));
             if (!_refreshing)
-                Write?.Invoke(value);
+                Write(value);
         }
     }
 
     public string StateText => IsOn ? "On" : "Off";
 
-    public Visibility SwitchVisibility => Write is null ? Visibility.Collapsed : Visibility.Visible;
-
-    public Visibility LinkVisibility => Write is null ? Visibility.Visible : Visibility.Collapsed;
-
-    public string LinkName => $"{Name} settings";
-
     /// <summary>Shows the feature's current state without switching anything.</summary>
     public void Refresh()
     {
-        if (Read is null)
-            return;
-
         _refreshing = true;
         IsOn = Read();
         _refreshing = false;

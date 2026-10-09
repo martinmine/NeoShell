@@ -72,27 +72,14 @@
                         <TextBlock Style="{StaticResource SecondaryTextStyle}" Text="{x:Bind Description}" TextTrimming="CharacterEllipsis" />
                     </StackPanel>
                     <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                        <TextBlock VerticalAlignment="Center" Text="{x:Bind StateText, Mode=OneWay}" Visibility="{x:Bind SwitchVisibility}" />
+                        <TextBlock VerticalAlignment="Center" Text="{x:Bind StateText, Mode=OneWay}" />
                         <ToggleSwitch
                             MinWidth="0"
                             OnContent=""
                             OffContent=""
                             AutomationProperties.AutomationId="{x:Bind AutomationId}"
                             AutomationProperties.Name="{x:Bind Name}"
-                            Visibility="{x:Bind SwitchVisibility}"
                             IsOn="{x:Bind IsOn, Mode=TwoWay}" />
-                        <!-- Features Windows offers no way to switch from outside Settings: a link to their page. -->
-                        <Button
-                            Style="{StaticResource FlatButtonStyle}"
-                            Width="32"
-                            Height="32"
-                            AutomationProperties.AutomationId="{x:Bind AutomationId}"
-                            AutomationProperties.Name="{x:Bind LinkName}"
-                            ToolTipService.ToolTip="{x:Bind LinkName}"
-                            Visibility="{x:Bind LinkVisibility}"
-                            Click="AssistiveLink_Click">
-                            <FontIcon Glyph="&#xE8A7;" FontSize="14" />
-                        </Button>
                     </StackPanel>
                 </Grid>
             </DataTemplate>

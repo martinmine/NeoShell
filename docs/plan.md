@@ -487,7 +487,13 @@ Each item is done when it looks and behaves as Explorer's (layout, behaviour, an
       choices unit tested — not run live: connecting or disconnecting a real device (the VM has no Bluetooth adapter
       and none can be emulated; the KS request was checked up to the VM's HD Audio filter, and the page with fake
       devices in both run modes); Windows' own Bluetooth page can't show here, so its layout wasn't compared
-- [ ] T34 Accessibility page: switch Colour filters and Mono audio
+- [x] T34 Accessibility page: switch Colour filters and Mono audio — through the quick actions Windows' Accessibility
+      page uses (ControlCenter's `Microsoft.QuickAction.ColorFilters` / `.MonoMix`: the Settings handlers'
+      `…_ColorFiltering_IsEnabled` and `…_IsAudioMonoMixStateEnabled`), so both switch, show their state and follow
+      changes made elsewhere while the page is open (the filter's handler event; mono through its registry value);
+      the links to Settings are gone. Compared side by side with Windows' page (Win+A): same rows, switches and
+      On/Off texts. Checked live in both run modes: switched from NeoShell (real clicks and UIA), from Windows' page
+      and from another process; the filter applies as the shell (greyscale screenshots) and NeoShell exits cleanly
 - [x] T35 Focus sessions: hide badges and flashing, end chime — NeoShell's calendar now runs Windows' own session
       alongside Explorer (Explorer's undocumented focus theme manager, as Explorer's calendar does), so sessions
       started in Explorer, Settings or the Clock app show in NeoShell and NeoShell's everywhere; Windows hides badges

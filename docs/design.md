@@ -1757,7 +1757,8 @@ on Start and taskbar" is on, and plain theme acrylic otherwise; it follows theme
   `0x41C6013DA3BC3075` with 1 (on) or 2 (off), which is what `EnergySaver.Set` does (`RtlPublishWnfStateData`).
 - **Live captions**: on while `LiveCaptions.exe` runs; see Accessibility below.
 - **Windows' quick actions** (`QuickActions`, Interop `SystemSetting`): night light, nearby sharing, mobile hotspot,
-  VPN, rotation lock and brightness keep their state in Windows' private stores (night light in the cloud data store,
+  VPN, rotation lock and brightness (and the Accessibility page's colour filters and mono audio, below) keep their
+  state in Windows' private stores (night light in the cloud data store,
   whose old CloudStore registry blob 25H2 no longer reads; nearby sharing in the Connected Devices Platform service).
   Windows' own Quick Settings (ShellHost's `ControlCenter.dll` over `QuickActionsDataModel.dll`) doesn't reach into
   them either: each quick action is a setting of the Settings handlers (`SystemSettings.DataModel`), listed under
@@ -1903,10 +1904,22 @@ pages are at least that.
   a switch. Magnifier, Narrator, Live captions and Voice access are apps of their own: on while their executable runs
   in this session, started from System32, and closed with their window's `SC_CLOSE` (Magnifier ignores `WM_CLOSE`),
   or ended when they have no window (`AssistiveTools`). Sticky keys is `SPI_SETSTICKYKEYS` (saved to the profile and
-  announced). Colour filters and Mono audio can't be switched from outside Settings (colour filters are applied by
-  the AT broker through `user32!SetDesktopColorTransform`; `atbroker /start colorfiltering` turns them on but nothing
-  turns them off again), so their rows link to their Settings pages (shell mode: `access.cpl`). None of these states
-  is reported, so they're read when the page or the tiles open. More Accessibility settings.
+  announced). Colour filters and Mono audio are switched as Windows' Accessibility page switches them: it's
+  ControlCenter's `AccessibilityPageViewModel.xaml` (Windows.UI.ControlCenter.pri), whose rows are quick actions of
+  their own (`Microsoft.QuickAction.ColorFilters`, `.MonoMix`, …) registered under `…\Quick Actions\All` like the
+  tiles, so they go through the same Settings handlers (`QuickActions`, see "Windows' quick actions"):
+  `SystemSettings_Accessibility_ColorFiltering_IsEnabled` (SettingsHandlers_nt) and
+  `SystemSettings_Accessibility_IsAudioMonoMixStateEnabled` (SettingsHandlers_Accessibility), each a bool Value.
+  Settings' own switches are other IDs for the same state (`…_ColorFilter_IsEnabled` in SettingsHandlers_Accessibility,
+  `SystemSettings_Audio_MonoMixState` in AudioHandlers). The colour filter's handler raises SettingChanged for changes
+  made in any process (Settings, Windows' Quick Settings), so the row follows them while the page is open; the mono
+  handler reports only its own process's changes, so NeoShell also watches the audio service's
+  `HKCU\Software\Microsoft\Multimedia\Audio` (`AccessibilityMonoMixState`, written for either switch). Both open
+  and switch fine outside Settings and as the shell, where the filter applies without Explorer (checked: greyscale
+  screenshots on, colour again off). Windows' rows show "On"/"Off" beside the switch as NeoShell's do; Windows' page
+  closes when another app takes the foreground, so whether it follows outside changes while open couldn't be seen.
+  The apps' and sticky keys' states aren't reported, so they're read when the page or the tiles open. More
+  Accessibility settings.
 - **Cast** (Win+K): without Wi-Fi there's no Miracast, and the page says so as Windows does ("Connect a cable to
   cast"); with Wi-Fi it offers Settings' wireless display search, since connecting to one has no public API. More
   cast settings opens Display settings (shell mode the adapter's classic properties).

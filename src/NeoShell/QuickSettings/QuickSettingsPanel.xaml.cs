@@ -36,6 +36,8 @@ internal sealed partial class QuickSettingsPanel : UserControl
     private readonly ObservableCollection<MixerApp> _mixerApps = [];
     private readonly ObservableCollection<WifiItem> _wifiNetworks = [];
     private readonly AssistiveFeature[] _assistiveFeatures;
+    // The rows Windows' Settings handlers switch (QuickActions): they follow its changes while the page is open.
+    private readonly AssistiveFeature[] _settingFeatures;
     private Indicators? _indicators;
     private AppIcons? _icons;
     private RunMode _runMode;
@@ -94,9 +96,9 @@ internal sealed partial class QuickSettingsPanel : UserControl
         [
             Tool("Magnifier", "See words and images better", "", "Magnify.exe"),
             Tool("Narrator", "Your built-in screen reader", "", "Narrator.exe"),
-            Link("Colour filters", "Distinguish among colours easily", "", "ms-settings:easeofaccess-colorfilter"),
+            Setting("Colour filters", "Distinguish among colours easily", "", state => state.ColorFilters, (actions, on) => actions.SetColorFilters(on)),
             Tool("Live captions", "Real time audio transcription", "", "LiveCaptions.exe"),
-            Link("Mono audio", "Combine left and right audio channels", "", "ms-settings:easeofaccess-audio"),
+            Setting("Mono audio", "Combine left and right audio channels", "", state => state.MonoAudio, (actions, on) => actions.SetMonoAudio(on)),
             Tool("Voice access", "Interact with your PC using voice", "", "VoiceAccess.exe"),
             new AssistiveFeature
             {
@@ -108,6 +110,7 @@ internal sealed partial class QuickSettingsPanel : UserControl
                 Write = on => Try("sticky keys", () => StickyKeys.IsOn = on),
             },
         ];
+        _settingFeatures = [_assistiveFeatures[2], _assistiveFeatures[4]];
         VisionFeatures.ItemsSource = _assistiveFeatures[..3];
         HearingFeatures.ItemsSource = _assistiveFeatures[3..5];
         MobilityFeatures.ItemsSource = _assistiveFeatures[5..];
@@ -196,6 +199,11 @@ internal sealed partial class QuickSettingsPanel : UserControl
         else if (_page == NearbySharingPage)
         {
             RefreshNearbySharing();
+        }
+        else if (_page == AccessibilityPage)
+        {
+            foreach (AssistiveFeature feature in _settingFeatures)
+                feature.Refresh();
         }
     }
 
@@ -1006,13 +1014,20 @@ internal sealed partial class QuickSettingsPanel : UserControl
         Write = on => AssistiveTools.Set(name, executable, on),
     };
 
-    private static AssistiveFeature Link(string name, string description, string glyph, string settingsUri) => new()
+    // As Windows' Accessibility page, through the Settings handlers: Settings alone has no API for these.
+    private AssistiveFeature Setting(
+        string name, string description, string glyph, Func<QuickActionsState, bool> isOn, Action<QuickActions, bool> set) => new()
     {
         Name = name,
         Description = description,
         Glyph = glyph,
-        AutomationId = $"{name.Replace(" ", "")}Link",
-        SettingsUri = settingsUri,
+        AutomationId = $"{name.Replace(" ", "")}Switch",
+        Read = () => _indicators is { } indicators && isOn(indicators.QuickActions.State),
+        Write = on =>
+        {
+            if (_indicators is { } indicators)
+                set(indicators.QuickActions, on);
+        },
     };
 
     private static void Try(string what, Action action)
@@ -1025,13 +1040,6 @@ internal sealed partial class QuickSettingsPanel : UserControl
         {
             Log.Warn($"Could not change {what}", ex);
         }
-    }
-
-    // As the shell, the Ease of Access Center has the classic versions of these.
-    private void AssistiveLink_Click(object sender, RoutedEventArgs e)
-    {
-        if (sender is FrameworkElement { DataContext: AssistiveFeature { SettingsUri: { } uri } feature })
-            OpenSettings(feature.LinkName, uri, "access.cpl");
     }
 
     private void AccessibilitySettings_Click(object sender, RoutedEventArgs e) =>
