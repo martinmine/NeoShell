@@ -534,6 +534,9 @@ Found while working on milestone 19, not done yet.
   - All apps is flat (Explorer shows Start Menu folders); no arrow keys between items; no zoom-out for the letter
     index (T23)
   - Win+arrow moves jump; Explorer slides them over about 250 ms (T28)
+  - Quick Settings: night light's moon keeps faint sun rays; a 2-3 frame resize between pages; with the light theme
+    and accent on Windows' panel is light-accent; footer colour, slider and page-dot spacing; the panel sits 1 px left
+    (T32). The Bluetooth page's battery glyph, Disconnect button and row spacing weren't compared (T33)
   - Snap Assist's cards fade in after 170 ms; Explorer's fly in from the windows after about 450 ms (T27)
   - The auto-hidden taskbar's 2 px edge can't be reached under a topmost maximized window; a maximized window's border
     covers the sidebar's resize grip (T3)
