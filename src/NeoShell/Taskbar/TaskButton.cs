@@ -19,6 +19,7 @@ internal sealed class TaskButton(string key) : INotifyPropertyChanged
     private bool _isHovered;
     private bool _isDragged;
     private bool _showLabel;
+    private double _width = TaskListBuilder.CombinedButtonWidth;
     private TaskProgress? _progress;
     private ImageSource? _overlay;
     private AppBadge? _badge;
@@ -85,20 +86,30 @@ internal sealed class TaskButton(string key) : INotifyPropertyChanged
         }
     }
 
+    /// <summary>A button for one window, uncombined, has a label: the window's title.</summary>
     public bool ShowLabel
     {
         get => _showLabel;
         private set
         {
             if (Set(ref _showLabel, value))
-            {
                 Raise(nameof(LabelVisibility));
-                Raise(nameof(Width));
-            }
         }
     }
 
-    public double Width => ShowLabel ? TaskListBuilder.LabeledButtonWidth : TaskListBuilder.CombinedButtonWidth;
+    /// <summary>Set by the taskbar: a labelled button's narrows as the taskbar fills (<see cref="TaskbarFit"/>).</summary>
+    public double Width
+    {
+        get => _width;
+        set
+        {
+            if (Set(ref _width, value))
+                Raise(nameof(LabelWidth));
+        }
+    }
+
+    /// <summary>What the label has of the button's width; it's cut off at that, as Explorer's, not ended in an ellipsis.</summary>
+    public double LabelWidth => Math.Max(0, Width - TaskbarFit.LabelChrome);
 
     public Visibility LabelVisibility => ShowLabel ? Visibility.Visible : Visibility.Collapsed;
 

@@ -6,17 +6,16 @@
 
     <!--
         As Explorer's: the time and date and the notification bell in one button, one hover box around both, each part
-        with its own tooltip. Measured on Explorer's at 96 DPI: the box 3 px wider than its parts on each side and a
-        pixel short of Show desktop, the text 4 px in from the left and 2 from the right, the bell 24 px wide, 4 px
-        after the text.
+        with its own tooltip. Measured on Explorer's at 96 DPI: the box right against Show desktop, the text 8 px in from
+        the left and 7 from the right, the bell 24 px wide, 4 px after the text.
     -->
     <Button
         x:Name="ClockButton"
         AutomationProperties.AutomationId="ClockButton"
         AutomationProperties.Name="Clock"
         Height="40"
-        Margin="0,0,1,0"
-        Padding="3,0"
+        Padding="0"
+        VerticalContentAlignment="Stretch"
         CornerRadius="4"
         BorderThickness="0"
         Click="ClockButton_Click">
@@ -31,15 +30,19 @@
                 </VisualState>
             </VisualStateGroup>
         </VisualStateManager.VisualStateGroups>
-        <StackPanel Orientation="Horizontal" Spacing="4">
-            <!-- A pixel above the middle, as Explorer's; tabular digits, so the seconds don't make the time wobble. -->
-            <StackPanel x:Name="TimeAndDate" Margin="4,-1,2,1" VerticalAlignment="Center" Background="Transparent">
-                <TextBlock x:Name="TimeText" HorizontalAlignment="Right" FontSize="12" Typography.NumeralAlignment="Tabular" />
-                <TextBlock x:Name="DateText" HorizontalAlignment="Right" FontSize="12" Typography.NumeralAlignment="Tabular" />
+        <Grid>
+            <!-- While the notification center is open the clock keeps its hover plate, as Explorer's does. -->
+            <Border x:Name="OpenPlate" CornerRadius="4" Background="{ThemeResource SubtleFillColorSecondaryBrush}" Visibility="Collapsed" />
+            <StackPanel Margin="3,0" Orientation="Horizontal" Spacing="4">
+                <!-- A pixel above the middle, as Explorer's; tabular digits, so the seconds don't make the time wobble. -->
+                <StackPanel x:Name="TimeAndDate" Margin="5,-1,4,1" VerticalAlignment="Center" Background="Transparent">
+                    <TextBlock x:Name="TimeText" HorizontalAlignment="Right" FontSize="12" Typography.NumeralAlignment="Tabular" />
+                    <TextBlock x:Name="DateText" HorizontalAlignment="Right" FontSize="12" Typography.NumeralAlignment="Tabular" />
+                </StackPanel>
+                <Grid x:Name="BellArea" Width="24" Background="Transparent" Visibility="Collapsed">
+                    <FontIcon x:Name="Bell" AutomationProperties.AutomationId="NotificationBell" FontSize="16" />
+                </Grid>
             </StackPanel>
-            <Grid x:Name="BellArea" Width="24" Background="Transparent" Visibility="Collapsed">
-                <FontIcon x:Name="Bell" AutomationProperties.AutomationId="NotificationBell" FontSize="16" />
-            </Grid>
-        </StackPanel>
+        </Grid>
     </Button>
 </UserControl>

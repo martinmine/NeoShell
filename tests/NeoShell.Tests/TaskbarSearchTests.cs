@@ -43,6 +43,16 @@ public sealed class TaskbarSearchTests
     }
 
     [Theory]
+    [InlineData(TaskbarSearchMode.Hidden, TaskbarSearchMode.Hidden)]
+    [InlineData(TaskbarSearchMode.Icon, TaskbarSearchMode.Icon)]
+    [InlineData(TaskbarSearchMode.Box, TaskbarSearchMode.Icon)]
+    [InlineData(TaskbarSearchMode.IconAndLabel, TaskbarSearchMode.Icon)]
+    public void A_full_taskbar_shows_the_collapsed_look(TaskbarSearchMode mode, TaskbarSearchMode expected)
+    {
+        Assert.Equal(expected, TaskbarSearch.Collapsed(mode));
+    }
+
+    [Theory]
     [InlineData(TaskbarSearchMode.Hidden)]
     [InlineData(TaskbarSearchMode.Icon)]
     public void Icon_and_hidden_stay_as_they_are(TaskbarSearchMode mode)

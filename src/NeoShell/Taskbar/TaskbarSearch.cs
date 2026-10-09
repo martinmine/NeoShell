@@ -59,10 +59,14 @@ public static class TaskbarSearch
     };
 
     /// <summary>
-    /// The look shown: the box, and the icon with its label, give way to the icon alone when the task buttons
-    /// (<paramref name="taskWidth"/>) don't fit in the room left beside them (<paramref name="available"/>), as
+    /// The look shown: the box, and the icon with its label, give way to the icon alone when the task buttons, at their
+    /// narrowest (<paramref name="taskWidth"/>), don't fit in the room left beside them (<paramref name="available"/>), as
     /// Explorer collapses them once its taskbar is full (<c>SearchItemViewModel::CanCollapse</c>).
     /// </summary>
     public static TaskbarSearchMode Shown(TaskbarSearchMode mode, double taskWidth, double available) =>
-        mode is TaskbarSearchMode.Box or TaskbarSearchMode.IconAndLabel && taskWidth > available ? TaskbarSearchMode.Icon : mode;
+        taskWidth > available ? Collapsed(mode) : mode;
+
+    /// <summary>The look on a full taskbar: the box, and the icon with its label, give way to the icon alone.</summary>
+    public static TaskbarSearchMode Collapsed(TaskbarSearchMode mode) =>
+        mode is TaskbarSearchMode.Box or TaskbarSearchMode.IconAndLabel ? TaskbarSearchMode.Icon : mode;
 }

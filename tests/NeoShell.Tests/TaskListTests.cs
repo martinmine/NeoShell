@@ -149,14 +149,12 @@ public sealed class TaskListTests
     [Theory]
     [InlineData(CombineButtons.Always, 10_000, true)]
     [InlineData(CombineButtons.Never, 10, false)]
-    [InlineData(CombineButtons.WhenFull, 2 * TaskListBuilder.LabeledButtonWidth + TaskListBuilder.CombinedButtonWidth, false)]
-    [InlineData(CombineButtons.WhenFull, 2 * TaskListBuilder.LabeledButtonWidth + TaskListBuilder.CombinedButtonWidth - 1, true)]
+    [InlineData(CombineButtons.WhenFull, 300, false)]
+    [InlineData(CombineButtons.WhenFull, 299, true)]
     public void Combine_mode_decides_when_to_combine(CombineButtons mode, double available, bool expected)
     {
-        // Two running windows (labeled) and one pinned app that isn't running (icon only).
-        IReadOnlyList<TaskButtonModel> uncombined = TaskListBuilder.Build([new PinnedApp("Code", Path: Code)], [Window(1), Window(2)], combine: false);
-
-        Assert.Equal(expected, TaskListBuilder.ShouldCombine(mode, uncombined, available));
+        // The uncombined buttons at their narrowest take 300.
+        Assert.Equal(expected, TaskListBuilder.ShouldCombine(mode, narrowestWidth: 300, available));
     }
 
     [Theory]

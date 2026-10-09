@@ -10,11 +10,8 @@ public sealed record TaskButtonModel(string Key, PinnedApp? Pinned, IReadOnlyLis
 /// <summary>Turns pinned apps and running windows into the row of taskbar buttons.</summary>
 public static class TaskListBuilder
 {
-    /// <summary>Effective width of a combined (icon-only) button, as in Explorer.</summary>
+    /// <summary>Effective width of a button without a label (combined, or pinned and not running), as in Explorer.</summary>
     public const double CombinedButtonWidth = 44;
-
-    /// <summary>Effective width of an uncombined button with its label.</summary>
-    public const double LabeledButtonWidth = 164;
 
     /// <summary>
     /// Pinned apps first, in their pinned order, with their windows; then the other running apps in the order their
@@ -54,15 +51,14 @@ public static class TaskListBuilder
         }
     }
 
-    /// <summary>Whether to combine: always, never, or when the uncombined buttons wouldn't fit.</summary>
-    public static bool ShouldCombine(CombineButtons mode, IReadOnlyList<TaskButtonModel> uncombined, double availableWidth) => mode switch
+    /// <summary>
+    /// Whether to combine: always, never, or when the uncombined buttons wouldn't fit even at their narrowest
+    /// (<paramref name="narrowestWidth"/>, see <see cref="TaskbarFit"/>).
+    /// </summary>
+    public static bool ShouldCombine(CombineButtons mode, double narrowestWidth, double availableWidth) => mode switch
     {
         CombineButtons.Never => false,
-        CombineButtons.WhenFull => uncombined.Sum(Width) > availableWidth,
+        CombineButtons.WhenFull => narrowestWidth > availableWidth,
         _ => true,
     };
-
-    /// <summary>Uncombined, only buttons with a window have a label; pinned apps that aren't running stay icons.</summary>
-    public static double Width(TaskButtonModel button) =>
-        button.Windows.Count > 0 ? LabeledButtonWidth : CombinedButtonWidth;
 }

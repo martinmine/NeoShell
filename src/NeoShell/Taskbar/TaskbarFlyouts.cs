@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using Microsoft.UI;
+using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
@@ -91,6 +92,16 @@ internal static class TaskbarFlyouts
             popup.IsOpen = false;
     }
 
+    /// <summary>
+    /// Closes the taskbar's open menus and flyouts, sliding out as ever: the taskbar lost the foreground they took
+    /// (see <see cref="TakeForeground"/>), as Explorer's close when another app is clicked.
+    /// </summary>
+    public static void HideAll(XamlRoot root)
+    {
+        foreach (FlyoutBase flyout in s_prepared.Concat(s_atPointer).Where(flyout => flyout.IsOpen && flyout.XamlRoot == root).ToList())
+            flyout.Hide();
+    }
+
     /// <summary>Opens the flyout centred above <paramref name="target"/>, as Explorer opens a jump list.</summary>
     /// <remarks>
     /// WinUI's Top placement puts the flyout's edge, not its middle, at the point it's given, and the width is only
@@ -136,6 +147,7 @@ internal static class TaskbarFlyouts
 
         double edge = -Top(target);
         XamlRoot root = target.XamlRoot;
+        TakeForeground(root);
         s_pointerOwner = Win32Interop.GetWindowFromWindowId(root.ContentIslandEnvironment.AppWindowId);
         s_pointerOffset = (int)Math.Round(Math.Max(0, position.Y - edge) * root.RasterizationScale);
         s_pointerMenu = new PointerMenu(flyout);
@@ -213,8 +225,22 @@ internal static class TaskbarFlyouts
         // Opened again on its way out: it closes at once and opens afresh.
         if (s_slideOut?.Flyout == flyout)
             FinishSlideOut();
+        TakeForeground(target.XamlRoot);
         // The gap above the taskbar's top edge, whatever the target's height.
         flyout.ShowAt(target, new FlyoutShowOptions { Position = new Point(x, Above(target)), Placement = placement });
+    }
+
+    // Explorer's flyouts and menus take the foreground, and close when they lose it: a click on another app, even the
+    // one in front. The taskbar doesn't take the foreground when clicked, so it takes it for them; it closes them and
+    // goes back to not taking it when it loses it (TaskbarWindow's Activated handler). After a click on the taskbar,
+    // Windows lets it; after a hotkey (Win+A) the keys went to the app in front, and it takes it as Alt+Tab does.
+    private static void TakeForeground(XamlRoot root)
+    {
+        nint taskbar = Win32Interop.GetWindowFromWindowId(root.ContentIslandEnvironment.AppWindowId);
+        WindowStyles.RemoveExtended(taskbar, ExtendedWindowStyles.NoActivate);
+        TopLevelWindows.Activate(taskbar);
+        if (TopLevelWindows.GetForeground() != taskbar)
+            TopLevelWindows.SwitchTo(taskbar);
     }
 
     private static void Prepare(FlyoutBase flyout)
@@ -224,9 +250,27 @@ internal static class TaskbarFlyouts
 
         flyout.ShouldConstrainToRootBounds = false;
         flyout.AreOpenCloseAnimationsEnabled = false;
-        flyout.Opened += (_, _) => SlideIn(flyout);
+        flyout.Opened += (_, _) =>
+        {
+            SlideIn(flyout);
+            CloseFocusToolTips(flyout);
+        };
         flyout.Closing += (_, e) => StartSlideOut(flyout, e);
     }
+
+    // Opened from the keyboard (Win+A), a flyout puts the keyboard focus on its first control, whose tooltip WinUI then
+    // shows; Explorer's show the focus but no tooltip.
+    private static void CloseFocusToolTips(FlyoutBase flyout) =>
+        flyout.Target?.DispatcherQueue.TryEnqueue(DispatcherQueuePriority.Low, () =>
+        {
+            if (flyout.XamlRoot is not { } root)
+                return;
+            foreach (Popup popup in VisualTreeHelper.GetOpenPopupsForXamlRoot(root))
+            {
+                if (popup.Child is ToolTip tip)
+                    tip.IsOpen = false;
+            }
+        });
 
     // Cancels the closing, slides the window back behind the taskbar's top edge, and closes it then.
     private static void StartSlideOut(FlyoutBase flyout, FlyoutBaseClosingEventArgs e)

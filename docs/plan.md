@@ -523,13 +523,27 @@ Found while working on milestone 19, not done yet.
       windows may not hear of changes made by other processes (T5; not confirmed live)
 - [ ] T39 Explorer parity polish, existing differences noticed by the agents:
   - Flyouts don't close when another app is clicked; the Quick Settings button isn't highlighted while it's open; the
-    Quick Settings footer's shading is reversed (T8)
-  - Task button menu narrower than Explorer's; its launch item shows a generic glyph, not the app's icon (T10)
-  - The taskbar's right-hand items sit 5 px left of Explorer's (T12); the centred group 1 px left (T15)
+    Quick Settings footer's shading is reversed (T8) — flyouts and highlight fixed (T39a): every taskbar flyout and
+    menu takes the foreground as Explorer's and closes when it loses it (Win+A and Win+N too); still open: the
+    footer's shading
+  - The first opening of a flyout shows for a frame before it's hidden (T40) — not reproduced (T39a): 60 fps
+    recordings of the first Quick Settings, jump list and network menu after a start slide in cleanly
+  - Task button menu narrower than Explorer's; its launch item shows a generic glyph, not the app's icon (T10) — fixed
+    (T39a): always 296 px as Explorer's, its rows to the pixel, the app's icon; the items' content stays a pixel left
+  - The taskbar's right-hand items sit 5 px left of Explorer's (T12); the centred group 1 px left (T15) — fixed
+    (T39a): tray, indicators and clock right against each other as Explorer's, to the pixel; the centred Start slot
+    45 px and a single window's plate 40 px
   - Network and volume menus: Explorer's are right-aligned with icons, and the network menu has two more items (T13)
+    — fixed (T39a): Explorer's items, glyphs, separators, commands (Get Help, Bing's speed test; both work as the
+    shell) and places
   - Taskbar tooltips are kept out of the widget sidebar's space (Explorer's show over it); no "open" highlight on the
-    clock while the notification center is open (T14)
+    clock while the notification center is open (T14) — fixed (T39a): tooltips placed as Explorer's (centred on the
+    pointer, 12 px above the taskbar, inside the monitor), the clock's plate; still differs: Explorer's tooltips are
+    acrylic, NeoShell's WinUI's
   - Labelled task buttons never narrow when the taskbar is full; Explorer narrows them before collapsing search (T15)
+    — fixed (T39a): content-sized up to 180, narrowing together towards 84, then the search collapses, matched step by
+    step as the shell; not done: Explorer's smaller buttons and overflow menu after that (NeoShell cuts the row off),
+    and its group-by-group "combine when full"
   - A new pin folder swaps in at once (Explorer fades out and in); the folder panel's colour is approximate (T17)
   - All apps is flat (Explorer shows Start Menu folders); no arrow keys between items; no zoom-out for the letter
     index (T23)

@@ -38,6 +38,8 @@ internal sealed class Taskbars : IDisposable
     private StartMenuWindow? _startMenu;
     private FocusSession? _focus;
     private ClockFlyout? _clockFlyout;
+    // The taskbar the notification center and calendar last opened on: its clock keeps its plate while they're open.
+    private TaskbarWindow? _clockFlyoutTaskbar;
     private ToastPopups? _toasts;
     // Other apps' app bars, served with the tray.
     private AppBars? _appBars;
@@ -147,6 +149,7 @@ internal sealed class Taskbars : IDisposable
         Notifications = new NotificationCenter();
         _focus = new FocusSession(Notifications, asShell: RunMode == RunMode.Shell);
         _clockFlyout = new ClockFlyout(Notifications, _focus, Settings, RunMode);
+        _clockFlyout.OpenChanged += ShowClockOpen;
         // Explorer shows toasts itself while it runs.
         if (RunMode == RunMode.Shell)
         {
@@ -272,8 +275,15 @@ internal sealed class Taskbars : IDisposable
         else if (!_clockFlyout.WasJustDeactivated)
         {
             taskbar.Reveal();
+            _clockFlyoutTaskbar = taskbar;
             _clockFlyout.Show(taskbar.Monitor, taskbar.ScreenBounds, _theme, _accent);
         }
+    }
+
+    private void ShowClockOpen()
+    {
+        foreach (TaskbarWindow window in _windows)
+            window.ShowClockOpen(_clockFlyout?.IsOpen == true && window == _clockFlyoutTaskbar);
     }
 
     /// <summary>Win+N: the notification center on the primary taskbar's monitor.</summary>

@@ -195,7 +195,7 @@ the desktop and back. Full spec in docs/design.md ("Widgets").
   app bar placing, search ranking,
   indexer query building, startup entries, settings, wallpaper style mapping, AppBar rects, desktop icon
   filtering, sorting and grid places, icon spacing and Explorer's saved icon layouts (IconLayouts), icons off the grid, wallpaper per monitor, slideshow order and timing, Explorer's wallpaper and slideshow formats, snap zones and keys, windows moved to another monitor, Snap's settings, suggestions, Snap Assist's zones and card rows, snap groups and their
-  Alt+Tab items, finding a maximize button, Start's pin folders and folder buttons, Start's All categories, order, New/System and tile store, the taskbar search setting and its collapse, thumbnail toolbar data and image lists, pinning by drag, clock settings and notification bell, widget placement and order, MET forecast parsing, wireless device protocols, Windows product name,
+  Alt+Tab items, finding a maximize button, Start's pin folders and folder buttons, Start's All categories, order, New/System and tile store, the taskbar search setting and its collapse, labelled task buttons narrowing as the taskbar fills, thumbnail toolbar data and image lists, pinning by drag, clock settings and notification bell, widget placement and order, MET forecast parsing, wireless device protocols, Windows product name,
   AutoPlay content, events, choice lists and saving, autorun.inf parsing, optical drive names, toast sounds,
   Quick Settings' rotation lock tile and VPN phonebook entries, the Bluetooth page's rows (status, battery, choosing),
   input indicator labels and Win+Space keys, the Copilot key and its choice, task button badges, Start account menu order and "…",

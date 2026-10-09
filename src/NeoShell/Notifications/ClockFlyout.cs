@@ -57,6 +57,9 @@ internal sealed class ClockFlyout : IDisposable
 
     public bool IsOpen { get; private set; }
 
+    /// <summary>It opened or closed (<see cref="IsOpen"/>).</summary>
+    public event Action? OpenChanged;
+
     /// <summary>
     /// Clicking the clock deactivates the flyout before the click arrives; that click must not reopen it.
     /// </summary>
@@ -85,14 +88,18 @@ internal sealed class ClockFlyout : IDisposable
         _calendarPanel.Opening();
 
         IsOpen = true;
+        OpenChanged?.Invoke();
         _center.SetOpen(true);
         _previousForeground = TopLevelWindows.GetForeground();
         int offScreen = monitor.Bounds.X + monitor.Bounds.Width;
         (RectInt32 notifications, RectInt32 calendar) = Layout();
         _notifications.SlideIn(notifications, offScreen, s_openDuration);
         _calendar.SlideIn(calendar, offScreen, s_openDuration);
-        // The click on the taskbar (or Win+N) was the last input, so the flyout may take the foreground.
+        // After a click on the taskbar Windows lets the flyout take the foreground; after Win+N the keys went to the app
+        // in front, and it takes it as Alt+Tab does. Without it, a click on that app wouldn't close it.
         TopLevelWindows.Activate(_calendar.Handle);
+        if (TopLevelWindows.GetForeground() != _calendar.Handle)
+            TopLevelWindows.SwitchTo(_calendar.Handle);
         _calendar.Activate();
     }
 
@@ -104,6 +111,7 @@ internal sealed class ClockFlyout : IDisposable
             return;
 
         IsOpen = false;
+        OpenChanged?.Invoke();
         _center.SetOpen(false);
         nint foreground = TopLevelWindows.GetForeground();
         if (restoreForeground && IsOwn(foreground) && _previousForeground != 0 && TopLevelWindows.Exists(_previousForeground))

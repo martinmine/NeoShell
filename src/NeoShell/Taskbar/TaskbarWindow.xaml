@@ -234,6 +234,14 @@
                     <Setter Property="Background" Value="Transparent" />
                 </Style>
 
+                <!-- A task button's menu (its jump list): as wide as Explorer's whatever it holds, border included, and a pixel
+                     taller at the bottom. -->
+                <Style x:Key="JumpListPresenterStyle" TargetType="MenuFlyoutPresenter" BasedOn="{StaticResource ShellMenuPresenterStyle}">
+                    <Setter Property="MinWidth" Value="296" />
+                    <Setter Property="MaxWidth" Value="296" />
+                    <Setter Property="Padding" Value="0,2,0,3" />
+                </Style>
+
                 <!-- A jump list's category heading in a task button's menu: text only, not a command. -->
                 <Style x:Key="JumpListHeaderStyle" TargetType="MenuFlyoutItem">
                     <Setter Property="IsEnabled" Value="False" />
@@ -241,7 +249,7 @@
                         <Setter.Value>
                             <ControlTemplate TargetType="MenuFlyoutItem">
                                 <TextBlock
-                                    Margin="12,8,12,4"
+                                    Margin="16,8,12,8"
                                     Style="{ThemeResource CaptionTextBlockStyle}"
                                     Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                                     Text="{TemplateBinding Text}" />
@@ -257,7 +265,6 @@
                         Background="Transparent"
                         AutomationProperties.AutomationId="TrayIcon"
                         AutomationProperties.Name="{x:Bind Name, Mode=OneWay}"
-                        ToolTipService.ToolTip="{x:Bind ToolTip, Mode=OneWay}"
                         PointerPressed="TrayIcon_PointerPressed"
                         PointerReleased="TrayIcon_PointerReleased"
                         PointerMoved="TrayIcon_PointerMoved"
@@ -265,6 +272,10 @@
                         PointerExited="TrayIcon_PointerExited"
                         PointerCaptureLost="TrayIcon_PointerCaptureLost"
                         ContextRequested="TrayIcon_ContextRequested">
+                        <ToolTipService.ToolTip>
+                            <!-- Placed as Explorer's (TaskbarToolTips); none for an icon without a tip. -->
+                            <ToolTip Content="{x:Bind ToolTip, Mode=OneWay}" Opened="TrayIconToolTip_Opened" SizeChanged="TrayIconToolTip_SizeChanged" />
+                        </ToolTipService.ToolTip>
                         <Border CornerRadius="4" Background="{ThemeResource SubtleFillColorSecondaryBrush}" Opacity="0" />
                         <Image Width="16" Height="16" Source="{x:Bind Icon, Mode=OneWay}" />
                     </Grid>
@@ -277,13 +288,16 @@
             <ColumnDefinition Width="Auto" />
         </Grid.ColumnDefinitions>
 
-        <!-- Spans both columns so "centred" means the middle of the screen, as in Windows 11. -->
+        <!--
+            Spans both columns so "centred" means the middle of the screen, as in Windows 11. Placed by its left margin
+            (PlaceAppsPanel): centred, it moves left of the middle when the buttons need the room.
+        -->
         <StackPanel
             x:Name="AppsPanel"
             Grid.ColumnSpan="2"
-            Margin="11,0"
+            Margin="11,0,0,0"
             Orientation="Horizontal"
-            HorizontalAlignment="Center"
+            HorizontalAlignment="Left"
             VerticalAlignment="Center">
             <Button
                 x:Name="StartButton"
@@ -400,11 +414,12 @@
                             ContextRequested="TaskItem_ContextRequested">
                             <!-- Not a ContextFlyout: WinUI would open that at the pointer itself (TaskItem_ContextRequested). -->
                             <FlyoutBase.AttachedFlyout>
-                                <MenuFlyout Opening="TaskMenu_Opening" Closed="TaskMenu_Closed" MenuFlyoutPresenterStyle="{StaticResource ShellMenuPresenterStyle}" />
+                                <MenuFlyout Opening="TaskMenu_Opening" Closed="TaskMenu_Closed" MenuFlyoutPresenterStyle="{StaticResource JumpListPresenterStyle}" />
                             </FlyoutBase.AttachedFlyout>
                             <!-- Plates as in Explorer: 40x40 behind the active app, lighter while hovered; with several
-                                 windows, the edge of a second card shows on the right. -->
-                            <Grid Margin="2,4" ColumnSpacing="2" Visibility="{x:Bind ActiveVisibility, Mode=OneWay}">
+                                 windows, the edge of a second card shows on the right (its gap in its own margin, so a single
+                                 window's plate keeps all 40). -->
+                            <Grid Margin="2,4" Visibility="{x:Bind ActiveVisibility, Mode=OneWay}">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition />
                                     <ColumnDefinition Width="Auto" />
@@ -417,12 +432,12 @@
                                 <Border
                                     Grid.Column="1"
                                     Width="3"
-                                    Margin="0,1"
+                                    Margin="2,1,0,1"
                                     CornerRadius="0,4,4,0"
                                     Background="{ThemeResource ControlFillColorDefaultBrush}"
                                     Visibility="{x:Bind StackVisibility, Mode=OneWay}" />
                             </Grid>
-                            <Grid Margin="2,4" ColumnSpacing="2" Visibility="{x:Bind HoverVisibility, Mode=OneWay}">
+                            <Grid Margin="2,4" Visibility="{x:Bind HoverVisibility, Mode=OneWay}">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition />
                                     <ColumnDefinition Width="Auto" />
@@ -431,7 +446,7 @@
                                 <Border
                                     Grid.Column="1"
                                     Width="3"
-                                    Margin="0,1"
+                                    Margin="2,1,0,1"
                                     CornerRadius="0,4,4,0"
                                     Background="{ThemeResource SubtleFillColorSecondaryBrush}"
                                     Visibility="{x:Bind StackVisibility, Mode=OneWay}" />
@@ -443,7 +458,8 @@
                                 Background="{ThemeResource SystemFillColorCautionBrush}"
                                 Opacity="0.4"
                                 Visibility="{x:Bind FlashVisibility, Mode=OneWay}" />
-                            <StackPanel Orientation="Horizontal" Spacing="8" Padding="8,0" HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <!-- The icon 10 px in (centred on a button without a label), the label 8 px after it, as Explorer's. -->
+                            <StackPanel Orientation="Horizontal" Spacing="8" Padding="10,0,0,0" HorizontalAlignment="Left" VerticalAlignment="Center">
                                 <!-- Shrinks while pressed and grows while dragged (IconPress). -->
                                 <Grid x:Name="TaskIcon" Width="24" Height="24">
                                     <Image Source="{x:Bind Icon, Mode=OneWay}" />
@@ -464,10 +480,9 @@
                                         Badge="{x:Bind Badge, Mode=OneWay}" />
                                 </Grid>
                                 <TextBlock
-                                    Width="108"
+                                    Width="{x:Bind LabelWidth, Mode=OneWay}"
                                     VerticalAlignment="Center"
                                     FontSize="12"
-                                    TextTrimming="CharacterEllipsis"
                                     Text="{x:Bind Title, Mode=OneWay}"
                                     Visibility="{x:Bind LabelVisibility, Mode=OneWay}" />
                             </StackPanel>
@@ -484,8 +499,8 @@
                                 ShowPaused="{x:Bind IsProgressPaused, Mode=OneWay}"
                                 Visibility="{x:Bind ProgressVisibility, Mode=OneWay}"
                                 AutomationProperties.AutomationId="TaskProgress" />
-                            <!-- Running: short grey pill; active: long accent pill. -->
-                            <Grid HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,5">
+                            <!-- Running: short grey pill; active: long accent pill. Under the icon, as Explorer's. -->
+                            <Grid Width="44" HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="0,0,0,5">
                                 <Rectangle Width="6" Height="3" RadiusX="1.5" RadiusY="1.5" Fill="{ThemeResource TextFillColorTertiaryBrush}" Visibility="{x:Bind RunningVisibility, Mode=OneWay}" />
                                 <Rectangle Width="16" Height="3" RadiusX="1.5" RadiusY="1.5" Fill="{ThemeResource AccentFillColorDefaultBrush}" Visibility="{x:Bind ActiveVisibility, Mode=OneWay}" />
                             </Grid>
@@ -507,6 +522,7 @@
                     AutomationProperties.Name="Show hidden icons"
                     ToolTipService.ToolTip="Show hidden icons"
                     Width="32"
+                    Margin="0"
                     Style="{StaticResource FlatButtonStyle}"
                     Click="OverflowButton_Click">
                     <!--
@@ -549,13 +565,17 @@
                     </ItemsControl.ItemsPanel>
                 </ItemsControl>
             </StackPanel>
-            <!-- Privacy (while apps use the microphone or the location), network and volume, on the primary taskbar. -->
+            <!--
+                Privacy (while apps use the microphone or the location), network and volume, on the primary taskbar.
+                As Explorer's, the chevron, the tray icons, these and the clock sit right against each other.
+            -->
             <StackPanel x:Name="IndicatorArea" Orientation="Horizontal" VerticalAlignment="Center" Visibility="Collapsed">
                 <!-- Explorer's privacy indicator: the microphone, the location arrow or both, in the accent's text colour. -->
                 <Button
                     x:Name="PrivacyButton"
                     AutomationProperties.AutomationId="PrivacyIndicator"
                     Width="32"
+                    Margin="0"
                     Style="{StaticResource FlatButtonStyle}"
                     Visibility="Collapsed"
                     Click="Privacy_Click"
@@ -604,7 +624,7 @@
                     x:Name="InputButton"
                     AutomationProperties.AutomationId="InputIndicator"
                     Width="44"
-                    Margin="0,0,2,0"
+                    Margin="0"
                     HorizontalContentAlignment="Stretch"
                     VerticalContentAlignment="Stretch"
                     Style="{StaticResource FlatButtonStyle}"
@@ -648,65 +668,111 @@
                     AutomationProperties.AutomationId="QuickSettingsButton"
                     AutomationProperties.Name="Quick Settings"
                     Width="Auto"
-                    Padding="4,0"
+                    Margin="0"
+                    VerticalContentAlignment="Stretch"
                     Style="{StaticResource FlatButtonStyle}"
                     Click="QuickSettingsButton_Click"
                     ContextRequested="QuickSettingsButton_ContextRequested"
                     PointerWheelChanged="Volume_PointerWheelChanged">
-                    <StackPanel Orientation="Horizontal" Spacing="4">
-                        <Grid x:Name="NetworkIndicator" Width="24" Height="40" Background="Transparent" AutomationProperties.AutomationId="NetworkIndicator">
-                            <!-- Explorer's menus on the network and speaker icons; the button's flyout is Quick Settings. -->
-                            <FontIcon x:Name="NetworkIcon" FontSize="16">
-                                <FlyoutBase.AttachedFlyout>
-                                    <MenuFlyout x:Name="NetworkMenu" MenuFlyoutPresenterStyle="{StaticResource ShellMenuPresenterStyle}">
-                                        <MenuFlyoutItem
-                                            AutomationProperties.AutomationId="NetworkSettingsMenuItem"
-                                            Text="Network and Internet settings"
-                                            Click="NetworkSettings_Click" />
-                                    </MenuFlyout>
-                                </FlyoutBase.AttachedFlyout>
-                            </FontIcon>
-                        </Grid>
-                        <Grid x:Name="VolumeIndicator" Width="24" Height="40" Background="Transparent" AutomationProperties.AutomationId="VolumeIndicator">
-                            <FontIcon x:Name="VolumeIcon" FontSize="16">
-                                <FlyoutBase.AttachedFlyout>
-                                    <MenuFlyout x:Name="VolumeMenu" MenuFlyoutPresenterStyle="{StaticResource ShellMenuPresenterStyle}">
-                                        <MenuFlyoutItem
-                                            AutomationProperties.AutomationId="VolumeMixerMenuItem"
-                                            Text="Open volume mixer"
-                                            Click="OpenVolumeMixer_Click" />
-                                        <MenuFlyoutItem
-                                            AutomationProperties.AutomationId="SoundSettingsMenuItem"
-                                            Text="Sound settings"
-                                            Click="SoundSettings_Click" />
-                                    </MenuFlyout>
-                                </FlyoutBase.AttachedFlyout>
-                            </FontIcon>
-                        </Grid>
-                        <Grid
-                            x:Name="BatteryIndicator"
-                            Width="24"
-                            Height="40"
-                            Background="Transparent"
-                            Visibility="Collapsed"
-                            AutomationProperties.AutomationId="BatteryIndicator">
-                            <FontIcon x:Name="BatteryIcon" FontSize="16" />
-                        </Grid>
-                        <!-- Energy saver's leaf, while it's on and there's no battery icon to show it. -->
-                        <Grid
-                            x:Name="EnergySaverIndicator"
-                            Width="24"
-                            Height="40"
-                            Background="Transparent"
-                            Visibility="Collapsed"
-                            AutomationProperties.AutomationId="EnergySaverIndicator"
-                            AutomationProperties.Name="Energy saver is on"
-                            ToolTipService.ToolTip="Energy saver is on">
-                            <FontIcon Glyph="&#xEC0A;" FontSize="16" />
-                        </Grid>
-                    </StackPanel>
+                    <Grid>
+                        <!-- While Quick Settings is open the button keeps its hover plate, as Explorer's does. -->
+                        <Border
+                            x:Name="QuickSettingsOpenPlate"
+                            CornerRadius="4"
+                            Background="{ThemeResource SubtleFillColorSecondaryBrush}"
+                            Visibility="Collapsed" />
+                        <StackPanel Margin="4,0" Orientation="Horizontal" Spacing="4">
+                            <Grid x:Name="NetworkIndicator" Width="24" Height="40" Background="Transparent" AutomationProperties.AutomationId="NetworkIndicator">
+                                <!-- Explorer's menus on the network and speaker icons; the button's flyout is Quick Settings. -->
+                                <FontIcon x:Name="NetworkIcon" FontSize="16">
+                                    <FlyoutBase.AttachedFlyout>
+                                        <!-- Explorer's items, glyphs and separators. -->
+                                        <MenuFlyout x:Name="NetworkMenu" MenuFlyoutPresenterStyle="{StaticResource ShellMenuPresenterStyle}">
+                                            <MenuFlyoutItem
+                                                AutomationProperties.AutomationId="DiagnoseNetworkMenuItem"
+                                                Text="Diagnose network problems"
+                                                Click="DiagnoseNetwork_Click">
+                                                <MenuFlyoutItem.Icon>
+                                                    <FontIcon Glyph="&#xE90F;" />
+                                                </MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
+                                            <MenuFlyoutSeparator />
+                                            <MenuFlyoutItem
+                                                AutomationProperties.AutomationId="SpeedTestMenuItem"
+                                                Text="Perform speed test"
+                                                Click="SpeedTest_Click">
+                                                <MenuFlyoutItem.Icon>
+                                                    <FontIcon Glyph="&#xF42F;" />
+                                                </MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
+                                            <MenuFlyoutSeparator />
+                                            <MenuFlyoutItem
+                                                AutomationProperties.AutomationId="NetworkSettingsMenuItem"
+                                                Text="Network and Internet settings"
+                                                Click="NetworkSettings_Click">
+                                                <MenuFlyoutItem.Icon>
+                                                    <FontIcon Glyph="&#xE713;" />
+                                                </MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
+                                        </MenuFlyout>
+                                    </FlyoutBase.AttachedFlyout>
+                                </FontIcon>
+                            </Grid>
+                            <Grid x:Name="VolumeIndicator" Width="24" Height="40" Background="Transparent" AutomationProperties.AutomationId="VolumeIndicator">
+                                <FontIcon x:Name="VolumeIcon" FontSize="16">
+                                    <FlyoutBase.AttachedFlyout>
+                                        <!-- Explorer's items, glyphs and separator: the first has no glyph. -->
+                                        <MenuFlyout x:Name="VolumeMenu" MenuFlyoutPresenterStyle="{StaticResource ShellMenuPresenterStyle}">
+                                            <MenuFlyoutItem
+                                                AutomationProperties.AutomationId="TroubleshootSoundMenuItem"
+                                                Text="Troubleshoot sound problems"
+                                                Click="TroubleshootSound_Click" />
+                                            <MenuFlyoutSeparator />
+                                            <MenuFlyoutItem
+                                                AutomationProperties.AutomationId="VolumeMixerMenuItem"
+                                                Text="Open volume mixer"
+                                                Click="OpenVolumeMixer_Click">
+                                                <MenuFlyoutItem.Icon>
+                                                    <FontIcon Glyph="&#xE713;" />
+                                                </MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
+                                            <MenuFlyoutItem
+                                                AutomationProperties.AutomationId="SoundSettingsMenuItem"
+                                                Text="Sound settings"
+                                                Click="SoundSettings_Click">
+                                                <MenuFlyoutItem.Icon>
+                                                    <FontIcon Glyph="&#xE713;" />
+                                                </MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
+                                        </MenuFlyout>
+                                    </FlyoutBase.AttachedFlyout>
+                                </FontIcon>
+                            </Grid>
+                            <Grid
+                                x:Name="BatteryIndicator"
+                                Width="24"
+                                Height="40"
+                                Background="Transparent"
+                                Visibility="Collapsed"
+                                AutomationProperties.AutomationId="BatteryIndicator">
+                                <FontIcon x:Name="BatteryIcon" FontSize="16" />
+                            </Grid>
+                            <!-- Energy saver's leaf, while it's on and there's no battery icon to show it. -->
+                            <Grid
+                                x:Name="EnergySaverIndicator"
+                                Width="24"
+                                Height="40"
+                                Background="Transparent"
+                                Visibility="Collapsed"
+                                AutomationProperties.AutomationId="EnergySaverIndicator"
+                                AutomationProperties.Name="Energy saver is on"
+                                ToolTipService.ToolTip="Energy saver is on">
+                                <FontIcon Glyph="&#xEC0A;" FontSize="16" />
+                            </Grid>
+                        </StackPanel>
+                    </Grid>
                     <FlyoutBase.AttachedFlyout>
-                        <Flyout x:Name="QuickSettingsFlyout" Opening="QuickSettingsFlyout_Opening" Closed="QuickSettingsFlyout_Closed">
+                        <Flyout x:Name="QuickSettingsFlyout" Opening="QuickSettingsFlyout_Opening" Opened="QuickSettingsFlyout_Opened" Closed="QuickSettingsFlyout_Closed">
                             <Flyout.FlyoutPresenterStyle>
                                 <Style TargetType="FlyoutPresenter" BasedOn="{StaticResource DefaultFlyoutPresenterStyle}">
                                     <Setter Property="Padding" Value="0" />

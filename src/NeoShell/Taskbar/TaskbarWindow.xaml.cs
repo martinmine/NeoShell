@@ -34,9 +34,14 @@ namespace NeoShell.Taskbar;
 /// <summary>The taskbar on one monitor.</summary>
 internal sealed partial class TaskbarWindow : Window
 {
-    // Effective pixels taken by the Start button, and by the margins around the task list.
-    private const double FixedButtonWidth = 44;
-    private const double AppsPanelMargins = 2 * 11;
+    // Effective pixels, measured on Explorer's: left-aligned, the Start button's slot 11 in from the screen's edge, and
+    // the task buttons going up to 12 short of the right-hand panel; centred, a slot a pixel wider (Start's own pixel to
+    // its right), and the row going up to 58 short of the panel (it moves left of the middle when it must).
+    private const double StartSlot = 44;
+    private const double LeftAlignedMargin = 11;
+    private const double LeftAlignedEndGap = 12;
+    private const double CentredStartSlot = 45;
+    private const double CentredEndGap = 58;
 
     private readonly Taskbars _owner;
     private readonly DisplayMonitor _monitor;
@@ -112,6 +117,9 @@ internal sealed partial class TaskbarWindow : Window
     // Explorer's search setting, and the look shown, which gives way to the icon when the taskbar is full.
     private TaskbarSearchMode _searchMode;
     private TaskbarSearchMode _searchShown;
+    private readonly bool _centred;
+    // Measures the task buttons' labels for their natural widths.
+    private readonly TextBlock _labelMeasure = new() { FontSize = 12 };
 
     public TaskbarWindow(Taskbars owner, DisplayMonitor monitor, ShellSettings settings, ElementTheme theme, Color? accent)
     {
@@ -123,8 +131,9 @@ internal sealed partial class TaskbarWindow : Window
 
         _backdrop = new ShellBackdrop(settings.TaskbarBackdrop);
         SetTheme(theme, accent);
-        AppsPanel.HorizontalAlignment =
-            settings.TaskbarAlignment == TaskbarAlignment.Left ? HorizontalAlignment.Left : HorizontalAlignment.Center;
+        _centred = settings.TaskbarAlignment == TaskbarAlignment.Center;
+        if (_centred)
+            StartButton.Margin = new Thickness(2, 0, 3, 0);
         _searchMode = owner.SearchMode;
         ShowSearch(_searchMode);
         ExitSeparator.Visibility = ExitItem.Visibility =
@@ -140,13 +149,16 @@ internal sealed partial class TaskbarWindow : Window
         nint hwnd = _hwnd = Win32Interop.GetWindowFromWindowId(AppWindow.Id);
         // Out of Alt+Tab, and clicking it leaves the focus in the app the user is working in.
         WindowStyles.AddExtended(hwnd, ExtendedWindowStyles.ToolWindow | ExtendedWindowStyles.NoActivate);
-        // Win+T makes the taskbar activatable for a while (see FocusTaskList); once it's left, clicks go back to
-        // leaving the focus alone.
+        // Win+T and the flyouts make the taskbar activatable for a while (see FocusTaskList, TaskbarFlyouts); once it's
+        // left, clicks go back to leaving the focus alone, and its flyouts close, as Explorer's do.
         Activated += (_, e) =>
         {
             _isActive = e.WindowActivationState != WindowActivationState.Deactivated;
-            if (!_isActive)
-                WindowStyles.AddExtended(hwnd, ExtendedWindowStyles.NoActivate);
+            if (_isActive)
+                return;
+            WindowStyles.AddExtended(hwnd, ExtendedWindowStyles.NoActivate);
+            if (Root.XamlRoot is { } root)
+                TaskbarFlyouts.HideAll(root);
         };
         // Alt+F4 while it has the keyboard (Win+T) would close it; Explorer's taskbar asks to shut down instead.
         AppWindow.Closing += (_, e) =>
@@ -184,6 +196,8 @@ internal sealed partial class TaskbarWindow : Window
         _placement = new PinnedWindow(hwnd, bounds, PinnedLayer.Topmost);
 
         TaskList.ItemsSource = _tasks;
+        foreach (FrameworkElement element in (FrameworkElement[])[StartButton, SearchButton, SearchBox, OverflowButton, EnergySaverIndicator, ShowDesktopButton])
+            TaskbarToolTips.Set(element, (string)ToolTipService.GetToolTip(element));
         IconPress.Attach(StartButton, (UIElement)StartButton.Content);
         IconPress.Attach(SearchButton, SearchButtonIcon);
         IconPress.Attach(SearchPill, SearchPillIcon);
@@ -485,6 +499,9 @@ internal sealed partial class TaskbarWindow : Window
     }
 
     public void UpdateClock() => Clock.Apply(_owner.ClockSettings);
+
+    /// <summary>While the notification center and calendar are open above this taskbar, its clock keeps its plate.</summary>
+    public void ShowClockOpen(bool open) => Clock.ShowOpen(open);
 
     /// <summary>Follows Explorer's search setting.</summary>
     public void SetSearchMode(TaskbarSearchMode mode)
@@ -844,28 +861,44 @@ internal sealed partial class TaskbarWindow : Window
         e.Handled = true;
         bool network = e.TryGetPosition(NetworkIndicator, out Point point)
             && point.X >= 0 && point.X < NetworkIndicator.ActualWidth;
+        // At the right, as Quick Settings, not above the icon: Explorer opens them there.
         if (network)
-            TaskbarFlyouts.ShowCentered(NetworkMenu, NetworkIndicator);
+            TaskbarFlyouts.ShowAtRight(NetworkMenu, NetworkIndicator);
         else
-            TaskbarFlyouts.ShowCentered(VolumeMenu, VolumeIndicator);
+            TaskbarFlyouts.ShowAtRight(VolumeMenu, VolumeIndicator);
     }
 
     private void QuickSettingsFlyout_Opening(object sender, object e) => QuickSettings.Opening(_quickSettingsPage);
 
+    private void QuickSettingsFlyout_Opened(object sender, object e) => QuickSettingsOpenPlate.Visibility = Visibility.Visible;
+
     private void QuickSettingsFlyout_Closed(object sender, object e)
     {
+        QuickSettingsOpenPlate.Visibility = Visibility.Collapsed;
         QuickSettings.Closed();
         _quickSettingsPage = QuickSettingsPage.Main;
     }
 
     private static void SetToolTip(FrameworkElement element, string text)
     {
-        ToolTipService.SetToolTip(element, text);
+        TaskbarToolTips.Set(element, text);
         AutomationProperties.SetName(element, text.Replace("\n", " "));
     }
 
     private void NetworkSettings_Click(object sender, RoutedEventArgs e) =>
         Launcher.OpenSettings(_owner.RunMode, "Network settings", "ms-settings:network", "ncpa.cpl");
+
+    // Get Help's network troubleshooter, as Explorer opens it.
+    private void DiagnoseNetwork_Click(object sender, RoutedEventArgs e) =>
+        Launcher.Launch(new PinnedApp("Diagnose network problems", Path: "ms-contact-support:///?ActivationType=NetworkDiagnostics&invoker=SystemTrayIcon"));
+
+    // Bing's speed test in the default browser, as Explorer opens it.
+    private void SpeedTest_Click(object sender, RoutedEventArgs e) =>
+        Launcher.Launch(new PinnedApp("Perform speed test", Path: "https://www.bing.com/search?q=Internet%20speed%20test&form=wspeed2"));
+
+    // Get Help's sound troubleshooter, as Explorer opens it.
+    private void TroubleshootSound_Click(object sender, RoutedEventArgs e) =>
+        Launcher.Launch(new PinnedApp("Troubleshoot sound problems", Path: "ms-contact-support://windows-speaker-icon/"));
 
     // The page of what's in use, Privacy's for both, as Explorer's; as the shell, Sound's Recording tab for the
     // microphone and otherwise Control Panel, which has no privacy or location pages.
@@ -1002,6 +1035,18 @@ internal sealed partial class TaskbarWindow : Window
         if (point.X >= 0 && point.Y >= 0 && point.X < element.ActualWidth && point.Y < element.ActualHeight)
             _tray?.Send(icon, TrayMouseEvent.Move);
     }
+
+    // An icon whose app gives no tip (or hides it, drawing its own) shows none.
+    private void TrayIconToolTip_Opened(object sender, RoutedEventArgs e)
+    {
+        var tip = (ToolTip)sender;
+        if (tip.Content is null)
+            tip.IsOpen = false;
+        else
+            TaskbarToolTips.Place(tip);
+    }
+
+    private void TrayIconToolTip_SizeChanged(object sender, SizeChangedEventArgs e) => TaskbarToolTips.Place((ToolTip)sender);
 
     private void TrayIcon_PointerEntered(object sender, PointerRoutedEventArgs e)
     {
@@ -1191,20 +1236,25 @@ internal sealed partial class TaskbarWindow : Window
 
         ShellSettings settings = _owner.Settings.Current;
         IReadOnlyList<WindowInfo> windows = _owner.Tracker.Windows;
-        // The room left beside the search box (or the icon with its label), as Settings asks for it.
-        double available = AvailableTaskWidth(TaskbarSearch.Width(_searchMode));
+        // As the taskbar fills, labelled buttons narrow, then the search box gives way to the icon (TaskbarFit); "combine
+        // when full" combines once they don't fit even then.
         IReadOnlyList<TaskButtonModel> uncombined = TaskListBuilder.Build(settings.PinnedTaskbarApps, windows, combine: false);
-        bool combine = TaskListBuilder.ShouldCombine(settings.CombineButtons, uncombined, available);
+        bool combine = TaskListBuilder.ShouldCombine(settings.CombineButtons,
+            uncombined.Sum(model => TaskbarFit.NarrowestWidth(NaturalWidth(model, combine: false))),
+            TaskRoom(TaskbarSearch.Width(TaskbarSearch.Collapsed(_searchMode))));
         IReadOnlyList<TaskButtonModel> models = TaskOrder.Arrange(
             combine ? TaskListBuilder.Build(settings.PinnedTaskbarApps, windows, combine: true) : uncombined,
             _owner.TaskOrder);
         _owner.TaskOrder = [.. models.Select(model => model.Key)];
-        double taskWidth = models.Sum(model => combine ? TaskListBuilder.CombinedButtonWidth : TaskListBuilder.Width(model));
-        TaskbarSearchMode search = TaskbarSearch.Shown(_searchMode, taskWidth, available);
+        double[] naturalWidths = [.. models.Select(model => NaturalWidth(model, combine))];
+        TaskbarSearchMode search = TaskbarSearch.Shown(_searchMode, naturalWidths.Sum(TaskbarFit.NarrowestWidth), TaskRoom(TaskbarSearch.Width(_searchMode)));
         if (search != _searchShown)
             ShowSearch(search);
+        double room = Math.Max(0, TaskRoom(TaskbarSearch.Width(search)));
+        double[] widths = TaskbarFit.Widths(naturalWidths, room);
         // More buttons than fit are cut off rather than drawn over the clock.
-        TaskList.MaxWidth = Math.Max(0, AvailableTaskWidth(TaskbarSearch.Width(search)));
+        TaskList.MaxWidth = room;
+        PlaceAppsPanel(TaskbarSearch.Width(search) + Math.Min(room, widths.Sum()));
 
         // Where each button is now, to slide it from there to its new place.
         bool animate = TaskList.IsLoaded;
@@ -1231,6 +1281,7 @@ internal sealed partial class TaskbarWindow : Window
                 _tasks.Move(existing, i);
             }
             _tasks[i].Update(models[i], _owner.Tracker, combine);
+            _tasks[i].Width = widths[i];
         }
         if (animate)
             AnimateLayoutChange(before, added);
@@ -1333,11 +1384,34 @@ internal sealed partial class TaskbarWindow : Window
         _layoutAnimations.Clear();
     }
 
-    private double AvailableTaskWidth(double searchWidth)
+    // A button for one window, uncombined, is as wide as its label needs; others are icons.
+    private double NaturalWidth(TaskButtonModel model, bool combine)
     {
-        // Centred, the task list must stay clear of the right-hand panel on both sides to stay centred.
-        double right = AppsPanel.HorizontalAlignment == HorizontalAlignment.Center ? 2 * RightPanel.ActualWidth : RightPanel.ActualWidth;
-        return Root.ActualWidth - right - FixedButtonWidth - searchWidth - AppsPanelMargins;
+        if (combine || model.Windows.Count != 1)
+            return TaskListBuilder.CombinedButtonWidth;
+
+        _labelMeasure.Text = model.Windows[0].Title;
+        _labelMeasure.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+        return TaskbarFit.NaturalWidth(_labelMeasure.DesiredSize.Width);
+    }
+
+    // The room for the task buttons beside Start and the search (searchWidth), up to where Explorer stops them.
+    private double TaskRoom(double searchWidth) => _centred
+        ? Root.ActualWidth - RightPanel.ActualWidth - CentredEndGap - CentredStartSlot - searchWidth
+        : Root.ActualWidth - RightPanel.ActualWidth - LeftAlignedEndGap - LeftAlignedMargin - StartSlot - searchWidth;
+
+    // Left-aligned, the row starts at the margin; centred, it's in the middle of the screen, moved left as far as it must
+    // to stay clear of the right-hand panel, as Explorer's. rowWidth is the search's and the buttons' width.
+    private void PlaceAppsPanel(double rowWidth)
+    {
+        if (!_centred)
+        {
+            AppsPanel.Margin = new Thickness(LeftAlignedMargin, 0, 0, 0);
+            return;
+        }
+        double width = CentredStartSlot + rowWidth;
+        double end = Root.ActualWidth - RightPanel.ActualWidth - CentredEndGap;
+        AppsPanel.Margin = new Thickness(Math.Max(0, Math.Min((Root.ActualWidth - width) / 2, end - width)), 0, 0, 0);
     }
 
     private int IndexOf(string key, int start)
@@ -1437,7 +1511,7 @@ internal sealed partial class TaskbarWindow : Window
     {
         Rect button = StartButton.TransformToVisual(Root).TransformBounds(new Rect(0, 0, StartButton.ActualWidth, StartButton.ActualHeight));
         return point.Y >= 0 && point.Y < Root.ActualHeight
-            && TaskbarLayout.IsStartZone(point.X, button.Left, button.Right, AppsPanel.HorizontalAlignment == HorizontalAlignment.Left);
+            && TaskbarLayout.IsStartZone(point.X, button.Left, button.Right, !_centred);
     }
 
     private void TaskList_ItemClick(object sender, ItemClickEventArgs e)
@@ -1551,7 +1625,7 @@ internal sealed partial class TaskbarWindow : Window
         _thumbnails.Hide();
         menu.Items.Clear();
         AddJumpList(menu, button.App);
-        menu.Items.Add(MenuItem(button.App.DisplayName, "", "TaskLaunchMenuItem", () => Launcher.Launch(button.App)));
+        menu.Items.Add(LaunchItem(button.App));
         menu.Items.Add(button.Pinned is { } pinned
             ? MenuItem("Unpin from taskbar", "", "TaskUnpinMenuItem", () => _owner.Unpin(pinned))
             : MenuItem("Pin to taskbar", "", "TaskPinMenuItem", () => _owner.Pin(button.App)));
@@ -1572,6 +1646,28 @@ internal sealed partial class TaskbarWindow : Window
             }));
         }
     }
+
+    // The app's name with its icon, as Explorer's: it starts the app (another instance of it).
+    private MenuFlyoutItem LaunchItem(PinnedApp app)
+    {
+        var icon = new ImageIcon();
+        MenuFlyoutItem item = Trimmed(new MenuFlyoutItem { Text = app.DisplayName, Icon = icon });
+        AutomationProperties.SetAutomationId(item, "TaskLaunchMenuItem");
+        item.Click += (_, _) => Launcher.Launch(app);
+        int size = (int)Math.Round(16 * Root.XamlRoot.RasterizationScale);
+        AppIcons.Load(() => AppIcons.Read(app, size), source => icon.Source = source);
+        return item;
+    }
+
+    // Explorer's menu is as wide whatever it holds (JumpListPresenterStyle), so longer names end in an ellipsis.
+    private static MenuFlyoutItem Trimmed(MenuFlyoutItem item)
+    {
+        item.Resources["MenuFlyoutItemTextTrimming"] = TextTrimming.CharacterEllipsis;
+        return item;
+    }
+
+    // A pixel further from the items than WinUI's, as Explorer's.
+    private static MenuFlyoutSeparator JumpListSeparator() => new() { Padding = new Thickness(-4, 2, -4, 2) };
 
     private void TaskMenu_Closed(object sender, object e)
     {
@@ -1611,12 +1707,12 @@ internal sealed partial class TaskbarWindow : Window
             {
                 if (item.Kind == JumpListItemKind.Separator)
                 {
-                    menu.Items.Add(new MenuFlyoutSeparator());
+                    menu.Items.Add(JumpListSeparator());
                     continue;
                 }
 
                 var icon = new ImageIcon();
-                var entry = new MenuFlyoutItem { Text = item.Title, Icon = icon };
+                MenuFlyoutItem entry = Trimmed(new MenuFlyoutItem { Text = item.Title, Icon = icon });
                 AutomationProperties.SetAutomationId(entry, "JumpListItem");
                 entry.Click += (_, _) => OpenJumpListItem(item);
                 menu.Items.Add(entry);
@@ -1624,7 +1720,7 @@ internal sealed partial class TaskbarWindow : Window
             }
         }
         if (categories.Count > 0)
-            menu.Items.Add(new MenuFlyoutSeparator());
+            menu.Items.Add(JumpListSeparator());
     }
 
     private void OpenJumpListItem(JumpListItem item)
@@ -2096,7 +2192,7 @@ internal sealed partial class TaskbarWindow : Window
 
     private static MenuFlyoutItem MenuItem(string text, string glyph, string automationId, Action onClick)
     {
-        var item = new MenuFlyoutItem { Text = text, Icon = new FontIcon { Glyph = glyph } };
+        MenuFlyoutItem item = Trimmed(new MenuFlyoutItem { Text = text, Icon = new FontIcon { Glyph = glyph } });
         AutomationProperties.SetAutomationId(item, automationId);
         item.Click += (_, _) => onClick();
         return item;

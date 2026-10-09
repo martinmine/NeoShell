@@ -17,8 +17,8 @@ public sealed partial class Clock : UserControl
 {
     private readonly DispatcherQueueTimer _timer;
     // Kept and refilled, so a tooltip that's open follows the seconds rather than closing.
-    private readonly ToolTip _timeToolTip = new();
-    private readonly ToolTip _bellToolTip = new();
+    private readonly ToolTip _timeToolTip = TaskbarToolTips.Create();
+    private readonly ToolTip _bellToolTip = TaskbarToolTips.Create();
     private ClockSettings _settings = ClockSettings.Read();
     private bool _doNotDisturb;
     private int _newNotifications;
@@ -36,6 +36,9 @@ public sealed partial class Clock : UserControl
     }
 
     public event Action? Clicked;
+
+    /// <summary>While the notification center and calendar it opens are open, the clock keeps its plate.</summary>
+    public void ShowOpen(bool open) => OpenPlate.Visibility = open ? Visibility.Visible : Visibility.Collapsed;
 
     public void Apply(ClockSettings settings)
     {

@@ -758,6 +758,20 @@ Shell mode only, like the wallpaper: alongside Explorer, Explorer's desktop has 
   the pointer, before any handler runs), button flyouts as attached flyouts opened on `Click`. WinUI's Top placement
   puts the flyout's edge, not its middle, at the point given, and the width is only known once it's open, so a
   centred flyout opens hidden and is shown again, moved by half its width (kept 12 epx from the screen's edges).
+- **They close when another app is clicked**, as Explorer's (T39a). Explorer's take the foreground: a jump list, the
+  notification center and the calendar are ShellExperienceHost windows, Quick Settings ShellHost's
+  `ControlCenterWindow`, the tray overflow its own `TopLevelWindowForOverflowXamlIsland`, and for the network and
+  speaker menus `Shell_TrayWnd` itself becomes the foreground window; each closes when it loses the foreground (a
+  click on any other app, the one that was in front too). Explorer leaves the foreground with the taskbar when a menu
+  closes some other way, and the app's button loses its active look meanwhile. NeoShell's taskbar is no-activate,
+  so `TaskbarFlyouts` activates it for each flyout and menu it opens (`SetForegroundWindow`: the click on the taskbar
+  was the last input; after a hotkey such as Win+A, where Windows' foreground lock refuses, as Alt+Tab does,
+  `TopLevelWindows.SwitchTo`), and the taskbar's `Activated` handler closes them (`TaskbarFlyouts.HideAll`, sliding
+  out) when it's deactivated, and goes back to no-activate. Clicks inside a flyout's popup window don't activate
+  anything, so they keep it open. The notification center and calendar (`ClockFlyout`) already closed on losing the
+  foreground; Win+N now takes it the same way. Opened from the keyboard, WinUI puts the focus on the flyout's first
+  control and shows that control's tooltip; Explorer shows the focus without one, so tooltips open at that moment
+  are closed.
 - **Moved by the popup's offset, not only by moving its window.** WinUI places a flyout inside the monitor's work
   area (which leaves out the taskbar, and the widget sidebar as the shell), but it doesn't keep a popup's own
   `HorizontalOffset`/`VerticalOffset` inside it: a flyout is moved where it belongs by adding to its `Popup`'s offset
@@ -786,12 +800,21 @@ Shell mode only, like the wallpaper: alongside Explorer, Explorer's desktop has 
   `Opened`, and clears a window region of its own accord while it lays the menu out, so an empty region let the
   flyout flash at its final place before sliding (the jump list's "bounce", the tray flyout's after a few openings).
   While it slides, WinUI's own moves of the window (another layout pass) are held at the slide's position.
+  A flash of a flyout's first opening for one frame (noticed in T40) didn't show in 60 fps recordings of the first
+  opening of Quick Settings, a jump list and the network menu after a start (T39a).
 - The taskbar's menus (jump lists, the taskbar menu, network and speaker menus, the Quick Link menu) get a
   `ShellBackdrop` of their own with a see-through presenter: WinUI's menu backdrop turns solid while the menu's
   window is inactive, as a menu of the no-activate taskbar always is, where Explorer's stay acrylic. Submenus keep
   WinUI's (no way to give them a backdrop).
 - A right-click on a task button stops its previews: none open while its menu is, and the button shows none again
   until the pointer has left it (a hover that began before the click would otherwise open them over the menu).
+- **Tooltips** (`TaskbarToolTips`, T39a), as Explorer's (measured on its clock, speaker, chevron, input indicator
+  and Start tooltips): centred on the pointer (a half pixel going left), their bottom edge 12 px above the taskbar's
+  top wherever the pointer is on it, and kept inside the monitor, not the work area, so they show over the widget
+  sidebar's space. WinUI keeps a tooltip inside the work area and puts it by the pointer's height, so each of the
+  taskbar's is a `ToolTip` whose popup's offsets are set once it has its size (not yet at `Opened` on a first
+  showing) and whenever the size changes (the clock's seconds); WinUI doesn't keep popup offsets inside. Not matched:
+  Explorer's tooltips are acrylic in the taskbar's colours, NeoShell's are WinUI's own.
 - Start's corner: as in Explorer, a click on the taskbar around the Start button acts on it, with its hover and
   press states — left-aligned, everything from the screen's left edge to the button's right, at any height (the
   corner pixel opens Start); centred, also the 13 epx gap on the button's left (`TaskbarLayout.IsStartZone`).
@@ -875,7 +898,26 @@ Shell mode only, like the wallpaper: alongside Explorer, Explorer's desktop has 
   containers (explicit start values): buttons that stay slide from where they were, new ones grow in (scale and
   fade). A refresh during an animation lets it run on; a drag first finishes running ones at their end values
   (stopping one would leave a half-faded button).
-- Sized as Explorer's: 44×48 buttons with a 40×40 plate behind the 24 px icon, shown when hovered or active.
+- Sized as Explorer's: 44×48 buttons with a 40×40 plate behind the 24 px icon, shown when hovered or active (with
+  several windows a 35 px plate, 2 px, then the 3 px edge of a second card; the edge's gap is its own margin, as a
+  grid's column spacing took 2 px off a single window's plate, which drew the centred group a pixel left).
+- **Labelled buttons** (never combined, or combined when full and there's room), measured on Explorer with UI
+  Automation and screenshots (T39a): the icon 10 px in, the label 8 px after it and 10 px short of the button's
+  right, so a button is 52 px wider than its label (`TaskbarFit`, unit tested), up to 180; the pills under the icon,
+  not the button's middle. As the taskbar fills, all labelled buttons narrow together, each keeping the same share
+  of what it has above 84 px (Explorer's widths at each step were matched within UIA's whole pixels: 174/90/95/99/113
+  for eight windows, then 143, 122, 106, 94 as windows were added); the labels are cut off, not ended in an
+  ellipsis. When they don't fit even at 84, the search box (or icon and label) collapses to the icon and they widen
+  again; at 84 once more, Explorer shrinks its icons (16 px icons in 32 px slots, labelled buttons from 76 px:
+  "smaller taskbar buttons when full") and then moves buttons into an overflow menu ("..."); NeoShell does neither
+  and cuts the row off. "Combine when full" combines once the uncombined buttons don't fit even at their narrowest
+  beside the search icon; Explorer combines group by group, after shrinking its icons (not done).
+- **Room** (measured): left-aligned, the Start slot is 11 px in and the buttons go up to 12 px short of the
+  right-hand panel (the chevron); centred, the row is in the middle of the screen, moved left as far as it must for
+  its right end to stay 58 px short of that panel, and from the screen's left edge once it fills that room; the
+  centred Start slot is 45 px (the button's extra pixel on its right). NeoShell places the row by its left margin
+  (`PlaceAppsPanel`) and caps the list at the room. Side by side as the shell, NeoShell's row matched Explorer's
+  positions and widths at every step up to Explorer's smaller buttons.
 - Packaged apps' icons come from their package's `targetsize-24_altform-unplated` image, as in Explorer; the shell's
   24 px icon is scaled from a bigger image and comes out a pixel off.
 - Indicators: running (short grey pill), active (long accent pill and plate), several windows (the plate shows a
@@ -992,6 +1034,13 @@ have their icons (loaded in the background) and open on click.
 - Pinned entries (kept in `AutomaticDestinations`) aren't shown, and entries can't be pinned or removed. Explorer
   shows them under Pinned, first (File Explorer's are Quick access, then left out of its Frequent), on the taskbar and
   in Start's app menus alike.
+- **The menu** (T39a, measured on Explorer's for File Explorer, Terminal, Claude and Windows PowerShell): always
+  296 px wide, border included, whatever it holds (its windows are all 318 with the shadow), so longer names end in
+  an ellipsis; headings 16 px in, 8 px above and below; separators a pixel further from the items than WinUI's, and
+  the menu a pixel taller at the bottom: NeoShell's rows now land on Explorer's to the pixel. The items' icons and
+  text sit a pixel left of Explorer's (WinUI's padding for a menu opened by the mouse comes from its template's
+  visual state and can't be widened). The launch item (the app's name) shows the app's 16 px icon, as Explorer's
+  (`AppIcons.Read`), not a glyph.
 
 ### Thumbnails
 
@@ -1256,14 +1305,12 @@ Explorer's look (Taskbar.View.dll `SearchBoxButton`/`SearchBoxLaunchListButton`,
   Icons, 16 px, a pixel below the label's centre) and "Search" at 12 px, no gap, `TextFillColorPrimary`; pressed
   both turn `Secondary` and the icon shrinks. No tooltip.
 - **Full taskbar** — the box and the label collapse to the icon (`CanCollapse`; `UpdateEffectiveSearchMode` falls
-  back to 1 when there's no room, `IsSpaceAvailableForSearchBox`) and expand again when there's room. Explorer first
-  narrows labelled buttons to their minimum (~98 px), then collapses the search, then shrinks icons; NeoShell's
-  buttons don't narrow, so it collapses the search as soon as the buttons don't fit beside it
-  (`TaskbarSearch.Shown`).
+  back to 1 when there's no room, `IsSpaceAvailableForSearchBox`) and expand again when there's room: once labelled
+  buttons don't fit beside it even at their narrowest, 84 px (see Task buttons; `TaskbarSearch.Shown`).
 - **Search highlights** (the "gleam" picture at the box's end, `IsDynamicSearchBoxEnabled`) are Bing content served
   to Windows Search through no public API, and are off on this VM; NeoShell doesn't show them.
-- Centred, the slot sits between Start and the task buttons as left-aligned (the centred group lands 1 px left of
-  Explorer's in every mode: Explorer's centred Start slot is 45 px). NeoShell switches looks without animating.
+- Centred, the slot sits between Start and the task buttons as left-aligned; the centred Start slot is 45 px, as
+  Explorer's (T39a; the group sat a pixel left before). NeoShell switches looks without animating.
 - A click opens Start with its search box focused, as before, in both run modes; Explorer opens its
   own Search window instead (T21: Start's search stays).
 
@@ -1461,8 +1508,12 @@ the same steps under Explorer and under NeoShell: every reply, rectangle, work a
 - States: Ethernet, Wi-Fi (`WlanConnectionProfileDetails`, `GetSignalBars()` 0–5), cellular, no internet access,
   disconnected. Each maps to a Segoe Fluent Icons glyph; airplane mode shows the plane instead, even with a cable
   still connected, as Explorer does.
-- Tooltip: network name and access status ("Airplane mode" while it's on). Right-click menu: Network and Internet
-  settings (`ms-settings:network`; shell mode `ncpa.cpl`).
+- Tooltip: network name and access status ("Airplane mode" while it's on). Right-click menu, Explorer's (T39a),
+  separated by lines: Diagnose network problems (U+E90F, Get Help's troubleshooter:
+  `ms-contact-support:///?ActivationType=NetworkDiagnostics&invoker=SystemTrayIcon`), Perform speed test (U+F42F, Bing
+  in the default browser: `https://www.bing.com/search?q=Internet%20speed%20test&form=wspeed2`), Network and Internet
+  settings (U+E713, `ms-settings:network`; shell mode `ncpa.cpl`). Read from the processes Explorer started; both
+  links work as the shell too. Glyphs matched by correlating Explorer's 16 px icons with Segoe Fluent Icons' glyphs.
 
 ### Volume
 
@@ -1471,8 +1522,11 @@ the same steps under Explorer and under NeoShell: every reply, rectangle, work a
 - `IMMNotificationClient` to follow default-device changes.
 - Icon reflects mute and level (0 / low / medium / high glyphs). Mouse wheel over the button changes volume in 2%
   steps.
-- Right-click menu on the icon, as Explorer's: Open volume mixer (`ms-settings:apps-volume`; shell mode the classic
-  `sndvol.exe`) and Sound settings.
+- Right-click menu on the icon, as Explorer's (T39a): Troubleshoot sound problems (no glyph; Get Help's
+  `ms-contact-support://windows-speaker-icon/`, which works as the shell too), a line, Open volume mixer (U+E713,
+  `ms-settings:apps-volume`; shell mode the classic `sndvol.exe`) and Sound settings (U+E713).
+- Both menus open at the right of the screen as Quick Settings does, not above the icon: their right edge 13 px from
+  the screen's, their bottom 13 px above the taskbar (the same windows' places as Explorer's, to the pixel).
 
 ### Battery and energy saver
 
@@ -1484,7 +1538,14 @@ the same steps under Explorer and under NeoShell: every reply, rectangle, work a
 
 - Network, volume and battery are one flat button with one hover plate, as on the Windows 11 taskbar; each icon is
   a cell with its own tooltip and right-click menu (the cell under the pointer decides; from the keyboard, the
-  speaker's). Clicking opens Quick Settings at the screen's right edge; clicking again closes it.
+  speaker's). Clicking opens Quick Settings at the screen's right edge; clicking again closes it. While Quick
+  Settings is open the button keeps its hover plate (`QuickSettingsOpenPlate`), as Explorer's (and its input
+  indicator's, T8); hovered then, Explorer's plate gets a little lighter, NeoShell's doesn't (the open flyout's
+  light-dismiss layer keeps the pointer from the button).
+- **Spacing** (T39a, measured with hover boxes alongside and as the shell): Explorer's chevron (32), tray icons (32
+  each), input indicator (44), this button (60 with network and speaker) and the clock sit right against each other
+  and against Show desktop: 1506, 1538, 1570, 1614, 1674 and 1752 on this VM's 1764 px screen, which NeoShell now
+  matches to the pixel (its buttons had 2 px margins, which put the tray 5 px left).
 
 ### Privacy indicator (Interop `Privacy/CapabilityUsage`)
 
@@ -1606,10 +1667,9 @@ Explorer's clock area is SystemTray.dll (Client.Core): `ClockSystemTrayIconDataM
   foot), so the seconds don't make the text wobble and the date is 2 px wider than with proportional digits.
 - **Ticking**: one timer per update, re-armed each time: with seconds 1000 − ms after the second, otherwise at the
   next minute. Recorded at 60 fps side by side, NeoShell's second ticks land within 1–3 frames of Explorer's.
-- **Layout** (96 DPI, measured with UI Automation and screenshots): one hover box, 40 px tall, around both parts,
-  3 px wider than them on either side and ending a pixel short of Show desktop (76 px wide for "07/10/2026" without
-  the bell, 104 with it); the text 4 px in from the clock part's left and 2 from its right, right-aligned, a pixel
-  above the middle (time ink 12–19 px, date 28–37 px below the taskbar's top); the bell 24 px wide, 4 px after the
+- **Layout** (96 DPI, measured with UI Automation and screenshots; re-measured side by side in T39a): one hover box,
+  40 px tall, around both parts, right against Show desktop (78 px wide for "09/10/2026" without the bell); the
+  text 8 px in from the box's left and 7 from its right, right-aligned, a pixel above the middle (time ink 12–19 px, date 28–37 px below the taskbar's top); the bell 24 px wide, 4 px after the
   clock part, its 16 px glyph centred. One button in NeoShell (Explorer has two, the clock and the bell, sharing
   the hover box); each part has its own tooltip, and both open the notification center and calendar. Explorer's
   system XAML rounds text widths up where WinUI rounds them to nearest, so the box can be a pixel narrower and the
@@ -1619,6 +1679,8 @@ Explorer's clock area is SystemTray.dll (Client.Core): `ClockSystemTrayIconDataM
   Dark 2 in light: `AccentTextFillColorPrimaryBrush`); with Do not disturb U+F285 / U+F2A8, in the text colour. No
   animation: the glyph swaps in one frame. Tooltip (and UIA name after "Notifications"): "No new notifications",
   "1 new notification", "N new notifications", plus " (Do not disturb on)".
+- **Open**: while the notification center and calendar are open, the clock of the taskbar they opened from keeps its
+  hover plate, as Explorer's (`Clock.ShowOpen`, from `ClockFlyout.OpenChanged`).
 - **New notifications** are the notification platform's count, not NeoShell's: WpnUserService's
   `IndicatorController` (NotificationController.dll) counts notifications that came since a notification center
   was last open and publishes it in the WNF state `WNF_SHEL_NOTIFICATIONS` (`0x0D83063EA3BC1035`, a DWORD), which
