@@ -50,6 +50,14 @@ public static class ShellWorkArea
     public static RectInt32 Get(RectInt32 monitor) => Compute(monitor, Reserved(monitor));
 
     /// <summary>
+    /// The monitors with their work areas as reserved here, for what's placed in them (Snap). Windows' own can be the
+    /// whole monitor for seconds: it gives each monitor its whole screen when the displays change (as they do right
+    /// after signing in), until NeoShell hears of the change and the reservations go out again (<see cref="SendAgain"/>).
+    /// </summary>
+    public static IReadOnlyList<DisplayMonitor> Monitors() =>
+        [.. DisplayMonitor.GetAll().Select(monitor => monitor with { WorkArea = Get(monitor.Bounds) })];
+
+    /// <summary>
     /// Where a window can be dragged: the work area with the sidebar's strip, which windows may cover. Windows keeps
     /// the pointer inside the work area while it moves a window, and the sidebar shouldn't fence windows off.
     /// </summary>

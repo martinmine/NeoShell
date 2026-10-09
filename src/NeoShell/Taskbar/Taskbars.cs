@@ -569,7 +569,7 @@ internal sealed class Taskbars : IDisposable
     private void CloseWindows()
     {
         foreach (TaskbarWindow window in _windows)
-            window.Close();
+            window.Shut();
         _windows.Clear();
     }
 }

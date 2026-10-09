@@ -53,6 +53,7 @@ internal static unsafe partial class User32
     public const int SW_SHOWNOACTIVATE = 4;
 
     public const uint GW_HWNDLAST = 1;
+    public const uint GW_HWNDNEXT = 2;
     public const uint GW_HWNDPREV = 3;
     public const uint GW_OWNER = 4;
     public const uint GA_ROOT = 2;

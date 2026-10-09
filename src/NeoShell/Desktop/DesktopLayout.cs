@@ -150,9 +150,11 @@ public static class DesktopLayout
         if (workspaces.Count == 0)
             return places;
 
-        // The latest of the layouts Explorer takes for the same desktop: this one, or one only the primary monitor's
-        // grid tells apart (the sidebar narrows it while NeoShell is the shell).
-        LayoutDesktop? desktop = layouts.Desktops.LastOrDefault(saved => saved.LinkedKey is null && LooksTheSame(saved.Workspaces, workspaces));
+        // This desktop's own layout (or the one Explorer linked it to); else, as Explorer takes for a desktop it hasn't
+        // seen, the latest of those only the primary monitor's grid tells apart (the sidebar narrows it while NeoShell
+        // is the shell).
+        LayoutDesktop? desktop = layouts.Find(Key(workspaces)) is { } own ? (own.LinkedKey is { } link ? layouts.Find(link) : own) : null;
+        desktop ??= layouts.Desktops.LastOrDefault(saved => saved.LinkedKey is null && LooksTheSame(saved.Workspaces, workspaces));
         int[] map; // workspace in the saved desktop -> workspace now, or -1
         if (desktop is not null)
         {
@@ -176,10 +178,11 @@ public static class DesktopLayout
     }
 
     /// <summary>
-    /// The layouts with the desktop for these monitors holding the icons' places now, in place of any Explorer takes
-    /// for the same desktop: Explorer links desktops that differ only in the primary monitor's grid and shows one's
-    /// icons for both (shell32's <c>DesktopData::LooksTheSameToTheUser</c>, <c>LinkTo</c>), so an older one left
-    /// beside this would bring back old places.
+    /// The layouts with the desktop for these monitors (by its key) holding the icons' places now, and every other
+    /// desktop as it was. Not over a desktop that differs only in the primary monitor's grid (Explorer's, while the
+    /// sidebar narrows NeoShell's): Explorer finds its own by its key, and without it may lay its icons out afresh. That's
+    /// as Explorer keeps them: icons moved on a desktop it took another's places for are saved for its own key, leaving
+    /// the other's as they were.
     /// </summary>
     public static IconLayouts WithPlaces(
         IconLayouts layouts, IReadOnlyList<DesktopWorkspace> workspaces, IEnumerable<(string Name, LayoutIconFlags Flags, IconPosition Position)> icons)
@@ -204,15 +207,6 @@ public static class DesktopLayout
                 }),
             ],
             LinkFlags: null);
-
-        var replaced = layouts.Desktops
-            .Where(other => other.LinkedKey is null && LooksTheSame(other.Workspaces, workspaces))
-            .Select(other => other.Key)
-            .ToHashSet(StringComparer.Ordinal);
-        layouts = layouts with
-        {
-            Desktops = [.. layouts.Desktops.Where(other => !replaced.Contains(other.Key) && !(other.LinkedKey is { } link && replaced.Contains(link)))],
-        };
         return layouts.With(desktop);
     }
 

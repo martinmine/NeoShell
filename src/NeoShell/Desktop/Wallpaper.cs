@@ -18,6 +18,7 @@ internal sealed class Wallpaper(SettingsStore settings, Action closeRequested) :
     private readonly DispatcherQueue _dispatcher = DispatcherQueue.GetForCurrentThread();
     private readonly DesktopIcons _icons = new(settings);
     private readonly List<WallpaperWindow> _windows = [];
+    private readonly WindowEvents _shown = new(WindowEvent.Shown, WindowEvent.Shown);
     private Slideshow? _slideshow;
     private WallpaperService? _service;
     private WallpaperSettings? _settings;
@@ -30,6 +31,7 @@ internal sealed class Wallpaper(SettingsStore settings, Action closeRequested) :
     public void Show()
     {
         QueueUpdate(displaysChanged: true);
+        _shown.Raised += (_, hwnd) => RaiseAboveWallpaper(hwnd);
 
         _slideshow = new Slideshow(OnSlideshowChanged);
         _slideshow.Refresh();
@@ -50,10 +52,26 @@ internal sealed class Wallpaper(SettingsStore settings, Action closeRequested) :
     public void Dispose()
     {
         _updateVersion++;
+        _shown.Dispose();
         _service?.Dispose();
         _slideshow?.Dispose();
         CloseWindows();
         _icons.Dispose();
+    }
+
+    /// <summary>
+    /// Puts a window an app has just shown on top of the other windows when it went below the wallpaper. Windows puts the
+    /// window of an app that may not take the foreground below the lowest window of the thread in front
+    /// (win32k's <c>CalcForegroundInsertAfter</c>); with NeoShell in front (its taskbar clicked) that's the wallpaper, a
+    /// window of the same thread, so the window opened out of sight. Explorer's desktop has a thread of its own, and with
+    /// its taskbar in front such a window opens on top of the others, behind the taskbar.
+    /// </summary>
+    private void RaiseAboveWallpaper(nint hwnd)
+    {
+        if (TopLevelWindows.IsMinimized(hwnd) || TopLevelWindows.IsDesktop(hwnd))
+            return;
+        if (_windows.Any(window => TopLevelWindows.IsBelow(hwnd, window.Handle)))
+            TopLevelWindows.BringAboveOthers(hwnd);
     }
 
     // The slideshow's change comes with a broadcast of its own; the update it queues crossfades.

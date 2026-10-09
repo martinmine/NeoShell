@@ -305,16 +305,28 @@ internal sealed partial class TaskbarWindow : Window
             _hoverTimer.Stop();
             _hideTimer.Stop();
             _dragHoverTimer.Stop();
-            _thumbnails.Close();
+            _thumbnails.Shut();
             // Give the space back first, so windows can use it straight away.
             if (_appBar is not null)
                 _appBar.Dispose();
             else if (!_autoHide)
                 ShellWorkArea.ReserveBottom(monitor.Bounds, 0);
-            _placement.Dispose();
-            _messages.Dispose();
-            _frameless.Dispose();
         };
+    }
+
+    /// <summary>
+    /// Closes the window, its open menus and flyouts first (see <see cref="TaskbarFlyouts.CloseAll"/>), as widget
+    /// windows close: let go of and kept from WinUI's moves while closing (see <see cref="WindowClosing.IgnoreMoves"/>).
+    /// </summary>
+    public void Shut()
+    {
+        if (Root.XamlRoot is { } root)
+            TaskbarFlyouts.CloseAll(root);
+        _placement.Dispose();
+        _messages.Dispose();
+        _frameless.Dispose();
+        WindowClosing.IgnoreMoves(_hwnd);
+        Close();
     }
 
     public DisplayMonitor Monitor => _monitor;
@@ -338,7 +350,9 @@ internal sealed partial class TaskbarWindow : Window
     // Auto-hide: slide away once the pointer has been off the taskbar for a moment and nothing of it is in use.
     private void CheckAutoHide()
     {
-        if (_hidden)
+        // No XamlRoot until the content's first layout, which may come after the first tick when the shell is starting:
+        // asking WinUI for the popups of none throws, and an exception in a timer's tick ends NeoShell.
+        if (_hidden || Root.XamlRoot is not { } xamlRoot)
             return;
 
         RectInt32 shown = _shownBounds;
@@ -347,7 +361,7 @@ internal sealed partial class TaskbarWindow : Window
             && pointer.Y >= shown.Y && pointer.Y < shown.Y + shown.Height;
         bool inUse = pointerOver
             || _isActive // Win+T
-            || VisualTreeHelper.GetOpenPopupsForXamlRoot(Root.XamlRoot).Count > 0 // menus and flyouts
+            || VisualTreeHelper.GetOpenPopupsForXamlRoot(xamlRoot).Count > 0 // menus and flyouts
             || _thumbnails.Button is not null
             || _owner.IsStartMenuOpen
             || _owner.IsClockFlyoutOpen;

@@ -6,6 +6,9 @@ namespace NeoShell.Interop.Windowing;
 
 public static unsafe class TopLevelWindows
 {
+    // NeoShell's integrity level, read once.
+    private static uint? s_ownIntegrity;
+
     /// <summary>All top-level windows in z-order, topmost first.</summary>
     public static IReadOnlyList<nint> GetAll()
     {
@@ -261,9 +264,37 @@ public static unsafe class TopLevelWindows
     /// <summary>The monitor the window is mostly on, or the nearest one when it's on none.</summary>
     public static nint NearestMonitorOf(nint hwnd) => User32.MonitorFromWindow(hwnd, User32.MONITOR_DEFAULTTONEAREST);
 
+    /// <summary>Whether <paramref name="hwnd"/> is anywhere below <paramref name="other"/> in the z-order.</summary>
+    public static bool IsBelow(nint hwnd, nint other)
+    {
+        for (nint next = User32.GetWindow(other, User32.GW_HWNDNEXT); next != 0; next = User32.GetWindow(next, User32.GW_HWNDNEXT))
+        {
+            if (next == hwnd)
+                return true;
+        }
+        return false;
+    }
+
     /// <summary>Puts the window on top of its band (topmost or not) without activating it.</summary>
     public static void BringToTop(nint hwnd) =>
         User32.SetWindowPos(hwnd, User32.HWND_TOP, 0, 0, 0, 0, User32.SWP_NOMOVE | User32.SWP_NOSIZE | User32.SWP_NOACTIVATE);
+
+    /// <summary>
+    /// Puts another app's window that isn't topmost on top of the others that aren't, without activating it, whatever is
+    /// in front: Windows takes <c>HWND_TOP</c> for a window of a thread that isn't in front as just below the lowest
+    /// window of the thread that is, so it goes just below the last topmost window instead.
+    /// </summary>
+    public static void BringAboveOthers(nint hwnd)
+    {
+        nint after = User32.HWND_TOP;
+        foreach (nint window in GetAll())
+        {
+            if ((User32.GetWindowLongPtr(window, User32.GWL_EXSTYLE) & User32.WS_EX_TOPMOST) == 0)
+                break;
+            after = window;
+        }
+        User32.SetWindowPos(hwnd, after, 0, 0, 0, 0, User32.SWP_NOMOVE | User32.SWP_NOSIZE | User32.SWP_NOACTIVATE);
+    }
 
     /// <summary>
     /// Whether the window is the desktop: the shell window, or Explorer's desktop windows (which cover the screen but
@@ -346,9 +377,12 @@ public static unsafe class TopLevelWindows
 
     /// <summary>
     /// Minimizes, restores or maximizes a window. Windows refuses that for a window of an app running as administrator
-    /// (UIPI: NeoShell runs at a lower integrity level), so it gets the system menu's command instead, which passes, as
-    /// if the user chose it there (a minimized one then activates the next window, a restored one itself). Without it,
-    /// an elevated window minimized couldn't be brought back from the taskbar.
+    /// (UIPI: NeoShell runs at a lower integrity level), so it gets the system menu's command instead, as if the user
+    /// chose it there (a minimized one then activates the next window, a restored one itself). Without it, an elevated
+    /// window minimized couldn't be brought back from the taskbar. Only Minimize, Restore and Close pass: win32k lets
+    /// <c>WM_SYSCOMMAND</c> through to a higher integrity level with exactly <c>SC_MINIMIZE</c>, <c>SC_RESTORE</c> or
+    /// <c>SC_CLOSE</c> (<c>CheckForMessageAccessCrossIL</c>), so such a window can't be maximized (see
+    /// <see cref="IsOfHigherIntegrity"/>).
     /// </summary>
     /// <param name="wait">Done before returning, not queued for the window's thread (the command is queued either way).</param>
     private static void Show(nint hwnd, int show, nint systemCommand, bool wait = false)
@@ -357,6 +391,47 @@ public static unsafe class TopLevelWindows
         bool done = wait ? User32.ShowWindow(hwnd, show) : User32.ShowWindowAsync(hwnd, show);
         if (!done && Marshal.GetLastPInvokeError() == ERROR_ACCESS_DENIED)
             User32.PostMessage(hwnd, User32.WM_SYSCOMMAND, systemCommand, 0);
+    }
+
+    /// <summary>
+    /// Whether the window is an app's running at a higher integrity level than NeoShell (as administrator), or one whose
+    /// level can't be read. Windows refuses NeoShell moving, sizing or maximizing such a window (UIPI), which Explorer
+    /// does through a call only it may make (<c>ShellSetWindowPos</c>, for the immersive shell); only the system menu's
+    /// Minimize, Restore and Close get through (see <see cref="Show"/>).
+    /// </summary>
+    public static bool IsOfHigherIntegrity(nint hwnd)
+    {
+        s_ownIntegrity ??= IntegrityOf(-1 /* current process */);
+        nint process = Kernel32.OpenProcess(Kernel32.PROCESS_QUERY_LIMITED_INFORMATION, false, (uint)GetProcessId(hwnd));
+        if (process == 0)
+            return true;
+        try
+        {
+            return IntegrityOf(process) is not { } level || level > s_ownIntegrity;
+        }
+        finally
+        {
+            Kernel32.CloseHandle(process);
+        }
+    }
+
+    // The process's mandatory label: its SID's last sub-authority (0x2000 medium, 0x3000 high).
+    private static uint? IntegrityOf(nint process)
+    {
+        if (!Advapi32.OpenProcessToken(process, Advapi32.TOKEN_QUERY, out nint token))
+            return null;
+        try
+        {
+            byte* label = stackalloc byte[64]; // TOKEN_MANDATORY_LABEL and its SID
+            if (!Advapi32.GetTokenInformation(token, Advapi32.TokenIntegrityLevel, label, 64, out _))
+                return null;
+            nint sid = *(nint*)label;
+            return *Advapi32.GetSidSubAuthority(sid, (uint)(*Advapi32.GetSidSubAuthorityCount(sid) - 1));
+        }
+        finally
+        {
+            Kernel32.CloseHandle(token);
+        }
     }
 
     public static int GetProcessId(nint hwnd)

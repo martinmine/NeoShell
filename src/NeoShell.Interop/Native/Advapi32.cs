@@ -30,6 +30,18 @@ internal static unsafe partial class Advapi32
     [return: MarshalAs(UnmanagedType.Bool)]
     public static partial bool OpenProcessToken(nint process, uint access, out nint token);
 
+    public const int TokenIntegrityLevel = 25;
+
+    [LibraryImport("advapi32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static partial bool GetTokenInformation(nint token, int informationClass, void* information, uint length, out uint returnLength);
+
+    [LibraryImport("advapi32.dll")]
+    public static partial byte* GetSidSubAuthorityCount(nint sid);
+
+    [LibraryImport("advapi32.dll")]
+    public static partial uint* GetSidSubAuthority(nint sid, uint index);
+
     [LibraryImport("advapi32.dll", EntryPoint = "LookupPrivilegeValueW", StringMarshalling = StringMarshalling.Utf16, SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     public static partial bool LookupPrivilegeValue(string? system, string name, out long luid);

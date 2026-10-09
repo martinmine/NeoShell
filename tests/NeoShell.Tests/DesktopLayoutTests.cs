@@ -123,21 +123,54 @@ public sealed class DesktopLayoutTests
         Assert.Equal(new IconPosition(0, 0, 3), oneMonitor[("TOOL.EXE", LayoutIconFlags.Marked)]);
     }
 
+    /// <summary>NeoShell's widget sidebar narrows the primary monitor to 19 columns while NeoShell is the shell.</summary>
+    private static IReadOnlyList<DesktopWorkspace> Narrowed() => DesktopLayout.Workspaces(
+        [(new RectInt32(0, 0, 1444, 940), 96u, true), (new RectInt32(1764, 0, 1280, 752), 96u, false)], DesktopViewSettings.MediumIcons);
+
     [Fact]
-    public void A_primary_monitor_of_another_size_shares_the_layout_as_in_Explorer()
+    public void A_primary_monitor_of_another_size_takes_the_layout_as_in_Explorer()
     {
-        // NeoShell's widget sidebar narrows the primary monitor to 19 columns: Explorer links such a desktop to the
-        // one only the primary's grid tells apart, so both shells show the same places...
+        // Explorer takes the places of a desktop only the primary's grid tells apart for one it hasn't seen.
         IconLayouts layouts = IconLayouts.Parse(ExplorerLayouts)!;
-        IReadOnlyList<DesktopWorkspace> narrowed = DesktopLayout.Workspaces(
-            [(new RectInt32(0, 0, 1444, 940), 96u, true), (new RectInt32(1764, 0, 1280, 752), 96u, false)], DesktopViewSettings.MediumIcons);
 
-        Assert.Equal(new IconPosition(1, 3, 2), DesktopLayout.SavedPlaces(layouts, narrowed)[(RecycleBin, LayoutIconFlags.Marked)]);
+        Assert.Equal(new IconPosition(1, 3, 2), DesktopLayout.SavedPlaces(layouts, Narrowed())[(RecycleBin, LayoutIconFlags.Marked)]);
+    }
 
-        // ...and the places saved for it replace that other desktop's, which would otherwise bring old places back.
-        IconLayouts saved = DesktopLayout.WithPlaces(layouts, narrowed, [(RecycleBin, LayoutIconFlags.Marked, new IconPosition(0, 5, 5))]);
-        Assert.Equal(["01:(023x009)", "01:(019x009)_00:(016x007)"], saved.Desktops.Select(desktop => desktop.Key));
-        Assert.Equal(new IconPosition(0, 5, 5), DesktopLayout.SavedPlaces(saved, TwoMonitors())[(RecycleBin, LayoutIconFlags.Marked)]);
+    [Fact]
+    public void Places_saved_for_a_narrowed_primary_go_beside_Explorers()
+    {
+        // As Explorer keeps them: icons moved there are saved for that desktop's own key, and Explorer's layout for the
+        // whole monitor is left as it was (without it Explorer may lay its icons out afresh).
+        IconLayouts layouts = IconLayouts.Parse(ExplorerLayouts)!;
+
+        IconLayouts saved = DesktopLayout.WithPlaces(layouts, Narrowed(), [(RecycleBin, LayoutIconFlags.Marked, new IconPosition(0, 5, 5))]);
+
+        Assert.Equal(["01:(023x009)", "01:(023x009)_00:(016x007)", "01:(019x009)_00:(016x007)"], saved.Desktops.Select(desktop => desktop.Key));
+        Assert.Equal(layouts.Desktops[1], saved.Desktops[1]);
+        Assert.Equal(new IconPosition(1, 3, 2), DesktopLayout.SavedPlaces(saved, TwoMonitors())[(RecycleBin, LayoutIconFlags.Marked)]);
+        Assert.Equal(new IconPosition(0, 5, 5), DesktopLayout.SavedPlaces(saved, Narrowed())[(RecycleBin, LayoutIconFlags.Marked)]);
+    }
+
+    [Fact]
+    public void A_desktops_own_layout_comes_before_a_later_one_of_another_primary_size()
+    {
+        // Saved later with the sidebar open, the narrowed layout doesn't stand in for the full width's own.
+        IconLayouts layouts = DesktopLayout.WithPlaces(
+            IconLayouts.Parse(ExplorerLayouts)!, Narrowed(), [(RecycleBin, LayoutIconFlags.Marked, new IconPosition(0, 5, 5))]);
+
+        Assert.Equal(new IconPosition(1, 3, 2), DesktopLayout.SavedPlaces(layouts, TwoMonitors())[(RecycleBin, LayoutIconFlags.Marked)]);
+    }
+
+    [Fact]
+    public void A_desktop_Explorer_linked_takes_the_places_of_the_one_it_is_linked_to()
+    {
+        IconLayouts layouts = IconLayouts.Parse(ExplorerLayouts)!;
+        LayoutDesktop full = layouts.Desktops[1];
+        var linked = new LayoutDesktop(
+            LayoutDesktop.CurrentVersion, full.Key, [.. Narrowed().Select(w => new LayoutWorkspace(LayoutWorkspace.CurrentVersion, 0, 0, w.Grid.Columns, w.Grid.Rows, w.IsPrimary ? 1 : 0, []))], [0, 0]);
+        layouts = layouts with { Desktops = [.. layouts.Desktops, linked] };
+
+        Assert.Equal(new IconPosition(1, 3, 2), DesktopLayout.SavedPlaces(layouts, Narrowed())[(RecycleBin, LayoutIconFlags.Marked)]);
     }
 
     [Fact]

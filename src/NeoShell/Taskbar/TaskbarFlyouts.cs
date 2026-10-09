@@ -19,8 +19,9 @@ namespace NeoShell.Taskbar;
 /// front of it, with its acrylic belonging to that window: WinUI's own animation slides it in over the taskbar, and
 /// sliding only the content would leave the acrylic standing still. So the window itself slides up from the
 /// taskbar's top edge, with a window region cutting off what's still below that edge, and back down when it closes.
-/// WinUI also keeps popup windows inside the monitor's work area, which leaves out the widget sidebar, so a flyout's
-/// window is moved across to where the flyout goes as it starts to slide.
+/// WinUI places a flyout inside the monitor's work area, which leaves out the taskbar and the widget sidebar; where it
+/// goes beyond that, it's moved there by its popup's offset, which WinUI then doesn't keep inside. Not only by moving its
+/// window: WinUI wouldn't know, and UI Automation (tests, screen readers) would see the content where WinUI put it.
 /// </remarks>
 internal static class TaskbarFlyouts
 {
@@ -44,20 +45,56 @@ internal static class TaskbarFlyouts
     // The windows of menus at the pointer and their submenus, which no other flyout has.
     private static readonly HashSet<nint> s_pointerWindows = [];
     private static nint s_pointerOwner;
-    // How far below where WinUI places the open menu at the pointer its windows go, in pixels.
+    // How far below where WinUI places them the windows of the open menu at the pointer go, in pixels, until WinUI is
+    // told by the menu's popup offset.
     private static int s_pointerOffset;
+    // The menu at the pointer, until WinUI is told where it is.
+    private static PointerMenu? s_pointerMenu;
 
     /// <summary>
-    /// Where the open flyout's window is on screen, in pixels: its content's place can't be had from WinUI, which
-    /// doesn't know the window has been moved.
+    /// Where the open flyout's window is on screen, in pixels, as it slides: WinUI doesn't know the window is moving.
     /// </summary>
     public static RectInt32? WindowBounds(FlyoutBase flyout) =>
         flyout.IsOpen && s_windows.TryGetValue(flyout, out nint window) && PopupWindows.IsShown(window) ? PopupWindows.GetBounds(window) : null;
 
+    /// <summary>
+    /// Closes the open menus and flyouts of a taskbar window that's about to close, at once and without sliding, and
+    /// forgets its flyouts: a slide would go on moving a popup of a closed window and hide its flyout at the end.
+    /// </summary>
+    public static void CloseAll(XamlRoot root)
+    {
+        if (s_slide is { } slide && slide.Flyout.XamlRoot == root)
+            StopSlide();
+        if (s_slideOut is { } slideOut && slideOut.Flyout.XamlRoot == root)
+        {
+            CompositionTarget.Rendering -= SlideOutFrame;
+            s_slideOut = null;
+        }
+        if (s_pointerOwner == Win32Interop.GetWindowFromWindowId(root.ContentIslandEnvironment.AppWindowId))
+        {
+            CompositionTarget.Rendering -= PointerFrame;
+            s_pointerOwner = 0;
+            s_pointerOffset = 0;
+            s_pointerMenu = null;
+        }
+        // Forgotten first: a flyout whose window isn't known closes without sliding out.
+        foreach (FlyoutBase flyout in s_prepared.Concat(s_atPointer).Where(flyout => flyout.XamlRoot == root).ToList())
+        {
+            s_prepared.Remove(flyout);
+            s_atPointer.Remove(flyout);
+            s_lefts.Remove(flyout);
+            s_durations.Remove(flyout);
+            s_windows.Remove(flyout);
+            s_slidOut.Remove(flyout);
+        }
+        foreach (Popup popup in VisualTreeHelper.GetOpenPopupsForXamlRoot(root))
+            popup.IsOpen = false;
+    }
+
     /// <summary>Opens the flyout centred above <paramref name="target"/>, as Explorer opens a jump list.</summary>
     /// <remarks>
     /// WinUI's Top placement puts the flyout's edge, not its middle, at the point it's given, and the width is only
-    /// known once it's open; so it opens hidden at the target's centre and its window is moved by half its width.
+    /// known once it's open; so it opens hidden at the target's centre and is moved by half its width.
     /// </remarks>
     public static void ShowCentered(FlyoutBase flyout, FrameworkElement target)
     {
@@ -75,8 +112,9 @@ internal static class TaskbarFlyouts
     /// <paramref name="target"/>), as Explorer opens the taskbar's own menu. It doesn't slide, and can't open any other way.
     /// </summary>
     /// <remarks>
-    /// WinUI keeps popup windows inside the monitor's work area, which leaves out the taskbar; so the menu opens at the
-    /// taskbar's top edge, and its windows (its submenus' too) are moved down by the rest whenever WinUI places them.
+    /// WinUI places a menu inside the monitor's work area, which leaves out the taskbar; so the menu opens at the
+    /// taskbar's top edge, and its window is moved down the rest whenever WinUI places it, at once, until its popup's
+    /// offset (set once it stays put) has WinUI place it there itself. Its submenus WinUI then places beside it.
     /// </remarks>
     public static void ShowAtPointer(FlyoutBase flyout, FrameworkElement target, Point position)
     {
@@ -86,29 +124,68 @@ internal static class TaskbarFlyouts
             flyout.Opened += (_, _) =>
             {
                 // Opened again while open when it's moved.
-                CompositionTarget.Rendering -= OffsetFrame;
-                CompositionTarget.Rendering += OffsetFrame;
+                CompositionTarget.Rendering -= PointerFrame;
+                CompositionTarget.Rendering += PointerFrame;
             };
-            flyout.Closed += (_, _) => CompositionTarget.Rendering -= OffsetFrame;
+            flyout.Closed += (_, _) =>
+            {
+                CompositionTarget.Rendering -= PointerFrame;
+                s_pointerMenu = null;
+            };
         }
 
         double edge = -Top(target);
         XamlRoot root = target.XamlRoot;
         s_pointerOwner = Win32Interop.GetWindowFromWindowId(root.ContentIslandEnvironment.AppWindowId);
         s_pointerOffset = (int)Math.Round(Math.Max(0, position.Y - edge) * root.RasterizationScale);
+        s_pointerMenu = new PointerMenu(flyout);
         flyout.ShowAt(target, new FlyoutShowOptions { Position = new Point(position.X, edge), Placement = FlyoutPlacementMode.TopEdgeAlignedLeft });
     }
 
-    // Each of the menu's windows as it turns up: WinUI creates them as the menu and its submenus first open. While it's
-    // open, no other flyout of the taskbar is.
-    private static void OffsetFrame(object? sender, object e)
+    /// <summary>A menu at the pointer: its window once found, until WinUI is told where it is.</summary>
+    private sealed class PointerMenu(FlyoutBase flyout)
+    {
+        public FlyoutBase Flyout { get; } = flyout;
+        public nint Window { get; set; }
+        /// <summary>Where the window was last seen, before it's known to stay there.</summary>
+        public int? SeenAt { get; set; }
+    }
+
+    // Each of the menu's windows as it turns up (WinUI creates them as the menu and its submenus first open; while it's
+    // open, no other flyout of the taskbar is), and the menu's popup offset once it stays put.
+    private static void PointerFrame(object? sender, object e)
     {
         foreach (nint window in PopupWindows.OwnedBy(s_pointerOwner))
         {
             if (PopupWindows.IsShown(window) && !s_windows.ContainsValue(window) && s_pointerWindows.Add(window))
                 PopupWindows.Offset(window, () => s_pointerOffset);
         }
+        if (s_pointerMenu is not { } menu || menu.Flyout.XamlRoot is not { } root)
+            return;
+
+        // The menu's is the window that shows first; its submenus open later.
+        if (menu.Window == 0)
+            menu.Window = PopupWindows.OwnedBy(s_pointerOwner).FirstOrDefault(w => PopupWindows.IsShown(w) && !s_windows.ContainsValue(w));
+        if (menu.Window == 0)
+            return;
+        // Only once it stays put: on a menu's first opening WinUI places the window for a size the menu doesn't keep,
+        // then again a frame later.
+        int y = PopupWindows.GetBounds(menu.Window).Y;
+        if (menu.SeenAt != y)
+        {
+            menu.SeenAt = y;
+            return;
+        }
+        if (PopupOf(menu.Flyout, root) is { } popup)
+        {
+            popup.VerticalOffset += s_pointerOffset / root.RasterizationScale;
+            s_pointerOffset = 0;
+        }
+        s_pointerMenu = null;
     }
+
+    private static Popup? PopupOf(FlyoutBase flyout, XamlRoot root) =>
+        VisualTreeHelper.GetOpenPopupsForXamlRoot(root).FirstOrDefault(popup => popup.Child is FrameworkElement presenter && IsPresenterOf(presenter, flyout));
 
     /// <summary>Opens the flyout above <paramref name="target"/>, left edges aligned, as Explorer opens Start's own menu.</summary>
     public static void ShowAboveLeft(FlyoutBase flyout, FrameworkElement target)
@@ -240,7 +317,7 @@ internal static class TaskbarFlyouts
                 PopupWindows.Place(previous.Window, PopupWindows.GetBounds(previous.Window).Y, null);
             if (s_slide is null)
                 CompositionTarget.Rendering += SlideFrame;
-            s_slide = new Slide(flyout, presenter, taskbarWindow, anchor, taskbarBounds.Y) { Window = window };
+            s_slide = new Slide(flyout, popup, presenter, taskbarWindow, anchor, taskbarBounds.Y) { Window = window };
             return;
         }
     }
@@ -256,9 +333,10 @@ internal static class TaskbarFlyouts
     /// A flyout's window being found, then waiting to be shown in place (covering <paramref name="anchor"/>), then
     /// sliding up to it from <paramref name="edge"/>.
     /// </summary>
-    private sealed class Slide(FlyoutBase flyout, FrameworkElement presenter, nint owner, PointInt32 anchor, int edge)
+    private sealed class Slide(FlyoutBase flyout, Popup popup, FrameworkElement presenter, nint owner, PointInt32 anchor, int edge)
     {
         public FlyoutBase Flyout { get; } = flyout;
+        public Popup Popup { get; } = popup;
         public FrameworkElement Presenter { get; } = presenter;
         public nint Owner { get; } = owner;
         public PointInt32 Anchor { get; } = anchor;
@@ -297,11 +375,14 @@ internal static class TaskbarFlyouts
                     slide.SeenAt = bounds.Y;
                     return;
                 }
+                // Across, it goes by its popup's offset (see the remarks above). WinUI moves the window there itself
+                // only some frames later, so it starts sliding there at once.
+                int shift = Shift(slide);
+                if (shift != 0)
+                    slide.Popup.HorizontalOffset += shift / slide.Presenter.XamlRoot.RasterizationScale;
                 slide.To = bounds.Y;
                 slide.Since = Stopwatch.GetTimestamp();
-                if (Shift(slide) is int shift and not 0)
-                    PopupWindows.HoldLeft(slide.Window, bounds.X + shift);
-                PopupWindows.Place(slide.Window, slide.Edge, slide.Edge);
+                PopupWindows.Place(slide.Window, slide.Edge, slide.Edge, bounds.X + shift);
             }
             else if (Stopwatch.GetElapsedTime(slide.Since) > TimeSpan.FromMilliseconds(500))
             {

@@ -540,14 +540,30 @@ Found while working on milestone 19, not done yet.
   - Snap Assist's cards fade in after 170 ms; Explorer's fly in from the windows after about 450 ms (T27)
   - The auto-hidden taskbar's 2 px edge can't be reached under a topmost maximized window; a maximized window's border
     covers the sidebar's resize grip (T3)
-- [ ] T40 Robustness and correctness, existing problems noticed by the agents:
-  - WinUI access violation when auto-hide was switched through UI Automation with the menu still open (T1)
+- [x] T40 Robustness and correctness, existing problems noticed by the agents:
+  - WinUI access violation when auto-hide was switched through UI Automation with the menu still open (T1) — not
+    reproducible: auto-hide switched by UIA Toggle with the menu (and a submenu) open 30+ times, and the taskbars
+    remade (`WM_DISPLAYCHANGE`) with each menu and flyout open, alongside and as the shell; the taskbar now closes
+    as widget windows do (`Shut`: flyouts closed and forgotten first, `IgnoreMoves`), and a fail-fast found on the
+    way is fixed: as the shell with auto-hide on NeoShell ended at every start (the auto-hide tick asked WinUI for
+    the popups of a not yet loaded window's null `XamlRoot`)
   - Posting SC_MAXIMIZE to an elevated window is refused, contrary to design.md / `TopLevelWindows.Maximize` (T3)
-  - UI Automation reports the overflow flyout's icons about 360 px left of where they're drawn (T4)
+    — fixed: win32k lets `WM_SYSCOMMAND` through to a higher integrity level only with `SC_MINIMIZE`, `SC_RESTORE` or
+    `SC_CLOSE`, and Explorer maximizes and snaps through a call only the immersive broker may make; nothing else gets
+    through, so Snap leaves elevated windows out (no preview, bar, Win+arrow or Snap Assist place), documented
+  - UI Automation reports the overflow flyout's icons about 360 px left of where they're drawn (T4) — fixed: flyout
+    windows were moved with `SetWindowPos` behind WinUI's back (centring, past the work area); they now move by
+    their popup's offset, so WinUI places them and UIA matches (jump lists, overflow, Quick Settings, the taskbar
+    menu and its submenus)
   - Explorer once laid out the desktop from scratch after a switch: NeoShell had replaced its full-width
-    IconLayouts entry with the narrower one saved while the sidebar was open (T26)
+    IconLayouts entry with the narrower one saved while the sidebar was open (T26) — fixed: saving replaced every
+    desktop differing only in the primary's grid; NeoShell now saves only its own key's and prefers it when reading,
+    so Explorer's stays (checked both ways, sidebar open and closed)
   - Test windows started at medium integrity often open below the wallpaper window as the shell; once right after a
-    restart the work area read was the whole monitor (T27)
+    restart the work area read was the whole monitor (T27) — fixed: Windows puts the new window of an app without
+    the foreground below the lowest window of the thread in front, which with NeoShell in front is its wallpaper; such
+    windows are now put above the others as under Explorer. Snap read Windows' work area, the whole monitor after a
+    display change until NeoShell sets it again; it now uses NeoShell's own reservations
 - Not possible without Explorer, with the evidence in design.md: Windows' own AutoPlay UI (T5, NeoShell has its own),
   the IME's right-click menu (T8), Win+V, Win+Period, Win+Semicolon and Win+H (T30), importing Explorer's pin folders
   (T17), Spotlight's "Learn about this picture", Next and rotation (T24), Edge tabs in Alt+Tab (T29)

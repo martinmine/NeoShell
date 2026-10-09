@@ -23,7 +23,7 @@ internal sealed class SnapGroupPreview : IDisposable
     public SnapGroupPreview(nint destination, IReadOnlyList<nint> windows, WindowSnapping snapping)
     {
         nint monitorHandle = TopLevelWindows.NearestMonitorOf(windows[0]);
-        IReadOnlyList<DisplayMonitor> monitors = DisplayMonitor.GetAll();
+        IReadOnlyList<DisplayMonitor> monitors = ShellWorkArea.Monitors();
         DisplayMonitor monitor = monitors.FirstOrDefault(m => m.Handle == monitorHandle) ?? monitors.First(m => m.IsPrimary);
         _workArea = monitor.WorkArea;
 

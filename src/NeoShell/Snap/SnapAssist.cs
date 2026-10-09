@@ -95,7 +95,7 @@ internal sealed class SnapAssist : Window
         WindowStyles.AddExtended(_hwnd, ExtendedWindowStyles.ToolWindow);
         Peek.Exclude(_hwnd);
         _frameless = new FramelessWindow(_hwnd);
-        IReadOnlyList<DisplayMonitor> monitors = DisplayMonitor.GetAll();
+        IReadOnlyList<DisplayMonitor> monitors = ShellWorkArea.Monitors();
         _bounds = (monitors.FirstOrDefault(m => m.IsPrimary) ?? monitors[0]).WorkArea;
         _placement = new PinnedWindow(_hwnd, _bounds, PinnedLayer.Normal);
 

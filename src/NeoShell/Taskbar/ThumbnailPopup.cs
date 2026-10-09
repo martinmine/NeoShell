@@ -122,9 +122,16 @@ internal sealed class ThumbnailPopup : Window
             EndPeek();
             _slide.Stop();
             ClearCells();
-            _placement.Dispose();
-            _frameless.Dispose();
         };
+    }
+
+    /// <summary>Closes the window (see <see cref="WindowClosing.IgnoreMoves"/>).</summary>
+    public void Shut()
+    {
+        _placement.Dispose();
+        _frameless.Dispose();
+        WindowClosing.IgnoreMoves(_hwnd);
+        Close();
     }
 
     /// <summary>The button whose windows are shown, or null when hidden.</summary>

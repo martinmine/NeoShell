@@ -130,7 +130,7 @@ internal sealed class WindowSnapping : IDisposable
     /// </summary>
     private static DisplayMonitor Neighbour(DisplayMonitor monitor, int step, bool byPlace)
     {
-        IReadOnlyList<DisplayMonitor> monitors = DisplayMonitor.GetAll();
+        IReadOnlyList<DisplayMonitor> monitors = ShellWorkArea.Monitors();
         if (byPlace)
             monitors = [.. monitors.OrderBy(m => m.Bounds.X).ThenBy(m => m.Bounds.Y)];
         int index = monitors.ToList().FindIndex(m => m.Handle == monitor.Handle);
@@ -159,7 +159,7 @@ internal sealed class WindowSnapping : IDisposable
         RectInt32 restore = snapped?.Restore ?? TopLevelWindows.GetBounds(hwnd);
         nint restoreOn = DisplayMonitor.HandleFromRect(restore, nearest: true);
         if (restoreOn != to.Handle)
-            restore = OnMonitor(hwnd, restore, DisplayMonitor.GetAll().FirstOrDefault(m => m.Handle == restoreOn) ?? from, to);
+            restore = OnMonitor(hwnd, restore, ShellWorkArea.Monitors().FirstOrDefault(m => m.Handle == restoreOn) ?? from, to);
         // Placed twice: an app may size its window for the other monitor's DPI as it gets there, and its invisible
         // borders change with the DPI.
         RectInt32 zone = ZoneBounds(position, to);
@@ -205,9 +205,12 @@ internal sealed class WindowSnapping : IDisposable
         SnapLayoutsWindow.Showing?.CloseOnce();
     }
 
+    // An app running as administrator refuses being moved, sized or maximized by NeoShell (UIPI), so it isn't offered
+    // a snap that wouldn't happen; Windows itself still maximizes one dragged to the very top of the screen.
     private static bool CanSnap(nint hwnd) =>
         hwnd != 0 && TopLevelWindows.Exists(hwnd) && !TopLevelWindows.IsDesktop(hwnd)
-        && TopLevelWindows.GetProcessId(hwnd) != Environment.ProcessId && TopLevelWindows.CanResize(hwnd);
+        && TopLevelWindows.GetProcessId(hwnd) != Environment.ProcessId && TopLevelWindows.CanResize(hwnd)
+        && !TopLevelWindows.IsOfHigherIntegrity(hwnd);
 
     private void ShowLayouts(nint hwnd, RectInt32 button, bool keyboard)
     {
@@ -236,7 +239,8 @@ internal sealed class WindowSnapping : IDisposable
     {
         int ownProcess = Environment.ProcessId;
         Dictionary<nint, WindowInfo> windows = _tracker.Windows
-            .Where(w => w.ProcessId != ownProcess && !exclude.Contains(w.Handle) && TopLevelWindows.CanResize(w.Handle))
+            .Where(w => w.ProcessId != ownProcess && !exclude.Contains(w.Handle) && TopLevelWindows.CanResize(w.Handle)
+                && !TopLevelWindows.IsOfHigherIntegrity(w.Handle))
             .ToDictionary(w => w.Handle);
         return [.. AltTabLayout.Order([.. windows.Keys], _tracker.RecentlyActive, TopLevelWindows.GetAll(), TopLevelWindows.GetForeground()).Select(h => windows[h])];
     }
@@ -413,7 +417,7 @@ internal sealed class WindowSnapping : IDisposable
         }
 
         PointInt32 pointer = Cursor.Position();
-        DisplayMonitor? monitor = DisplayMonitor.GetAll().FirstOrDefault(m => Contains(m.Bounds, pointer));
+        DisplayMonitor? monitor = ShellWorkArea.Monitors().FirstOrDefault(m => Contains(m.Bounds, pointer));
         // The bar comes once the window is on the move (a click on a title bar starts a move loop too).
         if (drag.Bar is null && drag.Settings.SnapBar && monitor is not null && (bounds.X != drag.Start.X || bounds.Y != drag.Start.Y))
         {
@@ -560,12 +564,12 @@ internal sealed class WindowSnapping : IDisposable
     private static DisplayMonitor? MonitorOf(nint hwnd)
     {
         nint handle = TopLevelWindows.MonitorOf(hwnd);
-        return DisplayMonitor.GetAll().FirstOrDefault(monitor => monitor.Handle == handle);
+        return ShellWorkArea.Monitors().FirstOrDefault(monitor => monitor.Handle == handle);
     }
 
     private static DisplayMonitor Primary()
     {
-        IReadOnlyList<DisplayMonitor> monitors = DisplayMonitor.GetAll();
+        IReadOnlyList<DisplayMonitor> monitors = ShellWorkArea.Monitors();
         return monitors.FirstOrDefault(m => m.IsPrimary) ?? monitors[0];
     }
 

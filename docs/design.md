@@ -325,6 +325,17 @@ are unaffected. Found on 25H2 (twinui.pcshell 10.0.26100.9444) with cdb, Ghidra 
 
 - One `WallpaperWindow` per monitor covering the full monitor bounds, kept there and at `HWND_BOTTOM` by
   `BottomWindow` (rewrites `WM_WINDOWPOSCHANGING`).
+- **New windows of apps without the foreground** (T40). Windows shows the window of an app that may not take the
+  foreground (started by a scheduled task, by a background process) just below the lowest visible window of the
+  thread in front (win32kfull's `CalcForegroundInsertAfter`: from the last topmost window down, the last window of
+  the foreground queue's active thread; `HWND_TOP` from such a thread goes there too). With NeoShell in front (its
+  taskbar or Start clicked) that's the wallpaper, a window of the same thread, so the new window opened below it, out
+  of sight, just above the hidden shell window (the very bottom). Explorer's desktop has a thread of its own: with its
+  taskbar in front the window opens on top of the other windows, below the topmost ones (measured: Character Map
+  started through a scheduled task). So `Wallpaper` watches windows being shown (`EVENT_OBJECT_SHOW`) and puts one
+  that's below a wallpaper window just below the last topmost window (`TopLevelWindows.BringAboveOthers`; an explicit
+  window to go after isn't redirected as `HWND_TOP` is). With another app in front, the window opens behind it under
+  both shells.
 - Frameless through `FramelessWindow`: a borderless `OverlappedPresenter` still keeps `WS_DLGFRAME` and restores it on
   every style change, so `WM_STYLECHANGING` strips the frame and isn't passed on; DWM border and rounded corners off.
 - Not `AppWindow.IsShownInSwitchers`: it goes through the taskbar and throws when there is none; `WS_EX_TOOLWINDOW`
@@ -510,10 +521,17 @@ Shell mode only, like the wallpaper: alongside Explorer, Explorer's desktop has 
     So unplugging a monitor brings its icons to the primary (the single-monitor layout), and plugging it back puts
     them back (checked live in both shells).
   - Desktops that differ only in the primary monitor's grid "look the same to the user"
-    (`DesktopData::LooksTheSameToTheUser`): Explorer links them and shows one's icons for both, saving only the link
-    target. NeoShell's widget sidebar narrows the primary as the shell (19 columns here instead of 23), so NeoShell
-    takes such a twin's places and, when saving, replaces every twin with its own desktop; otherwise Explorer may show
-    an older twin's places (seen once before this was handled).
+    (`DesktopData::LooksTheSameToTheUser`): Explorer links them and shows one's icons for both. NeoShell's widget
+    sidebar narrows the primary as the shell (19 columns here instead of 23), so a desktop it hasn't seen takes such a
+    twin's places (the latest); one it has its own key for (or a link of Explorer's) takes its own. It saves only the
+    desktop with its own key, never over another: until T40 it replaced every twin with its own, removing Explorer's
+    full-width desktop, and Explorer then once laid its icons out afresh. Measured on the VM (T40): with only
+    NeoShell's 19-column layout saved, Explorer took its places and, on a clean exit, saved into it; after an icon was
+    moved (to column 22) it saved a desktop of its own key beside it, the other left as it was; later, with both
+    there, a move made it take the narrowed one's newer places into its own and drop the other. NeoShell now leaves
+    Explorer's as they are: switching shells with the sidebar open and closed (both ways) kept Explorer's places,
+    an icon at column 22 included; icons moved in NeoShell with the sidebar open are saved for the narrowed desktop,
+    which Explorer may or may not take up, as with its own twins.
   - Off the grid an icon's column and row are fractions. Explorer saves an item at listview position x,y as
     ((x - 14) / 76, y / 101) for medium icons: the 14 is the icon's inset in its cell, but its 2 pixel inset from the
     cell's top isn't taken off, so an icon left where the grid put it reads row + 0.0198 once saved off the grid.
@@ -701,6 +719,17 @@ Shell mode only, like the wallpaper: alongside Explorer, Explorer's desktop has 
     idle meanwhile; not explained.
 - Rect calculation (unit tested) from monitor bounds and DPI.
 - Recreated on `WM_DISPLAYCHANGE`, on `WM_DPICHANGED` to a DPI other than the monitor's, and on settings changes.
+  An old taskbar window closes as widget windows do (`TaskbarWindow.Shut`, see "Widgets"): its open menus and
+  flyouts are closed at once first and forgotten (`TaskbarFlyouts.CloseAll`: a slide would go on moving a closed
+  window's popup, and the flyouts were kept, with each old taskbar, for good), then its subclasses go and moves no
+  longer reach WinUI (`WindowClosing.IgnoreMoves`), its preview window likewise. T1 saw an access violation in
+  Microsoft.UI.Xaml.dll when auto-hide was switched through UI Automation with the menu still open; not seen again in
+  T40 (the menu, a submenu, the overflow, Quick Settings, a jump list, the network and volume menus and the previews
+  open while the taskbars were remade, alongside and as the shell, with and without auto-hide).
+- Auto-hide's timer starts with the window, and as the shell its first tick can come before the content's first
+  layout: asking WinUI for the open popups of a null `XamlRoot` threw, and an exception in a timer's tick fail-fasts
+  (NeoShell ended at every start as the shell with auto-hide on, found in T40 from the dump's stowed exception). The
+  check waits for the `XamlRoot`.
 - Full-screen apps: while the foreground window covers its monitor (or the app marked it with
   `ITaskbarList2::MarkFullscreenWindow`), that monitor's taskbar leaves the topmost band and sits just below it.
   Maximized windows, minimized ones, NeoShell's own and the desktop (shell window, `Progman`, `WorkerW`) don't
@@ -729,10 +758,21 @@ Shell mode only, like the wallpaper: alongside Explorer, Explorer's desktop has 
   the pointer, before any handler runs), button flyouts as attached flyouts opened on `Click`. WinUI's Top placement
   puts the flyout's edge, not its middle, at the point given, and the width is only known once it's open, so a
   centred flyout opens hidden and is shown again, moved by half its width (kept 12 epx from the screen's edges).
+- **Moved by the popup's offset, not only by moving its window.** WinUI places a flyout inside the monitor's work
+  area (which leaves out the taskbar, and the widget sidebar as the shell), but it doesn't keep a popup's own
+  `HorizontalOffset`/`VerticalOffset` inside it: a flyout is moved where it belongs by adding to its `Popup`'s offset
+  once WinUI has placed it. WinUI moves the window there itself only 50-170 ms later, so the window is moved there at
+  once too. Moving only the popup window with `SetWindowPos` (as NeoShell did until T40) leaves WinUI's idea of where
+  it is behind: UI Automation reported the content where WinUI had put it (T4 saw the tray overflow's icons 360 px
+  left of where they were drawn; measured in T40, a jump list's items about half its width right, the taskbar menu's
+  38 px too high). Measured with UIA against the popup windows' rectangles, alongside and as the shell with the
+  sidebar open: they now match to the pixel.
 - The taskbar's own menu is the exception, as in Explorer: its bottom-left corner is at the pointer, over the taskbar,
-  and it opens with WinUI's own animation instead of sliding. WinUI keeps popup windows inside the work area, which
-  leaves out the taskbar, so the menu opens at the taskbar's top edge and its popup windows (its submenus' too) are
-  subclassed to go the rest of the way down whenever WinUI places them (`PopupWindows.Offset`).
+  and it opens with WinUI's own animation instead of sliding. WinUI places it inside the work area, so it opens at the
+  taskbar's top edge and its popup window is subclassed to go the rest of the way down whenever WinUI places it
+  (`PopupWindows.Offset`), until it stays put (WinUI places it twice on a menu's first opening): then its popup's
+  `VerticalOffset` takes the rest and WinUI places it, and its submenus beside it, itself. (Submenus go inside the
+  work area, above the taskbar; Explorer's menu has none.)
 - They're unconstrained (`ShouldConstrainToRootBounds="False"`, the window is only as tall as the taskbar), so each
   popup is a window of its own (`PopupWindows`, class `Microsoft.UI.Content.PopupWindowSiteBridge`), owned by the
   taskbar and so always in front of it, and its acrylic belongs to that window. To come out from behind the taskbar
@@ -881,8 +921,27 @@ Shell mode only, like the wallpaper: alongside Explorer, Explorer's desktop has 
   windows are restored with `ShowWindow(SW_RESTORE)`. Clicking the active window's button minimizes it.
   A window of an app running as administrator refuses `ShowWindow`/`ShowWindowAsync` from NeoShell (UIPI: access
   denied, NeoShell runs at medium integrity, as Explorer does), so a minimized one could never be brought back;
-  `TopLevelWindows` then posts the system menu's command (`WM_SYSCOMMAND` with `SC_RESTORE`, `SC_MINIMIZE` or
-  `SC_MAXIMIZE`), which gets through. This covers the taskbar, previews, Show desktop, Alt+Tab and snapping.
+  `TopLevelWindows` then posts the system menu's command (`WM_SYSCOMMAND` with `SC_RESTORE` or `SC_MINIMIZE`), which
+  gets through. This covers the taskbar, previews, Show desktop and Alt+Tab.
+- **What gets through to an elevated window, and what can't** (T40, measured from medium integrity against Task
+  Manager, and read in win32kfull's `CheckForMessageAccessCrossIL`): `WM_SYSCOMMAND` passes UIPI only when `wParam`
+  is exactly `SC_MINIMIZE`, `SC_CLOSE` or `SC_RESTORE` (`(wParam - 0xF020) & ~0x140 == 0`, `0xF160` excluded);
+  `SC_MAXIMIZE` (and `0xF032`, the caption double-click's), `ShowWindow(Async)(SW_MAXIMIZE)`, `SetWindowPos`,
+  `SetWindowPlacement` and a posted `WM_NCLBUTTONDBLCLK` are refused with access denied. Of the other messages,
+  `IsMessageAlwaysAllowedAcrossIL` lets `WM_POPUPSYSTEMMENU` (0x313) through: Explorer's Shift+right-click on a task
+  button makes the window show its *own* system menu, so Maximize there works (the menu belongs to the elevated
+  process, and input to it from a lower level is dropped too). Explorer snaps and maximizes elevated windows (Win+Up,
+  Snap) through user32's `ShellSetWindowPos` (imported by twinui.pcshell), which win32k allows only to the immersive
+  broker (`NtUserShellSetWindowPos` checks `IAMThreadAccessGranted`), so not to NeoShell (see "UWP (CoreWindow) apps
+  as the shell" for the immersive broker).
+  (`NtUserMinMaximize` in win32u does no UIPI check at all, but an undocumented system call that sidesteps UIPI isn't
+  something to build on.) So NeoShell can't maximize, size or move an elevated window: Snap leaves such windows out
+  (`TopLevelWindows.IsOfHigherIntegrity` compares the process's mandatory label with NeoShell's) — no snap preview,
+  Snap bar, layouts flyout or Win+arrow for one, and none in Snap Assist or the layouts' suggestions — rather than
+  promise a snap that doesn't happen. Windows itself still maximizes one dragged to the very top of the screen
+  (within 6 px, which Explorer suppresses), and its own title bar and system menu work as ever. Only a NeoShell with
+  `uiAccess` (signed and installed under Program Files) could do more. NeoShell's keyboard hook doesn't see the keys
+  while an elevated window has them anyway (UIPI), so Win+arrow never reached one.
 
 ### Pinned apps
 
@@ -2507,6 +2566,13 @@ nothing (they stay registered as hotkeys, so the keyboard hook takes them: `Snap
   bottom, the screen's beside the sidebar. While the pointer is in a zone, `SnapPreview` shows it: an acrylic,
   rounded outline 8 epx inside the zone, just behind the dragged window (`PinnedLayer.Normal` below it). Let go, the
   window fills the zone (`TopLevelWindows.Place`, as Win+Z) or is maximized.
+- **Work areas are NeoShell's own** (`ShellWorkArea.Monitors`): zones, layouts, the Snap bar, Snap Assist and the
+  groups' previews go by what NeoShell reserves on each monitor, not by Windows' work area, which is the whole
+  monitor for a while after the displays change (as right after signing in) until NeoShell hears of it and the
+  reservations go out again (see the taskbar's "Display changes"); T27 once saw windows snapped under the taskbar
+  then. Tested in T40 by setting Windows' work area to the whole monitor: Win+Left still snapped to 722x940.
+- **Elevated windows aren't snapped**: NeoShell can't move, size or maximize them (see the taskbar's "What gets
+  through to an elevated window").
 - **The Snap bar** (`SnapBar`, with "Show snap layouts when I drag a window to the top"): once the window moves, a bar
   of the layouts in a row (one suggestion and the four or six layouts; 562x88 at 100% with 12 around the layouts)
   slides in to peek 10 epx down from the top centre of the monitor (70 ms; Explorer's starts about 100 ms after the
