@@ -1859,9 +1859,45 @@ pages are at least that.
   Windows only gives network names to apps allowed to use the location. More Wi-Fi settings
   (`ms-settings:network-wifi`; shell mode `ncpa.cpl`).
 - **Bluetooth**: a switch for the radio and the paired devices, classic and LE (`BluetoothDevices`,
-  `DeviceInformation` with `GetDeviceSelectorFromPairingState(true)`), with a glyph by kind (class of device or LE
-  appearance) and Connected or Paired. There's no public API to connect or disconnect a paired device, so they're
-  only listed. More Bluetooth settings (`ms-settings:bluetooth`; shell mode Devices and Printers).
+  `DeviceInformation` with `GetDeviceSelectorFromPairingState(true)`), one row per physical device (a dual-mode
+  device's classic and LE pairings share a container id; the classic one is kept), connected ones first. Each row: a
+  glyph by kind (class of device or LE appearance), the name, and the status in Windows' words (DevicesFlow's strings,
+  `Windows.UI.ShellCommon` en-GB): "Paired", "Connected", or for an audio device by its profiles "Connected audio"
+  (stereo), "Connected mic" (hands-free) or "Connected mic, audio"; while connected, the battery Windows knows
+  (`DEVPKEY_Bluetooth_Battery` on the device's nodes, as the Wireless devices widget reads it) as a battery glyph
+  and "80%". More Bluetooth settings (`ms-settings:bluetooth`; shell mode Devices and Printers).
+  - **Connecting and disconnecting**, as Windows' own Quick Settings does it. ControlCenter's Bluetooth page
+    (`BluetoothListTemplate`) hosts DevicesFlowUI's `ConnectableDevicesControl` over `DeviceFlows.DataModel.dll`,
+    whose device collection makes a connectable model (`BluetoothDeviceModel`, source file AudioDevice.cpp) only for
+    Bluetooth audio devices (device class 3); every other device is a plain `DeviceBase`, listed with its state and
+    battery and no action (read in Ghidra: `DeviceCollectionManager::CreateDeviceBaseModel`). Choosing a paired audio
+    device connects it straight away ("Connecting..."); choosing a connected one opens its row with Disconnect
+    (`_UpdateDeviceInteractionUnderLock`: a `BluetoothDisconnectModel` while connected). The model gives the device 15
+    seconds (`_StartOperationTimerUnderLock`, a 150,000,000 x 100 ns thread-pool timer) and otherwise reports an error
+    ("Couldn't connect." / "Couldn't disconnect."; "Disconnecting" while under way).
+  - The work is done by DevicesFlowUserSvc (`DevicesFlowBroker.dll`, `BluetoothAudioProvider`, audioconnection.cpp),
+    entirely with public pieces, which NeoShell (Interop `BluetoothAudio`) does in its own process: the device's audio
+    endpoints are those (render and capture, active or unplugged: a disconnected Bluetooth device keeps its endpoints,
+    unplugged) whose `PKEY_Device_ContainerId` is the device's container. Each endpoint is followed through its
+    `IDeviceTopology` → connector 0 → `GetConnectedTo` → `IPart::GetTopologyObject` → `GetDeviceId` to the Bluetooth
+    audio driver's KS filter, opened with `IMMDeviceEnumerator::GetDevice`, whose `IKsControl::KsProperty` takes
+    `KSPROPSETID_BtAudio` (ksmedia.h) `KSPROPERTY_ONESHOT_RECONNECT` (0) or `_DISCONNECT` (1) as a GET with no data.
+    Connecting succeeds when any endpoint's profile does. Disconnecting asks every endpoint, then drops the link with
+    `BluetoothApis!BluetoothDisconnectDevice(NULL, &address)` (undocumented export: it sends the documented
+    `IOCTL_BTH_DISCONNECT_DEVICE` to every radio and returns 0 when one took it, else ERROR_NOT_FOUND); Windows skips
+    that for LE Audio-only devices, NeoShell for devices paired only over LE. (Windows can also send the property
+    through a "controller interface" path, `CreateFile` + `IOCTL_KS_PROPERTY` on a path read from the filter's
+    properties; it's the same request, so NeoShell keeps to `IKsControl`.) Profiles shown: an active endpoint with
+    the Headset form factor (`PKEY_AudioEndpoint_FormFactor` 5, what hands-free makes) or any input means "mic", any
+    other output "audio". Afterwards the device list is read again every half second until the device follows or 15
+    seconds pass. All of it works in both run modes (no Explorer involved).
+  - Checked on the VM, which has no Bluetooth adapter (none can be emulated: Windows has no software radio and the VM
+    no USB passthrough): the endpoint walk and KS request reach the VM's HD Audio filter, which answers
+    ERROR_SET_NOT_FOUND (0x80070492) as a non-Bluetooth filter should; `BluetoothDisconnectDevice` without a radio
+    returns ERROR_NOT_FOUND; with fake devices put in the list for the test, rows, battery, the opened row's
+    Disconnect, "Couldn't connect." and "Couldn't disconnect." showed in both run modes. Windows' own page can't be
+    shown here (no Bluetooth tile without a radio), so its layout wasn't compared: the battery's glyph and place,
+    the Disconnect button's style (accent, as NeoShell's VPN page) and the row spacing are NeoShell's guesses.
 - **Accessibility**, by need as Windows': Vision (Magnifier, Narrator, Colour filters), Hearing (Live captions, Mono
   audio), Motor and Mobility (Voice access, Sticky keys). Each row: glyph, name, description, its state in words and
   a switch. Magnifier, Narrator, Live captions and Voice access are apps of their own: on while their executable runs

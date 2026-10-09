@@ -78,6 +78,95 @@ public sealed class QuickSettingsTests
         Assert.Equal(expected, QuickSettingsDisplay.BluetoothGlyph(kind));
     }
 
+    private static readonly Guid Buds = new("6f1d3c2a-0000-0000-0000-000000000001");
+    private static readonly Guid Mouse = new("6f1d3c2a-0000-0000-0000-000000000002");
+
+    [Theory]
+    [InlineData(false, BluetoothAudioProfiles.None, "Paired")]
+    [InlineData(true, BluetoothAudioProfiles.None, "Connected")]
+    [InlineData(true, BluetoothAudioProfiles.Music, "Connected audio")]
+    [InlineData(true, BluetoothAudioProfiles.Voice, "Connected mic")]
+    [InlineData(true, BluetoothAudioProfiles.Voice | BluetoothAudioProfiles.Music, "Connected mic, audio")]
+    public void Bluetooth_status_says_how_a_device_is_connected(bool connected, BluetoothAudioProfiles audio, string expected)
+    {
+        var device = new PairedDevice("Buds", BluetoothDeviceKind.Audio, connected) { IsAudio = true, Audio = audio };
+        Assert.Equal(expected, QuickSettingsDisplay.BluetoothStatus(device, BluetoothActivity.None));
+    }
+
+    [Theory]
+    [InlineData(BluetoothActivity.Connecting, "Connecting...")]
+    [InlineData(BluetoothActivity.Disconnecting, "Disconnecting")]
+    [InlineData(BluetoothActivity.ConnectFailed, "Couldn’t connect.")]
+    [InlineData(BluetoothActivity.DisconnectFailed, "Couldn’t disconnect.")]
+    public void Bluetooth_status_shows_what_is_under_way_or_how_it_ended(BluetoothActivity activity, string expected)
+    {
+        var device = new PairedDevice("Buds", BluetoothDeviceKind.Audio, true) { IsAudio = true, Audio = BluetoothAudioProfiles.Music };
+        Assert.Equal(expected, QuickSettingsDisplay.BluetoothStatus(device, activity));
+    }
+
+    [Fact]
+    public void Bluetooth_battery_shows_only_while_connected()
+    {
+        var buds = new PairedDevice("Buds", BluetoothDeviceKind.Audio, true) { Battery = 80 };
+        Assert.Equal("80%", QuickSettingsDisplay.BluetoothBattery(buds));
+        // Windows keeps the last level after a device goes.
+        Assert.Null(QuickSettingsDisplay.BluetoothBattery(buds with { IsConnected = false }));
+        Assert.Null(QuickSettingsDisplay.BluetoothBattery(buds with { Battery = null }));
+    }
+
+    [Fact]
+    public void Choosing_an_audio_device_connects_it_or_offers_to_disconnect_and_other_devices_only_list()
+    {
+        var buds = new PairedDevice("Buds", BluetoothDeviceKind.Audio, false) { IsAudio = true };
+        Assert.Equal(BluetoothChoice.Connect, QuickSettingsDisplay.BluetoothChoose(buds));
+        Assert.Equal(BluetoothChoice.OfferDisconnect, QuickSettingsDisplay.BluetoothChoose(buds with { IsConnected = true }));
+        Assert.Equal(BluetoothChoice.Nothing, QuickSettingsDisplay.BluetoothChoose(new PairedDevice("Mouse", BluetoothDeviceKind.Mouse, true)));
+        Assert.Equal(BluetoothChoice.Nothing, QuickSettingsDisplay.BluetoothChoose(new PairedDevice("Mouse", BluetoothDeviceKind.Mouse, false)));
+    }
+
+    [Fact]
+    public void Bluetooth_audio_profiles_come_from_the_connected_endpoints()
+    {
+        AudioEndpointInfo stereo = new("a", Buds, IsActive: true, IsInput: false, IsHeadset: false);
+        AudioEndpointInfo handsFreeOut = new("b", Buds, IsActive: true, IsInput: false, IsHeadset: true);
+        AudioEndpointInfo handsFreeIn = new("c", Buds, IsActive: true, IsInput: true, IsHeadset: true);
+
+        Assert.Equal(BluetoothAudioProfiles.Music, BluetoothAudio.Connected([stereo]));
+        Assert.Equal(BluetoothAudioProfiles.Voice, BluetoothAudio.Connected([handsFreeOut, handsFreeIn]));
+        Assert.Equal(BluetoothAudioProfiles.Voice | BluetoothAudioProfiles.Music, BluetoothAudio.Connected([stereo, handsFreeOut, handsFreeIn]));
+        // A disconnected device keeps its endpoints, unplugged.
+        Assert.Equal(BluetoothAudioProfiles.None, BluetoothAudio.Connected([stereo with { IsActive = false }]));
+    }
+
+    [Fact]
+    public void Paired_devices_are_listed_once_each_with_their_audio_and_battery_connected_first()
+    {
+        PairedDevice[] paired =
+        [
+            new("Buds", BluetoothDeviceKind.Audio, false) { ContainerId = Buds, Address = 1 },
+            // The same buds' LE side, connected.
+            new("Buds", BluetoothDeviceKind.Other, true) { ContainerId = Buds, Address = 2, IsLowEnergy = true },
+            new("Mouse", BluetoothDeviceKind.Mouse, false) { ContainerId = Mouse },
+            new("Keyboard", BluetoothDeviceKind.Keyboard, false),
+            new("Pen", BluetoothDeviceKind.Other, false),
+        ];
+        AudioEndpointInfo[] endpoints = [new("a", Buds, IsActive: true, IsInput: false, IsHeadset: false)];
+        var battery = new Dictionary<Guid, int> { [Buds] = 70, [Mouse] = 20 };
+
+        IReadOnlyList<PairedDevice> listed = BluetoothDevices.Combine(paired, endpoints, battery);
+
+        Assert.Equal(["Buds", "Keyboard", "Mouse", "Pen"], listed.Select(device => device.Name));
+        PairedDevice buds = listed[0];
+        Assert.True(buds.IsConnected);
+        Assert.False(buds.IsLowEnergy);
+        Assert.Equal(1ul, buds.Address);
+        Assert.True(buds.IsAudio);
+        Assert.Equal(BluetoothAudioProfiles.Music, buds.Audio);
+        Assert.Equal(70, buds.Battery);
+        Assert.False(listed[2].IsAudio);
+        Assert.Equal(20, listed[2].Battery);
+    }
+
     [Theory]
     [InlineData(0, false, "")]
     [InlineData(54, false, "")]

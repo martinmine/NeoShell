@@ -52,7 +52,7 @@ internal partial interface IMMDevice
     [PreserveSig] int OpenPropertyStore(uint access, out IPropertyStore properties);
     /// <summary>The endpoint's ID string, to be freed with <c>CoTaskMemFree</c>.</summary>
     [PreserveSig] int GetId(out nint id);
-    [PreserveSig] int GetState();
+    [PreserveSig] int GetState(out uint state);
 }
 
 [GeneratedComInterface]

@@ -55,6 +55,23 @@ internal static class BluetoothBattery
         return [.. devices.DistinctBy(device => device.Id)];
     }
 
+    /// <summary>The last level Windows knows of each Bluetooth device, by container (also after it disconnected).</summary>
+    internal static async Task<Dictionary<Guid, int>> LevelsAsync(CancellationToken cancel)
+    {
+        var levels = new Dictionary<Guid, int>();
+        foreach (DeviceInformation node in await DeviceInformation
+            .FindAllAsync(BluetoothNodesFilter, s_nodeProperties, DeviceInformationKind.Device)
+            .AsTask(cancel))
+        {
+            if (node.Properties.GetValueOrDefault(BatteryProperty) is byte level
+                && node.Properties.GetValueOrDefault(ContainerIdProperty) is Guid containerId)
+            {
+                levels[containerId] = level;
+            }
+        }
+        return levels;
+    }
+
     /// <summary>
     /// The containers of the paired Bluetooth devices (classic and LE) that are connected. Connection is a property of
     /// the association endpoint, not of the nodes with the battery level; the container id links them.

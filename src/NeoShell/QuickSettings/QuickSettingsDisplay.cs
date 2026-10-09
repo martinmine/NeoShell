@@ -44,6 +44,39 @@ public static class QuickSettingsDisplay
         _ => "",                             // Bluetooth
     };
 
+    /// <summary>
+    /// A paired device's line on the Bluetooth page, in Windows' words (DevicesFlow's): what's under way, or how it's
+    /// connected (an audio device by its profiles: calls are "mic", stereo sound is "audio").
+    /// </summary>
+    public static string BluetoothStatus(PairedDevice device, BluetoothActivity activity) => activity switch
+    {
+        BluetoothActivity.Connecting => "Connecting...",
+        BluetoothActivity.Disconnecting => "Disconnecting",
+        BluetoothActivity.ConnectFailed => "Couldn’t connect.",
+        BluetoothActivity.DisconnectFailed => "Couldn’t disconnect.",
+        _ when !device.IsConnected => "Paired",
+        _ => device.Audio switch
+        {
+            BluetoothAudioProfiles.Voice | BluetoothAudioProfiles.Music => "Connected mic, audio",
+            BluetoothAudioProfiles.Voice => "Connected mic",
+            BluetoothAudioProfiles.Music => "Connected audio",
+            _ => "Connected",
+        },
+    };
+
+    /// <summary>The battery level beside the status, while the device is connected and reports one.</summary>
+    public static string? BluetoothBattery(PairedDevice device) =>
+        device.IsConnected && device.Battery is int level ? $"{level}%" : null;
+
+    /// <summary>
+    /// What choosing a device does, as in Windows: a paired audio device connects straight away, a connected one opens
+    /// to offer Disconnect; other devices are only listed (Windows can't connect them).
+    /// </summary>
+    public static BluetoothChoice BluetoothChoose(PairedDevice device) =>
+        !device.IsAudio ? BluetoothChoice.Nothing
+        : device.IsConnected ? BluetoothChoice.OfferDisconnect
+        : BluetoothChoice.Connect;
+
     /// <summary>The battery's glyph in tenths, with the plug while charging.</summary>
     public static string BatteryGlyph(BatteryState battery)
     {
@@ -66,3 +99,8 @@ public static class QuickSettingsDisplay
         ? ("Nearby sharing is on", "Bluetooth and WLAN have been turned on to help you quickly share files and more.")
         : ("Nearby sharing is off", "Bluetooth and WLAN must be on to use nearby sharing. When you turn on nearby sharing, Bluetooth and WLAN will be turned on automatically.");
 }
+
+/// <summary>What's under way for a device on the Bluetooth page, or how it ended.</summary>
+public enum BluetoothActivity { None, Connecting, Disconnecting, ConnectFailed, DisconnectFailed }
+
+public enum BluetoothChoice { Nothing, Connect, OfferDisconnect }

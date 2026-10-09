@@ -478,7 +478,15 @@ Each item is done when it looks and behaves as Explorer's (layout, behaviour, an
       while NeoShell's stays dark (Quick Settings' backdrop, outside T32). Not run live: brightness (no controllable
       display), rotation lock (no sensor), the hotspot (no Wi-Fi: Windows hides it too), a VPN connecting (no server),
       the nearby sharing page (Windows doesn't offer it here)
-- [ ] T33 Bluetooth page: connect and disconnect paired devices
+- [x] T33 Bluetooth page: connect and disconnect paired devices — as Windows' Quick Settings (found with Ghidra in
+      DevicesFlowBroker and DeviceFlows.DataModel): only audio devices connect and disconnect, through a
+      `KSPROPSETID_BtAudio` one-shot request to the Bluetooth audio filter behind each of the device's endpoints, plus
+      `BluetoothDisconnectDevice` for the link; choosing a paired audio device connects it, a connected one opens with
+      Disconnect, 15 s before "Couldn't connect." / "Couldn't disconnect."; statuses in Windows' words ("Connected mic,
+      audio"…), battery while connected, one row per device; works the same in both run modes; rows, statuses and
+      choices unit tested — not run live: connecting or disconnecting a real device (the VM has no Bluetooth adapter
+      and none can be emulated; the KS request was checked up to the VM's HD Audio filter, and the page with fake
+      devices in both run modes); Windows' own Bluetooth page can't show here, so its layout wasn't compared
 - [ ] T34 Accessibility page: switch Colour filters and Mono audio
 - [x] T35 Focus sessions: hide badges and flashing, end chime — NeoShell's calendar now runs Windows' own session
       alongside Explorer (Explorer's undocumented focus theme manager, as Explorer's calendar does), so sessions

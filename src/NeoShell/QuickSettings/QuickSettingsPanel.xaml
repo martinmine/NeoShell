@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <!--
     Quick Settings, as Windows 11 lays it out: pages of tiles, the volume slider and a footer; tiles with a chevron
     and the volume's button open pages that slide in from the right, each with a back button and a link to Settings.
@@ -533,7 +533,7 @@
             </Border>
         </Grid>
 
-        <!-- Bluetooth: the switch and the paired devices. -->
+        <!-- Bluetooth: the switch and the paired devices; audio devices connect and disconnect here. -->
         <Grid x:Name="BluetoothPage" Visibility="Collapsed">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
@@ -565,21 +565,51 @@
                     x:Name="BluetoothList"
                     Padding="8,0,8,8"
                     SelectionMode="None"
+                    IsItemClickEnabled="True"
+                    ItemClick="BluetoothList_ItemClick"
                     AutomationProperties.AutomationId="BluetoothDeviceList"
                     AutomationProperties.Name="Paired devices">
                     <ListView.ItemTemplate>
                         <DataTemplate x:DataType="local:BluetoothItem">
-                            <Grid Padding="0,8" ColumnSpacing="12" AutomationProperties.Name="{x:Bind Name}">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="Auto" />
-                                    <ColumnDefinition />
-                                </Grid.ColumnDefinitions>
-                                <FontIcon Glyph="{x:Bind Glyph}" FontSize="16" VerticalAlignment="Top" Margin="0,2,0,0" />
-                                <StackPanel Grid.Column="1">
-                                    <TextBlock Text="{x:Bind Name}" TextTrimming="CharacterEllipsis" />
-                                    <TextBlock Style="{StaticResource SecondaryTextStyle}" Text="{x:Bind Status}" />
-                                </StackPanel>
-                            </Grid>
+                            <StackPanel Padding="0,8" Spacing="8" AutomationProperties.Name="{x:Bind Name}">
+                                <Grid ColumnSpacing="12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition />
+                                    </Grid.ColumnDefinitions>
+                                    <FontIcon Glyph="{x:Bind Glyph}" FontSize="16" VerticalAlignment="Top" Margin="0,2,0,0" />
+                                    <StackPanel Grid.Column="1">
+                                        <TextBlock Text="{x:Bind Name}" TextTrimming="CharacterEllipsis" />
+                                        <StackPanel Orientation="Horizontal" Spacing="8">
+                                            <TextBlock
+                                                AutomationProperties.AutomationId="BluetoothDeviceStatus"
+                                                Style="{StaticResource SecondaryTextStyle}"
+                                                Text="{x:Bind Status, Mode=OneWay}" />
+                                            <!-- The battery, as Windows shows it for devices that report one. -->
+                                            <StackPanel Orientation="Horizontal" Spacing="4" Visibility="{x:Bind DeviceBatteryVisibility, Mode=OneWay}">
+                                                <FontIcon
+                                                    Glyph="{x:Bind DeviceBatteryGlyph, Mode=OneWay}"
+                                                    FontSize="12"
+                                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                                <TextBlock
+                                                    AutomationProperties.AutomationId="BluetoothDeviceBattery"
+                                                    Style="{StaticResource SecondaryTextStyle}"
+                                                    Text="{x:Bind DeviceBatteryText, Mode=OneWay}" />
+                                            </StackPanel>
+                                        </StackPanel>
+                                    </StackPanel>
+                                </Grid>
+                                <!-- A connected audio device, chosen: disconnect it. -->
+                                <Button
+                                    MinWidth="148"
+                                    HorizontalAlignment="Right"
+                                    AutomationProperties.AutomationId="BluetoothDisconnectButton"
+                                    Style="{StaticResource AccentButtonStyle}"
+                                    Content="Disconnect"
+                                    IsEnabled="{x:Bind IsIdle, Mode=OneWay}"
+                                    Visibility="{x:Bind DisconnectVisibility, Mode=OneWay}"
+                                    Click="BluetoothDisconnect_Click" />
+                            </StackPanel>
                         </DataTemplate>
                     </ListView.ItemTemplate>
                 </ListView>

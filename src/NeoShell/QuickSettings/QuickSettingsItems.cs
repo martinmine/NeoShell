@@ -3,6 +3,7 @@ using System.Runtime.CompilerServices;
 using Microsoft.UI.Xaml;
 using NeoShell.Interop.Bluetooth;
 using NeoShell.Interop.Network;
+using NeoShell.Interop.Power;
 
 namespace NeoShell.QuickSettings;
 
@@ -137,14 +138,72 @@ internal sealed class VpnItem(VpnConnection connection) : Observable
     public override string ToString() => Name;
 }
 
-/// <summary>A paired device on the Bluetooth page.</summary>
-internal sealed class BluetoothItem(PairedDevice device)
+/// <summary>A paired device on the Bluetooth page; an audio device connects when chosen, or opens to disconnect.</summary>
+internal sealed class BluetoothItem(PairedDevice device) : Observable
 {
-    public string Name => device.Name;
+    private PairedDevice _device = device;
+    private BluetoothActivity _activity;
+    private bool _isExpanded;
 
-    public string Glyph => QuickSettingsDisplay.BluetoothGlyph(device.Kind);
+    /// <summary>The device as last read; replaced while connecting, as its state changes.</summary>
+    public PairedDevice Device
+    {
+        get => _device;
+        set
+        {
+            if (Set(ref _device, value))
+                RaiseState();
+        }
+    }
 
-    public string Status => device.IsConnected ? "Connected" : "Paired";
+    public BluetoothActivity Activity
+    {
+        get => _activity;
+        set
+        {
+            if (Set(ref _activity, value))
+                RaiseState();
+        }
+    }
+
+    public string Name => Device.Name;
+
+    public string Glyph => QuickSettingsDisplay.BluetoothGlyph(Device.Kind);
+
+    public string Status => QuickSettingsDisplay.BluetoothStatus(Device, Activity);
+
+    public string DeviceBatteryText => QuickSettingsDisplay.BluetoothBattery(Device) ?? "";
+
+    public string DeviceBatteryGlyph => QuickSettingsDisplay.BatteryGlyph(new BatteryState(Device.Battery ?? 0, false));
+
+    public Visibility DeviceBatteryVisibility => QuickSettingsDisplay.BluetoothBattery(Device) is null ? Visibility.Collapsed : Visibility.Visible;
+
+    public bool IsBusy => Activity is BluetoothActivity.Connecting or BluetoothActivity.Disconnecting;
+
+    public bool IsExpanded
+    {
+        get => _isExpanded;
+        set
+        {
+            if (Set(ref _isExpanded, value))
+                Raise(nameof(DisconnectVisibility));
+        }
+    }
+
+    /// <summary>The opened row of a connected audio device: Disconnect.</summary>
+    public Visibility DisconnectVisibility =>
+        IsExpanded && QuickSettingsDisplay.BluetoothChoose(Device) == BluetoothChoice.OfferDisconnect ? Visibility.Visible : Visibility.Collapsed;
+
+    public bool IsIdle => !IsBusy;
+
+    private void RaiseState()
+    {
+        foreach (string name in (string[])[nameof(Status), nameof(DeviceBatteryText), nameof(DeviceBatteryGlyph), nameof(DeviceBatteryVisibility),
+            nameof(DisconnectVisibility), nameof(IsIdle)])
+        {
+            Raise(name);
+        }
+    }
 
     public override string ToString() => Name;
 }

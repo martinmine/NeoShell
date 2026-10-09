@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using System.Numerics;
 using Microsoft.UI.Composition;
 using Microsoft.UI.Xaml;
@@ -837,6 +838,62 @@ internal sealed partial class QuickSettingsPanel : UserControl
     {
         BluetoothMessage.Visibility = text is null ? Visibility.Collapsed : Visibility.Visible;
         BluetoothMessage.Text = text ?? "";
+    }
+
+    private void BluetoothList_ItemClick(object sender, ItemClickEventArgs e)
+    {
+        if (e.ClickedItem is not BluetoothItem item || item.IsBusy)
+            return;
+
+        switch (QuickSettingsDisplay.BluetoothChoose(item.Device))
+        {
+            case BluetoothChoice.Connect:
+                _ = ConnectBluetoothAsync(item, connect: true);
+                break;
+            case BluetoothChoice.OfferDisconnect:
+                bool expand = !item.IsExpanded;
+                foreach (BluetoothItem each in BluetoothList.Items.Cast<BluetoothItem>())
+                    each.IsExpanded = expand && ReferenceEquals(each, item);
+                break;
+        }
+    }
+
+    private void BluetoothDisconnect_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement { DataContext: BluetoothItem item } && !item.IsBusy)
+            _ = ConnectBluetoothAsync(item, connect: false);
+    }
+
+    /// <summary>
+    /// Asks Windows to connect or disconnect the device, then waits for it to follow: as Windows' Quick Settings
+    /// (BluetoothDeviceModel's operation timer), it has 15 seconds before the row says it couldn't.
+    /// </summary>
+    private static async Task ConnectBluetoothAsync(BluetoothItem item, bool connect)
+    {
+        item.IsExpanded = false;
+        item.Activity = connect ? BluetoothActivity.Connecting : BluetoothActivity.Disconnecting;
+        try
+        {
+            await (connect ? BluetoothDevices.ConnectAsync(item.Device) : BluetoothDevices.DisconnectAsync(item.Device));
+            var waited = Stopwatch.StartNew();
+            while (waited.Elapsed < TimeSpan.FromSeconds(15))
+            {
+                await Task.Delay(500);
+                PairedDevice? latest = (await BluetoothDevices.PairedAsync()).FirstOrDefault(device => device.ContainerId == item.Device.ContainerId);
+                if (latest is not null)
+                    item.Device = latest;
+                if (latest?.IsConnected == connect)
+                {
+                    item.Activity = BluetoothActivity.None;
+                    return;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.Warn($"{(connect ? "Connecting" : "Disconnecting")} the Bluetooth device failed", ex);
+        }
+        item.Activity = connect ? BluetoothActivity.ConnectFailed : BluetoothActivity.DisconnectFailed;
     }
 
     private async void BluetoothSwitch_Toggled(object sender, RoutedEventArgs e)
