@@ -37,7 +37,6 @@ internal sealed class SnapAssist : Window
     private const double Inset = 12;
     private const double RingGap = 3;
     private const double RingThickness = 3;
-    private static readonly TimeSpan FadeIn = TimeSpan.FromMilliseconds(300);
 
     private readonly WindowTracker _tracker;
     private readonly Func<nint, WallpaperWindow?> _wallpaperOn;
@@ -64,13 +63,12 @@ internal sealed class SnapAssist : Window
     private Action<nint, RectInt32> _place = (_, _) => { };
     private RectInt32 _bounds;
     private int _selected;
-    private long _fadeStart;
+    // When the window snapped, which the showing counts from, and when it showed, which the previews' fly-in does.
+    private long _snappedAt;
+    private long _shownAt;
     private bool _showing;
-    // The panels and cards, which fade in over the wallpaper, and whether the region shows them yet.
-    private Canvas? _overlay;
+    // Whether the region shows the panels and cards yet.
     private bool _shown;
-    // Counts each showing, so a hide waiting for its see-through frame doesn't hide the next showing.
-    private int _version;
 
     /// <param name="wallpaperOn">The wallpaper's window on a monitor, whose picture shows behind the cards.</param>
     public SnapAssist(WindowTracker tracker, Func<nint, WallpaperWindow?> wallpaperOn)
@@ -133,8 +131,8 @@ internal sealed class SnapAssist : Window
         _candidates = candidates;
         _place = place;
         _selected = 0;
+        _snappedAt = Stopwatch.GetTimestamp();
         _showing = true;
-        _version++;
         ShowZone();
     }
 
@@ -144,11 +142,11 @@ internal sealed class SnapAssist : Window
         if (!_showing)
             return;
         _showing = false;
-        CompositionTarget.Rendering -= OnFadeFrame;
+        CompositionTarget.Rendering -= OnShowFrame;
+        CompositionTarget.Rendering -= OnFlyInFrame;
         ClearCards();
         WindowRegion.SetRoundedRects(_hwnd, [], 0);
         _shown = false;
-        _overlay = null;
         _root.Content = null;
     }
 
@@ -157,7 +155,8 @@ internal sealed class SnapAssist : Window
     {
         _showing = false;
         _tracker.Changed -= OnWindowsChanged;
-        CompositionTarget.Rendering -= OnFadeFrame;
+        CompositionTarget.Rendering -= OnShowFrame;
+        CompositionTarget.Rendering -= OnFlyInFrame;
         _foreground.Dispose();
         ClearCards();
         // Let go of the window first: WinUI can crash handling a move of a window it's tearing down.
@@ -202,9 +201,8 @@ internal sealed class SnapAssist : Window
 
         ClearCards();
         bool first = !_shown;
-        var overlay = new Canvas { Opacity = first ? 0 : 1 };
+        var overlay = new Canvas();
         canvas.Children.Add(overlay);
-        _overlay = overlay;
         for (int i = 0; i < _zones.Count; i++)
         {
             Rect panel = PanelOf(_zones[i], scale);
@@ -227,7 +225,7 @@ internal sealed class SnapAssist : Window
             Canvas.SetTop(border, panel.Y);
             overlay.Children.Add(border);
         }
-        AddCards(overlay, windows, PanelOf(_zones[0], scale), scale);
+        AddCards(overlay, windows, PanelOf(_zones[0], scale), scale, flyIn: first);
         _root.Content = canvas;
         _selected = Math.Clamp(_selected, 0, _cards.Count - 1);
 
@@ -236,21 +234,35 @@ internal sealed class SnapAssist : Window
             ShowZones();
             return;
         }
-        // Over every other window but the one just snapped, as Explorer's.
+        // Over every other window but the one just snapped, as Explorer's; shown when Explorer's would be, once the
+        // window's own animation is over (the cards are drawn by then).
         _placement.SetLayer(PinnedLayer.Normal, above: _snapped);
-        int version = _version;
-        FirstFrame.Next(() =>
-        {
-            if (!_showing || version != _version)
-                return;
-            ShowZones();
-            _shown = true;
-            _placement.SetLayer(PinnedLayer.Normal, above: _snapped);
-            // The keys went to the snapped window, not to NeoShell: take the foreground as Alt+Tab does.
-            TopLevelWindows.SwitchTo(_hwnd);
-            _root.Focus(FocusState.Programmatic);
-            StartFade();
-        });
+        CompositionTarget.Rendering -= OnShowFrame;
+        CompositionTarget.Rendering += OnShowFrame;
+    }
+
+    // Counted in frames, not by a timer, which runs late by tens of milliseconds.
+    private void OnShowFrame(object? sender, object e)
+    {
+        if (Stopwatch.GetElapsedTime(_snappedAt) < SnapAssistPlan.ShowAfter)
+            return;
+        CompositionTarget.Rendering -= OnShowFrame;
+        Reveal();
+    }
+
+    // Shows the panels and cards at once, as Explorer's do, the previews already flying in from their windows.
+    private void Reveal()
+    {
+        if (!_showing || _shown)
+            return;
+        ShowZones();
+        _shown = true;
+        _placement.SetLayer(PinnedLayer.Normal, above: _snapped);
+        // The keys went to the snapped window, not to NeoShell: take the foreground as Alt+Tab does.
+        TopLevelWindows.SwitchTo(_hwnd);
+        _root.Focus(FocusState.Programmatic);
+        _shownAt = 0;
+        CompositionTarget.Rendering += OnFlyInFrame;
     }
 
     // The window shows the zones left, and takes the mouse there only.
@@ -262,7 +274,8 @@ internal sealed class SnapAssist : Window
         Math.Max(0, zone.Width / scale - 2 * Inset), Math.Max(0, zone.Height / scale - 2 * Inset));
 
     // The windows' cards in rows in the middle of the panel, each the window's title over its live preview.
-    private void AddCards(Canvas canvas, IReadOnlyList<WindowInfo> windows, Rect panel, double scale)
+    /// <param name="flyIn">The previews fly in from their windows (the first showing); otherwise they're in place.</param>
+    private void AddCards(Canvas canvas, IReadOnlyList<WindowInfo> windows, Rect panel, double scale, bool flyIn)
     {
         bool dark = _theme == ElementTheme.Dark;
         var cardBrush = new SolidColorBrush(dark ? Color.FromArgb(0xFF, 0x20, 0x20, 0x20) : Color.FromArgb(0xFF, 0xF3, 0xF3, 0xF3));
@@ -376,12 +389,19 @@ internal sealed class SnapAssist : Window
             };
             canvas.Children.Add(cell);
 
-            // DWM draws the live preview under the title, the card's full width.
+            // DWM draws the live preview under the title, the card's full width; it shows first on its way there from
+            // its window when it flies in.
             if (card.Thumbnail is { } thumbnail)
             {
-                thumbnail.Show(new RectInt32(
+                card.To = new RectInt32(
                     (int)Math.Round(x * scale), (int)Math.Round((y + SnapAssistPlan.HeaderHeight) * scale),
-                    (int)Math.Round(slot.Width * scale), (int)Math.Round(preview * scale)));
+                    (int)Math.Round(slot.Width * scale), (int)Math.Round(preview * scale));
+                if (flyIn && !TopLevelWindows.IsMinimized(card.Window.Handle))
+                {
+                    RectInt32 window = TopLevelWindows.GetVisibleBounds(card.Window.Handle);
+                    card.From = window with { X = window.X - _bounds.X, Y = window.Y - _bounds.Y };
+                }
+                thumbnail.Show(card.From is { } from ? SnapAssistPlan.FlyIn(from, card.To, TimeSpan.Zero) : card.To);
             }
         }
         ShowSelection(keyboard: false);
@@ -500,26 +520,20 @@ internal sealed class SnapAssist : Window
         ShowZone();
     }
 
-    // Explorer's cards land over about 400 ms; NeoShell's fade in over the wallpaper, previews with them.
-    private void StartFade()
+    // The previews land on their cards (see SnapAssistPlan.FlyIn).
+    private void OnFlyInFrame(object? sender, object e)
     {
-        _fadeStart = Stopwatch.GetTimestamp();
-        CompositionTarget.Rendering += OnFadeFrame;
-    }
-
-    private void OnFadeFrame(object? sender, object e)
-    {
-        double progress = Math.Min(1, Stopwatch.GetElapsedTime(_fadeStart) / FadeIn);
-        double eased = 1 - Math.Pow(1 - progress, 3);
-        if (_overlay is not null)
-            _overlay.Opacity = eased;
+        // The region shows from the next frame: the fly-in counts from there.
+        if (_shownAt == 0)
+            _shownAt = Stopwatch.GetTimestamp();
+        TimeSpan sinceShown = Stopwatch.GetElapsedTime(_shownAt);
         foreach (Card card in _cards)
         {
-            if (card.Thumbnail is { } thumbnail)
-                thumbnail.Opacity = eased;
+            if (card.Thumbnail is { } thumbnail && card.From is { } from)
+                thumbnail.Show(SnapAssistPlan.FlyIn(from, card.To, sinceShown));
         }
-        if (progress >= 1)
-            CompositionTarget.Rendering -= OnFadeFrame;
+        if (sinceShown + SnapAssistPlan.FlyInShownAt >= SnapAssistPlan.FlyInDuration)
+            CompositionTarget.Rendering -= OnFlyInFrame;
     }
 
     // Some windows (elevated ones) can't be previewed; they show their icon.
@@ -527,7 +541,7 @@ internal sealed class SnapAssist : Window
     {
         try
         {
-            var thumbnail = new DwmThumbnail(_hwnd, window) { Opacity = _shown ? 1 : 0 };
+            var thumbnail = new DwmThumbnail(_hwnd, window);
             // What's drawn of the window, without the invisible borders round it. DWM keeps the last picture of a
             // minimized window, as it was, which Explorer's cards show too.
             if (!TopLevelWindows.IsMinimized(window))
@@ -567,5 +581,8 @@ internal sealed class SnapAssist : Window
         public WindowInfo Window { get; } = window;
         public DwmThumbnail? Thumbnail { get; } = thumbnail;
         public Border? Ring { get; set; }
+        /// <summary>Where its preview goes on the card, and where it flies in from (its window), in the window's pixels.</summary>
+        public RectInt32 To { get; set; }
+        public RectInt32? From { get; set; }
     }
 }

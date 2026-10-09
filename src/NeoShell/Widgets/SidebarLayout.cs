@@ -23,6 +23,13 @@ public static class SidebarLayout
         (int)Math.Round(Math.Clamp(width, MinWidth, MaxWidth) * dpi / 96.0);
 
     /// <summary>
+    /// How wide the sidebar's resize edge is, in effective pixels: 6 that can be grabbed even with a maximized window
+    /// beside the sidebar, whose invisible resize border (<paramref name="resizeBorder"/> pixels at
+    /// <paramref name="dpi"/>, past the work area) lies over the sidebar's edge and takes the pointer there.
+    /// </summary>
+    public static double GripWidth(int resizeBorder, uint dpi) => 6 + resizeBorder * 96.0 / dpi;
+
+    /// <summary>
     /// The strip along the right of <paramref name="monitor"/>, as tall as its work area: it ends above the taskbar.
     /// The work area may already leave the sidebar out, so only its height counts.
     /// </summary>

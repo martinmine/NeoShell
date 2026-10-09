@@ -160,11 +160,11 @@ internal sealed class WindowSnapping : IDisposable
         nint restoreOn = DisplayMonitor.HandleFromRect(restore, nearest: true);
         if (restoreOn != to.Handle)
             restore = OnMonitor(hwnd, restore, ShellWorkArea.Monitors().FirstOrDefault(m => m.Handle == restoreOn) ?? from, to);
-        // Placed twice: an app may size its window for the other monitor's DPI as it gets there, and its invisible
-        // borders change with the DPI.
+        // Placed again if need be: an app may size its window for the other monitor's DPI as it gets there.
         RectInt32 zone = ZoneBounds(position, to);
-        TopLevelWindows.Place(hwnd, zone);
-        TopLevelWindows.Place(hwnd, zone);
+        TopLevelWindows.Arrange(hwnd, zone, to.Dpi);
+        if (TopLevelWindows.GetVisibleBounds(hwnd) != zone)
+            TopLevelWindows.Arrange(hwnd, zone, to.Dpi);
         Groups.Leave(hwnd);
         _snapped[hwnd] = new Snapped(position, zone, restore);
     }
@@ -327,9 +327,9 @@ internal sealed class WindowSnapping : IDisposable
         bool restored = !TopLevelWindows.IsMaximized(hwnd) && !TopLevelWindows.IsMinimized(hwnd);
         RectInt32 before = snapped?.Restore ?? (restored ? TopLevelWindows.GetBounds(hwnd) : default);
         if (background)
-            TopLevelWindows.PlaceInBackground(hwnd, zone);
+            TopLevelWindows.ArrangeInBackground(hwnd, zone, monitor.Dpi);
         else
-            TopLevelWindows.Place(hwnd, zone);
+            TopLevelWindows.Arrange(hwnd, zone, monitor.Dpi);
         if (snapped?.Zone != zone)
             Groups.Leave(hwnd);
         // A window that was maximized or minimized keeps the size it gets here when dragged away.
@@ -364,7 +364,10 @@ internal sealed class WindowSnapping : IDisposable
         RectInt32 bounds = TopLevelWindows.GetBounds(hwnd);
         PointInt32 pointer = Cursor.Position();
         double grab = bounds.Width > 0 ? Math.Clamp((pointer.X - bounds.X) / (double)bounds.Width, 0, 1) : 0.5;
-        _drag = new Drag(hwnd, bounds, TopLevelWindows.IsMaximized(hwnd), grab, settings);
+        _drag = new Drag(hwnd, bounds, TopLevelWindows.IsMaximized(hwnd), grab, settings)
+        {
+            WasArranged = TopLevelWindows.IsArranged(hwnd),
+        };
         _timer.Start();
         WidenClip();
     }
@@ -405,6 +408,13 @@ internal sealed class WindowSnapping : IDisposable
         }
         if (drag.WasMaximized)
             return;
+        // So does a snapped one, out of the arranged state with its own size, under the pointer.
+        if (drag.WasArranged && !TopLevelWindows.IsArranged(drag.Window))
+        {
+            drag.WasArranged = false;
+            drag.Unsnapped = true;
+            drag.Start = bounds;
+        }
         if (bounds.Width != drag.Start.Width || bounds.Height != drag.Start.Height)
         {
             // Sized, not moved: nothing to snap until it's let go.
@@ -495,11 +505,13 @@ internal sealed class WindowSnapping : IDisposable
         {
             // A click on the title bar starts a move too; only one that went somewhere unsnaps.
             RectInt32 dropped = TopLevelWindows.GetBounds(hwnd);
-            if (dropped.X == drag.Start.X && dropped.Y == drag.Start.Y)
+            if (!drag.Unsnapped && dropped.X == drag.Start.X && dropped.Y == drag.Start.Y)
                 return;
             _snapped.Remove(hwnd);
             Groups.Leave(hwnd);
-            TopLevelWindows.SetBounds(hwnd, WindowSnap.Unsnapped(dropped, was.Restore, Cursor.Position().X, drag.Grab));
+            // Windows gave an arranged window its size back itself.
+            if (!drag.Unsnapped)
+                TopLevelWindows.SetBounds(hwnd, WindowSnap.Unsnapped(dropped, was.Restore, Cursor.Position().X, drag.Grab));
         }
     }
 
@@ -527,7 +539,7 @@ internal sealed class WindowSnapping : IDisposable
                 _snapped.Remove(hwnd);
                 Groups.Leave(hwnd);
                 if (snapped is not null)
-                    TopLevelWindows.SetBounds(hwnd, snapped.Restore);
+                    TopLevelWindows.Unarrange(hwnd, snapped.Restore, monitor.Dpi);
                 break;
             default:
                 if (TopLevelWindows.IsMaximized(hwnd))
@@ -536,7 +548,7 @@ internal sealed class WindowSnapping : IDisposable
                 RectInt32 zone = position == SnapPosition.Tall
                     ? WindowSnap.Tall(TopLevelWindows.GetVisibleBounds(hwnd), monitor.WorkArea)
                     : ZoneBounds(position, monitor);
-                TopLevelWindows.Place(hwnd, zone);
+                TopLevelWindows.Arrange(hwnd, zone, monitor.Dpi);
                 if (snapped?.Zone != zone)
                     Groups.Leave(hwnd);
                 _snapped[hwnd] = new Snapped(position, zone, restore);
@@ -595,6 +607,9 @@ internal sealed class WindowSnapping : IDisposable
         /// <summary>Its bounds as the drag began (or as Windows restored it from maximized).</summary>
         public RectInt32 Start { get; set; } = start;
         public bool WasMaximized { get; set; } = wasMaximized;
+        /// <summary>Whether it was in Windows' arranged state as the drag began, and whether Windows has since restored it.</summary>
+        public bool WasArranged { get; set; }
+        public bool Unsnapped { get; set; }
         /// <summary>Where along its width it was grabbed, from 0 to 1.</summary>
         public double Grab { get; } = grab;
         /// <summary>The settings as the drag began.</summary>

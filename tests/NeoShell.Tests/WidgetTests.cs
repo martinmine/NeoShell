@@ -21,6 +21,14 @@ public sealed class WidgetTests
         Assert.Equal(expected, SidebarLayout.PhysicalWidth(width, dpi));
     }
 
+    [Theory]
+    [InlineData(8, 96u, 14)]   // 100%: a maximized window's border reaches 8 pixels over the sidebar
+    [InlineData(10, 120u, 14)] // 125%
+    public void Sidebar_edge_can_be_grabbed_past_a_maximized_windows_border(int resizeBorder, uint dpi, double expected)
+    {
+        Assert.Equal(expected, SidebarLayout.GripWidth(resizeBorder, dpi));
+    }
+
     [Fact]
     public void Sidebar_runs_down_the_right_of_the_monitor_to_the_taskbar()
     {

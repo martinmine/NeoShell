@@ -72,6 +72,18 @@ public sealed class TaskbarLayoutTests
     }
 
     [Theory]
+    [InlineData(960, 1079, true)]   // the screen's last row
+    [InlineData(0, 1078, true)]     // the sliver's top row, at the corner
+    [InlineData(960, 1077, false)]  // just above the sliver
+    [InlineData(1920, 1079, false)] // on the next monitor
+    public void Auto_hidden_taskbar_comes_back_with_the_pointer_on_its_sliver(int x, int y, bool expected)
+    {
+        RectInt32 shown = TaskbarLayout.Bounds(new RectInt32(0, 0, 1920, 1080), 96);
+
+        Assert.Equal(expected, TaskbarLayout.RevealsAt(new PointInt32(x, y), shown));
+    }
+
+    [Theory]
     [InlineData(0, 0, 1920, 1080, true)] // borderless full screen
     [InlineData(-8, -8, 1936, 1096, true)] // overhanging the edges
     [InlineData(0, 0, 1920, 1032, false)] // stops at the taskbar

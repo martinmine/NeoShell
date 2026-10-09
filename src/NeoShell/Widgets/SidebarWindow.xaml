@@ -81,11 +81,11 @@
             </StackPanel>
         </ScrollViewer>
 
-        <!-- Dragging the left edge resizes the sidebar. -->
+        <!-- Dragging the left edge resizes the sidebar; its width is set for the monitor (SidebarLayout.GripWidth). -->
         <local:EdgeGrip
             x:Name="Grip"
             Grid.RowSpan="2"
-            Width="6"
+            Width="14"
             HorizontalAlignment="Left"
             Background="Transparent"
             AutomationProperties.AutomationId="WidgetSidebarGrip"

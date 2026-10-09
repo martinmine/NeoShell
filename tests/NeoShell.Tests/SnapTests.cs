@@ -446,6 +446,31 @@ public sealed class SnapTests
         Assert.Equal(expected, SnapGroups.Title(titles));
     }
 
+    [Theory]
+    [InlineData(0, 0)]
+    [InlineData(1, 1)]
+    [InlineData(0.1, 0.59)] // more than half the way in the first tenth
+    [InlineData(0.5, 0.97)]
+    public void Decelerate_is_windows_fast_out_slow_in_curve(double t, double expected)
+    {
+        Assert.Equal(expected, SnapAssistPlan.Decelerate(t), 2);
+    }
+
+    [Fact]
+    public void Snap_assist_previews_fly_in_from_their_windows()
+    {
+        var from = new RectInt32(1100, 450, 550, 400);
+        var to = new RectInt32(50, 200, 360, 260);
+
+        // As Snap Assist shows, about 90 % of the way, as recorded on Explorer's (C's preview 162 from the left, landing
+        // at 51); on its card once the fly-in is over.
+        RectInt32 shown = SnapAssistPlan.FlyIn(from, to, TimeSpan.Zero);
+        Assert.InRange(shown.X, 140, 180);
+        Assert.Equal(to, SnapAssistPlan.FlyIn(from, to, SnapAssistPlan.FlyInDuration - SnapAssistPlan.FlyInShownAt));
+        // Before it shows (never seen) it was on its way from the window.
+        Assert.Equal(from, SnapAssistPlan.FlyIn(from, to, -SnapAssistPlan.FlyInShownAt));
+    }
+
     [Fact]
     public void The_maximize_button_is_found_by_hit_testing()
     {

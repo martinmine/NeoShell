@@ -736,7 +736,14 @@ Shell mode only, like the wallpaper: alongside Explorer, Explorer's desktop has 
   count. Re-checked on foreground changes, minimize/restore and the foreground window moving (`EVENT_OBJECT_LOCATIONCHANGE`).
   Explorer would send `ABN_FULLSCREENAPP`; NeoShell is the one deciding, alongside Explorer too.
 - Auto-hide (setting): no screen space is reserved (no AppBar, no work area change). The taskbar slides down until
-  2 pixels show; the pointer entering them slides it back. It hides again after ~0.75 s with the pointer off it,
+  2 pixels show; the pointer on them slides it back, whatever window is over them (T39d): Explorer's taskbar goes by
+  where the pointer is, not by its own window getting the mouse (Taskbar.dll's `TrayUI::SetUnhideTimer` takes the
+  pointer's position and starts a 50 ms unhide timer), so it comes back under a topmost window over the bottom edge
+  too (measured: a topmost 900x400 window reaching past the bottom; the window stays above the revealed taskbar
+  there, NeoShell's taskbar goes above it), but not under a topmost window covering the whole monitor (a full-screen
+  one, or with auto-hide a topmost maximized one), nor for a full-screen app. NeoShell polls the pointer every 50 ms
+  while hidden (`TaskbarLayout.RevealsAt`, tested; `TopLevelWindows.IsTopmostWindowCovering`). With the widget
+  sidebar shown a maximized window doesn't cover the monitor, so the taskbar comes back over it. It hides again after ~0.75 s with the pointer off it,
   unless a menu or flyout is open, the thumbnails or Start are open, or it has the keyboard (Win+T). Start, Win+T and
   Win+1…9 reveal it first.
 - Backdrop by setting (`ShellBackdrop`), chosen in the taskbar menu: Acrylic (default) or Mica — a
@@ -975,7 +982,10 @@ Shell mode only, like the wallpaper: alongside Explorer, Explorer's desktop has 
   process, and input to it from a lower level is dropped too). Explorer snaps and maximizes elevated windows (Win+Up,
   Snap) through user32's `ShellSetWindowPos` (imported by twinui.pcshell), which win32k allows only to the immersive
   broker (`NtUserShellSetWindowPos` checks `IAMThreadAccessGranted`), so not to NeoShell (see "UWP (CoreWindow) apps
-  as the shell" for the immersive broker).
+  as the shell" for the immersive broker). T39d found that the shell window's process can take that access itself
+  when no Explorer holds it (see Snap's "Window motion"), which NeoShell now does as the shell for Snap's animation;
+  with it `ApplyWindowAction` skips the integrity check, so elevated windows could be snapped too — not done yet:
+  Snap still leaves them out.
   (`NtUserMinMaximize` in win32u does no UIPI check at all, but an undocumented system call that sidesteps UIPI isn't
   something to build on.) So NeoShell can't maximize, size or move an elevated window: Snap leaves such windows out
   (`TopLevelWindows.IsOfHigherIntegrity` compares the process's mandatory label with NeoShell's) — no snap preview,
@@ -2792,11 +2802,38 @@ nothing (they stay registered as hotkeys, so the keyboard hook takes them: `Snap
   may size it for the new DPI as it arrives, and its invisible borders change.
 - Compared side by side with Explorer (two monitors, the second at 100% and at 125%, and one monitor): the same
   13 key sequences on a fresh per-monitor aware window each, every state's extended frame bounds, the same to the
-  pixel, Snap Assist coming up after the same keys. Differs: Explorer animates each move (about 250 ms, the window
-  sliding and scaling from its old place to its new one; Win+Shift moves about 170 ms), NeoShell's windows jump as
-  they do for every Win+arrow; a DPI-unaware window's own bounds can land a pixel off on a monitor at another scale
-  (Windows works them out in the window's scaled coordinates); Win+Left/Right go round monitors left to right, which
-  may not be Explorer's order with three or more (only two could be tried).
+  pixel, Snap Assist coming up after the same keys. Differs: a DPI-unaware window's own bounds can land a pixel off
+  on a monitor at another scale (Windows works them out in the window's scaled coordinates); Win+Left/Right go round
+  monitors left to right, which may not be Explorer's order with three or more (only two could be tried).
+- **Window motion: Windows' arranged state** (T39d). Explorer's snaps animate (about 250 ms, recorded at 60 fps: the
+  window's old picture and its new content crossfading while both slide and scale from the old place to the new one,
+  decelerating) because of *how* the window is moved, not by anything Explorer draws: twinui.pcshell's
+  `CShellSnapComponent::SnapWindow` calls user32's `ShellSetWindowPos(hwnd, 0, &frameRect, 3, 0x10, 1)` (traced with
+  cdb on Win+Right: the rectangle is what's drawn of the window), win32k applies it as a window action that puts the
+  window in Windows' *arranged* state (`AdvancedWindowPos::xxxUpdatePosAndStateForAction` sets the window's
+  move-reason bit for state 3, `DwmNotifyMoveReason` tells DWM), and DWM runs its own arrangement transition
+  (udwm's `CWindowArrangementTransition`). None of DWM's transition APIs (`DwmpTransitionWindowWithRects`, types
+  0-63, as another process) nor a plain `SetWindowPos` does it. The documented `ApplyWindowAction` (WinUser.h, 26100
+  SDK) with `WAK_PLACEMENT_STATE` and `WPS_ARRANGED` does, but only for the caller's own windows (access denied
+  otherwise) — unless the thread has the immersive window manager's access: `NtUserApplyWindowAction` then skips
+  both the integrity check and the same-thread check. That access comes from user32's unnamed `AcquireIAMKey`
+  (ordinal 2509) and `EnableIAMAccess` (2510), which win32k grants only to the process that registered the shell
+  window (`SetShellWindow`) and only while no other thread holds it (read in `NtUserAcquireIAMKey`; a live or still
+  exiting Explorer does). So as the shell NeoShell takes it on its UI thread at start
+  (`ShellRegistration.TakeWindowManagerAccess`, logged), and Snap places windows with `TopLevelWindows.Arrange`
+  (`ApplyWindowAction`: position, size and `WPS_ARRANGED`, `WAM_FRAME_BOUNDS`, `WAM_DPI` with the monitor's DPI) and
+  gives them their own bounds back with `Unarrange` (`WPS_NORMAL`): Win+arrows, a drag let go at an edge, the bar,
+  the layouts flyout and Snap Assist's picks animate as Explorer's, recorded side by side at 60 fps (normal to a half,
+  a half to a quarter, a half back to its own bounds, a pick from Snap Assist, a drop at the edge; Win+Up/Down's
+  maximize and restore are `ShowWindow`'s, which Windows animates for both). The process ending gives the access up
+  (Explorer took it again each time after NeoShell's `/exit`). Without it (log: "refused") windows are placed as
+  before and jump. Windows applies the action on the window's own thread: `Arrange` waits for the window to move (at
+  most 100 ms, for a hung app) so Snap Assist's empty zones see it in its zone. An arranged window dragged gets its own
+  size back from Windows itself as the drag starts (as Explorer's snapped windows do), so `WindowSnapping` takes that
+  first change of size as the unsnap, not as a resize by hand. Not compared: a move between zones of the same size
+  (a quarter across to the other), which DWM doesn't animate (ApplyWindowAction tried directly); Explorer's layouts
+  always made the sizes differ when tried. Not run live: Win+Shift+arrows across monitors and DPI-unaware windows on a
+  monitor at another scale with `ApplyWindowAction` (one monitor at 100% this time).
 
 ### Snap Assist (`SnapAssist`, `SnapAssistPlan`, unit tested)
 
@@ -2820,8 +2857,15 @@ nothing (they stay registered as hotkeys, so the keyboard hook takes them: `Snap
   row goes to the bottom one), Home and End jump, the chosen card is ringed in the accent once the keyboard is used,
   Esc ends it and gives the focus back to the snapped window, as does a click elsewhere (deactivation, or another
   window coming to the front).
-- Explorer's appears about 450 ms after the snap, the cards flying in from their windows over about 430 ms;
-  NeoShell's appears about 170 ms after (its windows don't animate into place) and fades in over 300 ms.
+- **Showing** (T39d, recorded at 60 fps side by side): Explorer's appears whole about 435 ms after the snapped window
+  starts moving (its own animation is over by about 250 ms): the panels, cards and titles at once, no fade, the live
+  previews flying in from where their windows are to their cards, already about 90 % of the way in the first frame
+  and settling over about 170 ms more. Fitted to the recorded frames (`SnapAssistPlan.FlyIn`, tested): cubic-bezier
+  (0.1, 0.9, 0.2, 1) over 260 ms, the window showing 84 ms in. NeoShell's asks to show 350 ms after the snap, counted in
+  frames (its window takes about 80 ms more to show: the foreground and the region), and moves each DWM preview from
+  its window's place (what's drawn of it) to its card frame by frame; a minimized window's preview is in place from the
+  start. Measured: it shows 415-450 ms after the window starts moving, first frames at the same share of the way.
+  Picking a card then moves on without the fly-in (not compared).
 - A WinUI window that's new, shown again or resized is black for about 100-150 ms, and WinUI doesn't draw a window
   that's hidden, off the screen or cloaked: Snap Assist is one window over the monitor's work area, kept shown and cut
   to the zones by its region (nothing between showings), which draws the cards before its region shows them.
@@ -2922,7 +2966,10 @@ Small widgets about the computer and its user, as Windows Vista's sidebar gadget
 
 - `SidebarWindow`: a strip along the right of the primary monitor, from the top to the taskbar (the work area's
   height), 320 epx wide by default (`WidgetSidebarWidth`, 240 to 560); dragging its left edge (`EdgeGrip`) resizes
-  it. It reserves its space so maximized windows stop at its edge: alongside Explorer as an app bar on the right
+  it, the edge keeping where it was grabbed. The grip is 6 epx plus a maximized window's invisible resize border wide
+  (`SidebarLayout.GripWidth`, 14 epx at 100%, tested): a maximized window's bounds reach that border (8 px at 96 DPI)
+  past the work area, over the sidebar's edge, and it takes the pointer there, so a 6 epx grip couldn't be reached
+  beside one (T39d; Explorer has no sidebar). It reserves its space so maximized windows stop at its edge: alongside Explorer as an app bar on the right
   (`AppBar.DockRight`, left of other app bars there); as the shell through `ShellWorkArea` (see the taskbar's
   Window), which keeps the taskbar's bottom and the sidebar's right reservation per monitor so neither undoes the
   other's; the sidebar's height comes from what's reserved there, not from Windows' work area, which follows a moment

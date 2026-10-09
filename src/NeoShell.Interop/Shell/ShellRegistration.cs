@@ -66,6 +66,16 @@ public sealed class ShellRegistration : IDisposable
         }
     }
 
+    /// <summary>
+    /// Takes the immersive window manager's access for the calling thread, as Explorer's window management does: win32k
+    /// hands its key only to the process that registered the shell window, and only while no other thread holds it (a
+    /// lingering Explorer). With it the thread may arrange other processes' windows (<see
+    /// cref="Windowing.TopLevelWindows.Arrange"/>), which DWM animates as Explorer's snaps. The process ending gives it
+    /// up, for the next shell.
+    /// </summary>
+    /// <returns>Whether the thread has it.</returns>
+    public static bool TakeWindowManagerAccess() => User32.AcquireIAMKey(out ulong key) && User32.EnableIAMAccess(key, true);
+
     public void Dispose() => _window.Dispose();
 
     private nint? OnMessage(uint message, nint wParam, nint lParam)

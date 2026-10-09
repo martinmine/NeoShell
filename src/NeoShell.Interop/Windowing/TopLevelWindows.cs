@@ -49,6 +49,29 @@ public static unsafe class TopLevelWindows
     /// <summary>On screen: visible, not minimized and not cloaked (e.g. on another virtual desktop).</summary>
     public static bool IsOnScreen(nint hwnd) => User32.IsWindowVisible(hwnd) && !User32.IsIconic(hwnd) && !IsCloaked(hwnd);
 
+    /// <summary>
+    /// Whether another app's topmost window on screen covers the whole of <paramref name="monitor"/> (a full-screen or,
+    /// with nothing reserved, a maximized one).
+    /// </summary>
+    public static bool IsTopmostWindowCovering(RectInt32 monitor)
+    {
+        int ownProcess = Environment.ProcessId;
+        foreach (nint window in GetAll())
+        {
+            // Topmost windows come first in the z-order.
+            if ((User32.GetWindowLongPtr(window, User32.GWL_EXSTYLE) & User32.WS_EX_TOPMOST) == 0)
+                return false;
+            RectInt32 bounds = GetBounds(window);
+            if (IsOnScreen(window) && GetProcessId(window) != ownProcess
+                && bounds.X <= monitor.X && bounds.Y <= monitor.Y
+                && bounds.X + bounds.Width >= monitor.X + monitor.Width && bounds.Y + bounds.Height >= monitor.Y + monitor.Height)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
     public static bool IsMaximized(nint hwnd) => User32.IsZoomed(hwnd);
 
     public static bool Exists(nint hwnd) => User32.IsWindow(hwnd);
@@ -222,11 +245,70 @@ public static unsafe class TopLevelWindows
     }
 
     /// <summary>
-    /// <see cref="Place"/> for a window that isn't to come to the front (Snap Assist keeps the keyboard while it fills
+    /// Snaps the window so the part that's drawn fills <paramref name="bounds"/>, as Explorer snaps: it's put in
+    /// Windows' arranged state (<c>ApplyWindowAction</c> with <c>WPS_ARRANGED</c>), which DWM animates from where the
+    /// window was (about 250 ms, the old picture and the new one sliding and scaling together), and which a drag of the
+    /// window ends by giving it its own size back. Only a thread with the immersive window manager's access may do
+    /// that to another app's window (see <c>ShellRegistration.TakeWindowManagerAccess</c>); without it the window is
+    /// <see cref="Place"/>d, without animation.
+    /// </summary>
+    /// <param name="dpi">The DPI of the monitor the bounds are on: the size is in its pixels whatever the window's own DPI awareness.</param>
+    public static void Arrange(nint hwnd, RectInt32 bounds, uint dpi)
+    {
+        if (!Apply(hwnd, bounds, dpi, User32.WPS_ARRANGED, User32.WAM_FRAME_BOUNDS))
+            Place(hwnd, bounds);
+    }
+
+    /// <summary>
+    /// Gives a snapped window its own bounds back (invisible borders included, as <see cref="GetBounds"/> measures
+    /// them), out of the arranged state, animated as <see cref="Arrange"/> is.
+    /// </summary>
+    public static void Unarrange(nint hwnd, RectInt32 bounds, uint dpi)
+    {
+        if (!Apply(hwnd, bounds, dpi, User32.WPS_NORMAL, 0))
+            SetBounds(hwnd, bounds);
+    }
+
+    private static bool Apply(nint hwnd, RectInt32 bounds, uint dpi, int state, uint modifiers)
+    {
+        const uint WAM_DPI = 0x0200;
+        var action = new User32.WINDOW_ACTION
+        {
+            kinds = User32.WAK_POSITION | User32.WAK_SIZE | User32.WAK_PLACEMENT_STATE,
+            modifiers = modifiers | WAM_DPI,
+            position = new User32.POINT { x = bounds.X, y = bounds.Y },
+            size = new User32.SIZE { cx = bounds.Width, cy = bounds.Height },
+            placementState = state,
+            dpi = dpi,
+        };
+        RectInt32 before = GetBounds(hwnd);
+        if (!User32.ApplyWindowAction(hwnd, &action))
+            return false;
+
+        // Windows applies it on the window's own thread, later. Wait for that (briefly: the app may be hung), as
+        // SetWindowPos waits, so what follows (Snap Assist's empty zones) finds the window where it went.
+        long start = Environment.TickCount64;
+        bool frame = (modifiers & User32.WAM_FRAME_BOUNDS) != 0;
+        while (Environment.TickCount64 - start < 100 && GetBounds(hwnd) == before
+            && (frame ? GetVisibleBounds(hwnd) : GetBounds(hwnd)) != bounds)
+        {
+            Thread.Sleep(2);
+        }
+        return true;
+    }
+
+    /// <summary>
+    /// Whether the window is in Windows' arranged state (see <see cref="Arrange"/>): a drag of it gives it its own size
+    /// back as it starts.
+    /// </summary>
+    public static bool IsArranged(nint hwnd) => User32.IsWindowArranged(hwnd);
+
+    /// <summary>
+    /// <see cref="Arrange"/> for a window that isn't to come to the front (Snap Assist keeps the keyboard while it fills
     /// the next zone): a minimized or maximized one is restored without activating it. A window of an app running as
     /// administrator refuses (UIPI) and is left as it is.
     /// </summary>
-    public static void PlaceInBackground(nint hwnd, RectInt32 bounds)
+    public static void ArrangeInBackground(nint hwnd, RectInt32 bounds, uint dpi)
     {
         if (User32.IsZoomed(hwnd) || User32.IsIconic(hwnd))
         {
@@ -238,7 +320,7 @@ public static unsafe class TopLevelWindows
             if (!User32.SetWindowPlacement(hwnd, &placement))
                 return;
         }
-        Place(hwnd, bounds);
+        Arrange(hwnd, bounds, dpi);
     }
 
     /// <summary>

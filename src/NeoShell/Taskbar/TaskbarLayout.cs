@@ -26,6 +26,14 @@ public static class TaskbarLayout
         shown with { Y = shown.Y + shown.Height - AutoHideVisiblePixels };
 
     /// <summary>
+    /// Whether the pointer here brings an auto-hidden taskbar back: on the sliver it leaves on screen (the bottom rows of
+    /// where it shows), whatever window is over it.
+    /// </summary>
+    public static bool RevealsAt(PointInt32 pointer, RectInt32 shown) =>
+        pointer.X >= shown.X && pointer.X < shown.X + shown.Width
+        && pointer.Y >= shown.Y + shown.Height - AutoHideVisiblePixels && pointer.Y < shown.Y + shown.Height;
+
+    /// <summary>
     /// Whether a window fills its monitor, like a game, a video or a browser after F11; the taskbar then makes way.
     /// A maximized window stops at the taskbar, so it doesn't count.
     /// </summary>

@@ -64,7 +64,12 @@ internal sealed class ShellSession : IDisposable
         _undoServer = ShellUndoServer.Start();
 
         // Without Explorer, Windows snaps no windows: dragged against an edge or with Win+arrows, Snap layouts, Snap
-        // Assist and snap groups (which the taskbar and Alt+Tab show).
+        // Assist and snap groups (which the taskbar and Alt+Tab show). Explorer's window management access lets Snap
+        // put windows in Windows' arranged state, which DWM animates as it does Explorer's snaps.
+        if (ShellRegistration.TakeWindowManagerAccess())
+            Log.Info("Took the window manager's access: snaps animate");
+        else
+            Log.Warn("Window manager's access refused (an Explorer still holding it?): snaps jump");
         _snapping = new WindowSnapping(_taskbars.Tracker, () => _taskbars.Theme, _wallpaperOn);
         _taskbars.Snapping = _snapping;
         RegisterHotkeys();

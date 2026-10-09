@@ -264,6 +264,47 @@ internal static unsafe partial class User32
     [return: MarshalAs(UnmanagedType.Bool)]
     public static partial bool SetTaskmanWindow(nint hwnd);
 
+    // The immersive window manager's access (IAM), which Explorer takes as the shell: undocumented, by ordinal.
+    [LibraryImport("user32.dll", EntryPoint = "#2509", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static partial bool AcquireIAMKey(out ulong key);
+
+    [LibraryImport("user32.dll", EntryPoint = "#2510", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static partial bool EnableIAMAccess(ulong key, [MarshalAs(UnmanagedType.Bool)] bool enable);
+
+    public const uint WAK_POSITION = 0x0002;
+    public const uint WAK_SIZE = 0x0004;
+    public const uint WAK_PLACEMENT_STATE = 0x0020;
+    public const uint WAM_FRAME_BOUNDS = 0x0001;
+    public const int WPS_NORMAL = 0;
+    public const int WPS_ARRANGED = 3;
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct WINDOW_ACTION
+    {
+        public uint kinds;
+        public uint modifiers;
+        public int visible;
+        public POINT position;
+        public SIZE size;
+        public nint insertAfter;
+        public int placementState;
+        public RECT normalRect;
+        public RECT workArea;
+        public uint dpi;
+        public POINT pointOnMonitor;
+        public uint monitorTopologyId;
+    }
+
+    [LibraryImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static partial bool ApplyWindowAction(nint hwnd, WINDOW_ACTION* action);
+
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static partial bool IsWindowArranged(nint hwnd);
+
     public const int SM_REMOTESESSION = 0x1000;
     public const int SM_SHUTTINGDOWN = 0x2000;
     public const int SM_REMOTECONTROL = 0x2001;

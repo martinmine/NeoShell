@@ -33,8 +33,9 @@ internal sealed partial class SidebarWindow : Window
     private double _width;
     private ElementTheme _theme;
     private Color? _accent;
-    // The right edge, in screen pixels, while the left one is dragged.
+    // The right edge, in screen pixels, while the left one is dragged, and how far in from the left one it was grabbed.
     private int? _resizeRight;
+    private int _resizeGrab;
     private bool _panelShown = true;
     // The cards the window is cut to while the panel is hidden, in pixels; null shows all of it.
     private List<RectInt32>? _region;
@@ -120,6 +121,7 @@ internal sealed partial class SidebarWindow : Window
     {
         _monitor = monitor;
         _width = width;
+        Grip.Width = SidebarLayout.GripWidth(TopLevelWindows.ResizeBorder(monitor.Dpi), monitor.Dpi);
         int physicalWidth = SidebarLayout.PhysicalWidth(width, monitor.Dpi);
         if (_appBar is not null)
         {
@@ -322,6 +324,7 @@ internal sealed partial class SidebarWindow : Window
     private void Grip_PointerPressed(object sender, PointerRoutedEventArgs e)
     {
         _resizeRight = _placement.Bounds.X + _placement.Bounds.Width;
+        _resizeGrab = Cursor.Position().X - _placement.Bounds.X;
         Grip.CapturePointer(e.Pointer);
         e.Handled = true;
     }
@@ -334,7 +337,7 @@ internal sealed partial class SidebarWindow : Window
             return;
 
         int width = Math.Clamp(
-            right - Cursor.Position().X,
+            right - (Cursor.Position().X - _resizeGrab),
             SidebarLayout.PhysicalWidth(SidebarLayout.MinWidth, _monitor.Dpi),
             SidebarLayout.PhysicalWidth(SidebarLayout.MaxWidth, _monitor.Dpi));
         _placement.Bounds = _placement.Bounds with { X = right - width, Width = width };

@@ -521,7 +521,7 @@ Found while working on milestone 19, not done yet.
       (screen sharing, OBS, Snipping Tool's overlay and recorder; see design.md "Hotkeys", T30)
 - [ ] T38 The session's change-notification server (`SHChangeNotify`): without Explorer no process serves it, so folder
       windows may not hear of changes made by other processes (T5; not confirmed live)
-- [ ] T39 Explorer parity polish, existing differences noticed by the agents:
+- [x] T39 Explorer parity polish, existing differences noticed by the agents:
   - Flyouts don't close when another app is clicked; the Quick Settings button isn't highlighted while it's open; the
     Quick Settings footer's shading is reversed (T8) — flyouts and highlight fixed (T39a): every taskbar flyout and
     menu takes the foreground as Explorer's and closes when it loses it (Win+A and Win+N too); the footer's shading
@@ -555,7 +555,11 @@ Found while working on milestone 19, not done yet.
     and block lists, so All lists Explorer's apps and categories hold its items exactly; Explorer's keyboard behaviour
     (Tab stops, arrows through headers and items, Home/End, Enter, Shift+F10, Esc); the page's zoom-out and back,
     recorded at 60 fps; not compared: opening a folder from inside an open category
-  - Win+arrow moves jump; Explorer slides them over about 250 ms (T28)
+  - Win+arrow moves jump; Explorer slides them over about 250 ms (T28) — fixed (T39d): found with cdb that Explorer's
+    animation is DWM's own for a window put in Windows' arranged state; as the shell NeoShell takes the window
+    manager's access Explorer uses and arranges windows with `ApplyWindowAction`, so Win+arrows, drops at an edge, the
+    bar, the layouts flyout and Snap Assist's picks animate as Explorer's (recorded side by side at 60 fps); not
+    compared: moves between zones of the same size (DWM doesn't animate them); not run live: across monitors
   - Quick Settings: night light's moon keeps faint sun rays; a 2-3 frame resize between pages; with the light theme
     and accent on Windows' panel is light-accent; footer colour, slider and page-dot spacing; the panel sits 1 px left
     (T32). The Bluetooth page's battery glyph, Disconnect button and row spacing weren't compared (T33) — fixed (T39b),
@@ -567,9 +571,15 @@ Found while working on milestone 19, not done yet.
     widget sidebar nor shows empty frames. Still differs: Windows crossfades old and new content between pages
     (NeoShell cuts), animates nearby sharing's arrow on turning on; the night light moon's swap timing; not run live:
     the Bluetooth page (no radio; checked with fake devices)
-  - Snap Assist's cards fade in after 170 ms; Explorer's fly in from the windows after about 450 ms (T27)
+  - Snap Assist's cards fade in after 170 ms; Explorer's fly in from the windows after about 450 ms (T27) — fixed
+    (T39d): shows whole about 435 ms after the window starts moving, the previews flying in from their windows on
+    Explorer's curve (fitted to its frames), as recorded side by side
   - The auto-hidden taskbar's 2 px edge can't be reached under a topmost maximized window; a maximized window's border
-    covers the sidebar's resize grip (T3)
+    covers the sidebar's resize grip (T3) — fixed (T39d): the taskbar comes back with the pointer on its edge whatever
+    window is over it, as Explorer's (which polls the pointer), but not under a topmost window covering the monitor,
+    as Explorer's (measured; with the sidebar shown a maximized window doesn't cover it); the sidebar's grip reaches
+    past a maximized window's invisible border. Still differs: a topmost window over the edge stays above Explorer's
+    revealed taskbar, NeoShell's goes above it
 - [x] T40 Robustness and correctness, existing problems noticed by the agents:
   - WinUI access violation when auto-hide was switched through UI Automation with the menu still open (T1) — not
     reproducible: auto-hide switched by UIA Toggle with the menu (and a submenu) open 30+ times, and the taskbars

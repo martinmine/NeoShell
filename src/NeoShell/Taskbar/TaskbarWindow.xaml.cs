@@ -104,6 +104,7 @@ internal sealed partial class TaskbarWindow : Window
     private nint _fullScreenWindow;
     private readonly bool _autoHide;
     private readonly DispatcherQueueTimer? _autoHideTimer;
+    private readonly DispatcherQueueTimer? _unhideTimer;
     private readonly DispatcherQueueTimer _slideTimer;
     private RectInt32 _shownBounds;
     private RectInt32 _slideFrom;
@@ -244,8 +245,11 @@ internal sealed partial class TaskbarWindow : Window
             _autoHideTimer = CreateTimer(dispatcher, TimeSpan.FromMilliseconds(250), CheckAutoHide);
             _autoHideTimer.IsRepeating = true;
             _autoHideTimer.Start();
-            // The sliver left on screen catches the pointer.
-            Root.PointerEntered += (_, _) => Reveal();
+            // The pointer at the sliver left on screen brings it back, whatever window is over the sliver (a topmost
+            // one, or a maximized window's invisible border): Explorer's taskbar checks where the pointer is, every
+            // 50 ms while hidden (Taskbar.dll's unhide timer), rather than waiting for it to enter its window.
+            _unhideTimer = CreateTimer(dispatcher, TimeSpan.FromMilliseconds(50), CheckUnhide);
+            _unhideTimer.IsRepeating = true;
         }
 
         // The tray lives on the primary taskbar only, as in Windows 11.
@@ -314,6 +318,7 @@ internal sealed partial class TaskbarWindow : Window
                 QuickSettings.Detach();
             }
             _autoHideTimer?.Stop();
+            _unhideTimer?.Stop();
             _slideTimer.Stop();
             _trayHoverTimer.Stop();
             _hoverTimer.Stop();
@@ -358,7 +363,19 @@ internal sealed partial class TaskbarWindow : Window
             return;
 
         _hidden = false;
+        _unhideTimer?.Stop();
         SlideTo(_shownBounds);
+    }
+
+    // As Explorer's: not over a full-screen app, which the taskbar makes way for, nor over a topmost window that fills
+    // the monitor (a maximized one, with nothing reserved), though over any other window.
+    private void CheckUnhide()
+    {
+        if (TaskbarLayout.RevealsAt(Cursor.Position(), _shownBounds) && _fullScreenWindow == 0
+            && !TopLevelWindows.IsTopmostWindowCovering(_monitor.Bounds))
+        {
+            Reveal();
+        }
     }
 
     // Auto-hide: slide away once the pointer has been off the taskbar for a moment and nothing of it is in use.
@@ -385,6 +402,7 @@ internal sealed partial class TaskbarWindow : Window
             _hidden = true;
             _thumbnails.Hide();
             SlideTo(TaskbarLayout.HiddenBounds(shown));
+            _unhideTimer?.Start();
         }
     }
 
