@@ -604,12 +604,23 @@ Found while working on milestone 19, not done yet.
     the foreground below the lowest window of the thread in front, which with NeoShell in front is its wallpaper; such
     windows are now put above the others as under Explorer. Snap read Windows' work area, the whole monitor after a
     display change until NeoShell sets it again; it now uses NeoShell's own reservations
+- [ ] T41 Remaining differences and loose ends from T39 and T40:
+  - A possible WinUI access violation on exit with Quick Settings open from Win+A and a tile's tooltip showing (seen
+    once with an intermediate T39a build; the cause wasn't found)
+  - With the light theme and accent colour Start stays dark accent; Explorer 25H2's turns light accent (T39c)
+  - Quick Settings cuts between pages where Windows crossfades over 2-5 frames; nearby sharing's arrow animation and
+    night light's moon swap timing (T39b); the Accessibility page is 8 px shorter than Windows'
+  - The pin folder panel opens in 333 ms and closes in 150 ms to 0.084 of its size; Explorer's 343 ms, 167 ms, 0.044
+  - Taskbar tooltips are WinUI's, Explorer's are acrylic; Quick Settings opened through UI Automation shows its first
+    control's tooltip; hovering an open taskbar button doesn't brighten it further, as Explorer's does (T39a)
+  - A full taskbar cuts its row off; Explorer shrinks the icons and then overflows into a menu, and combines group by
+    group with "combine when full" (T39a)
+  - Snap: moves between two zones of the same size jump (DWM doesn't animate them); a revealed auto-hide taskbar goes
+    above a topmost window over its edge, Explorer's stays below it (T39d)
+  - Snap leaves elevated windows out, though `ApplyWindowAction` with the shell's window-manager access would now
+    reach them as Explorer's does (T39d; design.md)
+- [ ] T42 Jump lists: pinned entries, Pin to / Remove from this list (in scope at the owner's request, 2026-10-09)
+- [ ] T43 Toasts: images, buttons and inline replies (in scope at the owner's request, 2026-10-09)
 - Not possible without Explorer, with the evidence in design.md: Windows' own AutoPlay UI (T5, NeoShell has its own),
   the IME's right-click menu (T8), Win+V, Win+Period, Win+Semicolon and Win+H (T30), importing Explorer's pin folders
   (T17), Spotlight's "Learn about this picture", Next and rotation (T24), Edge tabs in Alt+Tab (T29)
-
-## Later / not planned yet
-
-- Notifications: toast images, buttons and inline replies (not exposed to listeners)
-
-- Jump lists: pinned entries, Pin to / Remove from this list

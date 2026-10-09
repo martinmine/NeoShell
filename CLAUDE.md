@@ -209,5 +209,4 @@ the desktop and back. Full spec in docs/design.md ("Widgets").
 
 ## Out of scope
 
-Editing Quick Settings' tiles, Windows 11's Widgets board (Win+W), Task View, pinning items in jump lists, toast
-images, buttons and inline replies.
+Editing Quick Settings' tiles, Windows 11's Widgets board (Win+W), Task View.
