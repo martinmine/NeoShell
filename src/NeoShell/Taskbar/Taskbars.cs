@@ -26,6 +26,7 @@ internal sealed class Taskbars : IDisposable
     private readonly DispatcherQueue _dispatcher = DispatcherQueue.GetForCurrentThread();
     private readonly Action _exit;
     private readonly Action _switchToExplorer;
+    private readonly Action _openWindowFrames;
     private readonly ShowDesktop _showDesktop = new();
     private readonly List<TaskbarWindow> _windows = [];
     // Explorer follows its clock settings as Settings writes them, with no message.
@@ -47,12 +48,13 @@ internal sealed class Taskbars : IDisposable
     private bool _updateQueued;
     private bool _recreate;
 
-    public Taskbars(RunMode runMode, SettingsStore settings, Action exit, Action switchToExplorer)
+    public Taskbars(RunMode runMode, SettingsStore settings, Action exit, Action switchToExplorer, Action openWindowFrames)
     {
         RunMode = runMode;
         Settings = settings;
         _exit = exit;
         _switchToExplorer = switchToExplorer;
+        _openWindowFrames = openWindowFrames;
         _windowSettings = settings.Current;
         // Start shows icons at up to 32 effective pixels, the taskbar at 24; load them sharp for the densest monitor.
         // The taskbar gets its own size, not a scaled-down 32: packaged apps have their own image for 24 pixels.
@@ -422,6 +424,8 @@ internal sealed class Taskbars : IDisposable
     }
 
     public void Exit() => _exit();
+
+    public void OpenWindowFrames() => _openWindowFrames();
 
     private void OnSettingsChanged()
     {

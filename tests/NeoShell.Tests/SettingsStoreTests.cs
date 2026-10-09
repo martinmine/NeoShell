@@ -57,14 +57,62 @@ public sealed class SettingsStoreTests : IDisposable
         ShellSettings loaded = _store.Load();
 
         Assert.Equal(
-            settings with { PinnedTaskbarApps = [], StartPins = [], StartAppsOpened = [], Widgets = [] },
-            loaded with { PinnedTaskbarApps = [], StartPins = [], StartAppsOpened = [], Widgets = [] });
+            settings with { PinnedTaskbarApps = [], StartPins = [], StartAppsOpened = [], Widgets = [], WindowFrameStyles = [], WindowFrameRules = [] },
+            loaded with { PinnedTaskbarApps = [], StartPins = [], StartAppsOpened = [], Widgets = [], WindowFrameStyles = [], WindowFrameRules = [] });
         Assert.Equal(settings.StartAppsOpened, loaded.StartAppsOpened);
         Assert.Equal(settings.PinnedTaskbarApps, loaded.PinnedTaskbarApps);
         Assert.Equal(settings.StartPins[0], loaded.StartPins[0]);
         Assert.Equal(settings.StartPins[1].Folder!.Name, loaded.StartPins[1].Folder!.Name);
         Assert.Equal(settings.StartPins[1].Folder!.Apps, loaded.StartPins[1].Folder!.Apps);
         Assert.Equal(settings.Widgets, loaded.Widgets);
+    }
+
+    [Fact]
+    public void Window_frame_settings_round_trip()
+    {
+        var settings = new ShellSettings
+        {
+            WindowFramesEnabled = true,
+            WindowFrameStyle = "Mine",
+            WindowFrameStyles =
+            [
+                new FrameStyle
+                {
+                    Name = "Mine",
+                    Backdrop = FrameBackdrop.Acrylic,
+                    Theme = FrameTheme.Dark,
+                    CaptionColor = "#0054E3",
+                    TextColor = "Contrast",
+                    BorderColor = "None",
+                    Corners = FrameCorners.Square,
+                    BasicFrame = true,
+                },
+            ],
+            WindowFrameRules = [new FrameRule("notepad.exe"), new FrameRule("regedit.exe", "RegEdit_RegEdit", "Luna (XP-like)")],
+        };
+
+        _store.Save(settings);
+        ShellSettings loaded = _store.Load();
+
+        Assert.True(loaded.WindowFramesEnabled);
+        Assert.Equal("Mine", loaded.WindowFrameStyle);
+        Assert.Equal(settings.WindowFrameStyles, loaded.WindowFrameStyles);
+        Assert.Equal(settings.WindowFrameRules, loaded.WindowFrameRules);
+        Assert.Contains("\"Backdrop\": \"Acrylic\"", File.ReadAllText(_store.Path));
+    }
+
+    [Fact]
+    public void Window_frames_are_off_by_default_with_windows_own_frames()
+    {
+        WriteFile("""{ "WindowFrameStyles": [ { "Name": "Bare" } ], "WindowFrameRules": [ { "ProcessName": "a.exe" } ] }""");
+
+        ShellSettings loaded = _store.Load();
+
+        Assert.False(loaded.WindowFramesEnabled);
+        Assert.Equal("Windows default", loaded.WindowFrameStyle);
+        Assert.Equal(new FrameStyle { Name = "Bare" }, loaded.WindowFrameStyles[0]);
+        Assert.Equal(new FrameRule("a.exe"), loaded.WindowFrameRules[0]);
+        Assert.Empty(new ShellSettings().WindowFrameRules);
     }
 
     [Fact]

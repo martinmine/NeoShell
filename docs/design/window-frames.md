@@ -4,8 +4,9 @@ Restyling other applications' title bars and frames: their backdrop (Mica, Mica 
 colours, corners and borders, globally and per app, with presets that recall older Windows (XP's Luna, Vista's Aero
 glass) and styles of the user's own. Part of the [NeoShell design](../design.md).
 
-Status: **research and prototype spec** (title-bar-prototype branch, 2026-10-09). Nothing here is built yet. The
-findings below were measured on this VM (Windows 11 25H2, build 26200) unless a source is named.
+Status: **prototype built** (option A + B, title-bar-prototype branch, 2026-10-09; see
+[The prototype as built](#the-prototype-as-built)). The findings below were measured on this VM (Windows 11 25H2,
+build 26200) unless a source is named.
 
 ## What Windows lets another process change
 
@@ -33,9 +34,13 @@ Also found:
   not be used.
 - The attributes stay on the window until it's destroyed or someone sets them again. If NeoShell exits or crashes
   the windows keep their look, which is harmless; NeoShell resets them when the feature is turned off.
-- Not measured: a medium-IL NeoShell styling an **elevated** window. UIPI may refuse it (as it refuses most messages,
-  see [Window snapping](windows.md#window-snapping-windowsnapping-shell-mode)); the prototype must check the result
-  and leave such windows alone.
+- A medium-IL NeoShell styling an **elevated** window (Task Manager): DWM refuses `DwmSetWindowAttribute` (measured
+  with the prototype), so such windows keep their look; the prototype logs it once and skips the window.
+- On 25H2 a standard Win32 title bar already has Mica by default (`DWMSBT_AUTO`): setting `DWMSBT_MAINWINDOW` changes
+  nothing measurable (the same pixels, active and inactive, light and dark). Mica Alt is visibly more tinted.
+- An app that sets its own dark mode in `WM_ACTIVATE` does so *after* the out-of-context foreground event reaches
+  NeoShell, so restyling on that event alone loses the race; restyling again 250 ms later wins (measured with a test
+  window that resets itself to light on every activation).
 - Windows whose apps draw their own title bar (Chromium and Electron apps, Edge, Office, Visual Studio, Windows
   Terminal, WinUI and UWP apps with `ExtendsContentIntoTitleBar`, Task Manager) keep their look: only the border
   colour and corners reach them, and a backdrop only where they paint nothing. Classic Win32, WinForms and WPF windows
@@ -196,6 +201,75 @@ Settings (`ShellSettings`): `WindowFramesEnabled` (bool), `WindowFrameStyle` (th
   to see the blur; a test window that sets its own dark mode on activation, to check re-applying; a custom-title-bar
   app (Windows Terminal) to check that only border and corners change; an elevated window (Task Manager) to check
   that a refused call is skipped, not retried in a loop.
+
+## The prototype as built
+
+Option A + B as specified above; no injection, no new packages, no native code.
+
+- `NeoShell.Interop/Windowing/WindowFrame.cs`: `Apply(hwnd, FrameAttributes)` sets only the parts given (the policy
+  first, then dark mode, backdrop, colours, corners) and `Reset(hwnd, FrameParts, darkMode)` puts the given parts back
+  (`DWMSBT_AUTO`, `DWMWA_COLOR_DEFAULT`, corners 0, `DWMNCRP_USEWINDOWSTYLE`, dark mode as read before the first
+  apply); both return whether DWM accepted every call. Colours are 0xAARRGGBB; a transparent border colour is
+  `DWMWA_COLOR_NONE`. `WindowFrame.Read` gives the facts rules and eligibility need (process, class, styles, cloaked).
+- `NeoShell/Frames/`: `FrameRules` (rule matching, eligibility), `FrameColors` (style to attributes, the colour
+  keywords `Accent`, `None` and `Contrast`, the parts to reset), `FramePresets`, `WindowFrames` (the live part,
+  created by `App` while enabled, in both run modes), `WindowFramesWindow` (the settings window) and
+  `FramePreviewWindow`.
+- `WindowFrames` styles every top-level window at start, new ones on `Shown`/`Uncloaked`, and the foreground window on
+  `Foreground` and once more 250 ms later (see above). It remembers what it gave each window; on a settings change it
+  restyles all, first resetting parts the new style leaves unset (a part set either way is overwritten, so an app's
+  own values of parts the style doesn't touch survive). A window DWM refuses is logged once and skipped until it's
+  destroyed. Turning the feature off or `/exit` resets every window it styled; a crash leaves the looks until the
+  windows close.
+- A style's colours: `#RRGGBB`, `Accent` (the accent colour, `ImmersiveSystemAccent`, read on each restyle), `None`
+  (border only), `Contrast` (text only: white or black by the caption colour's luminance). The Accent preset uses
+  Accent caption and border with Contrast text.
+- Luna's colours checked against XP's blue scheme: `ActiveCaption` 0,84,227 (#0054E3), caption text white,
+  `InactiveCaption` 122,150,223 and `InactiveCaptionText` 216,228,248 (luna.msstyles' system colours, as tabulated in
+  Brethorsting's "Windows System Colors"). The border #0831D9 is the dark blue of Luna's frame bitmap, kept from the
+  spec; not checked against a pixel reference. DWM takes one caption colour, so Luna is flat and stays #0054E3 when
+  inactive (only the caption buttons grey).
+- The settings window (from the taskbar's menu, "Window frames...", until NeoShell has a settings window): on/off,
+  the style for all windows, rules (added from a menu of the running apps' processes; optional class; style or
+  "Leave alone"; remove), and the style editor: presets read-only, Duplicate makes an editable copy ("... copy"),
+  rename (references follow), Delete (references fall back to Windows default), backdrop, light/dark, title bar, text
+  and border colours (Windows default / Accent / Black or white / No border / Custom with a colour picker), corners,
+  basic frame. Preview opens a NeoShell window with Windows' standard title bar beside the editor, wearing the edited
+  style live. Mica backdrop, content drawn into the title bar, follows the app light/dark mode live; AutomationIds on
+  every control (`WindowFramesMenuItem`, `WindowFramesToggle`, `GlobalStyleBox`, `AddRuleButton`, `AddRuleMenuItem`,
+  `FrameRule`, `RuleClassBox`, `RuleStyleBox`, `RemoveRuleButton`, `EditStyleBox`, `PreviewToggle`,
+  `DuplicateStyleButton`, `DeleteStyleButton`, `StyleNameBox`, `BackdropBox`, `ThemeBox`, `CaptionColorBox`,
+  `CaptionColorButton`, `CaptionColorPicker`, the same for `TextColor` and `BorderColor`, `CornersBox`,
+  `BasicFrameToggle`).
+
+### What each preset looks like (measured)
+
+On WinForms windows of a test app (light, dark, and one resetting itself to light on activation) over a striped
+window, active and inactive, alongside Explorer:
+
+- Windows default: unchanged. Mica: identical to the default on 25H2 (see above). Mica Alt: a stronger wallpaper tint,
+  active only.
+- Acrylic: the stripes blurred through the title bar while active; flat light grey (dark grey for a dark app) when
+  inactive.
+- Dark / Light: the frame, caption buttons and title text in that mode; the self-resetting window is dark again
+  within 250 ms of each activation.
+- Accent: the accent blue (#0063B1 here) title bar and border, white text, active and inactive alike.
+- Glass (Vista-like): dark Acrylic, the stripes blurred while active, dark grey when inactive, accent border.
+- Luna (XP-like): flat #0054E3 title bar, white text, blue border, small round corners; the same when inactive.
+- Windows 7 Basic: uxtheme's pale blue gradient frame with Windows 7 caption buttons (a red close button when active)
+  and drawn borders; the title text came out clean on WinForms here.
+- Windows Terminal (draws its own title bar) with Luna: only the blue border and the corners change.
+
+### Tested
+
+Unit tests (`WindowFrameTests`, `SettingsStoreTests`): rule priority, eligibility, style to attributes, colours and
+`COLORREF`, the parts reset, presets, copy names, settings round trip and defaults. Live, NeoShell at medium
+integrity alongside Explorer, driven through UI Automation and `mouse_event` on the test app's own windows: every
+preset active and inactive; the self-resetting window; styles applied at start; rules (leave alone, class narrowing,
+a process rule over the global style); duplicate, rename, square corners, no border, a picked colour shown live in the
+preview and saved; delete; turning off and `/exit` putting every window back (the dark app's own dark mode kept);
+Windows Terminal; Task Manager elevated (refused, logged once, not retried); the settings window in the dark and light
+app modes. Not done: a second monitor, other DPI scales, shell mode (the code path is the same).
 
 ## Open questions for the owner
 

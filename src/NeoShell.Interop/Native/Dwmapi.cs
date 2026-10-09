@@ -4,14 +4,23 @@ namespace NeoShell.Interop.Native;
 
 internal static unsafe partial class Dwmapi
 {
+    public const uint DWMWA_NCRENDERING_POLICY = 2;
     public const uint DWMWA_CAPTION_BUTTON_BOUNDS = 5;
     public const uint DWMWA_EXTENDED_FRAME_BOUNDS = 9;
     public const uint DWMWA_EXCLUDED_FROM_PEEK = 12;
     public const uint DWMWA_CLOAK = 13;
     public const uint DWMWA_CLOAKED = 14;
+    public const uint DWMWA_USE_IMMERSIVE_DARK_MODE = 20;
     public const uint DWMWA_WINDOW_CORNER_PREFERENCE = 33;
     public const uint DWMWA_BORDER_COLOR = 34;
+    public const uint DWMWA_CAPTION_COLOR = 35;
+    public const uint DWMWA_TEXT_COLOR = 36;
+    public const uint DWMWA_SYSTEMBACKDROP_TYPE = 38;
 
+    public const int DWMNCRP_USEWINDOWSTYLE = 0;
+    public const int DWMNCRP_DISABLED = 1;
+    public const int DWMSBT_AUTO = 0;
+    public const int DWMWCP_DEFAULT = 0;
     public const int DWMWCP_DONOTROUND = 1;
     public const int DWMWCP_ROUND = 2;
     public const uint DWMWA_COLOR_NONE = 0xFFFFFFFE;

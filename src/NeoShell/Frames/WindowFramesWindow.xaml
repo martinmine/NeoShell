@@ -1,0 +1,300 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Window
+    x:Class="NeoShell.Frames.WindowFramesWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <Grid x:Name="Root">
+        <Grid.Resources>
+            <!-- A Settings app card. -->
+            <Style x:Key="CardStyle" TargetType="Grid">
+                <Setter Property="Background" Value="{ThemeResource CardBackgroundFillColorDefaultBrush}" />
+                <Setter Property="BorderBrush" Value="{ThemeResource CardStrokeColorDefaultBrush}" />
+                <Setter Property="BorderThickness" Value="1" />
+                <Setter Property="CornerRadius" Value="{ThemeResource OverlayCornerRadius}" />
+                <Setter Property="Padding" Value="16,12" />
+                <Setter Property="MinHeight" Value="68" />
+                <Setter Property="ColumnSpacing" Value="16" />
+            </Style>
+            <Style x:Key="SectionStyle" TargetType="TextBlock" BasedOn="{StaticResource BodyStrongTextBlockStyle}">
+                <Setter Property="Margin" Value="1,24,0,6" />
+            </Style>
+            <Style x:Key="DescriptionStyle" TargetType="TextBlock" BasedOn="{StaticResource CaptionTextBlockStyle}">
+                <Setter Property="Foreground" Value="{ThemeResource TextFillColorSecondaryBrush}" />
+                <Setter Property="TextWrapping" Value="Wrap" />
+            </Style>
+        </Grid.Resources>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="48" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <!-- Title bar: the content reaches into it, as Windows 11's own apps do. -->
+        <Grid x:Name="TitleBar" Padding="16,0,0,0" ColumnSpacing="12">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <FontIcon Glyph="&#xE737;" FontSize="16" />
+            <TextBlock Grid.Column="1" Text="Window frames" Style="{StaticResource CaptionTextBlockStyle}" VerticalAlignment="Center" />
+        </Grid>
+
+        <ScrollViewer Grid.Row="1" Padding="40,0,40,0">
+            <StackPanel MaxWidth="1000" Spacing="4" Padding="0,8,0,36">
+                <TextBlock Text="Window frames" Style="{StaticResource TitleTextBlockStyle}" Margin="0,0,0,20" />
+
+                <Grid Style="{StaticResource CardStyle}">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel VerticalAlignment="Center">
+                        <TextBlock Text="Restyle other apps' title bars and frames" />
+                        <TextBlock
+                            Style="{StaticResource DescriptionStyle}"
+                            Text="Backdrop, colours, border and corners, set through Windows' own window attributes. Apps that draw their own title bar only take the border and corners." />
+                    </StackPanel>
+                    <ToggleSwitch
+                        x:Name="EnabledToggle"
+                        Grid.Column="1"
+                        AutomationProperties.AutomationId="WindowFramesToggle"
+                        AutomationProperties.Name="Restyle other apps' title bars and frames"
+                        OnContent="On"
+                        OffContent="Off"
+                        MinWidth="0"
+                        Toggled="EnabledToggle_Toggled" />
+                </Grid>
+
+                <Grid Style="{StaticResource CardStyle}">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel VerticalAlignment="Center">
+                        <TextBlock Text="Style for all windows" />
+                        <TextBlock Style="{StaticResource DescriptionStyle}" Text="Every window no app rule names." />
+                    </StackPanel>
+                    <ComboBox
+                        x:Name="GlobalStyleBox"
+                        Grid.Column="1"
+                        MinWidth="200"
+                        VerticalAlignment="Center"
+                        AutomationProperties.AutomationId="GlobalStyleBox"
+                        AutomationProperties.Name="Style for all windows"
+                        SelectionChanged="GlobalStyleBox_SelectionChanged" />
+                </Grid>
+
+                <Grid Margin="0,24,0,6">
+                    <TextBlock Text="App rules" Style="{StaticResource BodyStrongTextBlockStyle}" VerticalAlignment="Center" Margin="1,0,0,0" />
+                    <DropDownButton
+                        x:Name="AddRuleButton"
+                        HorizontalAlignment="Right"
+                        AutomationProperties.AutomationId="AddRuleButton"
+                        AutomationProperties.Name="Add app">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <FontIcon Glyph="&#xE710;" FontSize="14" />
+                            <TextBlock Text="Add app" />
+                        </StackPanel>
+                        <DropDownButton.Flyout>
+                            <MenuFlyout x:Name="AddRuleMenu" Placement="BottomEdgeAlignedRight" Opening="AddRuleMenu_Opening" />
+                        </DropDownButton.Flyout>
+                    </DropDownButton>
+                </Grid>
+                <TextBlock
+                    Style="{StaticResource DescriptionStyle}"
+                    Margin="1,0,0,6"
+                    Text="A rule for a process, narrowed to one window class if you like, wins over the style for all windows; the more specific rule wins over the other." />
+                <StackPanel x:Name="RuleList" Spacing="4" />
+                <TextBlock
+                    x:Name="NoRulesText"
+                    Style="{StaticResource DescriptionStyle}"
+                    Margin="1,4,0,0"
+                    Text="No app rules yet." />
+
+                <TextBlock Text="Styles" Style="{StaticResource SectionStyle}" />
+                <Grid Style="{StaticResource CardStyle}">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <ComboBox
+                        x:Name="EditStyleBox"
+                        MinWidth="240"
+                        VerticalAlignment="Center"
+                        AutomationProperties.AutomationId="EditStyleBox"
+                        AutomationProperties.Name="Style to edit"
+                        SelectionChanged="EditStyleBox_SelectionChanged" />
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                        <ToggleButton
+                            x:Name="PreviewToggle"
+                            AutomationProperties.AutomationId="PreviewToggle"
+                            AutomationProperties.Name="Preview"
+                            Checked="PreviewToggle_Changed"
+                            Unchecked="PreviewToggle_Changed">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <FontIcon Glyph="&#xE8A7;" FontSize="14" />
+                                <TextBlock Text="Preview" />
+                            </StackPanel>
+                        </ToggleButton>
+                        <Button
+                            x:Name="DuplicateButton"
+                            AutomationProperties.AutomationId="DuplicateStyleButton"
+                            AutomationProperties.Name="Duplicate"
+                            Click="DuplicateButton_Click">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <FontIcon Glyph="&#xE8C8;" FontSize="14" />
+                                <TextBlock Text="Duplicate" />
+                            </StackPanel>
+                        </Button>
+                        <Button
+                            x:Name="DeleteButton"
+                            AutomationProperties.AutomationId="DeleteStyleButton"
+                            AutomationProperties.Name="Delete"
+                            Click="DeleteButton_Click">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <FontIcon Glyph="&#xE74D;" FontSize="14" />
+                                <TextBlock Text="Delete" />
+                            </StackPanel>
+                        </Button>
+                    </StackPanel>
+                </Grid>
+
+                <Grid Style="{StaticResource CardStyle}" Padding="16">
+                    <StackPanel x:Name="Editor" Spacing="12">
+                        <TextBlock
+                            x:Name="PresetNote"
+                            Style="{StaticResource DescriptionStyle}"
+                            Text="Presets can't be changed: duplicate one to make a style of your own." />
+                        <TextBox
+                            x:Name="NameBox"
+                            Header="Name"
+                            MaxWidth="360"
+                            HorizontalAlignment="Left"
+                            MinWidth="360"
+                            AutomationProperties.AutomationId="StyleNameBox"
+                            LostFocus="NameBox_LostFocus"
+                            KeyDown="NameBox_KeyDown" />
+                        <Grid ColumnSpacing="16" RowSpacing="12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+                            <ComboBox
+                                x:Name="BackdropBox"
+                                Header="Backdrop"
+                                HorizontalAlignment="Stretch"
+                                AutomationProperties.AutomationId="BackdropBox"
+                                SelectionChanged="Editor_Changed">
+                                <x:String>Windows default</x:String>
+                                <x:String>None</x:String>
+                                <x:String>Mica</x:String>
+                                <x:String>Mica Alt</x:String>
+                                <x:String>Acrylic</x:String>
+                            </ComboBox>
+                            <ComboBox
+                                x:Name="ThemeBox"
+                                Grid.Column="1"
+                                Header="Light or dark"
+                                HorizontalAlignment="Stretch"
+                                AutomationProperties.AutomationId="ThemeBox"
+                                SelectionChanged="Editor_Changed">
+                                <x:String>Windows default</x:String>
+                                <x:String>Light</x:String>
+                                <x:String>Dark</x:String>
+                            </ComboBox>
+                            <StackPanel Grid.Row="1" Spacing="4">
+                                <TextBlock x:Name="CaptionColorLabel" Text="Title bar colour" />
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <ComboBox
+                                        x:Name="CaptionColorBox"
+                                        MinWidth="160"
+                                        AutomationProperties.AutomationId="CaptionColorBox"
+                                        AutomationProperties.Name="Title bar colour"
+                                        SelectionChanged="Editor_Changed">
+                                        <x:String>Windows default</x:String>
+                                        <x:String>Accent colour</x:String>
+                                        <x:String>Custom</x:String>
+                                    </ComboBox>
+                                    <DropDownButton
+                                        x:Name="CaptionColorButton"
+                                        AutomationProperties.AutomationId="CaptionColorButton"
+                                        AutomationProperties.Name="Pick the title bar colour" />
+                                </StackPanel>
+                            </StackPanel>
+                            <StackPanel Grid.Row="1" Grid.Column="1" Spacing="4">
+                                <TextBlock x:Name="TextColorLabel" Text="Title text colour" />
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <ComboBox
+                                        x:Name="TextColorBox"
+                                        MinWidth="160"
+                                        AutomationProperties.AutomationId="TextColorBox"
+                                        AutomationProperties.Name="Title text colour"
+                                        SelectionChanged="Editor_Changed">
+                                        <x:String>Windows default</x:String>
+                                        <x:String>Black or white</x:String>
+                                        <x:String>Accent colour</x:String>
+                                        <x:String>Custom</x:String>
+                                    </ComboBox>
+                                    <DropDownButton
+                                        x:Name="TextColorButton"
+                                        AutomationProperties.AutomationId="TextColorButton"
+                                        AutomationProperties.Name="Pick the title text colour" />
+                                </StackPanel>
+                            </StackPanel>
+                            <StackPanel Grid.Row="2" Spacing="4">
+                                <TextBlock x:Name="BorderColorLabel" Text="Border colour" />
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <ComboBox
+                                        x:Name="BorderColorBox"
+                                        MinWidth="160"
+                                        AutomationProperties.AutomationId="BorderColorBox"
+                                        AutomationProperties.Name="Border colour"
+                                        SelectionChanged="Editor_Changed">
+                                        <x:String>Windows default</x:String>
+                                        <x:String>Accent colour</x:String>
+                                        <x:String>No border</x:String>
+                                        <x:String>Custom</x:String>
+                                    </ComboBox>
+                                    <DropDownButton
+                                        x:Name="BorderColorButton"
+                                        AutomationProperties.AutomationId="BorderColorButton"
+                                        AutomationProperties.Name="Pick the border colour" />
+                                </StackPanel>
+                            </StackPanel>
+                            <ComboBox
+                                x:Name="CornersBox"
+                                Grid.Row="2"
+                                Grid.Column="1"
+                                Header="Corners"
+                                HorizontalAlignment="Stretch"
+                                VerticalAlignment="Bottom"
+                                AutomationProperties.AutomationId="CornersBox"
+                                SelectionChanged="Editor_Changed">
+                                <x:String>Windows default</x:String>
+                                <x:String>Square</x:String>
+                                <x:String>Round</x:String>
+                                <x:String>Small round</x:String>
+                            </ComboBox>
+                            <StackPanel Grid.Row="3" Grid.ColumnSpan="2" Spacing="0">
+                                <ToggleSwitch
+                                    x:Name="BasicFrameToggle"
+                                    Header="Basic frame"
+                                    AutomationProperties.AutomationId="BasicFrameToggle"
+                                    Toggled="Editor_Changed" />
+                                <TextBlock
+                                    Style="{StaticResource DescriptionStyle}"
+                                    Text="Windows stops drawing the frame and the app draws Windows 7 Basic's instead, which hides the settings above. Its title text may look smudged." />
+                            </StackPanel>
+                        </Grid>
+                    </StackPanel>
+                </Grid>
+            </StackPanel>
+        </ScrollViewer>
+    </Grid>
+</Window>

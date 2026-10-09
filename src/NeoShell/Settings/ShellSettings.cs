@@ -62,6 +62,37 @@ public sealed record WidgetSettings
     public bool IsFloating => X is not null && Y is not null;
 }
 
+public enum FrameBackdrop { Default, None, Mica, MicaAlt, Acrylic }
+
+public enum FrameTheme { Default, Light, Dark }
+
+public enum FrameCorners { Default, Square, Round, SmallRound }
+
+/// <summary>
+/// A look for other apps' title bars and frames (see <see cref="Frames.WindowFrames"/>). Every value is optional: unset
+/// (Default, null) leaves the window's own. Colours are <c>#RRGGBB</c>, or <see cref="FrameColors.Accent"/>; a border
+/// may also be <see cref="FrameColors.None"/>, and text <see cref="FrameColors.Contrast"/> (white or black, whichever
+/// reads on the caption colour).
+/// </summary>
+public sealed record FrameStyle
+{
+    public string Name { get; set; } = "";
+    public FrameBackdrop Backdrop { get; set; }
+    public FrameTheme Theme { get; set; }
+    public string? CaptionColor { get; set; }
+    public string? TextColor { get; set; }
+    public string? BorderColor { get; set; }
+    public FrameCorners Corners { get; set; }
+    /// <summary>DWM stops drawing the frame and the app draws uxtheme's basic one (Windows 7 Basic's look).</summary>
+    public bool BasicFrame { get; set; }
+}
+
+/// <summary>
+/// The style for an app's windows, by process name (<c>notepad.exe</c>) and optionally window class; a null
+/// <paramref name="Style"/> leaves them alone.
+/// </summary>
+public sealed record FrameRule(string ProcessName, string? ClassName = null, string? Style = null);
+
 /// <summary>A pinned app: launched through its AppUserModelID when it has one, otherwise through its path.</summary>
 public sealed record PinnedApp(string DisplayName, string? AppUserModelId = null, string? Path = null, string? Arguments = null);
 
@@ -119,6 +150,13 @@ public sealed record ShellSettings
     /// <summary>The sidebar's width in effective pixels, as the user left it by dragging its edge.</summary>
     public double WidgetSidebarWidth { get; set; } = 320;
     public IReadOnlyList<WidgetSettings> Widgets { get; set; } = DefaultWidgets;
+    /// <summary>Restyle other apps' title bars and frames; off by default, so NeoShell never changes them unasked.</summary>
+    public bool WindowFramesEnabled { get; set; }
+    /// <summary>The style of every window no rule names: a preset's name or one of <see cref="WindowFrameStyles"/>.</summary>
+    public string WindowFrameStyle { get; set; } = Frames.FramePresets.WindowsDefault;
+    /// <summary>The user's own styles; the presets aren't stored.</summary>
+    public IReadOnlyList<FrameStyle> WindowFrameStyles { get; set; } = [];
+    public IReadOnlyList<FrameRule> WindowFrameRules { get; set; } = [];
 
     /// <summary>
     /// The sidebar's widgets until the user changes them. Fixed ids: a note's text is kept by its widget's id, even

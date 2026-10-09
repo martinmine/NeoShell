@@ -25,4 +25,8 @@ DesktopSortOrder     Name | Size | ItemType | DateModified
 ShowWidgetSidebar    bool
 WidgetSidebarWidth   double (epx)
 Widgets              list (id, kind, X/Y and size while floating, the kind's options)
+WindowFramesEnabled  bool (off)
+WindowFrameStyle     the global frame style's name (Windows default)
+WindowFrameStyles    list of the user's frame styles (see Window frames)
+WindowFrameRules     list (process, optional class, style name or null = leave alone)
 ```

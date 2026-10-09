@@ -638,3 +638,27 @@ Found while working on milestone 19, not done yet.
 - Not possible without Explorer, with the evidence in design/: Windows' own AutoPlay UI (T5, NeoShell has its own),
   the IME's right-click menu (T8), Win+V, Win+Period, Win+Semicolon and Win+H (T30), importing Explorer's pin folders
   (T17), Spotlight's "Learn about this picture", Next and rotation (T24), Edge tabs in Alt+Tab (T29)
+
+## Window frames prototype
+
+Restyling other apps' title bars and frames (title-bar-prototype branch; spec and findings in design/window-frames.md).
+Built as the spec's option A + B: NeoShell's own `DwmSetWindowAttribute` calls, nothing inside other processes.
+
+- [x] `WindowFrame` (Interop): apply and reset backdrop, dark mode, caption/text/border colour, corners and the basic
+      (uxtheme) frame on another app's window; refusals reported
+- [x] `WindowFrames`: off by default, both run modes; every window at start, new ones as they show, each again on
+      activation and 250 ms later (apps that set their own dark mode on activation); re-applied on a settings change
+      (unset parts reset first); every styled window put back when turned off and on `/exit`; refused windows
+      (elevated, gone) logged once and skipped
+- [x] Rules by process and optional window class (most specific wins, "leave alone"), MicaForEveryone's eligibility
+      filter, the spec's ten presets, own styles duplicated from any style
+- [x] "Window frames" window from the taskbar menu: on/off, style for all windows, rules (added from running apps),
+      style editor with colour pickers and a live preview window; Mica, light/dark, AutomationIds
+- [x] Settings (`WindowFramesEnabled`, `WindowFrameStyle`, `WindowFrameStyles`, `WindowFrameRules`) and unit tests
+- [x] Live: WinForms test windows (light, dark, one resetting its own dark mode) over stripes, active and inactive,
+      every preset; Windows Terminal (border and corners only); Task Manager elevated (refused, skipped, not retried);
+      off and `/exit` put every window back; the window in the light and dark app modes
+- Open questions for the owner (design/window-frames.md): is option A's approximation of XP and Vista enough, or try
+  the overlay spike (C)? Is a DWM extension (D) or bundling DWMBlurGlass (E) acceptable at all? Where do the settings
+  live once NeoShell has a settings window? Also: should Luna (or any style) get an inactive caption colour, applied on
+  foreground changes (XP's inactive caption was #7A96DF)?

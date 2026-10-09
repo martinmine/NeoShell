@@ -972,6 +972,12 @@
                     AutomationProperties.AutomationId="AllDisplaysMenuItem"
                     Text="Show taskbar on all displays"
                     Click="AllDisplays_Click" />
+                <MenuFlyoutSeparator />
+                <!-- NeoShell's own settings, until it has a settings window. -->
+                <MenuFlyoutItem
+                    AutomationProperties.AutomationId="WindowFramesMenuItem"
+                    Text="Window frames..."
+                    Click="WindowFrames_Click" />
                 <MenuFlyoutSeparator x:Name="ExitSeparator" />
                 <MenuFlyoutItem
                     x:Name="ExitItem"

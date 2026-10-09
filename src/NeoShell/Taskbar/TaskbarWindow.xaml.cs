@@ -2189,6 +2189,8 @@ internal sealed partial class TaskbarWindow : Window
     private void AllDisplays_Click(object sender, RoutedEventArgs e) =>
         _owner.Settings.Update(_owner.Settings.Current with { ShowOnAllDisplays = AllDisplaysItem.IsChecked });
 
+    private void WindowFrames_Click(object sender, RoutedEventArgs e) => _owner.OpenWindowFrames();
+
     private void Exit_Click(object sender, RoutedEventArgs e) => _owner.Exit();
 
     private void ShowDesktopButton_Click(object sender, RoutedEventArgs e) => _owner.ToggleDesktop();

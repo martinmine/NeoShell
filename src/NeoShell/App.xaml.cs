@@ -4,6 +4,7 @@ using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.Win32;
 using NeoShell.Desktop;
+using NeoShell.Frames;
 using NeoShell.Interop.Shell;
 using NeoShell.Interop.Windowing;
 using NeoShell.Logging;
@@ -26,6 +27,7 @@ public partial class App : Application
     private Wallpaper? _wallpaper;
     private Taskbars? _taskbars;
     private Sidebar? _sidebar;
+    private WindowFrames? _windowFrames;
     private ShellSession? _shellSession;
     private bool _shuttingDown;
     private bool _startExplorerOnExit;
@@ -76,10 +78,12 @@ public partial class App : Application
             _wallpaper.Show();
         }
 
-        _taskbars = new Taskbars(_runMode, _settings, Shutdown, SwitchToExplorer);
+        _taskbars = new Taskbars(_runMode, _settings, Shutdown, SwitchToExplorer, () => WindowFramesWindow.Open(_settings));
         _taskbars.Show();
         _sidebar = new Sidebar(_runMode, _settings, _taskbars);
         _sidebar.Show();
+        UpdateWindowFrames();
+        _settings.Changed += UpdateWindowFrames;
 
         if (_shellRegistration is not null)
         {
@@ -89,6 +93,24 @@ public partial class App : Application
         }
 
         Log.Info("Started");
+    }
+
+    /// <summary>Starts or stops restyling other apps' frames as the settings say, or restyles them by changed ones.</summary>
+    private void UpdateWindowFrames()
+    {
+        if (!_settings.Current.WindowFramesEnabled)
+        {
+            _windowFrames?.Dispose();
+            _windowFrames = null;
+        }
+        else if (_windowFrames is null)
+        {
+            _windowFrames = new WindowFrames(_settings);
+        }
+        else
+        {
+            _windowFrames.StyleAll();
+        }
     }
 
     /// <summary>
@@ -120,6 +142,10 @@ public partial class App : Application
         Log.Info("Shutting down");
         ShellWorkArea.BeginExit();
         _shellSession?.Dispose();
+        // Other apps' windows get their own frames back.
+        _settings.Changed -= UpdateWindowFrames;
+        _windowFrames?.Dispose();
+        WindowFramesWindow.CloseOpen();
         // The sidebar and taskbars next: they give the reserved screen space back.
         _sidebar?.Dispose();
         _taskbars?.Dispose();

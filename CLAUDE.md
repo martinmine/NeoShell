@@ -80,13 +80,16 @@ src/NeoShell/                 WinUI app
   AutoPlay/                   AutoPlay for inserted media (shell mode): content and choices, toast, Windows 8 flyout
   Widgets/                    Widget sidebar, floating widgets, and the widgets (profile, resources, pictures, media,
                               weather, notes, wireless devices, about Windows)
+  Frames/                     Window frames (prototype): other apps' title bars restyled through DWM attributes, by
+                              style and app rule; its settings window (taskbar menu) and preview window
   Settings/                   Settings record + JSON load/save (%LOCALAPPDATA%\NeoShell\settings.json)
 src/NeoShell.Interop/
   Native/                     LibraryImport: User32, Shell32, Dwmapi, Kernel32, Advapi32, PowrProf, Comctl32, Pdh, Hid,
                               Wintrust, Combase, Rasapi32, BluetoothApis
   Com/                        Core Audio, IShellItem/IShellItemImageFactory, IPropertyStore, ITaskbarList, ISearchQueryHelper,
                               IQuietHoursSettings, IHWEventHandler
-  Windowing/                  MessageWindow, WindowSubclass, AppBar, ShellHook, DwmThumbnail, KeyboardHook, WindowInfo
+  Windowing/                  MessageWindow, WindowSubclass, AppBar, ShellHook, DwmThumbnail, KeyboardHook, WindowInfo,
+                              WindowFrame (DWM attributes on other apps' frames)
   Imaging/                    IconBitmap (BGRA pixels), ScreenCapture (screen pixels, clipboard, PNG), Pictures (decode)
   Tray/                       TrayHost (owns Shell_TrayWnd), NOTIFYICONDATA parsing (32/64-bit)
   Audio/                      AudioEndpoint (volume/mute + events), mixer, outputs
@@ -203,7 +206,8 @@ the desktop and back. Full spec in docs/design/widgets.md.
   Alt+Tab's keys (Ctrl+Alt+Tab) and most-recently-used order, the title bar shake setting, snips (window targets,
   freeform masks, Snipping Tool's settings and editor link, the Print Screen key), what a focus session changes in
   Explorer's settings, the taskbar flashing setting, toast texts naming app resources, how many entries a jump list's parts show,
-  toast content (images, inputs, buttons and their invoke IDs, layout and timing).
+  toast content (images, inputs, buttons and their invoke IDs, layout and timing), window frames (rule priority,
+  eligibility, style to DWM attributes, colours, the parts reset, presets, their settings).
 - When testing the UI live, drive it through UI Automation (set `AutomationProperties.AutomationId` on interactive
   controls). Never use global keystrokes like SendKeys: they go to whichever window has focus.
 - Always stop a running NeoShell with `/exit` (or its taskbar menu), never by killing the process. A kill leaves the
