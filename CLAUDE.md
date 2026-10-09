@@ -5,6 +5,7 @@ and desktop icons, a Windows 11 style taskbar (with system tray, network, volume
 Settings) and a Start menu with search and power options.
 
 - Design and feature spec: [docs/design.md](docs/design.md)
+- Architecture and the Windows components used (each DLL, what for): [docs/architecture.md](docs/architecture.md)
 - Milestones and progress: [docs/plan.md](docs/plan.md) — tick items off as they land
 
 ## Development environment

@@ -8,8 +8,8 @@ A replacement for the Windows 11 `explorer.exe` shell, built with WinUI 3 and .N
 - A Start menu with app and Windows Search results, Settings, Lock / Sign out / Sleep / Restart / Shut down,
   and a button to switch back to Explorer
 
-> **Status:** in development. See [docs/plan.md](docs/plan.md) for progress and [docs/design.md](docs/design.md)
-> for the design.
+> **Status:** in development. See [docs/plan.md](docs/plan.md) for progress, [docs/design.md](docs/design.md)
+> for the design and [docs/architecture.md](docs/architecture.md) for the architecture and the parts of Windows it uses.
 
 ## Requirements
 

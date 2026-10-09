@@ -2,6 +2,7 @@
 
 This document describes what NeoShell does and how each feature is built. The milestones are in [plan.md](plan.md);
 coding rules are in [CLAUDE.md](../CLAUDE.md).
+The architecture, and every part of Windows NeoShell uses, is in [architecture.md](architecture.md).
 
 ## Scope
 
