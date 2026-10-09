@@ -116,6 +116,13 @@ public sealed record WindowInfo(
         }
     }
 
+    /// <summary>
+    /// Path of the executable of the process that owns the window, or null. Unlike <see cref="Read"/> it sends the
+    /// window nothing: reading the title of a window of NeoShell's own process sends it WM_GETTEXT, which waits for as
+    /// long as its thread is busy.
+    /// </summary>
+    public static string? ReadProcessPath(nint hwnd) => ReadProcess(TopLevelWindows.GetProcessId(hwnd)).Path;
+
     internal static unsafe (string? Path, string? PackageAppId) ReadProcess(int processId)
     {
         nint process = Kernel32.OpenProcess(Kernel32.PROCESS_QUERY_LIMITED_INFORMATION, false, (uint)processId);
