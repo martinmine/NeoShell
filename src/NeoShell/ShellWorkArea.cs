@@ -9,8 +9,8 @@ namespace NeoShell;
 
 /// <summary>
 /// The work area (where windows maximize) of each monitor while NeoShell is the shell: the monitor less the taskbar
-/// along its bottom, the widget sidebar along its right and other apps' app bars (<c>Tray.AppBars</c>). Each
-/// reserves its own space here, so none undoes another's. Alongside Explorer, app bars do this instead
+/// along its bottom and other apps' app bars (<c>Tray.AppBars</c>). Each reserves its own space here, so neither
+/// undoes the other's. The widget sidebar takes none: windows maximize over it. Alongside Explorer, app bars do this instead
 /// (<see cref="AppBar"/>).
 /// </summary>
 public static class ShellWorkArea
@@ -32,9 +32,6 @@ public static class ShellWorkArea
     public static void ReserveBottom(RectInt32 monitor, int height) =>
         Reserve(monitor, Reserved(monitor) with { Bottom = height });
 
-    public static void ReserveRight(RectInt32 monitor, int width) =>
-        Reserve(monitor, Reserved(monitor) with { Right = width });
-
     /// <summary>
     /// Reserves what other apps' app bars take: <paramref name="free"/> is the monitor less their space. Returns whether
     /// that changed anything. Set at once, without waiting for windows, as Explorer does: a bar that set its position
@@ -43,8 +40,8 @@ public static class ShellWorkArea
     public static bool ReserveAppBars(RectInt32 monitor, RectInt32 free) =>
         Reserve(monitor, Reserved(monitor) with { AppBarsFree = free == monitor ? null : free }, now: true);
 
-    /// <summary>The height of the taskbar's strip and the width of the sidebar's on the monitor, 0 for none.</summary>
-    public static (int Bottom, int Right) Strips(RectInt32 monitor) => (Reserved(monitor).Bottom, Reserved(monitor).Right);
+    /// <summary>The height of the taskbar's strip on the monitor, 0 for none.</summary>
+    public static int TaskbarHeight(RectInt32 monitor) => Reserved(monitor).Bottom;
 
     /// <summary>The work area as reserved here, which Windows may not have taken yet.</summary>
     public static RectInt32 Get(RectInt32 monitor) => Compute(monitor, Reserved(monitor));
@@ -57,14 +54,8 @@ public static class ShellWorkArea
     public static IReadOnlyList<DisplayMonitor> Monitors() =>
         [.. DisplayMonitor.GetAll().Select(monitor => monitor with { WorkArea = Get(monitor.Bounds) })];
 
-    /// <summary>
-    /// Where a window can be dragged: the work area with the sidebar's strip, which windows may cover. Windows keeps
-    /// the pointer inside the work area while it moves a window, and the sidebar shouldn't fence windows off.
-    /// </summary>
-    public static RectInt32 DragArea(RectInt32 monitor) => Compute(monitor, Reserved(monitor) with { Right = 0 });
-
-    public static RectInt32 Compute(RectInt32 monitor, int bottom, int right) =>
-        new(monitor.X, monitor.Y, monitor.Width - right, monitor.Height - bottom);
+    public static RectInt32 Compute(RectInt32 monitor, int bottom) =>
+        new(monitor.X, monitor.Y, monitor.Width, monitor.Height - bottom);
 
     /// <summary>
     /// Every monitor's reservation goes out again where Windows' work area differs from it. Windows gives each monitor
@@ -96,10 +87,10 @@ public static class ShellWorkArea
 
     private static RectInt32 Compute(RectInt32 monitor, Reservation reserved)
     {
-        RectInt32 area = Compute(monitor, reserved.Bottom, reserved.Right);
+        RectInt32 area = Compute(monitor, reserved.Bottom);
         if (reserved.AppBarsFree is not { } free)
             return area;
-        // App bars take their space from the edges as the taskbar and the sidebar do; what's left is both's.
+        // App bars take their space from the edges as the taskbar does; what's left is both's.
         int left = Math.Max(area.X, free.X);
         int top = Math.Max(area.Y, free.Y);
         int right = Math.Min(area.X + area.Width, free.X + free.Width);
@@ -166,5 +157,5 @@ public static class ShellWorkArea
     }
 
     /// <param name="AppBarsFree">The monitor less other apps' app bars, or null when there are none.</param>
-    private readonly record struct Reservation(int Bottom, int Right, RectInt32? AppBarsFree);
+    private readonly record struct Reservation(int Bottom, RectInt32? AppBarsFree);
 }

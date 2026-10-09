@@ -10,15 +10,12 @@ Small widgets about the computer and its user, as Windows Vista's sidebar gadget
 
 - `SidebarWindow`: a strip along the right of the primary monitor, from the top to the taskbar (the work area's
   height), 320 epx wide by default (`WidgetSidebarWidth`, 240 to 560); dragging its left edge (`EdgeGrip`) resizes
-  it, the edge keeping where it was grabbed. The grip is 6 epx plus a maximized window's invisible resize border wide
-  (`SidebarLayout.GripWidth`, 14 epx at 100%, tested): a maximized window's bounds reach that border (8 px at 96 DPI)
-  past the work area, over the sidebar's edge, and it takes the pointer there, so a 6 epx grip couldn't be reached
-  beside one (T39d; Explorer has no sidebar). It reserves its space so maximized windows stop at its edge: alongside Explorer as an app bar on the right
-  (`AppBar.DockRight`, left of other app bars there); as the shell through `ShellWorkArea` (see the taskbar's
-  [Window](taskbar.md#window)), which keeps the taskbar's bottom and the sidebar's right reservation per monitor so neither undoes the
-  other's; the sidebar's height comes from what's reserved there, not from Windows' work area, which follows a moment
-  later. While the edge is
-  dragged only the window moves; the space is reserved again when it's let go.
+  it, the edge keeping where it was grabbed (a 6 epx grip). The sidebar is part of the desktop: it reserves no space,
+  so maximized windows cover it as they cover the desktop, as Vista's sidebar did when not kept on top. It sits at the
+  right of the work area (`SidebarLayout.Bounds`), so it ends above the taskbar and keeps left of other apps' app bars;
+  as the shell that work area is what `ShellWorkArea` reserved (see the taskbar's [Window](taskbar.md#window)), not
+  Windows' own, which follows a moment later. While the edge is dragged only the window moves; the width is saved when
+  it's let go.
 - No header text: only an add button at the top right, invisible until the pointer is over it (or its menu is
   open), whose menu lists every kind; Profile, Resource usage, Now playing and
   Weather show once only (disabled in the menu while shown), Pictures and Notes as often as wanted. Widgets are cards
@@ -27,7 +24,7 @@ Small widgets about the computer and its user, as Windows Vista's sidebar gadget
 - Right-clicking the sidebar or a widget in it opens its menu: "Show panel background" (`ShowWidgetPanel`) and
   "Add widget". Without the panel the header goes and the window is cut to its cards (`WindowRegion.SetRoundedRects`,
   kept up with layout and scrolling): each widget keeps the backdrop behind it, as floating ones do, and the rest of
-  the strip shows the desktop and lets clicks through. The space stays reserved.
+  the strip shows the desktop and lets clicks through.
 - `FloatingWidgetWindow`: a widget dragged out of the sidebar, a rounded window of its own, 300 epx wide and as tall
   as the widget (it follows the widget's height and the monitor's scale). The widget sits top-aligned in a
   non-scrolling `ScrollViewer`, so it takes its natural height; the window is resized after the layout pass, through

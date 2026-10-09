@@ -33,13 +33,12 @@ public sealed class TaskbarLayoutTests
     }
 
     [Fact]
-    public void Work_area_is_the_monitor_above_the_taskbar_and_left_of_the_sidebar()
+    public void Work_area_is_the_monitor_above_the_taskbar()
     {
         var monitor = new RectInt32(1920, -100, 2560, 1440);
         RectInt32 taskbar = TaskbarLayout.Bounds(monitor, 120);
 
-        Assert.Equal(new RectInt32(1920, -100, 2560, 1380), ShellWorkArea.Compute(monitor, taskbar.Height, 0));
-        Assert.Equal(new RectInt32(1920, -100, 2160, 1380), ShellWorkArea.Compute(monitor, taskbar.Height, 400));
+        Assert.Equal(new RectInt32(1920, -100, 2560, 1380), ShellWorkArea.Compute(monitor, taskbar.Height));
     }
 
     [Fact]

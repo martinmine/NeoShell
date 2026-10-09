@@ -10,13 +10,12 @@ using NeoShell.Settings;
 using Windows.Foundation;
 using Windows.Graphics;
 using Windows.UI;
-using AppBar = NeoShell.Interop.Windowing.AppBar;
 
 namespace NeoShell.Widgets;
 
 /// <summary>
 /// The widget sidebar: a strip along the right of the primary monitor, from the top to the taskbar, with the
-/// taskbar's backdrop. It reserves its space, so maximized windows stop at its edge, and sits just above the desktop.
+/// taskbar's backdrop. It's part of the desktop: it sits just above it and takes no space, so windows maximize over it.
 /// </summary>
 internal sealed partial class SidebarWindow : Window
 {
@@ -24,7 +23,7 @@ internal sealed partial class SidebarWindow : Window
     private readonly nint _hwnd;
     private readonly FramelessWindow _frameless;
     private readonly PinnedWindow _placement;
-    private readonly AppBar? _appBar;
+    private readonly RunMode _runMode;
     private ShellBackdrop _backdrop;
     // The menus keep theirs; a change of theme is applied to it.
     private readonly ShellBackdrop _addMenuBackdrop = new(Backdrop.Acrylic);
@@ -44,6 +43,7 @@ internal sealed partial class SidebarWindow : Window
     public SidebarWindow(Sidebar owner, RunMode runMode, DisplayMonitor monitor, double width, bool panelShown, Backdrop backdrop, ElementTheme theme, Color? accent)
     {
         _owner = owner;
+        _runMode = runMode;
         _monitor = monitor;
         InitializeComponent();
 
@@ -69,12 +69,6 @@ internal sealed partial class SidebarWindow : Window
         WindowTransparency.SetSeeThrough(_hwnd, _backdrop.Kind is Backdrop.Translucent or Backdrop.Transparent);
         SetTheme(theme, accent);
 
-        if (runMode == RunMode.AlongsideExplorer)
-        {
-            // Explorer manages the screen space: it puts the sidebar left of any app bar already on the right.
-            _appBar = new AppBar(_hwnd);
-            _appBar.PositionChanged += () => Place(DisplayMonitor.GetAll().FirstOrDefault(m => m.Handle == _monitor.Handle) ?? _monitor, _width);
-        }
         _placement = new PinnedWindow(_hwnd, default, PinnedLayer.Desktop);
         Place(monitor, width);
         SetPanelShown(panelShown);
@@ -83,13 +77,9 @@ internal sealed partial class SidebarWindow : Window
         Scroller.ViewChanged += (_, _) => UpdateRegion();
     }
 
-    /// <summary>Gives the space back and closes the window (see <see cref="WindowClosing.IgnoreMoves"/>).</summary>
+    /// <summary>Closes the window (see <see cref="WindowClosing.IgnoreMoves"/>).</summary>
     public void Shut()
     {
-        if (_appBar is not null)
-            _appBar.Dispose();
-        else
-            ShellWorkArea.ReserveRight(_monitor.Bounds, 0);
         _placement.Dispose();
         _frameless.Dispose();
         WindowClosing.IgnoreMoves(_hwnd);
@@ -121,20 +111,9 @@ internal sealed partial class SidebarWindow : Window
     {
         _monitor = monitor;
         _width = width;
-        Grip.Width = SidebarLayout.GripWidth(TopLevelWindows.ResizeBorder(monitor.Dpi), monitor.Dpi);
-        int physicalWidth = SidebarLayout.PhysicalWidth(width, monitor.Dpi);
-        if (_appBar is not null)
-        {
-            // The monitor's whole width, but only the work area's height: the sidebar ends above the taskbar.
-            RectInt32 area = monitor.Bounds with { Y = monitor.WorkArea.Y, Height = monitor.WorkArea.Height };
-            _placement.Bounds = _appBar.DockRight(area, physicalWidth);
-        }
-        else
-        {
-            // Its height from what the taskbar reserved, which Windows may not have taken yet.
-            ShellWorkArea.ReserveRight(monitor.Bounds, physicalWidth);
-            _placement.Bounds = SidebarLayout.Bounds(monitor.Bounds, ShellWorkArea.Get(monitor.Bounds), physicalWidth);
-        }
+        // As the shell, from what the taskbar and app bars reserved, which Windows may not have taken yet.
+        RectInt32 workArea = _runMode == RunMode.Shell ? ShellWorkArea.Get(monitor.Bounds) : monitor.WorkArea;
+        _placement.Bounds = SidebarLayout.Bounds(workArea, SidebarLayout.PhysicalWidth(width, monitor.Dpi));
     }
 
     public void SetTheme(ElementTheme theme, Color? accent)
@@ -329,8 +308,7 @@ internal sealed partial class SidebarWindow : Window
         e.Handled = true;
     }
 
-    // Only the window follows the pointer; the space is reserved again once it's let go, so windows aren't
-    // rearranged on every move.
+    // Only the window follows the pointer; the width is saved once it's let go.
     private void Grip_PointerMoved(object sender, PointerRoutedEventArgs e)
     {
         if (_resizeRight is not { } right)

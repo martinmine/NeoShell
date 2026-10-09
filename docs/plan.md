@@ -233,6 +233,11 @@ Tick items off as they land. The feature details are in [design.md](design.md) a
 - [x] Fix: a clicked widget (or the whole sidebar) could sink below the wallpaper when a window was minimized, as if
       closed; resource sampling moved off the UI thread
 - [x] Fix: the shell's work area is set off the UI thread (its broadcast waits for every window; startup hung once)
+- [x] The sidebar is part of the desktop: it reserves no space (no app bar, no work area share), so maximized windows
+      cover it; it keeps to the right of the work area. The widened drag clip and wider grip it needed are gone
+- [x] Fix: crash (fail-fast) reordering a widget in the sidebar after it had been docked back from the desktop: its
+      card's every `Loaded` closed the floating window it came from again, and the second time `SetWindowSubclass`
+      failed on the destroyed window
 - Not run live: Now playing with media playing (nothing plays on the VM), the weather from the computer's location
   (location is off on the VM), a second monitor
 

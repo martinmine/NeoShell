@@ -21,33 +21,13 @@ public sealed class WidgetTests
         Assert.Equal(expected, SidebarLayout.PhysicalWidth(width, dpi));
     }
 
-    [Theory]
-    [InlineData(8, 96u, 14)]   // 100%: a maximized window's border reaches 8 pixels over the sidebar
-    [InlineData(10, 120u, 14)] // 125%
-    public void Sidebar_edge_can_be_grabbed_past_a_maximized_windows_border(int resizeBorder, uint dpi, double expected)
-    {
-        Assert.Equal(expected, SidebarLayout.GripWidth(resizeBorder, dpi));
-    }
-
     [Fact]
-    public void Sidebar_runs_down_the_right_of_the_monitor_to_the_taskbar()
+    public void Sidebar_runs_down_the_right_of_the_work_area_to_the_taskbar()
     {
-        var monitor = new RectInt32(0, 0, 1920, 1080);
-        // While NeoShell is the shell, the work area already leaves the sidebar out.
-        var workArea = new RectInt32(0, 0, 1600, 1032);
+        // The taskbar takes the bottom 48 pixels and another app bar the rightmost 100.
+        var workArea = new RectInt32(0, 0, 1820, 1032);
 
-        Assert.Equal(new RectInt32(1600, 0, 320, 1032), SidebarLayout.Bounds(monitor, workArea, 320));
-    }
-
-    [Fact]
-    public void Alongside_explorer_the_sidebar_docks_left_of_app_bars_on_the_right()
-    {
-        // Another app bar takes the rightmost 100 pixels; the shell answered ABM_QUERYPOS with a rect ending there.
-        var queried = new User32.RECT { left = 0, top = 0, right = 1820, bottom = 1032 };
-
-        User32.RECT docked = AppBar.AlignToRight(queried, 320);
-
-        Assert.Equal(new RectInt32(1500, 0, 320, 1032), docked.ToRectInt32());
+        Assert.Equal(new RectInt32(1500, 0, 320, 1032), SidebarLayout.Bounds(workArea, 320));
     }
 
     [Fact]

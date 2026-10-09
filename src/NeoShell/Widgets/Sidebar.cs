@@ -148,8 +148,8 @@ internal sealed class Sidebar : IDisposable
         }
     }
 
-    // As the shell, another app's bar took or gave back space (Explorer tells the sidebar's app bar the same way):
-    // the sidebar keeps to the work area's height. Its own change comes back here too and changes nothing.
+    // As the shell, the taskbar or another app's bar took or gave back space (alongside Explorer that comes as a
+    // setting change, OnTaskbarsUpdated): the sidebar keeps to the work area.
     private void OnWorkAreaChanged(RectInt32 monitor)
     {
         if (_window is not null && _window.Monitor.Bounds == monitor)
@@ -177,10 +177,8 @@ internal sealed class Sidebar : IDisposable
 
         foreach (WidgetFrame frame in _window.Frames)
             frame.Widget.Close();
-        // Forgotten first: giving its space back raises ShellWorkArea.Changed, which would place it (and take it) again.
-        SidebarWindow window = _window;
+        _window.Shut();
         _window = null;
-        window.Shut();
     }
 
     private WidgetFrame CreateFrame(WidgetSettings widget, bool floating)
@@ -369,7 +367,13 @@ internal sealed class Sidebar : IDisposable
             docked.Cover(snapshot);
         _window.HideDropSlot();
         _window.Insert(docked, index);
-        docked.Loaded += (_, _) => WidgetFrame.AfterFramesDrawn(() => Close(window));
+        // Once: the card loads again whenever it's moved among the others, long after the window has gone.
+        void OnLoaded(object sender, RoutedEventArgs e)
+        {
+            docked.Loaded -= OnLoaded;
+            WidgetFrame.AfterFramesDrawn(() => Close(window));
+        }
+        docked.Loaded += OnLoaded;
     }
 
     private void SaveFloating(string id, PointInt32 topLeft)

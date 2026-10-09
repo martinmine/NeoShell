@@ -62,7 +62,7 @@ Directory.Build.props
 src/NeoShell/                 WinUI app
   Program.cs, App.xaml(.cs)   Custom Main, single instance, /exit, run-mode detection, crash fallback
   ShellSession.cs             Shell-mode duties: registration, ready event, startup apps, session end
-  ShellWorkArea.cs            Shell-mode work area: what the taskbar and the widget sidebar reserve
+  ShellWorkArea.cs            Shell-mode work area: what the taskbar and app bars reserve
   Logging/                    Small file logger
   Desktop/                    WallpaperWindow (one per monitor), slideshow, IDesktopWallpaper server, desktop icons and
                               their menus (every monitor)
@@ -165,8 +165,8 @@ the desktop and back. Full spec in docs/design/widgets.md.
 - **Adding a widget kind:** a `WidgetKind` value, a `WidgetView` (XAML + code), its title/glyph/`AllowsSeveral` in
   `WidgetView`, a case in `Sidebar.CreateFrame`; anything that talks to Windows goes in `NeoShell.Interop`.
 - **Windows and layers.** Sidebar and floating widgets sit just above the desktop (`PinnedLayer.Desktop`); moves don't
-  touch the z-order (that walk is too slow per pointer move). The sidebar reserves its space: an app bar alongside
-  Explorer, `ShellWorkArea` as the shell (shared with the taskbar; changes go out off the UI thread).
+  touch the z-order (that walk is too slow per pointer move). The sidebar is part of the desktop and reserves no
+  space: maximized windows cover it. It keeps to the right of the work area (`ShellWorkArea` as the shell).
 - **Pitfalls found the hard way:**
   - Close widget windows with `Shut()`, never `Close()`: it detaches the subclasses and `WindowClosing.IgnoreMoves`,
     without which WinUI can crash handling a move of a window it's tearing down.
