@@ -2262,8 +2262,8 @@ Still differs: NeoShell cuts between old and new content rather than crossfading
     - **Merging** (`PruneAndCombineCategories`): 7, 23, 22 and 6 always go into Creativity; 2 and 5 into
       Productivity; 25, 24, 14 and 21 into Information & Reading; 3, 26 and 17 into Entertainment and 28, 12, 29, 11,
       18 and 4 into Lifestyle only while they have fewer than three apps; then every category but Other with two apps
-      or fewer goes into Other (News & Weather's two apps end up there). (A category of one folder of three or more
-      apps becomes that folder's apps; NeoShell has no folders in All, below.)
+      or fewer goes into Other (News & Weather's two apps end up there). Counts are of items, a folder being one; a
+      category that is a single folder of three apps or more shows the folder's apps instead (Accessibility here).
     - **Order**: apps in a category by `Rank` (Start's tile `Relevance` × 1000, rounded) then name
       (`AppSortHelper::CompareRanks`); categories by the sum of their two first apps' ranks (`RankCategories`,
       descending). Start's relevance is a decaying count of launches it tracked (StartTileData's
@@ -2299,13 +2299,51 @@ Still differs: NeoShell cuts between old and new content rather than crossfading
     - **Letters** (Explorer's `SemanticZoom` zoomed out): the page gives way to "All" (63 in, 93 down) with a "‹ Back"
       button at the right (69 × 32) and the letters in the middle, four to a row in 48 squares 4 apart: Most used
       (clock E823), &, #, A-Z, the globe; those without apps dimmed (disabled). A letter goes back to the page
-      scrolled to its group; Back or Esc goes back where it was. Explorer zooms the page out and the letters in from
-      larger (about 250 ms); NeoShell fades the letters in from 1.3× in 250 ms, decelerating, and fades the page back in.
-    - **Not done**: Explorer's folders in All (Start Menu subfolders such as Accessibility, Python 3.13, Windows Kits
-      shown as expandable folder items in Grid and List, and as items of their own categories, with "Python" and
-      "Python 3.13" folder items in Other here): NeoShell's catalog is the flat AppsFolder, so its All lists a
-      folder's apps by themselves and its categories have more apps (Other 40 against Explorer's 15). Also the
-      `HideCategoryView` policy, arrow-key navigation between items as Explorer's, and the page's own zoom-out.
+      scrolled to its group; Back or Esc goes back where it was. The zoom, recorded at 60 fps (T39c): out, the page
+      shrinks towards its middle to about 0.55 and fades while the letters come in from 1.3× and fade in, all in
+      ~167 ms, decelerating, "All" and Back there at once; back in, the letters grow to 1.3× and fade over ~250 ms,
+      "All" and Back go at once, and the page fades in under them from ~100 ms, unscaled. Then the search box has the
+      focus. NeoShell does the same (`HomeScale` on the page, `LetterGridScale`).
+    - **Folders** (T39c; `AllApps.Items`, unit tested; read from StartTileData's `AppsListGeneratedCollection` and
+      StartMenu's `AllAppsViewModel`, `CategoryProvider` with their PDBs in Ghidra): an app's folder is its Start Menu
+      folder as the AppsFolder reports it, `System.Tile.SuiteDisplayName` ({86D40B4D-9069-443C-819A-2A54090DCCEC},16:
+      the top folder below Programs, with its desktop.ini name; nested folders count as their top one, so
+      Python\Python 3.14's apps are in "Python", and the per-user and all-users folders of a name are one). A
+      folder is made once a second app of its name (any case) turns up: one app alone stays an app (Visual Studio Code
+      here). A folder's apps go by name; it sorts by its name among the apps, after an app of the same name ("Visual
+      Studio", then the "Visual Studio" folder). In Grid and List it shows Explorer's folder glyph
+      (`SuiteFolderIconImageSource`, StartMenu\Assets\UnplatedFolder\UnplatedFolder.ico in Client.Core), its
+      automation name "Accessibility folder, Collapsed"; it opens in the category panel (title, apps as tiles, first
+      app focused) growing out of its icon. In Category view a folder is one item of the category its first app with
+      a category is in (`TryGetCategoriesForTiles`; Git with Developer Tools, Python in Other), as used as its first
+      app; the card shows it by its first app (`AddAppOrFirstAppOfSuiteToGroup`: Git Bash on Developer Tools' card),
+      the open category as a plate of its first four apps' icons, as a folder of pins, and the card's count is of
+      apps ("Other category with 15 Items"). A folder opened from an open category takes the panel's place (Explorer's
+      may differ: not compared). No menu on a folder.
+    - **Hidden apps** (`AllApps.IsHidden`, unit tested): the apps of the folders Windows Tools holds are left out —
+      StartMenu's `AllAppsViewModel::IsHiddenTile` hides suites named "Windows PowerShell" and shell32's strings 21761
+      (Windows Accessories), 21762 (Windows Tools) and 21788 (Windows System): Command Prompt, Control Panel, Run, Task
+      Manager, Remote Desktop, Media Player Legacy, Character Map, the administrative tools… (and the Windows Tools
+      item itself only where the `StartMenu-ShowWindowsTools` licensing value is 0, which NeoShell doesn't read). StartTileData's block lists push
+      Power Automate, and Dev Home unless the user said they're a developer (`CloudExperienceHost\Intent\developer`)
+      or developer mode is on, into Windows Accessories, so they're hidden too; Click to Do is hidden while the
+      session's `Explorer\SessionInfo\<id>\ClickToDo\ClickToDoHideEntryPoint` is 1 or missing. Search still finds
+      them all. With this, All lists exactly Explorer's apps and folders here, in its order, and the categories hold
+      Explorer's items (Other 15, Productivity 9, Utilities & Tools 19, Developer Tools 26, Creativity 10,
+      Entertainment 4, Accessibility 5). Not done: the A9 (Recall) and NPU block lists, the cloud-SKU path list.
+    - **Keyboard** (T39c; `StartNavigation`, unit tested), as Explorer's (its All is one grouped GridView, so the
+      letters' headers take the focus): Tab goes search box → Pinned (one stop) → View → All (one stop: where the
+      focus last was in it, else its first item, not a header) → user → power, and around; Down in the empty search
+      box goes to the first pin. Pinned is a GridView as Explorer's (arrows within it only). In All, Left and Right
+      step through headers and items in order; Up and Down go by rows within a letter, from its first row up to its
+      header and from its last row down to the next header, and from a header down to its first item or up to the
+      last row above (in the column the focus came from); where nothing is straight above or below the focus stays and
+      the page scrolls 16 px, as Explorer's. Home and End go to All's first header and last item, also from the pins
+      (Explorer's Pinned and All are one list). Category cards take the focus as a whole (the card, not its places),
+      arrows move by cards four to a row, Enter or Space opens the category; an open category or folder focuses its
+      first app, keeps Tab on it, arrows and Home/End move in its rows of four, Esc closes it and gives the focus back
+      to the card or folder (an open pin folder does the same with its tile). Enter opens, Shift+F10 or the menu key
+      shows the app's menu; Esc closes just that menu. Typing anywhere goes to the search box.
   - **Folders of pins** (Windows 11 23H2+; `StartPins` and `GridReorder`, unit tested), as Explorer's:
     - Holding an app over the middle of another app or a folder (the pointer within 28 px of the cell's centre,
       either way; Explorer's zone measured at about +31/-23 px in a 96 px cell) shows the drop will group them; off
@@ -2314,15 +2352,23 @@ Still differs: NeoShell cuts between old and new content rather than crossfading
       be: the plate fades in, the app's icon shrinks to half and slides into the plate's first place (9 left, 8 up)
       and its name fades, in 150 ms (Explorer: ~8 frames at 52 fps). Folders don't nest: a dragged folder only
       moves. Dropped, an app on an app makes a folder in the target's place, the target first; on a folder, it goes
-      last in it. Explorer then fades the old tile out (~230 ms), shows nothing for ~0.6 s and fades the folder in
-      (~350 ms) while it saves and reloads its model; NeoShell swaps it at once.
+      last in it. Explorer then saves and reloads its model, and shows it (recorded at 60 fps, T39c): the preview
+      goes, the target app fades out in ~167 ms, nothing shows for ~633 ms, then the folder fades in over ~333 ms,
+      easing in and out; the dragged app stays away. NeoShell does the same (`GroupWithFade`; it waits 533 ms, as
+      laying the new folder out takes it ~0.1 s here). Anything that needs the pins in the meantime (a press, a
+      menu, closing Start) makes the folder at once.
     - The tile: a 40 px plate (1 px `CardStrokeColorDefault` edge, `CardBackgroundFillColorDefault`, radius 4)
       centred where an icon would be, with the first four apps' icons at 16 px two by two, 2 apart, the first 3 in
       and 4 down from the plate's edge. The name below: "Folder" until renamed (stored as "").
     - Opening it: a 450 × 378 panel centred in Start, radius 8, a 1 px `SurfaceStrokeColorFlyout` edge and an
-      acrylic of its own (Start's content behind blurred, about 6/7 of Start's colour; NeoShell's in-app
-      `AcrylicBrush` can't see the window's backdrop, so it starts from Start's tint, greyed a little when that's the
-      accent). It grows out of the tile — from 38/450 of its size at the tile's centre to full size in 333 ms,
+      acrylic of its own: StartMenu's `FolderModal` template (decoded from Client.Core's resources.pri, T39c) uses
+      `AcrylicInAppFillColorDefaultBrush` (Start doesn't override it), so it is Start's colour behind it at that
+      brush's luminosity. Measured on Explorer's (T39c): #2B2B2C dark, #F2F3F2 light, #14325D on a dark accent Start
+      (#1E4277), #DEF1F6 on a light accent one (#B5E2EC). NeoShell's in-app `AcrylicBrush` can't see the window's
+      backdrop, so `StartMenuLayout.FolderPanelColor` works the colour out from Start's tint (unit tested): the base
+      colour at luminance 43 / 243, the accent at 47 two fifths of the way to grey; measured #2D2D2D, #F1F1F1 and
+      #17355F. On a light accent Start NeoShell's Start itself stays dark accent (Explorer 25H2's turns light accent),
+      so its panel does too. It grows out of the tile — from 38/450 of its size at the tile's centre to full size in 333 ms,
       `cubic-bezier(0,0,0,1)`, which fits Explorer's 0.48/0.65/0.84/0.92/0.99 at 33/67/133/200/267 ms — and
       shrinks back into it in 150 ms, accelerating. The tile is hidden while the panel stands for it; Start isn't
       dimmed. A click beside the panel, or Esc, closes it (Esc again closes Start). The name is a centred 20 px

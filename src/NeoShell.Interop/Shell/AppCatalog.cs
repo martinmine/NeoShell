@@ -13,13 +13,24 @@ namespace NeoShell.Interop.Shell;
 /// For a shortcut, the file it points to. A shortcut can give its app an AppUserModelID that the app's windows don't
 /// carry, so the taskbar needs the executable to match them.
 /// </param>
-public sealed record AppCatalogEntry(string Name, string Id, string? TargetPath);
+/// <param name="Suite">
+/// The Start Menu folder the app is in (<c>System.Tile.SuiteDisplayName</c>: the folder's localized name, its top
+/// folder below Programs), which Start shows as a folder; null for an app at the top or a packaged app.
+/// </param>
+public sealed record AppCatalogEntry(string Name, string Id, string? TargetPath, string? Suite = null);
 
 public static unsafe class AppCatalog
 {
     private const uint SIGDN_NORMALDISPLAY = 0;
     private const uint SIGDN_PARENTRELATIVEPARSING = 0x8001_8001;
     private static readonly Guid BHID_EnumItems = new("94f60519-2850-4924-aa5a-d15e84868039");
+
+    // PKEY_Tile_SuiteDisplayName
+    private static readonly Ole32.PROPERTYKEY s_suiteNameKey = new()
+    {
+        fmtid = new Guid("86D40B4D-9069-443C-819A-2A54090DCCEC"),
+        pid = 16,
+    };
 
     /// <summary>Lists every installed app, Win32 and packaged. Slow-ish: call it off the UI thread.</summary>
     public static IReadOnlyList<AppCatalogEntry> Load()
@@ -42,7 +53,7 @@ public static unsafe class AppCatalog
         {
             IShellItem item = ComPointer.TakeOwnership<IShellItem>(itemPointer);
             if (GetName(item, SIGDN_NORMALDISPLAY) is { } name && GetName(item, SIGDN_PARENTRELATIVEPARSING) is { } id)
-                entries.Add(new AppCatalogEntry(name, id, ShellItems.GetString(item, ShellItems.LinkTargetPathKey)));
+                entries.Add(new AppCatalogEntry(name, id, ShellItems.GetString(item, ShellItems.LinkTargetPathKey), ShellItems.GetString(item, s_suiteNameKey) is { Length: > 0 } suite ? suite : null));
         }
         return entries;
     }

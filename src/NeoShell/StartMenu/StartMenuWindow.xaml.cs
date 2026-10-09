@@ -61,8 +61,17 @@ internal sealed partial class StartMenuWindow : Window
     private static readonly TimeSpan s_folderOpenDuration = TimeSpan.FromMilliseconds(333);
     private static readonly TimeSpan s_folderCloseDuration = TimeSpan.FromMilliseconds(150);
     private static readonly TimeSpan s_groupPreviewDuration = TimeSpan.FromMilliseconds(150);
-    // Explorer's All zooms out to its letters and back in about a quarter of a second.
-    private static readonly TimeSpan s_letterZoomDuration = TimeSpan.FromMilliseconds(250);
+    // Explorer's All zooms out to its letters in a sixth of a second: the page shrinks towards its middle (to about 0.55)
+    // and fades as the letters come in from 1.3 times their size; back in, the letters grow and fade over a quarter of a
+    // second while the page fades in under them (recorded at 60 fps).
+    private static readonly TimeSpan s_zoomOutDuration = TimeSpan.FromMilliseconds(167);
+    private static readonly TimeSpan s_zoomInDuration = TimeSpan.FromMilliseconds(250);
+    private static readonly TimeSpan s_zoomInPageDelay = TimeSpan.FromMilliseconds(100);
+    // Explorer makes a folder of pins by saving and reloading its model: the app it was made on fades out, nothing
+    // shows for a while, then the folder fades in (recorded at 60 fps).
+    private static readonly TimeSpan s_groupFadeOut = TimeSpan.FromMilliseconds(167);
+    private static readonly TimeSpan s_groupGap = TimeSpan.FromMilliseconds(533);
+    private static readonly TimeSpan s_groupFadeIn = TimeSpan.FromMilliseconds(333);
 
     /// <summary>
     /// The folders Start can show beside the power button, as Explorer draws them, in its order, and the folder each
@@ -98,9 +107,12 @@ internal sealed partial class StartMenuWindow : Window
     private string _allAppsKey = "";
     private StartSections _sections = new(true, true, false, AllAppsView.Category);
     private readonly RegistryWatcher _startSettings = new(StartAppData.StartKey);
-    // The open category, shown in the open folder's panel, and what its panel grows out of.
-    private StartCategory? _openCategory;
+    // The open category or All folder (its name), shown in the open folder's panel; what its panel grows out of (a
+    // card, or a folder's icon) and what had the focus, for when it closes.
+    private string? _openCategory;
     private FrameworkElement? _categoryCard;
+    private bool _panelFromCard;
+    private Control? _panelSource;
     private List<StartItem> _resultItems = [];
     private DateTime _appsLoadedAt = DateTime.MinValue;
     private nint _previousForeground;
@@ -118,6 +130,14 @@ internal sealed partial class StartMenuWindow : Window
     private string? _folderId;
     private UIElement? _folderTile;
     private Storyboard? _folderAnimation;
+    private Storyboard? _zoomAnimation;
+    // A folder of pins being made: the pins it makes, and the fading of the app it's made on.
+    private IReadOnlyList<StartPin>? _grouping;
+    private Storyboard? _groupFade;
+    // The column the focus last moved up or down in, in All, for leaving a letter's header upwards.
+    private int _focusColumn;
+    // Where the focus last was in All and in a panel's apps, for Tab to come back to.
+    private readonly Dictionary<ItemsControl, DependencyObject> _lastFocused = [];
     private readonly Dictionary<StartPlace, Button> _placeButtons = [];
     private UIElement? _pressedIcon;
     // The open app menu's commands from Windows, kept until another menu opens: they run through it.
@@ -193,6 +213,14 @@ internal sealed partial class StartMenuWindow : Window
             }
         };
         Root.AddHandler(UIElement.KeyDownEvent, new KeyEventHandler(Root_KeyDown), handledEventsToo: true);
+        foreach (ItemsControl items in (ItemsControl[])[LetterGroups, CategoryCards, CategoryApps])
+        {
+            items.KeyDown += Items_KeyDown;
+            items.GettingFocus += Items_GettingFocus;
+            items.GotFocus += (_, e) => _lastFocused[items] = (DependencyObject)e.OriginalSource;
+        }
+        // The grid handles Home and End itself; Explorer's go to All's first and last place.
+        PinnedGrid.AddHandler(UIElement.KeyDownEvent, new KeyEventHandler(PinnedGrid_KeyDown), handledEventsToo: true);
         Root.CharacterReceived += Root_CharacterReceived;
         owner.Icons.Loaded += RefreshIcons;
         Closed += (_, _) =>
@@ -281,26 +309,13 @@ internal sealed partial class StartMenuWindow : Window
 
     public void Hide() => Hide(restoreForeground: true);
 
-    // An open folder's panel has an acrylic of its own: what's behind it in Start blurred, under a shade a little
-    // darker than Start (measured on Explorer's: about six sevenths of Start's colour). In-app acrylic can't see the
-    // window's backdrop, only Start's content, so it starts from Start's tint; an accent is greyed a little, as
-    // Start's own acrylic greys it with what's behind the window.
+    // An open folder's panel has an acrylic of its own (see StartMenuLayout.FolderPanelColor). In-app acrylic can't see
+    // the window's backdrop, only Start's content, so it starts from Start's colour worked out from its tint.
     private static AcrylicBrush FolderPanelBrush(Color? accent, ElementTheme theme)
     {
-        Color tint = accent is { } color ? Mix(Shade(color, 0.72), Color.FromArgb(255, 0x40, 0x40, 0x40), 0.15)
-            : theme == ElementTheme.Light ? Shade(Color.FromArgb(255, 0xF3, 0xF3, 0xF3), 0.95)
-            : Shade(Color.FromArgb(255, 0x20, 0x20, 0x20), 0.86);
+        Color tint = StartMenuLayout.FolderPanelColor(accent, theme == ElementTheme.Light);
         return new AcrylicBrush { TintColor = tint, TintOpacity = 0.85, TintLuminosityOpacity = 0.85, FallbackColor = tint };
     }
-
-    private static Color Shade(Color color, double factor) =>
-        Color.FromArgb(255, (byte)(color.R * factor), (byte)(color.G * factor), (byte)(color.B * factor));
-
-    private static Color Mix(Color color, Color with, double amount) => Color.FromArgb(
-        255,
-        (byte)(color.R + (with.R - color.R) * amount),
-        (byte)(color.G + (with.G - color.G) * amount),
-        (byte)(color.B + (with.B - color.B) * amount));
 
     private RectInt32 BoundsFor(double width, double height) =>
         StartMenuLayout.Bounds(_anchor.Monitor.Bounds, _anchor.Taskbar, _anchor.Centered, width, height, _anchor.Monitor.Dpi / 96.0);
@@ -368,14 +383,18 @@ internal sealed partial class StartMenuWindow : Window
     // What Start shows when it opens next; changed once it's out of sight.
     private void ResetContent()
     {
+        FinishGrouping(fadeIn: false);
         CloseFolder(animate: false);
         SearchBox.Text = "";
+        _zoomAnimation?.Stop();
         ShowView(HomeView);
         HomeView.ChangeView(null, 0, null, disableAnimation: true);
     }
 
     private void ShowView(FrameworkElement view)
     {
+        HomeView.Opacity = 1;
+        HomeScale.ScaleX = HomeScale.ScaleY = 1;
         HomeView.Visibility = view == HomeView ? Visibility.Visible : Visibility.Collapsed;
         LetterView.Visibility = view == LetterView ? Visibility.Visible : Visibility.Collapsed;
         SearchView.Visibility = view == SearchView ? Visibility.Visible : Visibility.Collapsed;
@@ -482,8 +501,11 @@ internal sealed partial class StartMenuWindow : Window
         }
     }
 
-    /// <summary>An app of the catalog, with its category and whether it's part of Windows, as Explorer's Start sees them.</summary>
-    private sealed record CatalogApp(string Id, StartItem Item, int Category, bool IsSystem);
+    /// <summary>
+    /// An app of the catalog, with its category, whether it's part of Windows, its Start Menu folder and whether Start
+    /// leaves it out of All, as Explorer's Start sees them.
+    /// </summary>
+    private sealed record CatalogApp(string Id, StartItem Item, int Category, bool IsSystem, string? Suite, bool IsHidden);
 
     // Off the UI thread: the AppsFolder, and Explorer's categories (its saved ones, else Windows' mappings, a 4 MB
     // file) and system packages.
@@ -493,8 +515,10 @@ internal sealed partial class StartMenuWindow : Window
         IReadOnlyDictionary<string, int> saved = new Dictionary<string, int>();
         IReadOnlyDictionary<string, int> mappings = new Dictionary<string, int>();
         IReadOnlySet<string> systemFamilies = new HashSet<string>();
+        StartHiddenApps hidden = new(new HashSet<string>(), false, false);
         try
         {
+            hidden = StartAppData.LoadHiddenApps();
             saved = StartAppData.LoadSavedCategories();
             // Only read when Explorer's Start has categorized nothing (see AllApps.CategoryFor).
             if (saved.Count == 0)
@@ -514,7 +538,9 @@ internal sealed partial class StartMenuWindow : Window
                 entry.Id,
                 new StartItem(app, "App", isApp: true, icons),
                 AllApps.CategoryFor(entry.Id, app.Path, saved, mappings, folders),
-                AllApps.IsSystem(entry.Id, app.Path, systemFamilies, windows));
+                AllApps.IsSystem(entry.Id, app.Path, systemFamilies, windows),
+                entry.Suite,
+                AllApps.IsHidden(entry.Id, entry.Suite, hidden));
         })];
     }
 
@@ -575,14 +601,14 @@ internal sealed partial class StartMenuWindow : Window
         }
         IReadOnlyDictionary<PinnedApp, double> scores = AllApps.UsageScores(_catalog.Select(app => app.Item.Target), usage);
         IReadOnlyList<string> opened = _owner.Settings.Current.StartAppsOpened;
-        List<AllAppsEntry> entries = [.. _catalog.Select(app =>
+        List<AllAppsEntry> entries = [.. _catalog.Where(app => !app.IsHidden).Select(app =>
         {
             string tile = AllApps.TileId(app.Id);
-            return new AllAppsEntry(app.Item.Target, tile, app.Category, scores.GetValueOrDefault(app.Item.Target), AllApps.IsNew(tile, seen, opened), app.IsSystem);
+            return new AllAppsEntry(app.Item.Target, tile, app.Category, scores.GetValueOrDefault(app.Item.Target), AllApps.IsNew(tile, seen, opened), app.IsSystem, app.Suite);
         })];
 
         string key = $"{_sections.View} {_sections.ShowMostUsed} " + string.Join("|", entries.Select(entry =>
-            $"{entry.TileId}:{entry.App.DisplayName}:{entry.Category}:{Math.Round(entry.Usage)}:{entry.IsNew}:{entry.IsSystem}"));
+            $"{entry.TileId}:{entry.App.DisplayName}:{entry.Category}:{Math.Round(entry.Usage)}:{entry.IsNew}:{entry.IsSystem}:{entry.Suite}"));
         if (key == _allAppsKey)
             return;
         _allAppsKey = key;
@@ -594,12 +620,21 @@ internal sealed partial class StartMenuWindow : Window
             _allAppItems.Add(item);
             return item;
         }
+        // A folder by name with the folder glyph in the name views, on a plate of its apps' icons in a category.
+        StartItem ItemOrFolder(AllAppsItem item, bool plate)
+        {
+            if (!item.IsFolder)
+                return Item(item.Apps[0]);
+            var folder = new StartItem(item.Name, [.. item.Apps.Select(Item)], plate, _owner.Icons);
+            _allAppItems.Add(folder);
+            return folder;
+        }
 
         if (_sections.View == AllAppsView.Category)
         {
             LetterGroups.ItemsSource = null;
             CategoryCards.ItemsSource = AllApps.Categories(entries)
-                .Select(category => new StartCategory(AllApps.CategoryName(category.Category), [.. category.Apps.Select(Item)]))
+                .Select(category => new StartCategory(AllApps.CategoryName(category.Category), [.. category.Items.Select(item => ItemOrFolder(item, plate: true))]))
                 .ToList();
             return;
         }
@@ -608,7 +643,7 @@ internal sealed partial class StartMenuWindow : Window
         List<StartGroup> groups = [];
         if (_sections.ShowMostUsed && AllApps.MostUsedApps(entries) is { Count: > 0 } mostUsed)
             groups.Add(new StartGroup(AllApps.MostUsed, mostUsed.Select(Item)));
-        groups.AddRange(AllApps.ByLetter(entries).Select(group => new StartGroup(group.Letter, group.Apps.Select(Item))));
+        groups.AddRange(AllApps.ByLetter(entries).Select(group => new StartGroup(group.Letter, group.Items.Select(item => ItemOrFolder(item, plate: false)))));
         LetterGroups.ItemTemplate = (DataTemplate)Root.Resources[_sections.View == AllAppsView.Grid ? "LetterGridGroupTemplate" : "LetterListGroupTemplate"];
         LetterGroups.ItemsSource = groups;
     }
@@ -624,9 +659,14 @@ internal sealed partial class StartMenuWindow : Window
             _owner.Settings.Update(settings with { StartAppsOpened = [.. settings.StartAppsOpened, tile] });
     }
 
+    // An app opens; a folder opens in the panel categories open in.
     private void AllAppsItem_Click(object sender, RoutedEventArgs e)
     {
-        if (((FrameworkElement)sender).DataContext is StartItem item)
+        if (((FrameworkElement)sender).DataContext is not StartItem item)
+            return;
+        if (item.SuiteApps is { } apps)
+            OpenPanel(item.Title, [.. apps], (FrameworkElement)sender, fromCard: false);
+        else
             Open(item);
     }
 
@@ -647,6 +687,16 @@ internal sealed partial class StartMenuWindow : Window
             OpenCategory(category, (FrameworkElement)sender);
     }
 
+    // The card has the keyboard focus: Enter or Space opens it, as Explorer's.
+    private void CategoryCard_KeyDown(object sender, KeyRoutedEventArgs e)
+    {
+        if (e.Key is VirtualKey.Enter or VirtualKey.Space && ((FrameworkElement)sender).DataContext is StartCategory category)
+        {
+            OpenCategory(category, (FrameworkElement)sender);
+            e.Handled = true;
+        }
+    }
+
     private void CategoryCellMenu_Opening(object sender, object e)
     {
         var menu = (MenuFlyout)sender;
@@ -661,16 +711,35 @@ internal sealed partial class StartMenuWindow : Window
         FrameworkElement? card = source;
         while (card is not null && AutomationProperties.GetAutomationId(card) != "CategoryCard")
             card = VisualTreeHelper.GetParent(card) as FrameworkElement;
+        if (card is not null)
+            OpenPanel(category.Name, category.Items, card, fromCard: true);
+    }
 
-        _openCategory = category;
+    /// <summary>
+    /// A category or one of All's folders in the panel pins' folders open in: its name, its apps as tiles. It grows out
+    /// of the card, or out of the folder's icon; the first app takes the focus, as in Explorer. A folder opened from an
+    /// open category takes the panel's place.
+    /// </summary>
+    private void OpenPanel(string title, IReadOnlyList<StartItem> items, FrameworkElement source, bool fromCard)
+    {
+        bool already = _openCategory is not null;
+        _openCategory = title;
         ShowPanelContent(category: true);
-        _categoryCard = card;
-        CategoryTitle.Text = category.Name;
-        CategoryApps.ItemsSource = category.Apps;
+        if (!already)
+        {
+            _panelSource = source as Control;
+            _categoryCard = fromCard ? source : source.FindName("ItemIcon") as FrameworkElement ?? source;
+            _panelFromCard = fromCard;
+        }
+        CategoryTitle.Text = title;
+        CategoryApps.ItemsSource = items;
         CategoryAppsView.ChangeView(null, 0, null, disableAnimation: true);
         FolderLayer.Visibility = Visibility.Visible;
         FolderLayer.IsHitTestVisible = true;
-        AnimateFolder(opening: true, null);
+        if (!already)
+            AnimateFolder(opening: true, null);
+        FocusState state = source is Control { FocusState: FocusState.Keyboard } ? FocusState.Keyboard : FocusState.Programmatic;
+        DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () => FocusItem(CategoryApps, 0, state));
     }
 
     private void AddLetterButtons()
@@ -698,8 +767,35 @@ internal sealed partial class StartMenuWindow : Window
         foreach (Button button in LetterGrid.Items.OfType<Button>())
             button.IsEnabled = present.Contains((string)button.Tag);
 
-        ShowView(LetterView);
-        Animate(LetterGrid, LetterGridScale, fromScale: 1.3);
+        // The page shrinks and fades behind the letters, which come in from larger; "All" and Back are there at once.
+        _zoomAnimation?.Stop();
+        ShowView(HomeView);
+        LetterView.Visibility = Visibility.Visible;
+        LetterTitle.Opacity = LetterBackButton.Opacity = 1;
+        var ease = new CubicEase { EasingMode = EasingMode.EaseOut };
+        var story = new Storyboard();
+        Tween(story, HomeView, "Opacity", 1, 0, s_zoomOutDuration, null);
+        Tween(story, HomeScale, "ScaleX", 1, 0.55, s_zoomOutDuration, ease);
+        Tween(story, HomeScale, "ScaleY", 1, 0.55, s_zoomOutDuration, ease);
+        Tween(story, LetterGrid, "Opacity", 0, 1, s_zoomOutDuration, ease);
+        Tween(story, LetterGridScale, "ScaleX", 1.3, 1, s_zoomOutDuration, ease);
+        Tween(story, LetterGridScale, "ScaleY", 1.3, 1, s_zoomOutDuration, ease);
+        story.Completed += (_, _) =>
+        {
+            if (_zoomAnimation != story)
+                return;
+            story.Stop();
+            ShowView(LetterView);
+        };
+        _zoomAnimation = story;
+        story.Begin();
+        if (((FrameworkElement)sender).DataContext is StartGroup group
+            && LetterGrid.Items.OfType<Button>().FirstOrDefault(button => (string)button.Tag == group.Key) is { } letter)
+        {
+            // Once the letters are laid out.
+            FocusState state = ((Control)sender).FocusState == FocusState.Keyboard ? FocusState.Keyboard : FocusState.Programmatic;
+            DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () => letter.Focus(state));
+        }
     }
 
     private void LetterBack_Click(object sender, RoutedEventArgs e) => ZoomIn(null);
@@ -707,37 +803,46 @@ internal sealed partial class StartMenuWindow : Window
     /// <summary>Back from the letters to All, at <paramref name="letter"/>'s apps when one was picked.</summary>
     private void ZoomIn(string? letter)
     {
+        _zoomAnimation?.Stop();
         ShowView(HomeView);
-        if (letter is not null && (LetterGroups.ItemsSource as IEnumerable<StartGroup> ?? []).FirstOrDefault(group => group.Key == letter) is { } group
-            && LetterGroups.ContainerFromItem(group) is UIElement container)
+        LetterView.Visibility = Visibility.Visible;
+        StartGroup? group = letter is null ? null : (LetterGroups.ItemsSource as IEnumerable<StartGroup> ?? []).FirstOrDefault(group => group.Key == letter);
+        if (group is not null && LetterGroups.ContainerFromItem(group) is UIElement container)
         {
             HomeView.UpdateLayout();
             Point top = container.TransformToVisual((UIElement)HomeView.Content).TransformPoint(default);
             HomeView.ChangeView(null, top.Y, null, disableAnimation: true);
         }
-        Animate(HomeView, null, fromScale: 1);
+
+        // The letters grow and fade, "All" and Back go at once, and the page fades in under them.
+        LetterTitle.Opacity = LetterBackButton.Opacity = 0;
+        HomeView.Opacity = 0;
+        var ease = new CubicEase { EasingMode = EasingMode.EaseOut };
+        var story = new Storyboard();
+        Tween(story, LetterGrid, "Opacity", 1, 0, s_zoomInDuration, null);
+        Tween(story, LetterGridScale, "ScaleX", 1, 1.3, s_zoomInDuration, ease);
+        Tween(story, LetterGridScale, "ScaleY", 1, 1.3, s_zoomInDuration, ease);
+        Tween(story, HomeView, "Opacity", 0, 1, s_zoomInDuration - s_zoomInPageDelay, ease, s_zoomInPageDelay);
+        story.Completed += (_, _) =>
+        {
+            if (_zoomAnimation != story)
+                return;
+            story.Stop();
+            ShowView(HomeView);
+        };
+        _zoomAnimation = story;
+        story.Begin();
+        // Explorer's search box has the focus afterwards.
+        SearchBox.Focus(FocusState.Programmatic);
     }
 
-    // Fades in (and for the letters shrinks from larger to their size), decelerating.
-    private static void Animate(UIElement element, ScaleTransform? scale, double fromScale)
+    // An animation of the story; it keeps its last value until the story stops, which puts the views back.
+    private static void Tween(Storyboard story, DependencyObject target, string property, double from, double to, TimeSpan duration, EasingFunctionBase? ease, TimeSpan begin = default)
     {
-        var story = new Storyboard();
-        var ease = new CubicEase { EasingMode = EasingMode.EaseOut };
-        var fade = new DoubleAnimation { From = 0, To = 1, Duration = s_letterZoomDuration, EasingFunction = ease };
-        Storyboard.SetTarget(fade, element);
-        Storyboard.SetTargetProperty(fade, "Opacity");
-        story.Children.Add(fade);
-        if (scale is not null)
-        {
-            foreach (string property in (string[])["ScaleX", "ScaleY"])
-            {
-                var grow = new DoubleAnimation { From = fromScale, To = 1, Duration = s_letterZoomDuration, EasingFunction = ease };
-                Storyboard.SetTarget(grow, scale);
-                Storyboard.SetTargetProperty(grow, property);
-                story.Children.Add(grow);
-            }
-        }
-        story.Begin();
+        var animation = new DoubleAnimation { From = from, To = to, Duration = duration, EasingFunction = ease, BeginTime = begin };
+        Storyboard.SetTarget(animation, target);
+        Storyboard.SetTargetProperty(animation, property);
+        story.Children.Add(animation);
     }
 
     private void RefreshIcons()
@@ -830,8 +935,13 @@ internal sealed partial class StartMenuWindow : Window
 
     private void SearchBox_KeyDown(object sender, KeyRoutedEventArgs e)
     {
+        // With nothing typed, Down goes to the first pin (or All), as in Explorer.
         if (SearchView.Visibility != Visibility.Visible)
+        {
+            if (e.Key == VirtualKey.Down && HomeView.Visibility == Visibility.Visible)
+                e.Handled = _sections.ShowPinned && PinnedGrid.ContainerFromIndex(0) is Control pin ? pin.Focus(FocusState.Keyboard) : FocusAllSpot(new(0, -1), FocusState.Keyboard);
             return;
+        }
 
         int count = _resultItems.Count;
         switch (e.Key)
@@ -858,6 +968,15 @@ internal sealed partial class StartMenuWindow : Window
     {
         // The account card closes itself on Esc and Start stays open, as Explorer's. The card is shut by then; it says
         // so only afterwards (Closed).
+        // In an open category or folder of All, Tab stays on the app, as in Explorer's modal panel.
+        if (e.Key == VirtualKey.Tab && _openCategory is not null && FocusManager.GetFocusedElement(Root.XamlRoot) is DependencyObject focused && IsWithin(focused, CategoryApps))
+        {
+            e.Handled = true;
+            return;
+        }
+        // Esc in an app's menu closes only the menu, as in Explorer.
+        if (e.Key == VirtualKey.Escape && e.OriginalSource is MenuFlyoutItemBase or MenuFlyoutPresenter)
+            return;
         if (e.Key == VirtualKey.Escape && !_accountMenuOpen)
         {
             // An open folder or category closes first, then the letters, then Start.
@@ -869,6 +988,136 @@ internal sealed partial class StartMenuWindow : Window
                 Hide();
             e.Handled = true;
         }
+    }
+
+    /// <summary>
+    /// Arrows, Home and End in All and in an open category or folder, as in Explorer (see <see cref="StartNavigation"/>):
+    /// All is one stop for Tab, and within it the keys move between the letters' headers, the apps and folders, or the
+    /// category cards. Where the focus can't go, Up and Down are left to the page, which scrolls, as Explorer's does.
+    /// </summary>
+    private void Items_KeyDown(object sender, KeyRoutedEventArgs e)
+    {
+        StartMove? move = e.Key switch
+        {
+            VirtualKey.Left => StartMove.Left,
+            VirtualKey.Right => StartMove.Right,
+            VirtualKey.Up => StartMove.Up,
+            VirtualKey.Down => StartMove.Down,
+            VirtualKey.Home => StartMove.Home,
+            VirtualKey.End => StartMove.End,
+            _ => null,
+        };
+        if (move is not { } key || FocusManager.GetFocusedElement(Root.XamlRoot) is not FrameworkElement focused)
+            return;
+
+        var items = (ItemsControl)sender;
+        StartNavigation.Spot? from = SpotOf(items, focused.DataContext);
+        if (from is not { } spot)
+            return;
+        (IReadOnlyList<int> sizes, bool headers, int columns) = Layout(items);
+        if (key is StartMove.Up or StartMove.Down && !spot.IsHeader)
+            _focusColumn = spot.Index % columns;
+        if (StartNavigation.Move(sizes, headers, columns, spot, key, _focusColumn) is { } to)
+            e.Handled = items == LetterGroups || items == CategoryCards ? FocusAllSpot(to, FocusState.Keyboard) : FocusItem(items, to.Index, FocusState.Keyboard);
+    }
+
+    // Tab comes into All (or a panel's apps) where the focus last was in it, else at its first item rather than a
+    // letter's header, as into Explorer's GridView.
+    private void Items_GettingFocus(UIElement sender, GettingFocusEventArgs e)
+    {
+        if (e.FocusState != FocusState.Keyboard || e.Direction is not (FocusNavigationDirection.Next or FocusNavigationDirection.Previous)
+            || e.OldFocusedElement is DependencyObject old && IsWithin(old, sender))
+            return;
+
+        var items = (ItemsControl)sender;
+        DependencyObject? target = _lastFocused.TryGetValue(items, out DependencyObject? last) && IsWithin(last, items) ? last
+            : items == LetterGroups && LetterGroups.ContainerFromIndex(0) is DependencyObject group && Descendant<ItemsControl>(group) is { } apps
+                && apps.ContainerFromIndex(0) is DependencyObject first ? Descendant<Control>(first)
+            : null;
+        if (target is not null && target != e.NewFocusedElement)
+            e.TrySetNewFocusedElement(target);
+    }
+
+    // Explorer's Pinned and All are one list: Home and End in the pins go to All's first place and its last.
+    private void PinnedGrid_KeyDown(object sender, KeyRoutedEventArgs e)
+    {
+        if (e.Key is VirtualKey.Home or VirtualKey.End && _sections.ShowAll
+            && Layout(AllItems) is { sizes.Count: > 0 } layout
+            && StartNavigation.Move(layout.sizes, layout.headers, layout.columns, new(0, -1), e.Key == VirtualKey.Home ? StartMove.Home : StartMove.End) is { } to)
+            e.Handled = FocusAllSpot(to, FocusState.Keyboard);
+    }
+
+    private ItemsControl AllItems => _sections.View == AllAppsView.Category ? CategoryCards : LetterGroups;
+
+    // Where in its list the focused element's item is: a letter's header or an item under it, a card, a panel's app.
+    private StartNavigation.Spot? SpotOf(ItemsControl items, object? item)
+    {
+        if (items == LetterGroups && LetterGroups.ItemsSource is List<StartGroup> groups)
+        {
+            if (item is StartGroup header)
+                return new(groups.IndexOf(header), -1);
+            for (int group = 0; group < groups.Count; group++)
+            {
+                int index = groups[group].FindIndex(app => ReferenceEquals(app, item));
+                if (index >= 0)
+                    return new(group, index);
+            }
+            return null;
+        }
+        int at = Items(items).IndexOf(item!);
+        return at >= 0 ? new(0, at) : null;
+    }
+
+    // The list's groups, whether they have headers, and how many items a row holds as laid out now.
+    private (IReadOnlyList<int> sizes, bool headers, int columns) Layout(ItemsControl items)
+    {
+        if (items == LetterGroups)
+        {
+            List<StartGroup> groups = LetterGroups.ItemsSource as List<StartGroup> ?? [];
+            int columns = _sections.View == AllAppsView.Grid ? (int)(LetterGroups.ActualWidth / 96) : 1;
+            return ([.. groups.Select(group => group.Count)], true, columns);
+        }
+        int count = Items(items).Count;
+        return ([count], false, items == CategoryCards ? Math.Min(4, (int)(CategoryCards.ActualWidth / 183)) : 4);
+    }
+
+    private static List<object> Items(ItemsControl items) => [.. (items.ItemsSource as System.Collections.IEnumerable ?? Array.Empty<object>()).Cast<object>()];
+
+    /// <summary>Focuses a place in All: a letter's header or app, or a category card.</summary>
+    private bool FocusAllSpot(StartNavigation.Spot spot, FocusState state)
+    {
+        if (AllItems == CategoryCards)
+            return CategoryCards.ContainerFromIndex(spot.Index) is DependencyObject card && Descendant<ContentControl>(card) is { } control && control.Focus(state);
+        if (LetterGroups.ContainerFromIndex(spot.Group) is not DependencyObject group)
+            return false;
+        if (spot.IsHeader)
+            return Descendant<Button>(group) is { } header && header.Focus(state);
+        return Descendant<ItemsControl>(group) is { } apps && FocusItem(apps, spot.Index, state);
+    }
+
+    private static bool FocusItem(ItemsControl items, int index, FocusState state) =>
+        items.ContainerFromIndex(index) is DependencyObject container && Descendant<Control>(container) is { } control && control.Focus(state);
+
+    // The first element of the type below the element, depth first.
+    private static T? Descendant<T>(DependencyObject element) where T : class
+    {
+        for (int i = 0; i < VisualTreeHelper.GetChildrenCount(element); i++)
+        {
+            DependencyObject child = VisualTreeHelper.GetChild(element, i);
+            if ((child as T ?? Descendant<T>(child)) is { } found)
+                return found;
+        }
+        return null;
+    }
+
+    private static bool IsWithin(DependencyObject element, DependencyObject ancestor)
+    {
+        for (DependencyObject? at = element; at is not null; at = VisualTreeHelper.GetParent(at))
+        {
+            if (at == ancestor)
+                return true;
+        }
+        return false;
     }
 
     // Typing anywhere in Start types into the search box, unless a folder is being renamed.
@@ -906,7 +1155,7 @@ internal sealed partial class StartMenuWindow : Window
     {
         var menu = (MenuFlyout)sender;
         menu.Items.Clear();
-        if (menu.Target?.DataContext is StartItem item)
+        if (menu.Target?.DataContext is StartItem { IsSuite: false } item)
             FillAppMenu(menu, item.Target, [], search: false);
     }
 
@@ -929,6 +1178,7 @@ internal sealed partial class StartMenuWindow : Window
     // The grid and the folder change under an open menu only through it, so the indexes it was opened with hold.
     private void PinMenu_Opening(object sender, object e)
     {
+        FinishGrouping(fadeIn: false);
         var menu = (MenuFlyout)sender;
         menu.Items.Clear();
         if (menu.Target?.DataContext is not StartItem item)
@@ -1256,6 +1506,7 @@ internal sealed partial class StartMenuWindow : Window
     // an app is grouped with it instead, as in Explorer; an app dragged out of a folder's panel goes into the grid.
     private void PinGrid_PointerPressed(object sender, PointerRoutedEventArgs e)
     {
+        FinishGrouping(fadeIn: false);
         var grid = (GridView)sender;
         _suppressPinClick = false;
         if (_pinDrag is not null || !e.GetCurrentPoint(grid).Properties.IsLeftButtonPressed)
@@ -1409,7 +1660,7 @@ internal sealed partial class StartMenuWindow : Window
         if (drag.Grid == PinnedGrid)
         {
             if (drag.GroupWith >= 0)
-                SetPins(StartPins.Group(Pins, drag.Index, drag.GroupWith));
+                GroupWithFade(drag.Index, drag.GroupWith, drag.Containers[drag.Index], drag.Containers[drag.GroupWith]);
             else if (drag.Target != drag.Index)
                 SetPins(StartPins.Move(Pins, drag.Index, drag.Target));
         }
@@ -1489,6 +1740,59 @@ internal sealed partial class StartMenuWindow : Window
         public UIElement? Previewed { get; set; }
     }
 
+    /// <summary>
+    /// The app at <paramref name="index"/> grouped with the one at <paramref name="with"/>, as Explorer shows it: the
+    /// dragged app stays away, the other fades out, nothing shows for a while, then the folder fades in.
+    /// </summary>
+    private async void GroupWithFade(int index, int with, UIElement dragged, UIElement target)
+    {
+        FinishGrouping(fadeIn: false);
+        IReadOnlyList<StartPin> pins = StartPins.Group(Pins, index, with);
+        _grouping = pins;
+        dragged.Opacity = 0;
+        _groupFade = Fade(target, 1, 0, s_groupFadeOut, null);
+        await Task.Delay(s_groupFadeOut + s_groupGap);
+        if (_grouping == pins)
+            FinishGrouping(fadeIn: true);
+    }
+
+    /// <summary>Makes the folder being made, fading it in or (when something else needs the pins now) at once.</summary>
+    private void FinishGrouping(bool fadeIn)
+    {
+        if (_grouping is not { } pins)
+            return;
+
+        _grouping = null;
+        _groupFade?.Stop();
+        _groupFade = null;
+        string? made = pins.Select(pin => pin.Folder?.Id).FirstOrDefault(id => id is not null && StartPins.IndexOf(Pins, id) < 0);
+        SetPins(pins);
+        PinnedGrid.UpdateLayout();
+        // The grid reuses its containers: none may stay hidden.
+        for (int i = 0; i < _pinned.Count; i++)
+        {
+            if (PinnedGrid.ContainerFromIndex(i) is UIElement container)
+                container.Opacity = 1;
+        }
+        if (fadeIn && made is not null && PinnedGrid.ContainerFromIndex(StartPins.IndexOf(Pins, made)) is UIElement folder)
+            _groupFade = Fade(folder, 0, 1, s_groupFadeIn, new CubicEase { EasingMode = EasingMode.EaseInOut });
+    }
+
+    // Fades an element, leaving it at the end value once done.
+    private static Storyboard Fade(UIElement element, double from, double to, TimeSpan duration, EasingFunctionBase? ease)
+    {
+        element.Opacity = from;
+        var story = new Storyboard();
+        Tween(story, element, "Opacity", from, to, duration, ease);
+        story.Completed += (_, _) =>
+        {
+            story.Stop();
+            element.Opacity = to;
+        };
+        story.Begin();
+        return story;
+    }
+
     private void SetPins(IReadOnlyList<StartPin> pins)
     {
         _owner.Settings.Update(_owner.Settings.Current with { StartPins = pins });
@@ -1510,6 +1814,10 @@ internal sealed partial class StartMenuWindow : Window
         FolderLayer.Visibility = Visibility.Visible;
         FolderLayer.IsHitTestVisible = true;
         AnimateFolder(opening: true, null);
+        // Its first app takes the focus, as in Explorer.
+        _panelSource = _folderTile as Control;
+        FocusState state = _panelSource?.FocusState == FocusState.Keyboard ? FocusState.Keyboard : FocusState.Programmatic;
+        DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () => (FolderGrid.ContainerFromIndex(0) as Control)?.Focus(state));
     }
 
     // The open folder's apps, and its tile hidden while the panel stands for it.
@@ -1545,6 +1853,10 @@ internal sealed partial class StartMenuWindow : Window
         _folderId = null;
         _openCategory = null;
         FolderLayer.IsHitTestVisible = false;
+        // The focus goes back to what opened the panel, as in Explorer.
+        if (FocusManager.GetFocusedElement(Root.XamlRoot) is DependencyObject focused && IsWithin(focused, FolderPanel))
+            _panelSource?.Focus(FocusState.Keyboard);
+        _panelSource = null;
         UIElement? tile = _folderTile;
         void Closed()
         {
@@ -1576,15 +1888,16 @@ internal sealed partial class StartMenuWindow : Window
         _folderAnimation?.Stop();
         double fromX = 0, fromY = 0;
         FrameworkElement? origin = _categoryCard ?? (_folderTile is not null ? ItemIcon(_folderTile) as FrameworkElement : null);
+        bool card = _categoryCard is not null && _panelFromCard;
         if (origin is not null)
         {
             // A card's square, not its name below it.
-            double height = _categoryCard is not null ? origin.ActualWidth : origin.ActualHeight;
+            double height = card ? origin.ActualWidth : origin.ActualHeight;
             Point centre = origin.TransformToVisual(Root).TransformPoint(new Point(origin.ActualWidth / 2, height / 2));
             fromX = centre.X - Root.ActualWidth / 2;
             fromY = centre.Y - Root.ActualHeight / 2;
         }
-        double small = (_categoryCard is not null ? _categoryCard.ActualWidth : 38) / FolderPanel.Width;
+        double small = (card ? _categoryCard!.ActualWidth : 38) / FolderPanel.Width;
         // Each key frame needs a curve of its own.
         KeySpline Curve() => opening
             ? new KeySpline { ControlPoint1 = new Point(0, 0), ControlPoint2 = new Point(0, 1) }

@@ -279,11 +279,78 @@ public sealed class StartMenuTests
         Assert.Equal(AllApps.Other, AllApps.CategoryFor("Contoso.App", @"D:\Contoso\app.exe", none, mappings, s_folders));
     }
 
-    private static AllAppsEntry Entry(string name, int category, double usage = 0) =>
-        new(new PinnedApp(name, $"Test.{name.Replace(" ", "")}"), $"W~Test.{name}", category, usage);
+    private static AllAppsEntry Entry(string name, int category, double usage = 0, string? suite = null) =>
+        new(new PinnedApp(name, $"Test.{name.Replace(" ", "")}"), $"W~Test.{name}", category, usage, Suite: suite);
 
-    private static string Show(IReadOnlyList<(int Category, IReadOnlyList<AllAppsEntry> Apps)> categories) =>
-        string.Join(" | ", categories.Select(c => $"{AllApps.CategoryName(c.Category)}: {string.Join(", ", c.Apps.Select(a => a.App.DisplayName))}"));
+    private static string Show(IReadOnlyList<(int Category, IReadOnlyList<AllAppsItem> Items)> categories) =>
+        string.Join(" | ", categories.Select(c => $"{AllApps.CategoryName(c.Category)}: {string.Join(", ", c.Items.Select(Show))}"));
+
+    // An app by name, a folder as "Name[its apps]".
+    private static string Show(AllAppsItem item) =>
+        item.IsFolder ? $"{item.Name}[{string.Join(" ", item.Apps.Select(app => app.App.DisplayName))}]" : item.Name;
+
+    [Fact]
+    public void Apps_of_a_Start_Menu_folder_make_a_folder_from_two_apps_on()
+    {
+        AllAppsEntry[] apps =
+        [
+            Entry("Git Bash", 15, suite: "Git"), Entry("Git CMD", 15, 3, suite: "git"), Entry("Git GUI", 15, suite: "Git"),
+            Entry("Visual Studio Code", 0, suite: "Visual Studio Code"), Entry("Notepad", 13),
+        ];
+
+        // A folder's apps go by name; folders match by name in any case; one app alone stays an app.
+        Assert.Equal(["Git[Git Bash Git CMD Git GUI]", "Visual Studio Code", "Notepad"], AllApps.Items(apps).Select(Show));
+    }
+
+    [Fact]
+    public void Start_hides_what_Windows_Tools_holds_and_its_block_lists()
+    {
+        var hidden = new StartHiddenApps(new HashSet<string>(["Windows PowerShell", "Windows Accessories", "Windows Tools", "Windows System"], StringComparer.OrdinalIgnoreCase), ClickToDoHidden: true, DeveloperIntent: false);
+
+        Assert.True(AllApps.IsHidden(@"{1AC14E77-02E7-4E5D-B744-2EB1AE5198B7}\cmd.exe", "Windows System", hidden));
+        Assert.True(AllApps.IsHidden("Microsoft.Windows.RemoteDesktop", "windows accessories", hidden));
+        Assert.False(AllApps.IsHidden("Microsoft.Windows.AdministrativeTools", null, hidden));
+        Assert.False(AllApps.IsHidden(@"{1AC14E77-02E7-4E5D-B744-2EB1AE5198B7}\magnify.exe", "Accessibility", hidden));
+        Assert.True(AllApps.IsHidden("Microsoft.PowerAutomateDesktop_8wekyb3d8bbwe!PAD.Console", null, hidden));
+        Assert.True(AllApps.IsHidden("Microsoft.Windows.DevHome_8wekyb3d8bbwe!App", null, hidden));
+        Assert.False(AllApps.IsHidden("Microsoft.Windows.DevHome_8wekyb3d8bbwe!App", null, hidden with { DeveloperIntent = true }));
+        Assert.True(AllApps.IsHidden("MicrosoftWindows.Client.CoreAI_cw5n1h2txyewy!ClickToDoApp", null, hidden));
+        Assert.False(AllApps.IsHidden("MicrosoftWindows.Client.CoreAI_cw5n1h2txyewy!ClickToDoApp", null, hidden with { ClickToDoHidden = false }));
+    }
+
+    [Fact]
+    public void A_folder_goes_into_its_first_categorized_apps_category()
+    {
+        AllAppsEntry[] apps =
+        [
+            // As this machine's (2026-10-09): Git with Developer Tools, Python in Other, Accessibility alone expanded.
+            Entry("Git Bash", 15, suite: "Git"), Entry("Git FAQs", 0, suite: "Git"), Entry("Git GUI", 15, suite: "Git"),
+            Entry("Terminal", 15, 2), Entry("Blend", 15, 1),
+            Entry("IDLE", 0, suite: "Python"), Entry("Python 3.14", 0, suite: "Python"),
+            Entry("Magnifier", 1, 2, suite: "Accessibility"), Entry("Live captions", 1, 1, suite: "Accessibility"),
+            Entry("On-Screen Keyboard", 15, 1, suite: "Accessibility"), Entry("Narrator", 1, suite: "Accessibility"),
+            Entry("Claude", 0, 9),
+        ];
+
+        Assert.Equal(
+            "Other: Claude, Python[IDLE Python 3.14] | Accessibility: Magnifier, Live captions, On-Screen Keyboard, Narrator | Developer Tools: Terminal, Blend, Git[Git Bash Git FAQs Git GUI]",
+            Show(AllApps.Categories(apps)));
+    }
+
+    [Fact]
+    public void Folders_are_listed_by_name_under_their_letter()
+    {
+        AllAppsEntry[] apps =
+        [
+            Entry("Calculator", 9), Entry("Narrator", 1, suite: "Accessibility"), Entry("Magnifier", 1, suite: "Accessibility"),
+            Entry("Developer PowerShell", 15, suite: "Visual Studio"), Entry("Developer Command Prompt", 15, suite: "Visual Studio"), Entry("Visual Studio", 15),
+        ];
+
+        // An app goes before a folder of its name, as in Explorer.
+        Assert.Equal(
+            ["A Accessibility[Magnifier Narrator]", "C Calculator", "V Visual Studio Visual Studio[Developer Command Prompt Developer PowerShell]"],
+            AllApps.ByLetter(apps).Select(group => group.Letter + " " + string.Join(" ", group.Items.Select(Show))));
+    }
 
     [Fact]
     public void Categories_merge_as_Explorers_and_small_ones_go_to_Other()
@@ -355,7 +422,7 @@ public sealed class StartMenuTests
 
         Assert.Equal(
             ["& &Co", "# 7-Zip", "A Ägypten alpha", "Z Zoom", AllApps.OtherScripts + " Привет"],
-            AllApps.ByLetter(apps).Select(group => group.Letter + " " + string.Join(" ", group.Apps.Select(app => app.App.DisplayName))));
+            AllApps.ByLetter(apps).Select(group => group.Letter + " " + string.Join(" ", group.Items.Select(item => item.Name))));
     }
 
     [Fact]
@@ -511,5 +578,64 @@ public sealed class StartMenuTests
     public void Verbs_Start_leaves_out_have_no_command(string? verb)
     {
         Assert.Null(StartAppMenu.FromVerb(verb));
+    }
+
+    private static StartNavigation.Spot? Move(int[] sizes, bool headers, int columns, (int Group, int Index) from, StartMove key, int column = 0) =>
+        StartNavigation.Move(sizes, headers, columns, new StartNavigation.Spot(from.Group, from.Index), key, column);
+
+    [Fact]
+    public void Left_and_right_step_through_headers_and_items_in_order()
+    {
+        // As Explorer's Grid view (2026-10-09): A [Accessibility], B [Blend], C [Calculator Camera Claude Clock].
+        int[] sizes = [1, 1, 4];
+
+        Assert.Equal(new StartNavigation.Spot(2, -1), Move(sizes, true, 8, (1, 0), StartMove.Right));
+        Assert.Equal(new StartNavigation.Spot(2, 0), Move(sizes, true, 8, (2, -1), StartMove.Right));
+        Assert.Equal(new StartNavigation.Spot(1, 0), Move(sizes, true, 8, (2, -1), StartMove.Left));
+        Assert.Null(Move(sizes, true, 8, (0, -1), StartMove.Left));
+        Assert.Null(Move(sizes, true, 8, (2, 3), StartMove.Right));
+    }
+
+    [Fact]
+    public void Up_and_down_go_by_rows_and_through_the_headers()
+    {
+        int[] sizes = [1, 1, 4, 2];
+
+        // Down from a letter's last row is the next header; from a header, its first item.
+        Assert.Equal(new StartNavigation.Spot(1, -1), Move(sizes, true, 8, (0, 0), StartMove.Down));
+        Assert.Equal(new StartNavigation.Spot(1, 0), Move(sizes, true, 8, (1, -1), StartMove.Down));
+        Assert.Equal(new StartNavigation.Spot(3, -1), Move(sizes, true, 8, (2, 2), StartMove.Down));
+        // Up from a first row is its header; from a header, the last row above in the column the focus came from.
+        Assert.Equal(new StartNavigation.Spot(2, -1), Move(sizes, true, 8, (2, 2), StartMove.Up));
+        Assert.Equal(new StartNavigation.Spot(2, 2), Move(sizes, true, 8, (3, -1), StartMove.Up, column: 2));
+        Assert.Equal(new StartNavigation.Spot(2, 3), Move(sizes, true, 8, (3, -1), StartMove.Up, column: 6));
+        Assert.Null(Move(sizes, true, 8, (0, -1), StartMove.Up));
+        Assert.Null(Move(sizes, true, 8, (3, 1), StartMove.Down));
+        // List view: one column.
+        Assert.Equal(new StartNavigation.Spot(2, 1), Move(sizes, true, 1, (2, 0), StartMove.Down));
+        Assert.Equal(new StartNavigation.Spot(2, 0), Move(sizes, true, 1, (2, 1), StartMove.Up));
+    }
+
+    [Fact]
+    public void Home_and_end_go_to_the_first_header_and_the_last_item()
+    {
+        int[] sizes = [1, 3];
+
+        Assert.Equal(new StartNavigation.Spot(0, -1), Move(sizes, true, 8, (1, 2), StartMove.Home));
+        Assert.Equal(new StartNavigation.Spot(1, 2), Move(sizes, true, 8, (0, -1), StartMove.End));
+    }
+
+    [Fact]
+    public void Cards_and_panels_are_a_plain_grid_that_stays_where_nothing_is_below()
+    {
+        // Explorer's seven category cards, four to a row: Down from the fourth stays (the second row has three).
+        int[] cards = [7];
+
+        Assert.Equal(new StartNavigation.Spot(0, 1), Move(cards, false, 4, (0, 0), StartMove.Right));
+        Assert.Equal(new StartNavigation.Spot(0, 4), Move(cards, false, 4, (0, 3), StartMove.Right));
+        Assert.Equal(new StartNavigation.Spot(0, 6), Move(cards, false, 4, (0, 2), StartMove.Down));
+        Assert.Null(Move(cards, false, 4, (0, 3), StartMove.Down));
+        Assert.Null(Move(cards, false, 4, (0, 1), StartMove.Up));
+        Assert.Equal(new StartNavigation.Spot(0, 6), Move(cards, false, 4, (0, 0), StartMove.End));
     }
 }

@@ -42,4 +42,13 @@ public sealed class StartMenuLayoutTests
         Assert.Equal((600.0, 500.0), StartMenuLayout.Resize(new RectInt32(0, 0, 900, 750), 0, 0, false, false, 1.5));
         Assert.Equal((StartMenuLayout.MinWidth, StartMenuLayout.MinHeight), StartMenuLayout.Resize(new RectInt32(0, 0, 900, 750), -2000, 2000, false, false, 1.5));
     }
+
+    [Fact]
+    public void Folder_panel_is_Starts_colour_at_the_in_app_acrylics_luminosity()
+    {
+        // Explorer's panels measured 2026-10-09: #2B2B2C dark, #F2F3F2 light, #14325D with the accent #00337C on a dark Start.
+        Assert.Equal(Windows.UI.Color.FromArgb(255, 0x2B, 0x2B, 0x2B), StartMenuLayout.FolderPanelColor(null, light: false));
+        Assert.Equal(Windows.UI.Color.FromArgb(255, 0xF3, 0xF3, 0xF3), StartMenuLayout.FolderPanelColor(null, light: true));
+        Assert.Equal(Windows.UI.Color.FromArgb(255, 0x14, 0x33, 0x5E), StartMenuLayout.FolderPanelColor(Windows.UI.Color.FromArgb(255, 0x00, 0x33, 0x7C), light: false));
+    }
 }

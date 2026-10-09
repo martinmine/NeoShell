@@ -5,7 +5,10 @@ using NeoShell.Settings;
 
 namespace NeoShell.StartMenu;
 
-/// <summary>An app or a file in Start: pinned, in All apps, or a search result; or a folder of pinned apps.</summary>
+/// <summary>
+/// An app or a file in Start: pinned, in All apps, or a search result; or a folder of pinned apps, or one of All's
+/// folders (a Start Menu folder).
+/// </summary>
 /// <param name="Target">What opening the item launches; for an app, also what pinning keeps.</param>
 internal sealed class StartItem(PinnedApp target, string subtitle, bool isApp, AppIcons icons) : INotifyPropertyChanged
 {
@@ -18,6 +21,25 @@ internal sealed class StartItem(PinnedApp target, string subtitle, bool isApp, A
         Folder = folder;
         MiniApps = [.. folder.Apps.Take(4).Select(app => new StartItem(app, "App", isApp: true, icons))];
     }
+
+    /// <summary>
+    /// One of All's folders: by name with the folder glyph (Grid and List views), or, as Explorer shows it in a category,
+    /// on a plate with its first four apps' icons (<paramref name="plate"/>).
+    /// </summary>
+    public StartItem(string name, IReadOnlyList<StartItem> apps, bool plate, AppIcons icons)
+        : this(new PinnedApp(name, Path: s_folderIcon), "", isApp: false, icons)
+    {
+        SuiteApps = apps;
+        ShowsPlate = plate;
+        MiniApps = [.. apps.Take(4)];
+    }
+
+    private const string FolderIconFile = @"%SystemRoot%\SystemApps\MicrosoftWindows.Client.Core_cw5n1h2txyewy\StartMenu\Assets\UnplatedFolder\UnplatedFolder.ico";
+
+    // Explorer's folder glyph (StartMenu.dll's SuiteFolderIconImageSource), else the shell's folder icon.
+    private static readonly string s_folderIcon = File.Exists(Environment.ExpandEnvironmentVariables(FolderIconFile))
+        ? Environment.ExpandEnvironmentVariables(FolderIconFile)
+        : Environment.GetFolderPath(Environment.SpecialFolder.CommonPrograms);
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
@@ -33,6 +55,20 @@ internal sealed class StartItem(PinnedApp target, string subtitle, bool isApp, A
 
     public bool IsFolder => Folder is not null;
 
+    /// <summary>For one of All's folders, its apps.</summary>
+    public IReadOnlyList<StartItem>? SuiteApps { get; }
+
+    public bool IsSuite => SuiteApps is not null;
+
+    /// <summary>A folder in a category shows a plate of its apps' icons rather than the folder glyph.</summary>
+    public bool ShowsPlate { get; }
+
+    public Visibility PlateVisibility => ShowsPlate ? Visibility.Visible : Visibility.Collapsed;
+
+    public Visibility IconVisibility => ShowsPlate ? Visibility.Collapsed : Visibility.Visible;
+
+    /// <summary>Explorer's names: "Accessibility folder, Collapsed"; an app with "New" or "System" after it.</summary>
+    public string AutomationName => IsSuite ? $"{Title} folder, Collapsed" : IsSystem ? $"{Title}, System" : IsNew ? $"{Title}, New" : Title;
     /// <summary>For an app of All apps, its id in Explorer's Start, by which "New" is cleared once it's opened.</summary>
     public string? TileId { get; init; }
 
@@ -61,7 +97,7 @@ internal sealed class StartItem(PinnedApp target, string subtitle, bool isApp, A
     {
         get
         {
-            if (Folder is not null)
+            if (Folder is not null || ShowsPlate)
                 return null;
             _iconRequested = true;
             return icons.Get(Target);

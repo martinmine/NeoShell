@@ -544,9 +544,17 @@ Found while working on milestone 19, not done yet.
     — fixed (T39a): content-sized up to 180, narrowing together towards 84, then the search collapses, matched step by
     step as the shell; not done: Explorer's smaller buttons and overflow menu after that (NeoShell cuts the row off),
     and its group-by-group "combine when full"
-  - A new pin folder swaps in at once (Explorer fades out and in); the folder panel's colour is approximate (T17)
+  - A new pin folder swaps in at once (Explorer fades out and in); the folder panel's colour is approximate (T17) — fixed
+    (T39c): Explorer's fade-out, pause and fade-in, recorded at 60 fps and matched frame by frame; the panel's colour from
+    Start's own `FolderModal` template (in-app acrylic), matched in dark, light and dark accent to 1-3 levels; still
+    differs: on a light accent Start, NeoShell's Start (and so its panel) stays dark accent where Explorer 25H2's turns
+    light accent
   - All apps is flat (Explorer shows Start Menu folders); no arrow keys between items; no zoom-out for the letter
-    index (T23)
+    index (T23) — fixed (T39c): Start Menu folders
+    (`System.Tile.SuiteDisplayName`, from two apps on) in all three views, with Explorer's hidden Windows Tools folders
+    and block lists, so All lists Explorer's apps and categories hold its items exactly; Explorer's keyboard behaviour
+    (Tab stops, arrows through headers and items, Home/End, Enter, Shift+F10, Esc); the page's zoom-out and back,
+    recorded at 60 fps; not compared: opening a folder from inside an open category
   - Win+arrow moves jump; Explorer slides them over about 250 ms (T28)
   - Quick Settings: night light's moon keeps faint sun rays; a 2-3 frame resize between pages; with the light theme
     and accent on Windows' panel is light-accent; footer colour, slider and page-dot spacing; the panel sits 1 px left

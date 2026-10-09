@@ -39,7 +39,7 @@
                                 Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
                                 BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
                                 Opacity="{x:Bind PlateOpacity}">
-                                <ItemsControl Margin="0,0,-2,-2" ItemsSource="{x:Bind MiniApps}" IsHitTestVisible="False">
+                                <ItemsControl Margin="0,0,-2,-2" ItemsSource="{x:Bind MiniApps}" IsHitTestVisible="False" IsTabStop="False">
                                     <ItemsControl.ItemsPanel>
                                         <ItemsPanelTemplate>
                                             <VariableSizedWrapGrid Orientation="Horizontal" MaximumRowsOrColumns="2" ItemWidth="18" ItemHeight="18" />
@@ -94,7 +94,8 @@
 
                 <!--
                     An app of All apps as a tile (Grid view, an open category): as Explorer's, its name below the icon, on
-                    one line above "New" (accent) or "System" and on two otherwise.
+                    one line above "New" (accent) or "System" and on two otherwise. A folder shows the folder glyph, or
+                    in a category its first four apps' icons on a plate, as a folder of pins.
                 -->
                 <DataTemplate x:Key="AppTileTemplate" x:DataType="local:StartItem">
                     <Button
@@ -105,13 +106,36 @@
                         HorizontalContentAlignment="Stretch"
                         VerticalContentAlignment="Top"
                         AutomationProperties.AutomationId="AllAppsTile"
-                        AutomationProperties.Name="{x:Bind Title}"
+                        AutomationProperties.Name="{x:Bind AutomationName}"
                         Click="AllAppsItem_Click">
                         <Button.ContextFlyout>
                             <MenuFlyout Opening="ItemMenu_Opening" />
                         </Button.ContextFlyout>
                         <StackPanel>
-                            <Image x:Name="ItemIcon" Width="32" Height="32" Margin="0,0,0,4" Source="{x:Bind Icon, Mode=OneWay}" />
+                            <Grid x:Name="ItemIcon" Width="32" Height="32" Margin="0,0,0,4">
+                                <Border
+                                    Margin="-4"
+                                    Padding="2,3,2,0"
+                                    CornerRadius="4"
+                                    BorderThickness="1"
+                                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                    Visibility="{x:Bind PlateVisibility}">
+                                    <ItemsControl Margin="0,0,-2,-2" ItemsSource="{x:Bind MiniApps}" IsHitTestVisible="False" IsTabStop="False">
+                                        <ItemsControl.ItemsPanel>
+                                            <ItemsPanelTemplate>
+                                                <VariableSizedWrapGrid Orientation="Horizontal" MaximumRowsOrColumns="2" ItemWidth="18" ItemHeight="18" />
+                                            </ItemsPanelTemplate>
+                                        </ItemsControl.ItemsPanel>
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate x:DataType="local:StartItem">
+                                                <Image Width="16" Height="16" HorizontalAlignment="Left" VerticalAlignment="Top" Source="{x:Bind Icon, Mode=OneWay}" />
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </Border>
+                                <Image Source="{x:Bind Icon, Mode=OneWay}" Visibility="{x:Bind IconVisibility}" />
+                            </Grid>
                             <TextBlock
                                 Text="{x:Bind Title}"
                                 FontSize="12"
@@ -144,7 +168,7 @@
                         HorizontalAlignment="Stretch"
                         HorizontalContentAlignment="Left"
                         AutomationProperties.AutomationId="AllAppsRow"
-                        AutomationProperties.Name="{x:Bind Title}"
+                        AutomationProperties.Name="{x:Bind AutomationName}"
                         Click="AllAppsItem_Click">
                         <Button.ContextFlyout>
                             <MenuFlyout Opening="ItemMenu_Opening" />
@@ -173,13 +197,20 @@
                     three and the next ones' icons in the fourth), and the category's name below, which opens it.
                 -->
                 <DataTemplate x:Key="CategoryTemplate" x:DataType="local:StartCategory">
-                    <Grid
+                    <!-- The card takes the keyboard focus, as Explorer's, and Enter opens it; its places are for the pointer. -->
+                    <ContentControl
                         Width="156"
                         Height="192"
                         HorizontalAlignment="Left"
                         VerticalAlignment="Top"
+                        HorizontalContentAlignment="Stretch"
+                        VerticalContentAlignment="Stretch"
+                        IsTabStop="True"
+                        UseSystemFocusVisuals="True"
                         AutomationProperties.AutomationId="CategoryCard"
-                        AutomationProperties.Name="{x:Bind AutomationName}">
+                        AutomationProperties.Name="{x:Bind AutomationName}"
+                        KeyDown="CategoryCard_KeyDown">
+                    <Grid>
                         <Border
                             Height="156"
                             VerticalAlignment="Top"
@@ -199,6 +230,7 @@
                                         Width="68"
                                         Height="68"
                                         Margin="0"
+                                        IsTabStop="False"
                                         AutomationProperties.AutomationId="{x:Bind AutomationId}"
                                         AutomationProperties.Name="{x:Bind Name}"
                                         ToolTipService.ToolTip="{x:Bind ToolTip}"
@@ -214,6 +246,7 @@
                                                 Height="36"
                                                 Margin="2,2,0,0"
                                                 IsHitTestVisible="False"
+                                                IsTabStop="False"
                                                 ItemsSource="{x:Bind Overflow}"
                                                 Visibility="{x:Bind OverflowVisibility}">
                                                 <ItemsControl.ItemsPanel>
@@ -239,10 +272,12 @@
                             VerticalAlignment="Top"
                             Content="{x:Bind Name}"
                             FontSize="12"
+                            IsTabStop="False"
                             AutomationProperties.AutomationId="CategoryButton"
                             AutomationProperties.Name="{x:Bind Name}"
                             Click="CategoryButton_Click" />
                     </Grid>
+                    </ContentControl>
                 </DataTemplate>
 
                 <!-- A letter's apps in the name views, under a header as wide as the rows, which opens the letters. -->
@@ -361,7 +396,10 @@
             scrolling page; Settings' Pinned and All switch each off. Pinned apps start 8 further left than the rest, as
             in Explorer, so that's the padding; more would clip them.
         -->
-        <ScrollViewer x:Name="HomeView" Grid.Row="1" Margin="0,8,0,0" Padding="32,0,24,16">
+        <ScrollViewer x:Name="HomeView" Grid.Row="1" Margin="0,8,0,0" Padding="32,0,24,16" RenderTransformOrigin="0.5,0.5">
+            <ScrollViewer.RenderTransform>
+                <ScaleTransform x:Name="HomeScale" />
+            </ScrollViewer.RenderTransform>
             <StackPanel>
                 <StackPanel x:Name="PinnedSection">
                     <TextBlock Margin="31,29,0,16" Text="Pinned" Style="{ThemeResource BodyStrongTextBlockStyle}" />
@@ -438,6 +476,7 @@
                         x:Name="CategoryCards"
                         Margin="32,9,0,0"
                         IsTabStop="False"
+                        TabFocusNavigation="Once"
                         ItemTemplate="{StaticResource CategoryTemplate}"
                         AutomationProperties.AutomationId="AllAppsCategories"
                         AutomationProperties.Name="Categories">
@@ -452,6 +491,7 @@
                         x:Name="LetterGroups"
                         Margin="0,-10,0,0"
                         IsTabStop="False"
+                        TabFocusNavigation="Once"
                         AutomationProperties.AutomationId="AllAppsList"
                         AutomationProperties.Name="All" />
                 </StackPanel>
@@ -463,8 +503,9 @@
             scripts, four to a row in 48 squares 4 apart, those without apps dimmed. A letter jumps to its apps.
         -->
         <Grid x:Name="LetterView" Grid.Row="1" Visibility="Collapsed" Background="Transparent">
-            <TextBlock Margin="63,37,0,0" VerticalAlignment="Top" Text="All" Style="{ThemeResource BodyStrongTextBlockStyle}" />
+            <TextBlock x:Name="LetterTitle" Margin="63,37,0,0" VerticalAlignment="Top" Text="All" Style="{ThemeResource BodyStrongTextBlockStyle}" />
             <Button
+                x:Name="LetterBackButton"
                 Height="32"
                 Margin="0,31,52,0"
                 Padding="12,0"
@@ -540,6 +581,7 @@
                 BorderThickness="1"
                 BorderBrush="{ThemeResource SurfaceStrokeColorFlyoutBrush}"
                 RenderTransformOrigin="0.5,0.5"
+                TabFocusNavigation="Cycle"
                 AutomationProperties.AutomationId="FolderPanel">
                 <Border.RenderTransform>
                     <CompositeTransform x:Name="FolderTransform" />
@@ -585,6 +627,7 @@
                             Width="384"
                             HorizontalAlignment="Left"
                             IsTabStop="False"
+                            TabFocusNavigation="Once"
                             ItemTemplate="{StaticResource AppTileTemplate}"
                             AutomationProperties.AutomationId="CategoryApps"
                             AutomationProperties.Name="Category">

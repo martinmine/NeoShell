@@ -5,8 +5,17 @@ using NeoShell.Settings;
 
 namespace NeoShell.StartMenu;
 
-/// <summary>An app in All apps: its tile id in Explorer's Start, category, use, and whether it shows "New" or "System".</summary>
-public sealed record AllAppsEntry(PinnedApp App, string TileId, int Category, double Usage, bool IsNew = false, bool IsSystem = false);
+/// <summary>
+/// An app in All apps: its tile id in Explorer's Start, category, use, whether it shows "New" or "System", and the Start
+/// Menu folder it's in (its suite).
+/// </summary>
+public sealed record AllAppsEntry(PinnedApp App, string TileId, int Category, double Usage, bool IsNew = false, bool IsSystem = false, string? Suite = null);
+
+/// <summary>What All lists: an app, or a folder of apps (a Start Menu folder with two apps or more), its apps by name.</summary>
+public sealed record AllAppsItem(string Name, IReadOnlyList<AllAppsEntry> Apps, bool IsFolder)
+{
+    public static AllAppsItem Of(AllAppsEntry app) => new(app.App.DisplayName, [app], false);
+}
 
 /// <summary>
 /// How Explorer's 25H2 Start sorts All apps into categories and orders them, and the letters of the name views
@@ -75,6 +84,47 @@ public static class AllApps
         // Not in the lists, and not in the Windows folder (Control Panel opens it), yet Start marks it.
         ["Microsoft.Windows.AdministrativeTools"] = true,
     };
+
+    // StartTileData's block lists: packages pushed into the Windows Accessories folder (and so hidden with it), Dev Home
+    // only while the user hasn't said they're a developer; Click to Do while its entry point is hidden.
+    private const string PowerAutomate = "Microsoft.PowerAutomateDesktop_8wekyb3d8bbwe";
+    private const string DevHome = "Microsoft.Windows.DevHome_8wekyb3d8bbwe";
+    private const string ClickToDo = "MicrosoftWindows.Client.CoreAI_cw5n1h2txyewy!ClickToDoApp";
+
+    /// <summary>
+    /// Whether Explorer's Start leaves the app out of All: the apps of the folders Windows Tools holds (Windows
+    /// Accessories, Windows Tools, Windows System, Windows PowerShell), and those its block lists hide.
+    /// </summary>
+    public static bool IsHidden(string catalogId, string? suite, StartHiddenApps hidden)
+    {
+        int bang = catalogId.IndexOf('!');
+        string family = bang > 0 ? catalogId[..bang] : "";
+        if (family.Equals(PowerAutomate, StringComparison.OrdinalIgnoreCase)
+            || (family.Equals(DevHome, StringComparison.OrdinalIgnoreCase) && !hidden.DeveloperIntent)
+            || (catalogId.Equals(ClickToDo, StringComparison.OrdinalIgnoreCase) && hidden.ClickToDoHidden))
+            return true;
+        return suite is not null && hidden.Suites.Contains(suite);
+    }
+
+    /// <summary>
+    /// The apps as All lists them, as StartTileData's <c>AppsListGeneratedCollection</c> builds them: apps of the same
+    /// Start Menu folder (by name, any case) become a folder once there are two of them; an app alone in its folder
+    /// stays an app. A folder's apps go by name.
+    /// </summary>
+    public static IReadOnlyList<AllAppsItem> Items(IEnumerable<AllAppsEntry> apps)
+    {
+        var items = new List<AllAppsItem>();
+        foreach (IGrouping<string, AllAppsEntry> suite in apps.Where(app => app.Suite is not null).GroupBy(app => app.Suite!, StringComparer.OrdinalIgnoreCase))
+        {
+            List<AllAppsEntry> members = [.. suite.OrderBy(app => app.App.DisplayName, StringComparer.CurrentCultureIgnoreCase)];
+            if (members.Count >= 2)
+                items.Add(new AllAppsItem(suite.First().Suite!, members, true));
+            else
+                items.Add(AllAppsItem.Of(members[0]));
+        }
+        items.AddRange(apps.Where(app => app.Suite is null).Select(AllAppsItem.Of));
+        return items;
+    }
 
     /// <summary>A category's name, as Start shows it on its card.</summary>
     public static string CategoryName(int category) =>
@@ -151,43 +201,46 @@ public static class AllApps
     }
 
     /// <summary>
-    /// The category cards in Start's order, each with its apps in order: categories merged as Start merges them, the
-    /// most used first (by the use of their two most used apps), apps by use then name.
+    /// The category cards in Start's order, each with its items in order: categories merged as Start merges them, the
+    /// most used first (by the use of their two most used items), items by use then name. A folder goes where its first
+    /// app with a category goes (<c>TryGetCategoriesForTiles</c>), and is as used as its first app.
     /// </summary>
-    public static IReadOnlyList<(int Category, IReadOnlyList<AllAppsEntry> Apps)> Categories(IEnumerable<AllAppsEntry> apps)
+    public static IReadOnlyList<(int Category, IReadOnlyList<AllAppsItem> Items)> Categories(IEnumerable<AllAppsEntry> apps)
     {
-        var groups = new Dictionary<int, List<AllAppsEntry>>();
-        foreach (AllAppsEntry app in apps)
-        {
-            int category = app.Category > 0 && app.Category < s_names.Length ? app.Category : Other;
-            if (!groups.TryGetValue(category, out List<AllAppsEntry>? list))
-                groups[category] = list = [];
-            list.Add(app);
-        }
+        var groups = new Dictionary<int, List<AllAppsItem>>();
+        foreach (AllAppsItem item in Items(apps))
+            Into(groups, item.Apps.Select(app => app.Category).FirstOrDefault(c => c > 0 && c < s_names.Length, Other)).Add(item);
 
         Merge(groups, s_merged, always: true);
         Merge(groups, s_mergedWhenSmall, always: false);
+        // PruneAndCombineCategories: two items or fewer go into Other, but a category that is one folder of three apps
+        // or more shows the folder's apps instead.
         foreach (int category in groups.Keys.Where(c => c != Other && groups[c].Count <= 2).ToList())
         {
+            if (groups[category] is [{ IsFolder: true, Apps.Count: >= 3 } folder])
+            {
+                groups[category] = [.. folder.Apps.Select(AllAppsItem.Of)];
+                continue;
+            }
             Into(groups, Other).AddRange(groups[category]);
             groups.Remove(category);
         }
 
         return [.. groups
             .Where(group => group.Value.Count > 0)
-            .Select(group => (Category: group.Key, Apps: (IReadOnlyList<AllAppsEntry>)[.. ByUse(group.Value)]))
-            .OrderByDescending(group => group.Apps.Take(2).Sum(app => Rank(app.Usage)))
+            .Select(group => (Category: group.Key, Items: (IReadOnlyList<AllAppsItem>)[.. ByUse(group.Value)]))
+            .OrderByDescending(group => group.Items.Take(2).Sum(item => Rank(item.Apps[0].Usage)))
             .ThenBy(group => CategoryName(group.Category), StringComparer.CurrentCultureIgnoreCase)];
     }
 
-    private static void Merge(Dictionary<int, List<AllAppsEntry>> groups, (int Into, int[] From)[] merges, bool always)
+    private static void Merge(Dictionary<int, List<AllAppsItem>> groups, (int Into, int[] From)[] merges, bool always)
     {
         foreach ((int into, int[] from) in merges)
         {
-            List<AllAppsEntry> target = Into(groups, into);
+            List<AllAppsItem> target = Into(groups, into);
             foreach (int source in from)
             {
-                if (source != into && groups.TryGetValue(source, out List<AllAppsEntry>? apps) && (always || apps.Count < 3))
+                if (source != into && groups.TryGetValue(source, out List<AllAppsItem>? apps) && (always || apps.Count < 3))
                 {
                     target.AddRange(apps);
                     groups.Remove(source);
@@ -196,9 +249,9 @@ public static class AllApps
         }
     }
 
-    private static List<AllAppsEntry> Into(Dictionary<int, List<AllAppsEntry>> groups, int category)
+    private static List<AllAppsItem> Into(Dictionary<int, List<AllAppsItem>> groups, int category)
     {
-        if (!groups.TryGetValue(category, out List<AllAppsEntry>? list))
+        if (!groups.TryGetValue(category, out List<AllAppsItem>? list))
             groups[category] = list = [];
         return list;
     }
@@ -209,6 +262,11 @@ public static class AllApps
     private static IEnumerable<AllAppsEntry> ByUse(IEnumerable<AllAppsEntry> apps) => apps
         .OrderByDescending(app => Rank(app.Usage))
         .ThenBy(app => app.App.DisplayName, StringComparer.CurrentCultureIgnoreCase);
+
+    // A folder is as used as its first app (AllAppsSuiteViewModel::Rank).
+    private static IEnumerable<AllAppsItem> ByUse(IEnumerable<AllAppsItem> items) => items
+        .OrderByDescending(item => Rank(item.Apps[0].Usage))
+        .ThenBy(item => item.Name, StringComparer.CurrentCultureIgnoreCase);
 
     /// <summary>"Most used" in the name views: the six most used apps that have been used at all.</summary>
     public static IReadOnlyList<AllAppsEntry> MostUsedApps(IEnumerable<AllAppsEntry> apps) =>
@@ -243,11 +301,13 @@ public static class AllApps
         return index < 0 ? s_letters.Length : index;
     }
 
-    /// <summary>The name views' groups: the apps by name under their letters, in <see cref="Letters"/> order.</summary>
-    public static IReadOnlyList<(string Letter, IReadOnlyList<AllAppsEntry> Apps)> ByLetter(IEnumerable<AllAppsEntry> apps) =>
-        [.. apps
-            .OrderBy(app => app.App.DisplayName, StringComparer.Create(CultureInfo.CurrentCulture, ignoreCase: true))
-            .GroupBy(app => LetterFor(app.App.DisplayName))
+    /// <summary>The name views' groups: the apps and folders by name under their letters, in <see cref="Letters"/> order.</summary>
+    public static IReadOnlyList<(string Letter, IReadOnlyList<AllAppsItem> Items)> ByLetter(IEnumerable<AllAppsEntry> apps) =>
+        [.. Items(apps)
+            .OrderBy(item => item.Name, StringComparer.Create(CultureInfo.CurrentCulture, ignoreCase: true))
+            // An app before a folder of the same name, as Explorer's ("Visual Studio").
+            .ThenBy(item => item.IsFolder)
+            .GroupBy(item => LetterFor(item.Name))
             .OrderBy(group => LetterOrder(group.Key))
-            .Select(group => (group.Key, (IReadOnlyList<AllAppsEntry>)[.. group]))];
+            .Select(group => (group.Key, (IReadOnlyList<AllAppsItem>)[.. group]))];
 }

@@ -15,6 +15,15 @@ public enum AllAppsView { Category = 0, Grid = 1, List = 2 }
 public sealed record StartSections(bool ShowPinned, bool ShowAll, bool ShowMostUsed, AllAppsView View);
 
 /// <summary>
+/// What decides the apps Explorer's Start leaves out of All: the Start Menu folders whose apps Windows Tools holds, and
+/// the switches its block lists depend on.
+/// </summary>
+/// <param name="Suites">Windows PowerShell, Windows Accessories, Windows Tools and Windows System, in the user's language.</param>
+/// <param name="ClickToDoHidden">Click to Do's entry point is hidden for the session (no Copilot+ hardware).</param>
+/// <param name="DeveloperIntent">The user said they're a developer, or developer mode is on: Dev Home stays.</param>
+public sealed record StartHiddenApps(IReadOnlySet<string> Suites, bool ClickToDoHidden, bool DeveloperIntent);
+
+/// <summary>
 /// What Explorer's 25H2 Start knows about the apps it lists, read where it keeps it: the category of each app, which
 /// apps it has seen (the others show "New"), Windows' own app-to-category mappings, and Start's layout settings.
 /// See docs/design.md, "All apps".
@@ -29,6 +38,37 @@ public static class StartAppData
     private const string MappingsPath = @"%SystemRoot%\SystemApps\MicrosoftWindows.Client.Core_cw5n1h2txyewy\StartMenu\Assets\AllAppCategoryMappings";
 
     private static readonly Lazy<IReadOnlyDictionary<string, int>> s_mappings = new(ReadCategoryMappings);
+
+    /// <summary>
+    /// What Explorer's Start hides from All (StartMenu.dll's <c>AllAppsViewModel::IsHiddenTile</c> and StartTileData's
+    /// <c>BlockListHelpers</c>): the folders' names as their desktop.ini files give them (shell32's strings; Windows
+    /// PowerShell's has none), Click to Do's session switch and the user's developer intent.
+    /// </summary>
+    public static StartHiddenApps LoadHiddenApps()
+    {
+        var suites = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "Windows PowerShell" };
+        foreach (int id in (int[])[21761, 21762, 21788])
+        {
+            if (ShellString($@"@%SystemRoot%\system32\shell32.dll,-{id}") is { } name)
+                suites.Add(name);
+        }
+
+        // StartTileData reads it from the session's shell key; missing counts as hidden.
+        using RegistryKey? clickToDo = Registry.CurrentUser.OpenSubKey(
+            $@"Software\Microsoft\Windows\CurrentVersion\Explorer\SessionInfo\{System.Diagnostics.Process.GetCurrentProcess().SessionId}\ClickToDo");
+        using RegistryKey? intent = Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\CloudExperienceHost\Intent\developer");
+        using RegistryKey? unlock = Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\AppModelUnlock");
+        return new StartHiddenApps(
+            suites,
+            clickToDo?.GetValue("ClickToDoHideEntryPoint") is not int hide || hide == 1,
+            (intent?.GetValue("Intent") is int wants && wants != 0) || (unlock?.GetValue("AllowDevelopmentWithoutDevLicense") is int on && on != 0));
+    }
+
+    private static unsafe string? ShellString(string source)
+    {
+        char* buffer = stackalloc char[256];
+        return Shlwapi.SHLoadIndirectString(Environment.ExpandEnvironmentVariables(source), buffer, 256, 0) == 0 ? new string(buffer) : null;
+    }
 
     /// <summary>Start's sections and view: Settings' Pinned, All and "Show most used apps", and the view picked in Start.</summary>
     public static StartSections LoadSections()
