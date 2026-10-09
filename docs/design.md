@@ -94,5 +94,7 @@ Each area has its own file in [design/](design/):
   groups.
 - [Screenshots](design/capture.md) — Screenshots and snips (Win+PrtScn, Win+Shift+S, Print Screen).
 - [Widgets](design/widgets.md) — The widget sidebar, floating widgets and each widget.
+- [Window frames](design/window-frames.md) — Restyling other apps' title bars and frames (research and prototype
+  spec): what DWM lets NeoShell change, prior art, options, presets.
 - [Settings](design/settings.md) — The settings record and its file.
 - [Testing strategy](design/testing.md) — How NeoShell is tested: unit tests, live UI checks, shell mode.
