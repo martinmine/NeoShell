@@ -26,7 +26,7 @@ public sealed record StartHiddenApps(IReadOnlySet<string> Suites, bool ClickToDo
 /// <summary>
 /// What Explorer's 25H2 Start knows about the apps it lists, read where it keeps it: the category of each app, which
 /// apps it has seen (the others show "New"), Windows' own app-to-category mappings, and Start's layout settings.
-/// See docs/design.md, "All apps".
+/// See docs/design/start-menu.md, "All apps".
 /// </summary>
 public static class StartAppData
 {

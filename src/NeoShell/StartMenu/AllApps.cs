@@ -19,7 +19,8 @@ public sealed record AllAppsItem(string Name, IReadOnlyList<AllAppsEntry> Apps, 
 
 /// <summary>
 /// How Explorer's 25H2 Start sorts All apps into categories and orders them, and the letters of the name views
-/// (read from StartMenu.dll's <c>CategoryProvider</c> and StartTileData.dll; see docs/design.md, "All apps").
+/// (read from StartMenu.dll's <c>CategoryProvider</c> and StartTileData.dll; see docs/design/start-menu.md,
+/// "All apps").
 /// </summary>
 public static class AllApps
 {

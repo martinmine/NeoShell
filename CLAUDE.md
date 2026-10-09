@@ -109,7 +109,7 @@ src/NeoShell.Interop/
                               (Windows' Settings handlers: ISettingItem)
 tests/NeoShell.Tests/         xunit tests for logic that runs without UI
 tools/                        start-shell.ps1 (this session), set-shell.ps1, restore-explorer.ps1
-docs/                         design.md, plan.md
+docs/                         design.md (overview and index), design/ (one file per area), plan.md
 ```
 
 ## Commands
@@ -147,7 +147,7 @@ src/NeoShell/bin/Debug/net10.0-windows10.0.26100.0/win-x64/NeoShell.exe /exit   
 ## Widgets (`src/NeoShell/Widgets/`)
 
 A sidebar of widgets on the right of the primary monitor, as Vista's gadgets; widgets can be dragged out to float on
-the desktop and back. Full spec in docs/design.md ("Widgets").
+the desktop and back. Full spec in docs/design/widgets.md.
 
 - **Who does what.** `Sidebar` (created by `App`) owns everything: the `SidebarWindow` (docked cards, add button and
   right-click menu, resize edge, drop slot), one `FloatingWidgetWindow` per floating widget, the drag/dock logic and

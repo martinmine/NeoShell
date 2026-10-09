@@ -436,7 +436,8 @@ internal sealed partial class StartMenuWindow : Window
 
     // Start and the taskbar begin with the pins the user made in Explorer, once; after that NeoShell's pins are its
     // own. Start does it for both, as matching a pin to an app needs Start's catalog. Explorer's export lists a folder's
-    // apps in the folder's place without the folder, so they come over as apps of their own (see design.md).
+    // apps in the folder's place without the folder, so they come over as apps of their own (see
+    // docs/design/start-menu.md).
     private async void ImportExplorerPins()
     {
         _importingPins = true;

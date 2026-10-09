@@ -24,8 +24,9 @@ namespace NeoShell.Capture;
 
 /// <summary>
 /// Win+Shift+S (and Print Screen, see <see cref="PrintScreenKeys"/>) as the shell, as Snipping Tool's overlay does it
-/// under Explorer. Snipping Tool can't show its overlay without Explorer (it can't capture a monitor; see design.md,
-/// Hotkeys), so NeoShell snips by itself and hands the snip to Snipping Tool's editor, which works as the shell.
+/// under Explorer. Snipping Tool can't show its overlay without Explorer (it can't capture a monitor; see
+/// docs/design/hotkeys.md, Hotkeys), so NeoShell snips by itself and hands the snip to Snipping Tool's editor, which
+/// works as the shell.
 /// </summary>
 /// <remarks>
 /// The screen freezes, dimmed, with the toolbar at the top of the primary monitor. Rectangle: the area dragged out

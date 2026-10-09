@@ -1,7 +1,7 @@
 # NeoShell plan
 
 Milestones in order. Each one builds cleanly, passes `dotnet test`, and is committed on its own.
-Tick items off as they land. The feature details are in [design.md](design.md).
+Tick items off as they land. The feature details are in [design.md](design.md) and the files in [design/](design/).
 
 ## 0. Scaffold
 
@@ -456,7 +456,8 @@ Each item is done when it looks and behaves as Explorer's (layout, behaviour, an
       "Search" choices (the setting is protected, only Settings writes it), press-and-hold for apps with the
       copilotkeyprovider extension; not possible: Win+V, Win+Period/Semicolon and Win+H (TextInputHost's panels are
       hosted by Explorer's immersive shell in its own window band) and Win+Shift+R (Snipping Tool can't capture a
-      monitor without Explorer; Windows.Graphics.Capture's monitor items come from Explorer) — see design.md, Hotkeys
+      monitor without Explorer; Windows.Graphics.Capture's monitor items come from Explorer) — see
+      design/hotkeys.md, Hotkeys
 - [x] T31 Snips: freeform, window and full-screen modes, the toolbar, opening in Snipping Tool — NeoShell's overlay as
       Snipping Tool's (toolbar, four modes, Snipping Tool's remembered mode and auto-save setting, clipboard PNG + DIB,
       Snipping Tool's toast whose click opens its editor, which works as the shell), Print Screen by its setting;
@@ -511,14 +512,14 @@ Each item is done when it looks and behaves as Explorer's (layout, behaviour, an
       images (explorer.exe, CustomShellHost for Shell Launcher/Assigned Access, ShellAppRuntime for Windows 365
       Boot). Reproduced with Calculator, traced in the app with cdb, and tried with a test host started as
       CustomShellHost starts it (fail-fast in `CFallbackWindow`'s `CreateWindowInBand`); the Control Panel fallbacks
-      stay — see design.md, "UWP (CoreWindow) apps as the shell"
+      stay — see design/lifecycle.md, "UWP (CoreWindow) apps as the shell"
 
 ## Future work
 
 Found while working on milestone 19, not done yet.
 
 - [ ] T37 Screen capture as the shell: `Windows.Graphics.Capture` of a monitor fails for every app without Explorer
-      (screen sharing, OBS, Snipping Tool's overlay and recorder; see design.md "Hotkeys", T30)
+      (screen sharing, OBS, Snipping Tool's overlay and recorder; see design/hotkeys.md "Hotkeys", T30)
 - [ ] T38 The session's change-notification server (`SHChangeNotify`): without Explorer no process serves it, so folder
       windows may not hear of changes made by other processes (T5; not confirmed live)
 - [x] T39 Explorer parity polish, existing differences noticed by the agents:
@@ -587,8 +588,8 @@ Found while working on milestone 19, not done yet.
     as widget windows do (`Shut`: flyouts closed and forgotten first, `IgnoreMoves`), and a fail-fast found on the
     way is fixed: as the shell with auto-hide on NeoShell ended at every start (the auto-hide tick asked WinUI for
     the popups of a not yet loaded window's null `XamlRoot`)
-  - Posting SC_MAXIMIZE to an elevated window is refused, contrary to design.md / `TopLevelWindows.Maximize` (T3)
-    — fixed: win32k lets `WM_SYSCOMMAND` through to a higher integrity level only with `SC_MINIMIZE`, `SC_RESTORE` or
+  - Posting SC_MAXIMIZE to an elevated window is refused, contrary to design/taskbar.md / `TopLevelWindows.Maximize`
+    (T3) — fixed: win32k lets `WM_SYSCOMMAND` through to a higher integrity level only with `SC_MINIMIZE`, `SC_RESTORE` or
     `SC_CLOSE`, and Explorer maximizes and snaps through a call only the immersive broker may make; nothing else gets
     through, so Snap leaves elevated windows out (no preview, bar, Win+arrow or Snap Assist place), documented
   - UI Automation reports the overflow flyout's icons about 360 px left of where they're drawn (T4) — fixed: flyout
@@ -618,9 +619,9 @@ Found while working on milestone 19, not done yet.
   - Snap: moves between two zones of the same size jump (DWM doesn't animate them); a revealed auto-hide taskbar goes
     above a topmost window over its edge, Explorer's stays below it (T39d)
   - Snap leaves elevated windows out, though `ApplyWindowAction` with the shell's window-manager access would now
-    reach them as Explorer's does (T39d; design.md)
+    reach them as Explorer's does (T39d; design/windows.md)
 - [ ] T42 Jump lists: pinned entries, Pin to / Remove from this list (in scope at the owner's request, 2026-10-09)
 - [ ] T43 Toasts: images, buttons and inline replies (in scope at the owner's request, 2026-10-09)
-- Not possible without Explorer, with the evidence in design.md: Windows' own AutoPlay UI (T5, NeoShell has its own),
+- Not possible without Explorer, with the evidence in design/: Windows' own AutoPlay UI (T5, NeoShell has its own),
   the IME's right-click menu (T8), Win+V, Win+Period, Win+Semicolon and Win+H (T30), importing Explorer's pin folders
   (T17), Spotlight's "Learn about this picture", Next and rotation (T24), Edge tabs in Alt+Tab (T29)

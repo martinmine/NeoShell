@@ -58,7 +58,7 @@ public sealed record LayoutDesktop(int Version, string? LinkedKey, IReadOnlyList
 /// written by shell32's desktop icon layout engine when Explorer's desktop closes. One layout per monitor arrangement
 /// (each monitor's grid size), so icons go back where they were when a monitor comes back. NeoShell reads and writes
 /// the same value, so icons stay put when switching shells. Found by reading shell32 (DesktopDictionary,
-/// DesktopData, WorkspaceData and IconNameTable's Serialize/Deserialize); see design.md.
+/// DesktopData, WorkspaceData and IconNameTable's Serialize/Deserialize); see docs/design/desktop-icons.md.
 /// </summary>
 /// <param name="Header">The property bag's 16 bytes before Explorer's stream; kept as read.</param>
 public sealed record IconLayouts(byte[] Header, IReadOnlyList<LayoutDesktop> Desktops)

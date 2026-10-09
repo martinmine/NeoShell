@@ -705,7 +705,8 @@
             BorderThickness="0,1,0,0">
             <!--
                 The user opens Explorer's account card above it: the account, Sign out, and "…" for the PC's other
-                accounts. Filled as it opens (AccountFlyout_Opening); see docs/design.md, "Account menu".
+                accounts. Filled as it opens (AccountFlyout_Opening); see docs/design/account-and-power-menus.md,
+                "Account menu".
             -->
             <Button
                 x:Name="UserButton"

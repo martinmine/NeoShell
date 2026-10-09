@@ -12,7 +12,8 @@ namespace NeoShell.Interop.Shell;
 /// manager (<c>SHGetThreadUndoManager</c>), which passes it on to the desktop undo manager: a local server
 /// (<c>CLSID_DesktopUndoManager</c>) that the shell window's process serves when asked, or else rundll32. Read from
 /// shell32 (<c>SHGetThreadUndoManager</c>, <c>_CreateDesktopLocalServer</c>, <c>_InitEditUndoRedo</c>,
-/// <c>CUndoRedoCommand</c>); see design.md. UI thread: the thread's undo manager is the calling thread's.
+/// <c>CUndoRedoCommand</c>); see docs/design/desktop-icons.md, "Undo". UI thread: the thread's undo manager is the
+/// calling thread's.
 /// </summary>
 public static unsafe class ShellUndo
 {
