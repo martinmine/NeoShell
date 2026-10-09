@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Runtime.InteropServices;
 using System.Xml;
 using System.Xml.Linq;
+using NeoShell.Interop.Audio;
 using NeoShell.Interop.Com;
 using NeoShell.Interop.Native;
 using Windows.ApplicationModel;
@@ -10,9 +11,11 @@ using Windows.UI.Notifications.Management;
 
 namespace NeoShell.Interop.Notifications;
 
-/// <summary>A notification an app has sent: the texts of its toast, without images or buttons.</summary>
+/// <summary>A notification an app has sent: the texts of its toast, and what else it shows when its XML was found.</summary>
 /// <param name="Audio">The sound it asks for; null when its XML wasn't found (it plays the default sound).</param>
-public sealed record ToastInfo(uint Id, string AppId, string AppName, DateTimeOffset Time, string Title, string Body, ToastAudio? Audio = null);
+/// <param name="Content">Its images, buttons, inputs and the like; null when its XML wasn't found.</param>
+public sealed record ToastInfo(
+    uint Id, string AppId, string AppName, DateTimeOffset Time, string Title, string Body, ToastAudio? Audio = null, ToastContent? Content = null);
 
 /// <summary>
 /// The notifications kept by Windows' notification platform, which stores them whether or not a shell shows them,
@@ -20,8 +23,9 @@ public sealed record ToastInfo(uint Id, string AppId, string AppName, DateTimeOf
 /// </summary>
 /// <remarks>
 /// An unpackaged app can read them, but not get the listener's <c>NotificationChanged</c> event (it needs package
-/// identity), so the caller polls. The listener gives a toast's texts but not its XML: the sound comes from the app's
-/// toast history instead, and a click is carried out by the notification platform's own controller.
+/// identity), so the caller polls. The listener gives a toast's texts but not its XML: its sound, images, buttons and
+/// inputs come from the app's toast history instead, and clicks are carried out by the notification platform's own
+/// controller.
 /// </remarks>
 public static class UserNotifications
 {
@@ -40,7 +44,7 @@ public static class UserNotifications
             return null;
 
         var toasts = new List<ToastInfo>();
-        var histories = new Dictionary<string, XDocument[]>(StringComparer.OrdinalIgnoreCase);
+        var histories = new Dictionary<string, HistoryToast[]>(StringComparer.OrdinalIgnoreCase);
         foreach (UserNotification notification in await listener.GetNotificationsAsync(NotificationKinds.Toast))
         {
             if (known.TryGetValue(notification.Id, out ToastInfo? toast))
@@ -52,9 +56,11 @@ public static class UserNotifications
                 continue;
 
             (string title, string body) = Texts(notification.Notification.Visual);
-            ToastAudio? audio = AudioOf(app.AppUserModelId, title, body, histories);
+            HistoryToast? xml = XmlOf(app.AppUserModelId, title, body, histories);
+            ToastContent? content = xml is null ? null : Content(xml, app.AppUserModelId);
             toasts.Add(new ToastInfo(notification.Id, app.AppUserModelId, app.DisplayInfo.DisplayName, notification.CreationTime,
-                Localized(title, app), Localized(body, app), audio));
+                Localized(content?.Title ?? title, app), Localized(content?.Body ?? body, app),
+                xml is null ? null : ToastAudio.Parse(xml.Xml), content));
         }
         return toasts;
     }
@@ -63,17 +69,55 @@ public static class UserNotifications
     public static void Remove(uint id) => UserNotificationListener.Current.RemoveNotification(id);
 
     /// <summary>
-    /// Does what a click on the toast does in Explorer, through the notification platform's controller (as Explorer's
-    /// toasts do): the app is activated with the toast's own arguments (its launch arguments, a protocol, a background
-    /// task, or an unpackaged app's COM activator) and the notification is removed. Throws on failure. A cross-process
-    /// call that starts the app, so call it off the UI thread.
+    /// Does what a click on the toast, one of its buttons or one of its menu items does in Explorer, through the
+    /// notification platform's controller (as Explorer's toasts do): the app is activated with the toast's or the
+    /// button's own arguments and the values of the toast's inputs (a launch, a protocol, a background task, or an
+    /// unpackaged app's COM activator), a system button snoozes or dismisses it, and the notification is removed.
+    /// Throws on failure. A cross-process call that starts the app, so call it off the UI thread.
     /// </summary>
-    public static void Activate(string appId, uint id)
+    /// <param name="invokeId">The button's or menu item's <see cref="ToastAction.InvokeId"/>; null for the toast itself.</param>
+    /// <param name="inputs">Each input's ID and value: a text box's text, a selection box's choice.</param>
+    public static unsafe void Activate(string appId, uint id, string? invokeId = null, IReadOnlyList<KeyValuePair<string, string>>? inputs = null)
     {
         var controller = Ole32.Create<INotificationController>(NotificationControllers.CLSID_MainController, Ole32.CLSCTX_LOCAL_SERVER);
         // The app the controller starts may take the foreground, as one started from the clicked toast should.
         User32.AllowSetForegroundWindow(ASFW_ANY);
-        Marshal.ThrowExceptionForHR(controller.ActivateNotification(appId, id.ToString(CultureInfo.InvariantCulture), 0));
+        string item = id.ToString(CultureInfo.InvariantCulture);
+        if (invokeId is null && inputs is not { Count: > 0 })
+        {
+            Marshal.ThrowExceptionForHR(controller.ActivateNotification(appId, item, 0));
+            return;
+        }
+
+        // Explorer's toasts send a button's ID and every input's value (an empty text box's too).
+        var strings = new List<nint>();
+        nint Copy(string text)
+        {
+            nint copy = Marshal.StringToCoTaskMemUni(text);
+            strings.Add(copy);
+            return copy;
+        }
+        inputs ??= [];
+        var pairs = new NOTIFICATION_USER_INPUT_DATA[inputs.Count];
+        try
+        {
+            for (int i = 0; i < pairs.Length; i++)
+                pairs[i] = new NOTIFICATION_USER_INPUT_DATA { Key = Copy(inputs[i].Key), Value = Copy(inputs[i].Value) };
+            fixed (NOTIFICATION_USER_INPUT_DATA* first = pairs)
+            {
+                var data = new NOC_ITEM_ACTIVATION_DATA
+                {
+                    InvokeId = invokeId is null ? 0 : Copy(invokeId),
+                    Inputs = (nint)first,
+                    InputCount = (uint)pairs.Length,
+                };
+                Marshal.ThrowExceptionForHR(controller.ActivateNotification(appId, item, (nint)(&data)));
+            }
+        }
+        finally
+        {
+            strings.ForEach(Marshal.FreeCoTaskMem);
+        }
     }
 
     /// <summary>
@@ -105,21 +149,23 @@ public static class UserNotifications
         }
     }
 
-    // The toast's XML, for its sound: the app's toast history (newest first) has it, found by its texts. Read once per
-    // app per reading, and only for notifications not read before.
-    private static ToastAudio? AudioOf(string appId, string title, string body, Dictionary<string, XDocument[]> histories)
+    // A toast in the app's history: its XML and the values its data-bound parts (a progress bar's) show.
+    private sealed record HistoryToast(XDocument Xml, IReadOnlyDictionary<string, string>? Data);
+
+    // The toast's XML: the app's toast history (newest first) has it, found by its texts. Read once per app per
+    // reading, and only for notifications not read before.
+    private static HistoryToast? XmlOf(string appId, string title, string body, Dictionary<string, HistoryToast[]> histories)
     {
-        if (!histories.TryGetValue(appId, out XDocument[]? history))
+        if (!histories.TryGetValue(appId, out HistoryToast[]? history))
             histories[appId] = history = History(appId);
-        XDocument? toast = history.FirstOrDefault(t => ToastAudio.Texts(t) == (title, body));
-        return toast is null ? null : ToastAudio.Parse(toast);
+        return history.FirstOrDefault(t => ToastAudio.Texts(t.Xml) == (title, body));
     }
 
-    private static XDocument[] History(string appId)
+    private static HistoryToast[] History(string appId)
     {
         try
         {
-            return [.. ToastNotificationManager.History.GetHistory(appId).Select(Xml).OfType<XDocument>()];
+            return [.. ToastNotificationManager.History.GetHistory(appId).Select(Xml).OfType<HistoryToast>()];
         }
         catch (Exception ex) when (ex is COMException or ArgumentException)
         {
@@ -128,15 +174,38 @@ public static class UserNotifications
     }
 
     // Null for a toast whose XML can't be had: some older ones fail with an XML error (0xC00CE558).
-    private static XDocument? Xml(ToastNotification toast)
+    private static HistoryToast? Xml(ToastNotification toast)
     {
         try
         {
-            return XDocument.Parse(toast.Content.GetXml());
+            return new HistoryToast(XDocument.Parse(toast.Content.GetXml()), toast.Data?.Values.ToDictionary(p => p.Key, p => p.Value));
         }
         catch (Exception ex) when (ex is COMException or XmlException)
         {
             return null;
+        }
+    }
+
+    // Its images are looked for where the notification platform looks for them: in the app's package (only a packaged
+    // app with an internet capability may show pictures from the web), or on disk.
+    private static ToastContent Content(HistoryToast toast, string appId)
+    {
+        string? folder = NotificationSound.PackageFolder(appId);
+        string? data = NotificationSound.PackageData(appId);
+        bool web = folder is not null && AllowsInternet(folder);
+        return ToastContent.Parse(toast.Xml, source => ToastContent.LocateImage(source, folder, data, web), toast.Data);
+    }
+
+    private static bool AllowsInternet(string packageFolder)
+    {
+        try
+        {
+            return XDocument.Load(Path.Combine(packageFolder, "AppxManifest.xml")).Descendants()
+                .Any(e => e.Name.LocalName == "Capability" && (string?)e.Attribute("Name") is "internetClient" or "internetClientServer");
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or XmlException)
+        {
+            return false;
         }
     }
 

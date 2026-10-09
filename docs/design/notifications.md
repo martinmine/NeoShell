@@ -22,7 +22,8 @@ notification center 12 epx above it and as tall as its notifications need, up to
   unchanged set of IDs changes nothing. The notification platform keeps notifications whether or not a shell runs.
   The listener gives each one's app (AppUserModelID and name), time and texts, not the toast's XML (its sound,
   arguments, images, buttons): a click is carried out by the notification platform itself (see Toast activation),
-  and the sound comes from the app's toast history (see Toast sound). App icons as the taskbar's (packaged logo, else the `shell:AppsFolder` item's icon).
+  and the XML (sound, images, buttons, inputs) comes from the app's toast history (see Toast sound and Toast
+  content). App icons as the taskbar's (packaged logo, else the `shell:AppsFolder` item's icon).
   Per-app settings from `HKCU\...\Notifications\Settings\<AppUserModelID>` (`Enabled`, `ShowBanner`,
   `ShowInActionCenter`) and the global `PushNotifications\ToastEnabled` are honoured. "Turn off all notifications
   for <app>" writes `Enabled = 0` there, Settings' own store; the platform only notices it later (Settings tells it
@@ -114,8 +115,8 @@ notification center 12 epx above it and as tall as its notifications need, up to
   fails, the app opens as from Start and the notification is removed. Verified as the shell with a test app with a
   COM activator (arguments delivered, its window took the foreground), a `protocol` toast (Calculator) and a
   packaged app's toast (Calculator, posted under its AUMID), from a toast and from the notification center, and
-  alongside Explorer that the same calls behave as its clicks. Buttons, inputs and context menu items aren't shown
-  (out of scope), so only the body's activation is used.
+  alongside Explorer that the same calls behave as its clicks. Buttons, menu items and replies go the same way (see
+  Toast content).
 - **Toast sound** (`ToastSounds`, Interop `ToastAudio`, `NotificationSound`). The controller picks the sound
   (`SoundPropertiesFactory::Create`) and the toast host plays it (`AudioHelper`, a media player in the alerts
   category) as the toast starts to show; only the newest toast's sound plays (`ManageToastAudio` stops the others'),
@@ -140,5 +141,52 @@ notification center 12 epx above it and as tall as its notifications need, up to
   against a pixel near the toast's right edge: Explorer's sound starts 35–60 ms before that pixel changes,
   NeoShell's 0–55 ms before (60–130 ms after, now and then); lengths match (Default 1.16 s, Mail 1.39 s, Reminder
   1.38 s, Looping.Alarm 5.1 s, an unknown sound the default's). Not matched: a ghost toast (`SuppressPopup`) can't be
-  told from the listener or the history, so it pops up with its sound; `duration="long"` toasts (25 s in Explorer,
-  so a looping sound rings 25 s) and alarms with buttons (which stay until dismissed) time out as any other toast.
+  told from the listener or the history, so it pops up with its sound.
+- **Toast content** (T43; Interop `ToastContent`, `ToastLayout`, `ToastContentView`, `NotificationCard`). Studied on
+  25H2 with a test app (unpackaged, `AppUserModelId\<AUMID>` with `CustomActivator`, a COM activator logging what
+  `INotificationActivationCallback::Activate` gets), UI Automation bounds of Explorer's toast views
+  (`NormalToastView`, `PriorityToastView`), screenshots, and cdb on WpnUserService breaking in
+  `MainControllerImpl::ActivateNotification`.
+  - **The XML** is the history entry matched by its texts (the attribution, which the listener leaves out, is left
+    out of the match too), with the entry's `NotificationData` filling `{bindings}` of a progress bar. Images as the
+    platform finds them: `ms-appx:///` (the largest `.scale-*` variant when the plain file isn't there) and
+    `ms-appdata:///local/` in the package, `file:///` and full paths; web images only for a packaged app with the
+    `internetClient(Server)` capability. An app without a Start entry gets its logo from
+    `AppUserModelId\<AUMID>\IconUri`, as Explorer's header shows it.
+  - **Layout** (epx; toast 364 wide, content 332 at 16 in): title 50 from the top (the old 54 was 4 low), 21 under the
+    last text; `appLogoOverride` 48 square or 60 cropped to a circle, 16 from the texts, its top 4 above the title's,
+    the toast ending 16 under it; hero 364x180 across the top, the header under it as on a toast without one;
+    attribution (caption, secondary) 3 under the body; `header` title (caption) over the texts, the title 38 under it;
+    inline pictures 332 wide by their shape (at most 204 high, centred), a circle-cropped one a 96 circle (an incoming
+    call's picture); then the progress bar (title, 8, a 4 epx accent bar on a dim track, 8, status with the value or
+    percentage at the right, 21 to the bottom), text box (32 high, the send button 49 wide 8 beside it, showing its
+    icon), selection boxes (32, full width) and buttons, 16 apart and 16 from the bottom. Buttons share a row in equal
+    widths 8 apart (five fit); with an icon and no `useButtonStyle` they are 61 high with the 16 epx icon over 12 pt
+    text; `useButtonStyle="true"` puts the icon beside the text and colours `Success` / `Critical` buttons
+    (`SystemFillColorSuccess` #6CCB5F, `SystemFillColorCritical` #FF99A4 dark). An incoming call without
+    `useButtonStyle` has its last button alone in a full-width accent row under the others. `urgent` puts a red "!"
+    before the logo (the logo 11 to the right). System `snooze` / `dismiss` without content read "Snooze" / "Dismiss".
+    Context menu items come first in the "…" menu and the right-click menu, above a separator.
+  - **Timing**: a reminder, alarm or incoming call with a button stays until acted on (Explorer's "priority"
+    toasts), `duration="long"` stays 25 s, others the system time; any toast stays while its text box has the
+    keyboard (clicking it lets the no-activate toast take the foreground) or its menu is open.
+  - **Notification center**: a card shows logo, header and attribution; Explorer's chevron by the time expands it to
+    the pictures (the hero under the texts, edge to edge), progress, inputs and buttons. A card with a hero starts
+    expanded (Explorer's `IsHeroImageAutoExpanded`).
+  - **Activation**: `ActivateNotification(AUMID, ID, data)` with a `NOC_ITEM_ACTIVATION_DATA` (0x28 bytes: invoke ID
+    `LPWSTR`, `NOTIFICATION_USER_INPUT_DATA*` pairs of key/value `LPWSTR`s and their count, system hints and count,
+    caller window ID; from ShellExperienceHost's `NotificationItemActivationData` setters and the controller's
+    `FindUserInputValueByKey`). The invoke ID isn't the button's arguments (those fail with E_INVALIDARG): it is
+    "<" and the action's index among the toast's actions, context menu items and system buttons counted, the button
+    beside a text box left out (its own ID is that text box's ID). Every input goes with it (an empty text box too,
+    a selection box's chosen ID); a click on the body sends no invoke ID but the inputs. The controller does the rest:
+    the app's activator gets the button's arguments and inputs, `snooze` reschedules it for the selected minutes,
+    `dismiss` removes it. Checked with the test app: Explorer's and NeoShell's clicks deliver the same arguments and
+    inputs (buttons, a reply, a menu item, a background button, a body click with typed text), and a 1-minute snooze
+    came back after a minute.
+  - **Not matched**: Explorer sometimes draws a square logo 60 (a reply toast with a selection box) where NeoShell
+    draws 48; WinUI opens the toast's menus left of the toast instead of ending at the pointer; Explorer's
+    notification center shows a `header` as a subgroup row, NeoShell over the card's texts; a progress toast's later
+    data updates aren't read; Windows' "Important Notification Request" prompt for an urgent toast isn't shown by
+    NeoShell. Not run live: packaged apps' package images and web images, `protocol` buttons as the shell (the
+    activation is the controller's either way).

@@ -89,8 +89,9 @@ internal sealed class ToastPopups : IDisposable
 
         var card = new NotificationCard(info, isToast: true);
         SetLogo(card, info.AppId);
-        card.Invoked += _ => _center.Activate(info);
-        Show(card, balloonKey: null, completed: null, NotificationCenter.SoundFor(info));
+        card.Invoked += _ => _center.Activate(info, inputs: card.InputValues());
+        card.ButtonInvoked += (_, action, inputs) => _center.Activate(info, action, inputs);
+        Show(card, balloonKey: null, completed: null, NotificationCenter.SoundFor(info), ToastLayout.Duration(info.Content, UserNotifications.PopupDuration));
     }
 
     /// <summary>
@@ -115,7 +116,7 @@ internal sealed class ToastPopups : IDisposable
             card.Logo = AppIcons.ToImageSource(logo);
         else
             SetLogo(card, balloon.AppId);
-        Show(card, balloon.IconKey, completed, NotificationCenter.SoundFor(info));
+        Show(card, balloon.IconKey, completed, NotificationCenter.SoundFor(info), UserNotifications.PopupDuration);
         return true;
     }
 
@@ -133,7 +134,7 @@ internal sealed class ToastPopups : IDisposable
         var card = new NotificationCard(info, isToast: true);
         // Windows' system toasts have no logo of their own: the notification UI draws its default app glyph.
         card.ShowDefaultLogo();
-        Show(card, key, completed, NotificationCenter.SoundFor(info));
+        Show(card, key, completed, NotificationCenter.SoundFor(info), UserNotifications.PopupDuration);
         return true;
     }
 
@@ -160,7 +161,7 @@ internal sealed class ToastPopups : IDisposable
         {
             if (result == BalloonEvent.Clicked)
                 invoked(false);
-        }, NotificationCenter.SoundFor(info));
+        }, NotificationCenter.SoundFor(info), UserNotifications.PopupDuration);
         return true;
     }
 
@@ -173,7 +174,8 @@ internal sealed class ToastPopups : IDisposable
             Dismiss(toast, result: null);
     }
 
-    private void Show(NotificationCard card, string? balloonKey, Action<BalloonEvent>? completed, ToastSound? sound)
+    /// <param name="duration">How long it stays; null until the user acts on it (an alarm, a reminder, a call).</param>
+    private void Show(NotificationCard card, string? balloonKey, Action<BalloonEvent>? completed, ToastSound? sound, TimeSpan? duration)
     {
         if (_anchor() is not { } anchor)
             return;
@@ -190,22 +192,30 @@ internal sealed class ToastPopups : IDisposable
         window.SetTheme(theme, accent);
 
         DispatcherQueueTimer timer = window.DispatcherQueue.CreateTimer();
-        timer.Interval = UserNotifications.PopupDuration;
+        timer.Interval = duration ?? TimeSpan.Zero;
         timer.IsRepeating = false;
         var toast = new Toast(window, card, timer, balloonKey, completed);
         timer.Tick += (_, _) =>
         {
-            // Not from under the pointer: it waits until the pointer leaves.
-            if (!card.IsPointerOver)
+            // Not from under the pointer, nor while a reply is being typed or its menu is open: it waits until the
+            // pointer leaves, and looks again a while later.
+            if (card.IsInUse)
+                timer.Start();
+            else if (!card.IsPointerOver)
                 Dismiss(toast);
         };
         card.PointerOverChanged += () =>
         {
-            if (!card.IsPointerOver)
+            if (!card.IsPointerOver && duration is not null)
                 timer.Start();
         };
         card.CloseRequested += _ => Dismiss(toast);
         card.Invoked += _ => Dismiss(toast, BalloonEvent.Clicked);
+        card.ButtonInvoked += (_, _, _) => Dismiss(toast, BalloonEvent.Clicked);
+        card.KeyboardNeeded += window.TakeKeyboard;
+        // Measured again once laid out and as pictures load: a text box or a picture only then knows its height.
+        card.Loaded += (_, _) => Resize(toast);
+        card.Resized += () => Resize(toast);
         card.TurnOffRequested += _ =>
         {
             _center.TurnOff(card.Toast.AppId);
@@ -224,11 +234,25 @@ internal sealed class ToastPopups : IDisposable
         int height = (int)Math.Ceiling(window.MeasureHeight(ToastWidth, double.PositiveInfinity) * scale);
         window.SlideIn(Stack(new RectInt32(0, 0, width, height), toast), screen.X + screen.Width, s_slideIn);
         Restack(except: toast);
-        timer.Start();
+        if (duration is not null)
+            timer.Start();
         Log.Info($"Toast from {card.Toast.AppId}");
     }
 
     private async void SetLogo(NotificationCard card, string appId) => card.Logo = await _center.GetLogoAsync(appId);
+
+    private void Resize(Toast toast)
+    {
+        if (!toast.Window.IsShown || _anchor() is not { } anchor)
+            return;
+
+        RectInt32 bounds = toast.Window.ScreenBounds;
+        int height = (int)Math.Ceiling(toast.Window.MeasureHeight(ToastWidth, double.PositiveInfinity) * anchor.Monitor.Dpi / 96.0);
+        if (height == bounds.Height)
+            return;
+        toast.Window.Place(Stack(bounds with { Height = height }, toast));
+        Restack(except: toast);
+    }
 
     // The toasts above the taskbar, the newest lowest; those already shown slide to their places.
     private void Restack(Toast? except = null)

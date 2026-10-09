@@ -626,7 +626,15 @@ Found while working on milestone 19, not done yet.
       list as Explorer's broker; Explorer's budget of 13 entries; checked against Explorer both ways, alongside it and
       as the shell — not done: the Share button, a folder's extra shell verbs in its menu; Explorer can't reorder pins
       either; not run live: the light theme, keyboard (menu key on an entry)
-- [ ] T43 Toasts: images, buttons and inline replies (in scope at the owner's request, 2026-10-09)
+- [x] T43 Toasts: images, buttons and inline replies (in scope at the owner's request, 2026-10-09): the toast's XML
+      from its app's history; logo override (circle), hero, inline images, attribution, header, progress bar, text and
+      selection boxes with the send button, buttons (icons, styles, incoming call rows), context menu items, urgent
+      mark, reminder/alarm/call toasts staying and long ones 25 s; buttons, menu items, replies, snooze and dismiss sent
+      through the controller exactly as Explorer's (checked with a test app's COM activator and cdb on WpnUserService),
+      in toasts and expanded notification center cards — not run live: packaged apps' ms-appx/ms-appdata and web
+      images, protocol buttons as the shell; not matched: a square logo is 48 epx where Explorer sometimes draws 60
+      (a reply toast), menus open left of the toast rather than at the pointer, the header isn't a subgroup row in the
+      notification center, progress updates after the toast came aren't followed
 - Not possible without Explorer, with the evidence in design/: Windows' own AutoPlay UI (T5, NeoShell has its own),
   the IME's right-click menu (T8), Win+V, Win+Period, Win+Semicolon and Win+H (T30), importing Explorer's pin folders
   (T17), Spotlight's "Learn about this picture", Next and rotation (T24), Edge tabs in Alt+Tab (T29)

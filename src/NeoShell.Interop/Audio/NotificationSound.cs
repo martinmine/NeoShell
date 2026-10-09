@@ -1,4 +1,4 @@
-using System.Runtime.InteropServices;
+﻿using System.Runtime.InteropServices;
 using Windows.ApplicationModel;
 using Windows.Media.Core;
 using Windows.Media.Playback;
@@ -73,7 +73,8 @@ public sealed class NotificationSound : IDisposable
             ? Uri.UnescapeDataString(source[prefix.Length..]).Replace('/', Path.DirectorySeparatorChar)
             : null;
 
-    private static string? PackageFolder(string appId)
+    /// <summary>A packaged app's install folder, where <c>ms-appx:///</c> points; null for an unpackaged app.</summary>
+    internal static string? PackageFolder(string appId)
     {
         try
         {
@@ -85,8 +86,8 @@ public sealed class NotificationSound : IDisposable
         }
     }
 
-    // The package's local app data, where ms-appdata:///local/ points.
-    private static string? PackageData(string appId) =>
+    /// <summary>The package's local app data, where <c>ms-appdata:///local/</c> points.</summary>
+    internal static string? PackageData(string appId) =>
         appId.Split('!') is [var family, _]
             ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Packages", family, "LocalState")
             : null;

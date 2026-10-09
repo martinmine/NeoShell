@@ -39,8 +39,44 @@ internal partial interface INotificationController
     /// </summary>
     /// <param name="group">The app's AppUserModelID.</param>
     /// <param name="item">The notification's ID (<c>UserNotification.Id</c>) in decimal.</param>
-    /// <param name="data">A <c>NOC_ITEM_ACTIVATION_DATA</c> for a button or inputs; 0 for a click on the toast's body.</param>
+    /// <param name="data">A <see cref="NOC_ITEM_ACTIVATION_DATA"/> for a button, a menu item or inputs; 0 for a click on
+    /// the toast's body.</param>
     [PreserveSig]
     int ActivateNotification(
         [MarshalAs(UnmanagedType.LPWStr)] string group, [MarshalAs(UnmanagedType.LPWStr)] string item, nint data);
+}
+
+/// <summary>
+/// What the user did with a toast, as Explorer's toasts fill it in (ShellExperienceHost's
+/// <c>NotificationItemActivationData</c>; layout read from its setters and the controller's
+/// <c>FindUserInputValueByKey</c>). The proxy marshals it, strings and arrays included.
+/// </summary>
+[StructLayout(LayoutKind.Sequential)]
+internal struct NOC_ITEM_ACTIVATION_DATA
+{
+    /// <summary>
+    /// Which button or menu item: "&lt;" and its place among the toast's actions, or the input ID for the button beside a
+    /// text box; null for the toast itself.
+    /// </summary>
+    public nint InvokeId;
+
+    /// <summary>A <see cref="NOTIFICATION_USER_INPUT_DATA"/> array: every input's ID and value.</summary>
+    public nint Inputs;
+
+    public uint InputCount;
+
+    /// <summary>The same pairs for hints of the shell's own; Explorer's toasts send none.</summary>
+    public nint SystemHints;
+
+    public uint SystemHintCount;
+
+    public uint CallerWindowId;
+}
+
+/// <summary>An input's ID and value, as an unpackaged app's <c>INotificationActivationCallback</c> receives them.</summary>
+[StructLayout(LayoutKind.Sequential)]
+internal struct NOTIFICATION_USER_INPUT_DATA
+{
+    public nint Key;
+    public nint Value;
 }

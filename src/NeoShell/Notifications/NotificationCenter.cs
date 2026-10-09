@@ -1,5 +1,6 @@
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml.Media;
+using Microsoft.UI.Xaml.Media.Imaging;
 using Microsoft.Win32;
 using NeoShell.Interop.Imaging;
 using NeoShell.Interop.Notifications;
@@ -79,21 +80,27 @@ internal sealed class NotificationCenter : IDisposable
     }
 
     /// <summary>
-    /// Delivers a click on the notification to its app as Explorer does: the notification platform activates the app
-    /// with the toast's own arguments and removes the notification. If that fails, the app opens as from Start.
+    /// Delivers a click on the notification, or on one of its buttons or menu items, to its app as Explorer does: the
+    /// notification platform activates the app with the toast's or the button's own arguments and the inputs' values
+    /// (or snoozes or dismisses it, for a system button) and removes the notification. If a click on the
+    /// notification itself fails, the app opens as from Start.
     /// </summary>
-    public async void Activate(ToastInfo toast)
+    /// <param name="action">The button or menu item; null for the notification itself.</param>
+    /// <param name="inputs">Every input's ID and value.</param>
+    public async void Activate(ToastInfo toast, ToastAction? action = null, IReadOnlyList<KeyValuePair<string, string>>? inputs = null)
     {
         try
         {
-            await Task.Run(() => UserNotifications.Activate(toast.AppId, toast.Id));
-            Log.Info($"Activated notification {toast.Id} of {toast.AppId}");
+            await Task.Run(() => UserNotifications.Activate(toast.AppId, toast.Id, action?.InvokeId, inputs));
+            Log.Info($"Activated notification {toast.Id} of {toast.AppId}" + (action is null ? "" : $" with {action.InvokeId}"));
             return;
         }
         catch (Exception ex)
         {
             Log.Warn($"Could not activate notification {toast.Id} of {toast.AppId}", ex);
         }
+        if (action is not null)
+            return;
         NotificationPanel.Open(toast);
         Remove([toast]);
     }
@@ -176,20 +183,34 @@ internal sealed class NotificationCenter : IDisposable
     }
 
     // As the taskbar's icons: a packaged app's own logo, otherwise its Start menu entry's icon. 16 effective pixels,
-    // sharp up to 200 %.
+    // sharp up to 200 %. An app registered only for its toasts, without a Start menu entry, has the picture it gave
+    // for them (AppUserModelId\<AUMID>\IconUri), as in Explorer's toasts.
     private static async Task<ImageSource?> LoadLogoAsync(string appId)
     {
         const int size = 32;
         try
         {
             IconBitmap? icon = await Task.Run(() => PackagedApps.GetLogo(appId, size) ?? ShellItems.GetIcon(ShellItems.AppsFolderPath(appId), size));
-            return icon is null ? null : AppIcons.ToImageSource(icon);
+            if (icon is not null)
+                return AppIcons.ToImageSource(icon);
+            return ToastIconFile(appId) is { } file ? new BitmapImage(new Uri(file)) { DecodePixelWidth = size } : null;
         }
         catch (Exception ex)
         {
             Log.Warn($"Could not load the logo of {appId}", ex);
             return null;
         }
+    }
+
+    private static string? ToastIconFile(string appId)
+    {
+        foreach (RegistryKey root in new[] { Registry.CurrentUser, Registry.LocalMachine })
+        {
+            using RegistryKey? key = root.OpenSubKey($@"Software\Classes\AppUserModelId\{appId}");
+            if (key?.GetValue("IconUri") is string file && Path.IsPathFullyQualified(file) && File.Exists(file))
+                return file;
+        }
+        return null;
     }
 
     private async void Read()

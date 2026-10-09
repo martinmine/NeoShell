@@ -50,6 +50,7 @@ public sealed partial class NotificationPanel : UserControl
             {
                 var card = new NotificationCard(toast, isToast: false);
                 card.Invoked += Card_Invoked;
+                card.ButtonInvoked += Card_ButtonInvoked;
                 card.CloseRequested += c => _center.Remove([c.Toast]);
                 card.TurnOffRequested += c => _center.TurnOff(c.Toast.AppId);
                 card.SettingsRequested += OpenSettings;
@@ -150,7 +151,13 @@ public sealed partial class NotificationPanel : UserControl
 
     private void Card_Invoked(NotificationCard card)
     {
-        _center.Activate(card.Toast);
+        _center.Activate(card.Toast, inputs: card.InputValues());
+        CloseRequested?.Invoke();
+    }
+
+    private void Card_ButtonInvoked(NotificationCard card, ToastAction action, IReadOnlyList<KeyValuePair<string, string>> inputs)
+    {
+        _center.Activate(card.Toast, action, inputs);
         CloseRequested?.Invoke();
     }
 

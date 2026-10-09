@@ -65,6 +65,16 @@ internal sealed class PanelWindow : Window
         _backdrop.Tint = accent;
     }
 
+    /// <summary>
+    /// Lets a toast take the keyboard after all, for its text box: a no-activate window can't become active, and only
+    /// the active window gets the keys. The user just clicked it, so Windows lets it take the foreground.
+    /// </summary>
+    public void TakeKeyboard()
+    {
+        WindowStyles.RemoveExtended(Handle, ExtendedWindowStyles.NoActivate);
+        TopLevelWindows.Activate(Handle);
+    }
+
     /// <summary>The content's height in effective pixels at this width, up to <paramref name="maxHeight"/>.</summary>
     public double MeasureHeight(double width, double maxHeight)
     {

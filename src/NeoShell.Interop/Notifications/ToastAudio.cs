@@ -34,7 +34,8 @@ public sealed record ToastAudio(string? Source, bool Loop, bool Silent, string? 
         XElement[] bindings = [.. toast.Root?.Element("visual")?.Elements("binding") ?? []];
         XElement? binding = bindings.FirstOrDefault(b => string.Equals((string?)b.Attribute("template"), "ToastGeneric", StringComparison.OrdinalIgnoreCase))
             ?? bindings.FirstOrDefault();
-        string[] texts = binding is null ? [] : [.. binding.Elements("text").Select(t => t.Value).Where(t => !string.IsNullOrWhiteSpace(t))];
+        // The listener leaves the attribution out.
+        string[] texts = binding is null ? [] : [.. binding.Elements("text").Where(t => !string.Equals((string?)t.Attribute("placement"), "attribution", StringComparison.OrdinalIgnoreCase)).Select(t => t.Value).Where(t => !string.IsNullOrWhiteSpace(t))];
         return texts.Length == 0 ? ("", "") : (texts[0], string.Join("\n", texts.Skip(1)));
     }
 

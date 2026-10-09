@@ -19,8 +19,10 @@
         PointerEntered="Root_PointerEntered"
         PointerExited="Root_PointerExited"
         PointerCanceled="Root_PointerExited"
-        Tapped="Root_Tapped">
+        Tapped="Root_Tapped"
+        RightTapped="Root_RightTapped">
         <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
@@ -31,7 +33,7 @@
         <!-- Lighter under the pointer, as Explorer's cards; over the padding too. -->
         <Border
             x:Name="HoverPlate"
-            Grid.RowSpan="5"
+            Grid.RowSpan="6"
             Margin="-12,0,-4,-12"
             Background="{ThemeResource SubtleFillColorSecondaryBrush}"
             IsHitTestVisible="False"
@@ -66,6 +68,7 @@
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
             <StackPanel x:Name="TimeHeader" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                <TextBlock x:Name="TimeUrgentGlyph" Text="!" FontWeight="SemiBold" VerticalAlignment="Center" Visibility="Collapsed" Foreground="{ThemeResource SystemFillColorCriticalBrush}" />
                 <TextBlock x:Name="TimeText" VerticalAlignment="Center" Style="{StaticResource CaptionTextBlockStyle}" />
                 <!-- Shows all of a notification whose text doesn't fit. -->
                 <Button
@@ -81,6 +84,8 @@
                 </Button>
             </StackPanel>
             <StackPanel x:Name="AppHeader" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center" Visibility="Collapsed">
+                <!-- An urgent toast's mark, in front of the logo. -->
+                <TextBlock x:Name="UrgentGlyph" Text="!" FontWeight="SemiBold" Width="3" VerticalAlignment="Center" Visibility="Collapsed" Foreground="{ThemeResource SystemFillColorCriticalBrush}" />
                 <Image x:Name="AppLogo" Width="16" Height="16" />
                 <FontIcon x:Name="DefaultLogo" Glyph="&#xECAA;" FontSize="13.5" Width="16" Visibility="Collapsed" />
                 <TextBlock x:Name="AppNameText" VerticalAlignment="Center" Style="{StaticResource CaptionTextBlockStyle}" />
@@ -96,7 +101,7 @@
                 Click="MoreButton_Click">
                 <FontIcon Glyph="&#xE712;" FontSize="12" />
                 <FlyoutBase.AttachedFlyout>
-                    <MenuFlyout>
+                    <MenuFlyout x:Name="MoreMenu" ShouldConstrainToRootBounds="False">
                         <MenuFlyoutItem
                             x:Name="TurnOffItem"
                             AutomationProperties.AutomationId="TurnOffNotificationsMenuItem"
@@ -131,7 +136,8 @@
 
         <!--
             A tray balloon's picture (its information, warning or error icon) goes beside the text, which centres on it.
-            Explorer draws it 40 epx large in a 48 epx place, 16 from the text.
+            Explorer draws it 40 epx large in a 48 epx place, 16 from the text. A toast's own logo (appLogoOverride) goes
+            there too, 16 from the text.
         -->
         <Grid Grid.Row="2">
             <Grid.ColumnDefinitions>
@@ -145,7 +151,19 @@
                 Margin="4,4,20,4"
                 VerticalAlignment="Top"
                 Visibility="Collapsed" />
+            <Rectangle
+                x:Name="LogoShape"
+                Margin="0,0,16,0"
+                VerticalAlignment="Top"
+                Visibility="Collapsed" />
             <StackPanel x:Name="TextPanel" Grid.Column="1">
+                <!-- The toast's header, over its texts. -->
+                <TextBlock
+                    x:Name="HeaderText"
+                    Margin="0,6,8,12"
+                    Style="{StaticResource CaptionTextBlockStyle}"
+                    TextTrimming="CharacterEllipsis"
+                    Visibility="Collapsed" />
                 <TextBlock
                     x:Name="TitleText"
                     Margin="0,4,8,0"
@@ -161,11 +179,20 @@
                     TextTrimming="CharacterEllipsis"
                     IsTextTrimmedChanged="Text_IsTextTrimmedChanged"
                     Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                <TextBlock
+                    x:Name="AttributionText"
+                    Margin="0,3,8,2"
+                    Style="{StaticResource CaptionTextBlockStyle}"
+                    TextTrimming="CharacterEllipsis"
+                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                    Visibility="Collapsed" />
             </StackPanel>
         </Grid>
+        <!-- The toast's pictures, progress bar, inputs and buttons (ToastContentView). -->
+        <ContentPresenter x:Name="ContentHost" Grid.Row="3" Visibility="Collapsed" />
         <Button
             x:Name="FooterButton"
-            Grid.Row="3"
+            Grid.Row="4"
             Margin="0,12,0,0"
             Padding="10,4"
             AutomationProperties.AutomationId="NotificationGroupExpandButton"
@@ -174,7 +201,7 @@
         <!-- A toast's button, across the toast under its text. -->
         <Button
             x:Name="ActionButton"
-            Grid.Row="4"
+            Grid.Row="5"
             Height="32"
             Margin="0,20,8,0"
             HorizontalAlignment="Stretch"
