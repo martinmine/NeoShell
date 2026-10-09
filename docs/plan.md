@@ -342,7 +342,7 @@ Each item is done when it looks and behaves as Explorer's (layout, behaviour, an
       page; the jump list below, trimmed at 290 (Edge's Recent and Settings' empty list now as Explorer's, taskbar
       too); folder items' icons; in both run modes (as the shell: no App settings, Programs and Features for a
       desktop app's Uninstall, no Run as administrator for packaged apps) — not done: Rate and review / Share
-      (search, Store apps), pinned jump list entries, a URL's short name in Recent; not run live: the light theme,
+      (search, Store apps), a URL's short name in Recent; not run live: the light theme,
       keyboard opening (Shift+F10, menu key), elevation itself (the UAC prompt was shown, then cancelled)
 - [x] T19 Power menu: Hibernate, Switch user, Update and restart / shut down — shutdownux's choices (read with its
       PDB) in Start's power button, the Quick Link menu and the Shut Down Windows dialog, each in Explorer's order and
@@ -620,7 +620,12 @@ Found while working on milestone 19, not done yet.
     above a topmost window over its edge, Explorer's stays below it (T39d)
   - Snap leaves elevated windows out, though `ApplyWindowAction` with the shell's window-manager access would now
     reach them as Explorer's does (T39d; design/windows.md)
-- [ ] T42 Jump lists: pinned entries, Pin to / Remove from this list (in scope at the owner's request, 2026-10-09)
+- [x] T42 Jump lists: pinned entries, Pin to / Remove from this list (in scope at the owner's request, 2026-10-09):
+      Pinned first, the hover pin button and the entries' own menus (Open, Open file location, Pin to / Unpin from,
+      Remove from this list, Properties) on the taskbar and in Start, through the shell's own automatic destination
+      list as Explorer's broker; Explorer's budget of 13 entries; checked against Explorer both ways, alongside it and
+      as the shell — not done: the Share button, a folder's extra shell verbs in its menu; Explorer can't reorder pins
+      either; not run live: the light theme, keyboard (menu key on an entry)
 - [ ] T43 Toasts: images, buttons and inline replies (in scope at the owner's request, 2026-10-09)
 - Not possible without Explorer, with the evidence in design/: Windows' own AutoPlay UI (T5, NeoShell has its own),
   the IME's right-click menu (T8), Win+V, Win+Period, Win+Semicolon and Win+H (T30), importing Explorer's pin folders

@@ -67,6 +67,9 @@ internal static unsafe partial class Shell32
     [LibraryImport("shell32.dll")]
     public static partial void ILFree(nint idList);
 
+    [LibraryImport("shell32.dll")]
+    public static partial int SHOpenFolderAndSelectItems(nint folder, uint count, nint* items, uint flags);
+
     public const uint SIID_LINK = 29;
     public const uint SIID_WARNING = 78;
     public const uint SIID_INFO = 79;
@@ -133,6 +136,7 @@ internal static unsafe partial class Shell32
 
     public const uint SEE_MASK_CLASSNAME = 0x0000_0001;
     public const uint SEE_MASK_IDLIST = 0x0000_0004;
+    public const uint SEE_MASK_INVOKEIDLIST = 0x0000_000C;
     public const uint SEE_MASK_NOASYNC = 0x0000_0100;
     public const uint SEE_MASK_FLAG_NO_UI = 0x0000_0400;
     public const uint SEE_MASK_FLAG_LOG_USAGE = 0x0400_0000;

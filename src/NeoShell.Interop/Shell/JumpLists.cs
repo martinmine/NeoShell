@@ -1,4 +1,6 @@
 using System.Runtime.InteropServices;
+using System.Runtime.InteropServices.Marshalling;
+using Microsoft.Win32;
 using NeoShell.Interop.Com;
 using NeoShell.Interop.Imaging;
 using NeoShell.Interop.Native;
@@ -12,24 +14,44 @@ public sealed record JumpListItem(string Title, JumpListItemKind Kind)
 {
     /// <summary>A link's persisted data, or an item's ID list.</summary>
     internal byte[] Data { get; init; } = [];
+
+    /// <summary>Pinned to the list: shown under Pinned, first.</summary>
+    public bool IsPinned { get; init; }
+
+    /// <summary>One of the app's tasks, which can't be pinned or removed.</summary>
+    public bool IsTask { get; init; }
+
+    /// <summary>A file or folder (it has a location and properties), rather than a link or a web page.</summary>
+    public bool IsFileSystem { get; init; }
+
+    /// <summary>What Explorer shows over the entry: a file's name and folder, a web page's address; null for links.</summary>
+    public string? ToolTip { get; init; }
 }
 
 public sealed record JumpListCategory(string Title, IReadOnlyList<JumpListItem> Items);
 
 /// <summary>
-/// Apps' jump lists, as Explorer shows them on the taskbar: the app's own categories and its Recent or Frequent
-/// files (known categories), then its tasks. Pinning entries to a jump list isn't supported.
+/// Apps' jump lists, as Explorer shows them on the taskbar and in Start: the entries pinned to the list, the app's own
+/// categories and its Recent or Frequent files (known categories), then its tasks; and pinning and removing entries.
 /// </summary>
+/// <remarks>
+/// Pinned, recent and frequent entries come from, and are pinned and removed through, the shell's own automatic
+/// destination list (<see cref="IAutomaticDestinationList"/>), as Explorer's jump list broker does, so both shells
+/// show and change the same lists.
+/// </remarks>
 public static unsafe class JumpLists
 {
-    /// <summary>How many recent or frequent files a list shows, as Explorer does by default.</summary>
-    public const int MaxKnownItems = 10;
-
     private static readonly Guid CLSID_ShellLink = new("00021401-0000-0000-c000-000000000046");
-    private static readonly Guid CLSID_ApplicationDocumentLists = new("86bec222-30f2-47e0-9f25-60d11cd75c28");
-    private const int ADLT_RECENT = 0;
-    private const int ADLT_FREQUENT = 1;
+    private static readonly Guid CLSID_AutomaticDestinationListBoth = new("656e51bd-cad6-4683-ac07-3e3d50d7f453");
+    private static readonly Guid CLSID_DestinationListBoth = new("38fe0cf4-6a59-4729-8e4a-2d580059ede4");
+    private const int DLT_PINNED = 0;
+    private const int DLT_RECENT = 1;
+    private const int DLT_FREQUENT = 2;
+    private const int GetListFlags = 1;
+    private const int PinLast = -1;
+    private const int UnpinIndex = -2;
     private const ushort VT_BOOL = 11;
+    private const string AdvancedKey = @"Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced";
 
     // PKEY_Title, PKEY_AppUserModel_IsDestListSeparator
     private static readonly Ole32.PROPERTYKEY TitleKey = new() { fmtid = new Guid("F29F85E0-4FF9-1068-AB91-08002B27B3D9"), pid = 2 };
@@ -66,33 +88,105 @@ public static unsafe class JumpLists
         }
 
         // Without categories of its own (none, or only tasks: Edge's), an app gets its recent files, as in Explorer.
-        if (custom.All(category => category.Kind == DestinationCategoryKind.Tasks))
+        bool knownAskedFor = !custom.All(category => category.Kind == DestinationCategoryKind.Tasks);
+        if (!knownAskedFor)
             custom = [new DestinationCategory(DestinationCategoryKind.Known, "", 2, []), .. custom];
+        // A known category other than Frequent (1) or Recent (2), such as Settings' -1, shows nothing.
+        DestinationCategory[] shown =
+        [
+            .. custom.Where(c => c.Kind == DestinationCategoryKind.Custom || (c.Kind == DestinationCategoryKind.Known && c.Known is 1 or 2)),
+        ];
+
+        IAutomaticDestinationList? automatic = OpenAutomaticList(appId);
+        int maximum = JumpListBudget.Maximum(
+            (Registry.GetValue(@"HKEY_CURRENT_USER\" + AdvancedKey, "JumpListItems_Maximum", null)
+                ?? Registry.GetValue(@"HKEY_LOCAL_MACHINE\" + AdvancedKey, "JumpListItems_Maximum", null)) as int?);
+        List<JumpListItem> pinned = automatic is null ? [] : AutomaticItems(automatic, DLT_PINNED, maximum, pinned: true);
+        // An app's own entries that are pinned show under Pinned only.
+        List<JumpListItem>[] own =
+        [
+            .. shown.Select(category => category.Kind == DestinationCategoryKind.Custom
+                ? category.Links.Select(ReadLink).OfType<JumpListItem>()
+                    .Where(item => item.Kind != JumpListItemKind.Separator && !(automatic is not null && IsPinned(automatic, item)))
+                    .ToList()
+                : new List<JumpListItem>()),
+        ];
+        (int pinnedShown, int[] counts) = JumpListBudget.Split(
+            maximum, pinned.Count, [.. shown.Select((category, i) => category.Kind == DestinationCategoryKind.Custom ? own[i].Count : (int?)null)], knownAskedFor);
 
         var categories = new List<JumpListCategory>();
-        foreach (DestinationCategory category in custom.Where(c => c.Kind != DestinationCategoryKind.Tasks))
+        if (pinnedShown > 0)
+            categories.Add(new JumpListCategory("Pinned", pinned[..pinnedShown]));
+        for (int i = 0; i < shown.Length; i++)
         {
-            // A known category other than Frequent (1) or Recent (2), such as Settings' -1, shows nothing.
-            if (category.Kind == DestinationCategoryKind.Known && category.Known is not (1 or 2))
-                continue;
-
-            IReadOnlyList<JumpListItem> items = category.Kind == DestinationCategoryKind.Known
-                ? KnownItems(appId, category.Known)
-                : [.. category.Links.Select(ReadLink).OfType<JumpListItem>().Where(item => item.Kind != JumpListItemKind.Separator)];
+            DestinationCategory category = shown[i];
+            List<JumpListItem> items = category.Kind == DestinationCategoryKind.Custom
+                ? own[i]
+                : automatic is null ? [] : RecentOrFrequent(automatic, category.Known == 1 ? DLT_FREQUENT : DLT_RECENT, counts[i], pinned.Count);
             string title = category.Kind == DestinationCategoryKind.Known
                 ? (category.Known == 1 ? "Frequent" : "Recent")
                 : IndirectString(category.Title);
-            if (items.Count > 0)
-                categories.Add(new JumpListCategory(title, items));
+            if (counts[i] > 0 && items.Count > 0)
+                categories.Add(new JumpListCategory(title, items[..Math.Min(counts[i], items.Count)]));
         }
         // Tasks come last, as in Explorer.
         foreach (DestinationCategory tasks in custom.Where(c => c.Kind == DestinationCategoryKind.Tasks))
         {
-            JumpListItem[] items = [.. tasks.Links.Select(ReadLink).OfType<JumpListItem>()];
+            JumpListItem[] items = [.. tasks.Links.Select(ReadLink).OfType<JumpListItem>().Select(item => item with { IsTask = true })];
             if (items.Length > 0)
                 categories.Add(new JumpListCategory("Tasks", items));
         }
         return categories;
+    }
+
+    /// <summary>Pins the entry to the app's list, last, as Explorer's Pin to this list. Throws on failure.</summary>
+    public static void Pin(string appId, JumpListItem item) => Change(appId, item, (list, pointer) => list.PinItem(pointer, PinLast));
+
+    /// <summary>Unpins the entry from the app's list. Throws on failure.</summary>
+    public static void Unpin(string appId, JumpListItem item) => Change(appId, item, (list, pointer) => list.PinItem(pointer, UnpinIndex));
+
+    /// <summary>
+    /// Takes the entry out of the app's list, as Explorer's Remove from this list: out of its recent and frequent items,
+    /// and out of its own categories, which the app learns from <c>ICustomDestinationList::GetRemovedDestinations</c>.
+    /// Throws on failure.
+    /// </summary>
+    public static void Remove(string appId, JumpListItem item)
+    {
+        if (item.Kind == JumpListItemKind.Link)
+        {
+            var own = Ole32.Create<IInternalCustomDestinationList>(CLSID_DestinationListBoth, Ole32.CLSCTX_INPROC_SERVER);
+            Marshal.ThrowExceptionForHR(own.SetApplicationID(appId));
+            Marshal.ThrowExceptionForHR(WithPointer(item, pointer => own.RemoveDestination(pointer)));
+        }
+        // An app's own link isn't among its automatic destinations unless it was pinned once.
+        Change(appId, item, (list, pointer) => list.RemoveDestination(pointer), ignoreFailure: item.Kind == JumpListItemKind.Link);
+    }
+
+    /// <summary>Opens the file's folder with the file selected, as Explorer's Open file location.</summary>
+    public static void OpenLocation(JumpListItem item)
+    {
+        fixed (byte* idList = item.Data)
+            Marshal.ThrowExceptionForHR(Shell32.SHOpenFolderAndSelectItems((nint)idList, 0, null, 0));
+    }
+
+    /// <summary>Shows the file's properties, as Explorer's Properties.</summary>
+    public static void ShowProperties(JumpListItem item, nint owner)
+    {
+        fixed (byte* idList = item.Data)
+        fixed (char* verb = "properties")
+        {
+            var info = new Shell32.SHELLEXECUTEINFOW
+            {
+                cbSize = (uint)sizeof(Shell32.SHELLEXECUTEINFOW),
+                fMask = Shell32.SEE_MASK_INVOKEIDLIST,
+                hwnd = owner,
+                lpVerb = verb,
+                lpIDList = (nint)idList,
+                nShow = User32.SW_SHOWNORMAL,
+            };
+            if (!Shell32.ShellExecuteEx(&info))
+                throw new COMException("The properties can't be shown", Marshal.GetHRForLastWin32Error());
+        }
     }
 
     /// <summary>
@@ -277,33 +371,123 @@ public static unsafe class JumpLists
         }
     }
 
-    private static IReadOnlyList<JumpListItem> KnownItems(string appId, int known)
-    {
-        var lists = Ole32.Create<IApplicationDocumentLists>(CLSID_ApplicationDocumentLists, Ole32.CLSCTX_INPROC_SERVER);
-        if (lists.SetAppID(appId) != 0
-            || lists.GetList(known == 1 ? ADLT_FREQUENT : ADLT_RECENT, MaxKnownItems, typeof(IObjectArray).GUID, out nint arrayPointer) != 0)
-        {
-            return [];
-        }
 
-        var array = ComPointer.TakeOwnership<IObjectArray>(arrayPointer);
+    private static IAutomaticDestinationList? OpenAutomaticList(string appId)
+    {
+        if (Ole32.CoCreateInstance(CLSID_AutomaticDestinationListBoth, 0, Ole32.CLSCTX_INPROC_SERVER, typeof(IAutomaticDestinationList).GUID, out nint pointer) != 0)
+            return null;
+        var list = ComPointer.TakeOwnership<IAutomaticDestinationList>(pointer);
+        return list.Initialize(appId, null, null) == 0 ? list : null;
+    }
+
+    // The recent or frequent entries that aren't pinned: Explorer asks for as many more as there are pins and leaves
+    // those out.
+    private static List<JumpListItem> RecentOrFrequent(IAutomaticDestinationList list, int listType, int count, int pinnedCount) =>
+        count <= 0 ? [] : [.. AutomaticItems(list, listType, count + pinnedCount, pinned: false).Where(item => !IsPinned(list, item)).Take(count)];
+
+    private static List<JumpListItem> AutomaticItems(IAutomaticDestinationList list, int listType, int maximum, bool pinned)
+    {
         var items = new List<JumpListItem>();
-        if (array.GetCount(out uint count) != 0)
+        if (maximum <= 0 || list.GetList(listType, maximum, GetListFlags, typeof(IObjectArray).GUID, out nint arrayPointer) != 0)
             return items;
 
+        var array = ComPointer.TakeOwnership<IObjectArray>(arrayPointer);
+        if (array.GetCount(out uint count) != 0)
+            return items;
         for (uint i = 0; i < count; i++)
         {
-            if (array.GetAt(i, typeof(IShellItem).GUID, out nint itemPointer) != 0)
-                continue;
-
-            var shellItem = ComPointer.TakeOwnership<IShellItem>(itemPointer);
-            if (ShellItems.GetDisplayName(shellItem) is not { } name || ShellItems.GetIDList(shellItem) is not { } idList)
-                continue;
-            items.Add(new JumpListItem(name, JumpListItemKind.Item) { Data = idList });
+            // Files and folders are shell items; links pinned from an app's own categories are shell links.
+            if (array.GetAt(i, typeof(IShellItem).GUID, out nint itemPointer) == 0)
+            {
+                if (FileItem(ComPointer.TakeOwnership<IShellItem>(itemPointer)) is { } item)
+                    items.Add(item with { IsPinned = pinned });
+            }
+            else if (array.GetAt(i, typeof(IPersistStream).GUID, out nint linkPointer) == 0)
+            {
+                if (SaveLink(ComPointer.TakeOwnership<IPersistStream>(linkPointer)) is { } data && ReadLink(data) is { } link)
+                    items.Add(link with { IsPinned = pinned });
+            }
         }
         return items;
     }
 
+    private static JumpListItem? FileItem(IShellItem shellItem)
+    {
+        if (ShellItems.GetDisplayName(shellItem) is not { } name || ShellItems.GetIDList(shellItem) is not { } idList)
+            return null;
+
+        // Explorer's tooltip: a file's name and folder, "Doc (C:\Users\…)"; a web page's address.
+        string? path = ShellItems.GetPath(idList);
+        string? toolTip = path is not null
+            ? $"{Path.GetFileNameWithoutExtension(path.TrimEnd('\\'))} ({Path.GetDirectoryName(path.TrimEnd('\\')) ?? path})"
+            : ShellItems.GetDisplayName(shellItem, ShellItems.SIGDN_DESKTOPABSOLUTEPARSING);
+        return new JumpListItem(name, JumpListItemKind.Item) { Data = idList, IsFileSystem = path is not null, ToolTip = toolTip };
+    }
+
+    // A link's persisted data, as an app's list keeps it.
+    private static byte[]? SaveLink(IPersistStream link)
+    {
+        nint stream = Shlwapi.SHCreateMemStream(null, 0);
+        if (stream == 0)
+            return null;
+        try
+        {
+            if (link.Save(stream, false) != 0 || Shlwapi.IStream_Size(stream, out ulong size) != 0 || Shlwapi.IStream_Reset(stream) != 0)
+                return null;
+            byte[] data = new byte[size];
+            fixed (byte* bytes = data)
+                return Shlwapi.IStream_Read(stream, bytes, (uint)size) == 0 ? data : null;
+        }
+        finally
+        {
+            Marshal.Release(stream);
+        }
+    }
+
+    private static bool IsPinned(IAutomaticDestinationList list, JumpListItem item) =>
+        WithPointer(item, pointer => list.IsPinned(pointer, out _)) == 0;
+
+    private static void Change(string appId, JumpListItem item, Func<IAutomaticDestinationList, nint, int> change, bool ignoreFailure = false)
+    {
+        IAutomaticDestinationList list = OpenAutomaticList(appId) ?? throw new COMException($"There's no jump list for {appId}");
+        int result = WithPointer(item, pointer => change(list, pointer));
+        if (!ignoreFailure)
+            Marshal.ThrowExceptionForHR(result);
+    }
+
+    // Calls the list with the entry as the shell object it stands for, a shell item or a shell link; returns the call's
+    // HRESULT.
+    private static int WithPointer(JumpListItem item, Func<nint, int> use)
+    {
+        void* pointer;
+        if (item.Kind == JumpListItemKind.Link)
+        {
+            IShellLinkW link = LoadLink(item.Data) ?? throw new COMException("The link can't be read");
+            pointer = ComInterfaceMarshaller<IShellLinkW>.ConvertToUnmanaged(link);
+        }
+        else
+        {
+            nint idList = Marshal.AllocCoTaskMem(item.Data.Length);
+            try
+            {
+                Marshal.Copy(item.Data, 0, idList, item.Data.Length);
+                Marshal.ThrowExceptionForHR(Shell32.SHCreateItemFromIDList(idList, typeof(IShellItem).GUID, out IShellItem shellItem));
+                pointer = ComInterfaceMarshaller<IShellItem>.ConvertToUnmanaged(shellItem);
+            }
+            finally
+            {
+                Marshal.FreeCoTaskMem(idList);
+            }
+        }
+        try
+        {
+            return use((nint)pointer);
+        }
+        finally
+        {
+            Marshal.Release((nint)pointer);
+        }
+    }
     private static string? GetString(IPropertyStore store, Ole32.PROPERTYKEY key)
     {
         Ole32.PROPVARIANT value = default;

@@ -1644,8 +1644,14 @@ internal sealed partial class TaskbarWindow : Window
         _hoverTimer.Stop();
         menu.SystemBackdrop = MenuBackdrop();
         _thumbnails.Hide();
+        FillTaskMenu(menu, button);
+    }
+
+    // Filled afresh when an entry of the jump list is pinned or removed, while the menu stays open.
+    private void FillTaskMenu(MenuFlyout menu, TaskButton button)
+    {
         menu.Items.Clear();
-        AddJumpList(menu, button.App);
+        AddJumpList(menu, button.App, () => FillTaskMenu(menu, button));
         menu.Items.Add(LaunchItem(button.App));
         menu.Items.Add(button.Pinned is { } pinned
             ? MenuItem("Unpin from taskbar", "", "TaskUnpinMenuItem", () => _owner.Unpin(pinned))
@@ -1698,9 +1704,9 @@ internal sealed partial class TaskbarWindow : Window
             _noPreviews = null;
     }
 
-    // The app's jump list above the button's own items, as in Windows: its categories (Recent, the app's own), then
-    // its tasks. Read each time the menu opens: apps change them whenever they like.
-    private void AddJumpList(MenuFlyout menu, PinnedApp app)
+    // The app's jump list above the button's own items, as in Windows: its pinned entries, its categories (Recent, the
+    // app's own), then its tasks. Read each time the menu opens: apps change them whenever they like.
+    private void AddJumpList(MenuFlyout menu, PinnedApp app, Action changed)
     {
         string? appId = app.AppUserModelId ?? (app.Path is { } path ? JumpLists.ImplicitAppId(path) : null);
         if (appId is null)
@@ -1719,41 +1725,17 @@ internal sealed partial class TaskbarWindow : Window
 
         var headerStyle = (Style)Root.Resources["JumpListHeaderStyle"];
         int iconSize = (int)Math.Round(16 * Root.XamlRoot.RasterizationScale);
+        var entries = new JumpListMenu(appId, _hwnd, opening: () => { }, changed);
         foreach (JumpListCategory category in categories)
         {
             var header = new MenuFlyoutItem { Text = category.Title, Style = headerStyle };
             AutomationProperties.SetAutomationId(header, "JumpListHeader");
             menu.Items.Add(header);
             foreach (JumpListItem item in category.Items)
-            {
-                if (item.Kind == JumpListItemKind.Separator)
-                {
-                    menu.Items.Add(JumpListSeparator());
-                    continue;
-                }
-
-                var icon = new ImageIcon();
-                MenuFlyoutItem entry = Trimmed(new MenuFlyoutItem { Text = item.Title, Icon = icon });
-                AutomationProperties.SetAutomationId(entry, "JumpListItem");
-                entry.Click += (_, _) => OpenJumpListItem(item);
-                menu.Items.Add(entry);
-                AppIcons.Load(() => JumpLists.GetIcon(item, iconSize), source => icon.Source = source);
-            }
+                menu.Items.Add(item.Kind == JumpListItemKind.Separator ? JumpListSeparator() : entries.Entry(item, iconSize));
         }
         if (categories.Count > 0)
             menu.Items.Add(JumpListSeparator());
-    }
-
-    private void OpenJumpListItem(JumpListItem item)
-    {
-        try
-        {
-            JumpLists.Open(item, _hwnd);
-        }
-        catch (Exception ex)
-        {
-            Log.Warn($"Could not open the jump list item {item.Title}", ex);
-        }
     }
 
     // Reordering is done by hand rather than with the list's own drag and drop: that lifts the button off the

@@ -23,9 +23,10 @@ of the [NeoShell design](../design.md).
 
 ## Jump lists
 
-The app's jump list heads the button's menu, read each time it opens (`JumpLists`, Interop): the app's own
-categories and Recent or Frequent, in the app's order, then its Tasks. Headings are text-only menu items; entries
-have their icons (loaded in the background) and open on click.
+The app's jump list heads the button's menu, read each time it opens (`JumpLists`, Interop): the entries pinned to
+it, the app's own categories and Recent or Frequent, in the app's order, then its Tasks. Headings are text-only menu
+items; entries have their icons (loaded in the background) and open on click. Start's app menus show the same list
+(see [Start menu](start-menu.md)), with the same pin button and entry menus (`JumpListMenu`, shared).
 
 - **AppID**: the button's AppUserModelID, or for an app without one the implicit AppID Windows gives it: its path
   starting with a known folder's GUID where it can (`{1AC14E77-…}\notepad.exe`), as in `shell:AppsFolder` (tested).
@@ -39,9 +40,49 @@ have their icons (loaded in the background) and open on click.
   `ShellLink` with `IPersistStream::Load` (from `SHCreateMemStream`).
 - An entry's title is the link's `System.Title`, else its description, resolved with `SHLoadIndirectString` when it's
   a resource reference (`@shell32.dll,-21817`); `System.AppUserModel.IsDestListSeparator` links are separators.
-- **Known categories** come from `IApplicationDocumentLists` (Recent or Frequent, at most 10, as Explorer). An app
-  without categories of its own (no list, or tasks only, as Edge's) gets Recent, as in Explorer's taskbar and Start;
-  a known category other than 1 or 2 shows nothing (Settings writes one of -1, and Explorer shows it no Recent).
+- **Pinned, recent and frequent entries** come from the shell's automatic destination list, the one Explorer's
+  jump list broker uses (T42; read with symbols in windows.storage.dll and Windows.Internal.Shell.Broker.dll's
+  `CJumpViewBroker`), so both shells read and change the same lists (`%APPDATA%\…\Recent\AutomaticDestinations\
+  <same CRC-64>.automaticDestinations-ms`, a compound file NeoShell never parses itself). Class
+  AutomaticDestinationListBoth `{656E51BD-CAD6-4683-AC07-3E3D50D7F453}`, `IAutomaticDestinationList`
+  `{E9C5EF8D-FD41-4F72-BA87-EB03BAD5817C}` (the first of a chain of four; its vtable after IUnknown: `Initialize(appId,
+  path, NULL)`, `HasList`, `GetList(type, max, flags, iid, out)`, `AddUsagePoint`, `PinItem(item, index)`,
+  `IsPinned(item, out index)`, `RemoveDestination(item)`, …). `GetList` types: 0 pinned, 1 recent, 2 frequent; flags 1
+  as the broker passes (links too). Recent and frequent include the pinned entries, so the broker asks for as many
+  more as there are pins and skips those that `IsPinned` (S_OK and the place, else E_FAIL); NeoShell does the same,
+  and also leaves pinned links out of the app's own categories. Items come back as `IShellItem`s, or `IShellLink`s
+  for links pinned from an app's own categories (saved with `IPersistStream::Save` into the entry's data).
+  `PinItem`'s index: -1 pins last (`CAutoDestList::PinLast`), -2 unpins, 0 or more pins at (or moves to) that place
+  (`PinAt`); each change is persisted and announced (`NotifyDestinationChanged`) at once.
+- **How many**: `JumpListItems_Maximum` (`HKCU`, else `HKLM`, `…\Explorer\Advanced`; 13 when unset, at most 60) is
+  shared out in the broker's order (`JumpListBudget`, tested): the pins first, then the app's own categories item by
+  item (a Recent or Frequent the app asked for with `AppendKnownCategory` takes one more), and Recent and Frequent
+  share what's left; tasks don't count. Measured on Explorer: 13 recent files, 12 beside one pin, 11 beside two;
+  2 pins, a custom category of 3 and Recent show 7 recent. An
+  app without categories of its own (no list, or tasks only, as Edge's) gets Recent, as in Explorer's taskbar and
+  Start, without the extra one; a known category other than 1 or 2 shows nothing (Settings writes one of -1, and
+  Explorer shows it no Recent).
+- **Pinning and removing** (Explorer's JumpViewUI.dll in ShellExperienceHost, measured with UI Automation and
+  screen grabs on a test app with recent files, a custom category and a task):
+  - Hovering an entry shows a pin button at its right end: 45 wide, as tall as the row (28), flush with its right
+    edge, glyph E718 (Pin) or, under Pinned, E77A (Unpin), tooltip and name "Pin to this list" / "Unpin from this
+    list". Files also get a Share button left of it, which NeoShell leaves out (no share UI of its own). Tasks
+    get no button.
+  - Right-clicking an entry opens its menu at the pointer: a file `Open` (E737), `Open file location` (ED43) ┃ `Pin
+    to this list` (E718) or `Unpin from this list` (E77A), `Remove from this list` (E74D; not for pinned ones) ┃
+    `Properties` (E90F); an app's own link `Open` ┃ Pin, Remove; a task just `Open`. (Explorer's comes from the
+    JumpViewExecuteHelper local server's `IContextMenu` for the item, which can add a folder's shell verbs, and gives
+    a web page Open file location too; NeoShell shows the fixed set above.) Open file location is
+    `SHOpenFolderAndSelectItems`, Properties `ShellExecuteEx` with the `properties` verb.
+  - Pinning moves the entry to the end of Pinned and unpinning back to its place by date; the menu is filled afresh in
+    place and stays open, as Explorer's (neither animates the change in the grabs taken; not recorded at 60 fps). Remove goes, as the broker's `RemoveItem`, to both
+    lists: the app's own (class DestinationListBoth `{38FE0CF4-6A59-4729-8E4A-2D580059EDE4}`,
+    `IInternalCustomDestinationList` `{507101CD-F6AD-46C8-8E20-EEB9E6BAC47F}`: `SetApplicationID`, then
+    `RemoveDestination`, which the app then sees in `GetRemovedDestinations`, tested) and the automatic one.
+  - Pinned entries can't be reordered: JumpViewUI's list only drags entries out (its `OnDrop` does nothing), unlike
+    Windows 10's; `PinItem` with an index would do it.
+  - Checked both ways, alongside Explorer and as the shell: pins and removals made in NeoShell show in Explorer's
+    jump list and the other way round, the same entries in the same order.
 - Not done: a web page's short name (Explorer shows Edge's `https://…/login/device` as "device"; every `SIGDN` and
   `System.ItemNameDisplay` give the whole URL).
 - **Opening**: a link through its own `IContextMenu` default command, which keeps its arguments, working directory and
@@ -49,9 +90,11 @@ have their icons (loaded in the background) and open on click.
   which may not be the app the list belongs to).
 - Icons: a link's icon location (`SHDefExtractIcon`), else its target's icon; `ms-appx:` icons of packaged apps
   aren't read, so those entries show the target's.
-- Pinned entries (kept in `AutomaticDestinations`) aren't shown, and entries can't be pinned or removed. Explorer
-  shows them under Pinned, first (File Explorer's are Quick access, then left out of its Frequent), on the taskbar and
-  in Start's app menus alike.
+- **Tooltips**: a file's name without its extension and its folder, "Doc15 (E:\…\docs)"; a web page's address;
+  links have none.
+- **AppID gap**: an app that sets its AppID only for its process (`SetCurrentProcessExplicitAppUserModelID`), not on
+  its windows, gets a button without its AppID (window tracking reads the window's property and the package's), so
+  its jump list is looked up under its implicit AppID and comes up empty; Explorer finds it.
 - **The menu** (T39a, measured on Explorer's for File Explorer, Terminal, Claude and Windows PowerShell): always
   296 px wide, border included, whatever it holds (its windows are all 318 with the shadow), so longer names end in
   an ellipsis; headings 16 px in, 8 px above and below; separators a pixel further from the items than WinUI's, and

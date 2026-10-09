@@ -33,14 +33,7 @@ internal partial interface IPersistStream
     [PreserveSig] int GetClassID();
     [PreserveSig] int IsDirty();
     [PreserveSig] int Load(nint stream);
-}
-
-[GeneratedComInterface]
-[Guid("3c594f9f-9f30-47a1-979a-c9e83d3d0a06")]
-internal partial interface IApplicationDocumentLists
-{
-    [PreserveSig] int SetAppID([MarshalAs(UnmanagedType.LPWStr)] string appId);
-    [PreserveSig] int GetList(int listType, uint itemsDesired, in Guid iid, out nint list);
+    [PreserveSig] int Save(nint stream, [MarshalAs(UnmanagedType.Bool)] bool clearDirty);
 }
 
 [GeneratedComInterface]

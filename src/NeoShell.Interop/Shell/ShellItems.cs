@@ -12,6 +12,7 @@ namespace NeoShell.Interop.Shell;
 public static unsafe class ShellItems
 {
     private const uint SIGDN_NORMALDISPLAY = 0;
+    internal const uint SIGDN_DESKTOPABSOLUTEPARSING = 0x80028000;
     internal const uint SIGDN_FILESYSPATH = 0x80058000;
     internal const uint SIIGBF_BIGGERSIZEOK = 0x01;
     internal const uint SIIGBF_ICONONLY = 0x04;
@@ -44,10 +45,10 @@ public static unsafe class ShellItems
     public static string? GetDisplayName(string parsingName) =>
         Create(parsingName) is { } item ? GetDisplayName(item) : null;
 
-    internal static string? GetDisplayName(IShellItem item)
+    internal static string? GetDisplayName(IShellItem item, uint sigdn = SIGDN_NORMALDISPLAY)
     {
         char* name;
-        if (item.GetDisplayName(SIGDN_NORMALDISPLAY, &name) != 0)
+        if (item.GetDisplayName(sigdn, &name) != 0)
             return null;
 
         try

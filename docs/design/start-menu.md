@@ -284,7 +284,10 @@ The Start menu: Pinned and folders of pins, All, app menus, the app catalog, sea
       shell); the folder's Run as administrator for a packaged app goes through Explorer and fails there, so it's
       left out too.
     - The jump list (`JumpLists`, as the taskbar's) below: each category under a 12 px secondary heading 16 in and
-      32 tall, its entries with their icons; long names end in an ellipsis at Explorer's 290 px menu width.
+      32 tall, its entries with their icons; long names end in an ellipsis at Explorer's 290 px menu width. Pinned
+      entries come first, and entries have Explorer's pin button on hover and their own right-click menu, as on the
+      taskbar ([Jump lists](taskbar-apps.md#jump-lists), T42: Explorer's Start shows the same button and menus); a
+      pin or removal fills the jump list part of the menu afresh while it stays open.
     - Search results get the commands of Windows' search box instead: Run as administrator, Open file location (a
       folder glyph, E8B7), Pin to / Unpin from Start, Pin to / Unpin from taskbar, App settings, Uninstall, in one
       run without separators or jump list (the search box's Rate and review and Share, for Store apps, aren't done).

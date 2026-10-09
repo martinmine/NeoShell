@@ -8,6 +8,15 @@ internal static unsafe partial class Shlwapi
     [LibraryImport("shlwapi.dll")]
     public static partial nint SHCreateMemStream(byte* data, uint size);
 
+    [LibraryImport("shlwapi.dll")]
+    public static partial int IStream_Size(nint stream, out ulong size);
+
+    [LibraryImport("shlwapi.dll")]
+    public static partial int IStream_Reset(nint stream);
+
+    [LibraryImport("shlwapi.dll")]
+    public static partial int IStream_Read(nint stream, byte* data, uint size);
+
     [LibraryImport("shlwapi.dll", StringMarshalling = StringMarshalling.Utf16)]
     public static partial int StrCmpLogicalW(string first, string second);
 

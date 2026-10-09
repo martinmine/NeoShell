@@ -1391,9 +1391,21 @@ internal sealed partial class StartMenuWindow : Window
         LoadAppsIfStale();
     }
 
-    // The app's jump list below its commands, as in Explorer's Start: its categories (Recent, the app's own), then its
-    // tasks, under headings. Read each time the menu opens: apps change them whenever they like.
+    // The app's jump list below its commands, as in Explorer's Start: its pinned entries, its categories (Recent, the
+    // app's own), then its tasks, under headings. Read each time the menu opens: apps change them whenever they like.
+    // Read again in place when an entry is pinned or removed, the menu staying open.
     private void AddJumpList(MenuFlyout menu, PinnedApp app)
+    {
+        int start = menu.Items.Count;
+        AddJumpList(menu, app, () =>
+        {
+            while (menu.Items.Count > start)
+                menu.Items.RemoveAt(menu.Items.Count - 1);
+            AddJumpList(menu, app);
+        });
+    }
+
+    private void AddJumpList(MenuFlyout menu, PinnedApp app, Action changed)
     {
         string? appId = app.AppUserModelId ?? (app.Path is { } path ? JumpLists.ImplicitAppId(path) : null);
         if (appId is null)
@@ -1412,6 +1424,7 @@ internal sealed partial class StartMenuWindow : Window
 
         var headerStyle = (Style)Root.Resources["JumpListHeaderStyle"];
         int iconSize = (int)Math.Round(16 * Root.XamlRoot.RasterizationScale);
+        var entries = new JumpListMenu(appId, _hwnd, opening: Hide, changed);
         foreach (JumpListCategory category in categories)
         {
             var header = new MenuFlyoutItem { Text = category.Title, Style = headerStyle };
@@ -1419,29 +1432,12 @@ internal sealed partial class StartMenuWindow : Window
             menu.Items.Add(header);
             foreach (JumpListItem entry in category.Items.Where(entry => entry.Kind != JumpListItemKind.Separator))
             {
-                var icon = new ImageIcon();
+                MenuFlyoutItem item = entries.Entry(entry, iconSize);
                 // Explorer's menu grows to 290 at most (an item 289 wide makes it at most that here); longer names end
                 // in an ellipsis.
-                var item = new MenuFlyoutItem { Text = entry.Title, Icon = icon, MaxWidth = 289 };
-                item.Resources["MenuFlyoutItemTextTrimming"] = TextTrimming.CharacterEllipsis;
-                AutomationProperties.SetAutomationId(item, "JumpListItem");
-                item.Click += (_, _) => OpenJumpListItem(entry);
+                item.MaxWidth = 289;
                 menu.Items.Add(item);
-                AppIcons.Load(() => JumpLists.GetIcon(entry, iconSize), source => icon.Source = source);
             }
-        }
-    }
-
-    private void OpenJumpListItem(JumpListItem item)
-    {
-        Hide();
-        try
-        {
-            JumpLists.Open(item, _hwnd);
-        }
-        catch (Exception ex)
-        {
-            Log.Warn($"Could not open the jump list item {item.Title}", ex);
         }
     }
 
