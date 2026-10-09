@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.Numerics;
 using Microsoft.UI.Composition;
+using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
@@ -75,20 +76,21 @@ internal sealed partial class QuickSettingsPanel : UserControl
             new QuickTile(QuickTileKind.WiFi, "Wi-Fi", "") { Name = "Wi-Fi", HasSwitch = true, HasPage = true },
             new QuickTile(QuickTileKind.Bluetooth, "Bluetooth", "") { Name = "Bluetooth", HasSwitch = true, HasPage = true },
             new QuickTile(QuickTileKind.AirplaneMode, "Airplane mode", "") { Name = "Airplane mode", HasSwitch = true },
-            new QuickTile(QuickTileKind.Accessibility, "Accessibility", "") { Name = "Accessibility", HasPage = true },
+            // Windows draws some icons as animations a little smaller than its glyphs (measured: 14 pixels, not 16).
+            new QuickTile(QuickTileKind.Accessibility, "Accessibility", "") { Name = "Accessibility", HasPage = true, OffGlyphSize = 14 },
             // These show and switch Windows' own quick actions (QuickActions), hidden until Windows says the PC has them.
             new QuickTile(QuickTileKind.Vpn, "VPN", "") { Name = "VPN", HasSwitch = true, HasPage = true, IsShown = false, PageName = "Manage VPN connections" },
             new QuickTile(QuickTileKind.RotationLock, "Rotation lock", "") { Name = "Rotation lock", HasSwitch = true, IsShown = false },
             new QuickTile(QuickTileKind.EnergySaver, "Energy saver", "") { Name = "Energy saver", HasSwitch = true },
             new QuickTile(QuickTileKind.LiveCaptions, "Live captions", "") { Name = "Live captions", HasSwitch = true },
-            // Windows' night light icon is an animation, drawn smaller than its glyph and ending on a moon while it's on.
+            // Windows' night light icon ends on a moon with faint dots of the sun's rays while it's on (QuickTile.Rays).
             new QuickTile(QuickTileKind.NightLight, "Night light", "")
             {
-                Name = "Night light", HasSwitch = true, IsShown = false, OffGlyphSize = 14, OnGlyph = "", OnGlyphSize = 12,
+                Name = "Night light", HasSwitch = true, IsShown = false, OffGlyphSize = 14, OnGlyph = "", OnGlyphSize = 10,
             },
             new QuickTile(QuickTileKind.MobileHotspot, "Mobile hotspot", "") { Name = "Mobile hotspot", HasSwitch = true, IsShown = false },
-            new QuickTile(QuickTileKind.NearbySharing, "Nearby sharing", "") { Name = "Nearby sharing", HasSwitch = true, HasPage = true, IsShown = false },
-            new QuickTile(QuickTileKind.Cast, "Cast", "") { Name = "Cast", HasPage = true },
+            new QuickTile(QuickTileKind.NearbySharing, "Nearby sharing", "") { Name = "Nearby sharing", HasSwitch = true, HasPage = true, IsShown = false, OffGlyphSize = 14 },
+            new QuickTile(QuickTileKind.Cast, "Cast", "") { Name = "Cast", HasPage = true, OffGlyphSize = 14 },
             new QuickTile(QuickTileKind.Project, "Project", "") { Name = "Project", HasPage = true },
         ]);
 
@@ -292,23 +294,31 @@ internal sealed partial class QuickSettingsPanel : UserControl
         }
 
         int pages = QuickSettingsDisplay.PageCount(shown.Count);
-        PreviousTilesButton.Visibility = _tilePage > 0 ? Visibility.Visible : Visibility.Collapsed;
-        NextTilesButton.Visibility = _tilePage < pages - 1 ? Visibility.Visible : Visibility.Collapsed;
-        PageDots.Visibility = pages > 1 ? Visibility.Visible : Visibility.Collapsed;
+        TilePager.Visibility = pages > 1 ? Visibility.Visible : Visibility.Collapsed;
+        ShowPagerArrow(PreviousTilesButton, _tilePage > 0);
+        ShowPagerArrow(NextTilesButton, _tilePage < pages - 1);
         PageDots.Children.Clear();
         for (int i = 0; i < pages; i++)
         {
-            PageDots.Children.Add(new Ellipse
+            double size = i == _tilePage ? 6 : 4;
+            PageDots.Children.Add(new Grid
             {
-                Width = 5,
-                Height = 5,
-                Fill = (Brush)Application.Current.Resources["TextFillColorPrimaryBrush"],
-                Opacity = i == _tilePage ? 1 : 0.4,
+                Width = 12,
+                Height = 12,
+                Children = { new Ellipse { Width = size, Height = size, Style = (Style)Resources["PipStyle"] } },
             });
         }
 
         if (direction != 0)
             Slide(TileGrid, new Vector3(0, 40 * direction, 0));
+    }
+
+    // A hidden arrow keeps its place, as in Windows' pager, so the pips don't move when the page turns.
+    private static void ShowPagerArrow(Button arrow, bool shown)
+    {
+        arrow.Opacity = shown ? 1 : 0;
+        arrow.IsHitTestVisible = shown;
+        arrow.IsTabStop = shown;
     }
 
     private void Tiles_PointerWheelChanged(object sender, PointerRoutedEventArgs e)
@@ -413,6 +423,41 @@ internal sealed partial class QuickSettingsPanel : UserControl
             each.Visibility = each == page ? Visibility.Visible : Visibility.Collapsed;
         _page = page;
 
+        if (!animate)
+        {
+            RefreshPage(page);
+            return;
+        }
+
+        // Some of a page's state is slow to read (processes, Windows' Settings handlers): read after the page's first
+        // frame, or the flyout showed empty for 2-3 frames at its new size while it was read. Windows' page shows at once.
+        CompositionTarget.Rendering += RefreshAfterFrame;
+        void RefreshAfterFrame(object? sender, object e)
+        {
+            CompositionTarget.Rendering -= RefreshAfterFrame;
+            DispatcherQueue.TryEnqueue(DispatcherQueuePriority.Low, () =>
+            {
+                if (_isOpen && _page == page)
+                    RefreshPage(page);
+            });
+        }
+
+        // As Windows' (recorded at 60 fps): a page's header shows almost at once and its content rises into place as
+        // it fades in; going back, the tiles just fade in. Every page is its layer, header, content and footer.
+        if (forward && page is Grid { Children: [_, _, UIElement content, ..] })
+        {
+            FadeIn(page, TimeSpan.FromMilliseconds(80));
+            FadeIn(content, TimeSpan.FromMilliseconds(150));
+            Rise(content);
+        }
+        else
+        {
+            FadeIn(page, TimeSpan.FromMilliseconds(100));
+        }
+    }
+
+    private void RefreshPage(FrameworkElement page)
+    {
         if (page == MainPage || page == AccessibilityPage)
             RefreshAssistiveTools();
         else if (page == WifiPage)
@@ -424,22 +469,6 @@ internal sealed partial class QuickSettingsPanel : UserControl
         else if (page == CastPage)
             RefreshCast();
         Refresh();
-
-        if (!animate)
-            return;
-
-        // As Windows' (recorded at 60 fps): a page's header shows almost at once and its content rises into place as
-        // it fades in; going back, the tiles just fade in. Every page is header, content and footer.
-        if (forward && page is Grid { Children: [_, UIElement content, ..] })
-        {
-            FadeIn(page, TimeSpan.FromMilliseconds(80));
-            FadeIn(content, TimeSpan.FromMilliseconds(150));
-            Rise(content);
-        }
-        else
-        {
-            FadeIn(page, TimeSpan.FromMilliseconds(100));
-        }
     }
 
     private static void FadeIn(UIElement element, TimeSpan duration)

@@ -1845,12 +1845,43 @@ notification center 12 epx above it and as tall as its notifications need, up to
 ## Quick Settings (`QuickSettings/`)
 
 What Windows 11 opens from the network and volume icons (what earlier Windows called the action center).
-`QuickSettingsPanel` is the content of the primary taskbar's flyout, 360 effective pixels wide, laid out as
-Windows': tiles, the volume slider, and a footer with the battery (when there is one) and All settings
-(`ms-settings:`; shell mode Control Panel). Its state comes from `Indicators` and is only read while it's open.
-Like Windows', it takes the taskbar's colour: the flyout's popup window gets its own acrylic `ShellBackdrop` (the
-presenter is transparent), tinted with the accent colour and with the theme readable on it when "Show accent color
-on Start and taskbar" is on, and plain theme acrylic otherwise; it follows theme changes with the taskbar.
+`QuickSettingsPanel` is the content of the primary taskbar's flyout, 360 effective pixels wide with its 1-pixel
+border (`SurfaceStrokeColorDefaultBrush`, ControlCenter's `ControlCenterPanelBorderBrush`), laid out as Windows':
+tiles, the volume slider, and a footer with the battery (when there is one) and All settings (`ms-settings:`; shell
+mode Control Panel). Its state comes from `Indicators` and is only read while it's open.
+
+Windows' own layout and resources were read from ControlCenter's compiled XAML (T39b): the `.xbf` files are embedded
+in `SystemResources\Windows.UI.ControlCenter\Windows.UI.ControlCenter.pri` (`makepri dump /dt detailed` writes
+them out as base64), and XBF v2 was decoded with a small script: framework types and properties are "stable XBF"
+indexes (high bit set), mapped to names through `Windows.UI.Xaml.dll`'s `Parser::c_aStableXbfPropertyToKnownProperty`
+/ `c_aStableXbfTypeToKnownType` and `c_aPropertyNames` / `c_aTypeNameInfos` (found with cdb and its symbols). The
+WinUI 2 brushes they use come from `SystemApps\Microsoft.UI.Xaml.CBS_8wekyb3d8bbwe\resources.pri`
+(`21h1_themeresources.xbf`), the Bluetooth page's rows from `Windows.UI.ShellCommon.pri` (`DevicesFlowUI\*`).
+
+- **Colours** (ControlCenterPage, ControlCenterView): the panel is in-app acrylic, `ShellSurfaceBackgroundBrush` =
+  `AcrylicInAppFillColorBaseBrush` (#202020 at tint opacity 0.5 dark, #F3F3F3 at 0 light) or, while "Show accent
+  colour on Start and taskbar" is on (its `AccentAcrylic` state), `SystemControlAcrylicAccentElementBrush` =
+  `AccentAcrylicInAppFillColorBaseBrush` (the accent's Dark2 shade dark, its Light3 shade light, at 0.8). The
+  theme stays Windows' own: with the light theme and the accent on, the panel is a light accent with dark text
+  (the taskbar stays dark accent). The tiles and sliders lie on `ControlCenterOverlayBrush` =
+  `LayerOnAcrylicFillColorDefaultBrush` (#09FFFFFF dark, #40FFFFFF light); the footer doesn't, so it's darker in
+  dark and greyer in light, below a `CardStrokeColorDefaultBrush` rule (#19000000 / #0F000000); the tiles end in a
+  `DividerStrokeColorDefaultBrush` rule. Pages are the same: header and content on the overlay, the footer plain.
+- NeoShell's popup can't hold an in-app acrylic (WinUI 3 has no host-backdrop brush), so the flyout's
+  `DesktopAcrylicController` takes the brush's tint and tint opacity, and a luminosity opacity measured from
+  Windows' panel over black, grey and white test windows (how much of the desktop shows through): 0.96 dark, 0.9
+  light, 0.8 dark accent, 0.9 light accent (`QuickSettingsDisplay.Backdrop`). Measured over the three backgrounds
+  in all four combinations the base colours are within 1-3 levels of Windows'.
+- **Footer** (FooterGrid): 48 high, padding 8,0,4,0; All settings is a 40-square button (FooterIconButtonStyle)
+  6 in from the right (RightFooterTemplate's margin 2,3,6,3), its gear at 16.
+- **Volume** (VolumeSliderTemplate in PaginatedSliderGroupTemplate): 12 from the left, a 40-wide mute button, the
+  slider 4 in from either side, a 40-wide Sound output button (U+F4C3 at 16 and the chevron U+E974 at 12), 14 from
+  the right; the track ends line up with the slider's (measured to the pixel, the mute glyph 1 lower than the track's
+  centre as Windows' animated icon sits).
+- **Pager** (PaginatedGridView's PipsPager, `ControlCenterPipsPagerStyle`): 2 from the right, vertically centred in
+  the tiles' area; 20-high arrows (U+EDDB/U+EDDC at 8) around 12-high pips, 6 across while chosen and 4 otherwise,
+  all `ControlStrongFillColorDefaultBrush`; an arrow with nowhere to go is hidden but keeps its place, so the pips
+  don't move. Measured to the pixel against Windows'.
 
 ### Tiles
 
@@ -1858,7 +1889,8 @@ on Start and taskbar" is on, and plain theme acrylic otherwise; it follows theme
   arrows beside the page dots, sliding up or down. A tile is a toggle button, accent-filled while its feature is on,
   with its name below: a switch, a page (glyph and chevron), or both split in two halves (left switches, right opens
   the page). Tiles without hardware or support aren't shown, as in Windows. A split tile's two 48-wide halves touch:
-  their 1-pixel borders make Windows' 2-pixel divider, and the right half's chevron is 12 pixels (10 inline).
+  their 1-pixel borders make Windows' 2-pixel divider, and the right half's chevron is 12 pixels (10 inline, 7 from
+  the glyph). The three 96-wide tiles sit 23 in from either side of the panel's border, 12 apart.
 - Windows' order (its default layout, `HKCU\Control Panel\Quick Actions\Control Center\UserLayoutPaginated`: Wi-Fi,
   Bluetooth, Cellular, Studio effects, Airplane mode, Accessibility, VPN, Rotation lock, Battery/Energy saver, Live
   captions, Night light, Mobile devices, Mobile hotspot, Nearby sharing, Colour profile, Cast, Project; sliders
@@ -1951,11 +1983,17 @@ on Start and taskbar" is on, and plain theme acrylic otherwise; it follows theme
     `QuickActionStatus` and fills it while `QuickActionIsActive`, so on this VM it's "Wired display", on (a monitor on
     a cable counts); "Cast", off, otherwise. Its glyph is the registry's U+F117 (the screen with the waves at the
     bottom left).
-  - Glyphs: VPN U+E705, Rotation lock U+E755, Mobile hotspot U+E88A from the registry. ControlCenter draws several
-    tiles as animated icons (`QA_Nightlight`, `QA_NearbySharing`, `QA_VPN`, `QA_MobileHotspot`, `QA_AirplaneMode`:
-    AnimatedVisualSources whose last frame is what shows), which differ from the registry's glyphs: night light is the
-    sun-and-moon U+F08C drawn 14 pixels across (at FontSize 14) and, while on, a filled moon (U+F1DB at 12; Windows'
-    moon keeps faint dots of the sun's rays, which no glyph has); nearby sharing is the share glyph U+E72D, not U+F3E2.
+  - Glyphs: VPN U+E705, Rotation lock U+E755, Mobile hotspot U+E88A from the registry. ControlCenter draws every
+    tile's icon as an animated icon (ControlCenterResources' `AccessibilityIcon` = `QA_Accessibility`, `CastIcon` =
+    `QA_Cast`, `NightlightIcon` = `QA_Nightlight`, … `EnergySaverAcOnlyIcon` = `QS_24_EnergySaver`: Lottie
+    AnimatedVisualSources compiled into ControlCenter.dll, no font), whose resting frames differ from the registry's
+    glyphs in places: night light is the sun-and-moon U+F08C drawn 14 pixels across and, while on, a filled moon
+    (U+F1DB at 10) with faint dots of the sun's rays (seven 2-pixel dots at 40%, placed as measured); nearby sharing is
+    the share glyph U+E72D, not U+F3E2; Accessibility, Nearby sharing and Cast are 14 pixels, not 16 (measured
+    against U+E776/E72D/F117), Energy saver and Live captions 16. Recorded at 60 fps (T39b): on a toggle Windows'
+    icons mostly just change colour; night light's sun turns to the moon two frames after the press and the moon
+    stays about 100 ms after it's turned off; nearby sharing's arrow draws back into its box and out again (about
+    230 ms) as it turns on — NeoShell swaps glyphs and doesn't animate that arrow.
   - Compared side by side with Windows' own (ShellHost's Control Center, opened with Win+A: on this VM clicking
     Explorer's network button stopped opening it after Explorer was restarted, and restarting Explorer and ShellHost
     didn't help), with NeoShell alongside Explorer, at 100%, in dark and light with "Show accent color on Start and
@@ -1971,7 +2009,18 @@ footer with a link to Settings. As Windows' (recorded at 60 fps, VPN and Sound o
 flyout takes its height, the header shows almost at once (fading in over 80 ms) and the content below it rises 32
 pixels into place over 300 ms (cubic-bezier 0,0,0,1) while fading in over 150 ms; going back, the tiles fade in over
 100 ms where they are, without sliding. Windows' VPN and Cast pages are 400 high; NeoShell's VPN and Nearby sharing
-pages are at least that.
+pages are at least that. Every page's link to Settings is Windows' `L2FooterLinkTemplate`: 12-pixel text in
+`LinkForegroundBrush` (SystemBaseMediumColor), on the footer's plain colour below a `CardStrokeColorDefaultBrush` rule.
+
+Between the tiles and a page (T39b, Accessibility page at 60 fps): Windows' window takes the new size in one frame,
+for which its old content shows shifted (its frame lags the window), and crossfades old and new over 2-5 frames.
+NeoShell's popup did the same shifted frame, then jumped left of the widget sidebar: WinUI places a windowed popup
+inside the monitor's work area afresh whenever its size changes (and the sidebar's app bar is out of the work area),
+dropping the popup offset that had put it over the sidebar. `PopupWindows.KeepRight` now holds the window's right
+edge against WinUI's moves while the flyout is open, and `TaskbarFlyouts` tells WinUI by the popup's offset again
+after each size change, so UI Automation and tooltips agree. The page's slow state (assistive apps' processes,
+Settings handlers) is read only after its first frame, which had left the flyout empty for 2-3 frames at its new size.
+Still differs: NeoShell cuts between old and new content rather than crossfading.
 
 - **Wi-Fi**: a switch for the radio, a refresh button, and the networks in range (`WifiNetworks`, WinRT
   `WiFiAdapter`): one entry per name at its strongest, the connected one first, then by signal (unit tested), each
@@ -2018,8 +2067,17 @@ pages are at least that.
     ERROR_SET_NOT_FOUND (0x80070492) as a non-Bluetooth filter should; `BluetoothDisconnectDevice` without a radio
     returns ERROR_NOT_FOUND; with fake devices put in the list for the test, rows, battery, the opened row's
     Disconnect, "Couldn't connect." and "Couldn't disconnect." showed in both run modes. Windows' own page can't be
-    shown here (no Bluetooth tile without a radio), so its layout wasn't compared: the battery's glyph and place,
-    the Disconnect button's style (accent, as NeoShell's VPN page) and the row spacing are NeoShell's guesses.
+    shown here (no Bluetooth tile without a radio).
+  - Its rows as Windows' draws them (T39b, read from DevicesFlowUI's repainted templates in Windows.UI.ShellCommon.pri,
+    as the page can't be shown): `ProjectInterfaceDeviceTile` is a grid of a 36-wide glyph column (Segoe Fluent Icons
+    16, padding 0,15,12,0), the name (Body, 11 from the top, 20 kept clear at its right) over the status
+    (`DeviceStatusTextStyle`: 12, secondary), and the battery at the right, vertically centred: the percentage (12,
+    secondary) then the battery glyph (Segoe Fluent Icons 16, secondary); the row is at least 60 high, in a standard
+    ListViewItem. The glyph is DevicesFlowUI's `BatteryStatusToGlyphConverter` (read in its code with cdb): U+ECB9 up
+    to 4%, U+ECBA to 22, U+ECBB to 40, U+ECBC to 58, U+ECBD to 76, U+ECBE to 94, U+ECBF to 100, none above (unit
+    tested). A chosen connected audio device opens below the row with `BluetoothDisconnectDeviceView`: a plain
+    (not accent) button, at least 148 wide (`ButtonMinWidth`), right-aligned, 16 above the row's end (the repainted
+    `ButtonMargin`). NeoShell's rows follow this; checked with fake devices only.
 - **Accessibility**, by need as Windows': Vision (Magnifier, Narrator, Colour filters), Hearing (Live captions, Mono
   audio), Motor and Mobility (Voice access, Sticky keys). Each row: glyph, name, description, its state in words and
   a switch. Magnifier, Narrator, Live captions and Voice access are apps of their own: on while their executable runs

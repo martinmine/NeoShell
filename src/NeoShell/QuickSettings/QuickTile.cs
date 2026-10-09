@@ -37,6 +37,9 @@ internal sealed class QuickTile(QuickTileKind kind, string label, string glyph) 
     /// <summary>Some of Windows' animated icons are drawn smaller than its glyphs (night light's).</summary>
     public double OffGlyphSize { get; init; } = 16;
 
+    /// <summary>Night light's moon keeps faint dots of the sun's rays while it's on, as Windows' animation ends.</summary>
+    public Visibility RaysVisibility => IsOn && Kind == QuickTileKind.NightLight ? Visibility.Visible : Visibility.Collapsed;
+
     /// <summary>The feature's name, or what it's connected to (the Wi-Fi network's name).</summary>
     public string Label { get => _label; set => Set(ref _label, value); }
 
@@ -81,6 +84,7 @@ internal sealed class QuickTile(QuickTileKind kind, string label, string glyph) 
             {
                 PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Glyph)));
                 PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(GlyphSize)));
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(RaysVisibility)));
             }
         }
     }

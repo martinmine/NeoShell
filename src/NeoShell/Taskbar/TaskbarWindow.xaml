@@ -778,6 +778,8 @@
                                     <Setter Property="Padding" Value="0" />
                                     <Setter Property="MaxWidth" Value="400" />
                                     <Setter Property="MaxHeight" Value="800" />
+                                    <!-- Windows' panel border (ControlCenterPanelBorderBrush). -->
+                                    <Setter Property="BorderBrush" Value="{ThemeResource SurfaceStrokeColorDefaultBrush}" />
                                     <!-- The flyout's own backdrop shows through (SetTheme). -->
                                     <Setter Property="Background" Value="Transparent" />
                                 </Style>

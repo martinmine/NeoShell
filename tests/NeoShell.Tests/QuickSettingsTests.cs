@@ -114,6 +114,22 @@ public sealed class QuickSettingsTests
         Assert.Null(QuickSettingsDisplay.BluetoothBattery(buds with { Battery = null }));
     }
 
+    [Theory]
+    [InlineData(0, 0xECB9)]
+    [InlineData(4, 0xECB9)]
+    [InlineData(5, 0xECBA)]
+    [InlineData(40, 0xECBB)]
+    [InlineData(41, 0xECBC)]
+    [InlineData(76, 0xECBD)]
+    [InlineData(94, 0xECBE)]
+    [InlineData(95, 0xECBF)]
+    [InlineData(100, 0xECBF)]
+    public void Bluetooth_battery_glyph_steps_as_Windows(int percent, int glyph)
+    {
+        Assert.Equal(((char)glyph).ToString(), QuickSettingsDisplay.BluetoothBatteryGlyph(percent));
+        Assert.Equal("", QuickSettingsDisplay.BluetoothBatteryGlyph(101));
+    }
+
     [Fact]
     public void Choosing_an_audio_device_connects_it_or_offers_to_disconnect_and_other_devices_only_list()
     {

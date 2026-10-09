@@ -174,7 +174,7 @@ internal sealed class BluetoothItem(PairedDevice device) : Observable
 
     public string DeviceBatteryText => QuickSettingsDisplay.BluetoothBattery(Device) ?? "";
 
-    public string DeviceBatteryGlyph => QuickSettingsDisplay.BatteryGlyph(new BatteryState(Device.Battery ?? 0, false));
+    public string DeviceBatteryGlyph => QuickSettingsDisplay.BluetoothBatteryGlyph(Device.Battery ?? 0);
 
     public Visibility DeviceBatteryVisibility => QuickSettingsDisplay.BluetoothBattery(Device) is null ? Visibility.Collapsed : Visibility.Visible;
 

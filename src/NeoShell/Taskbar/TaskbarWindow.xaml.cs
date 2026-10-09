@@ -474,8 +474,11 @@ internal sealed partial class TaskbarWindow : Window
         _backdrop.Tint = accent;
         // Quick Settings and the hidden tray icons take the taskbar's colour, as Windows' do; their popup windows get a
         // backdrop of their own, acrylic whatever the taskbar's, as Windows' always is.
-        QuickSettings.RequestedTheme = Root.RequestedTheme;
-        QuickSettingsFlyout.SystemBackdrop = new ShellBackdrop(Backdrop.Acrylic) { Theme = Root.RequestedTheme, Tint = accent };
+        // Quick Settings keeps Windows' theme even on the accent: its panel takes a light shade of it in the light theme.
+        Color? panelAccent = accent is null || theme != ElementTheme.Light ? accent : SystemTheme.ReadAccent(SystemTheme.Light3);
+        (Color panelTint, (float, float) panelOpacities) = QuickSettingsDisplay.Backdrop(theme, panelAccent);
+        QuickSettings.RequestedTheme = theme;
+        QuickSettingsFlyout.SystemBackdrop = new ShellBackdrop(Backdrop.Acrylic) { Theme = theme, Tint = panelTint, TintOpacities = panelOpacities };
         InputSwitcher.RequestedTheme = Root.RequestedTheme;
         InputFlyout.SystemBackdrop = new ShellBackdrop(Backdrop.Acrylic) { Theme = Root.RequestedTheme, Tint = accent };
         OverflowIcons.RequestedTheme = Root.RequestedTheme;

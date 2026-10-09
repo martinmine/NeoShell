@@ -524,8 +524,8 @@ Found while working on milestone 19, not done yet.
 - [ ] T39 Explorer parity polish, existing differences noticed by the agents:
   - Flyouts don't close when another app is clicked; the Quick Settings button isn't highlighted while it's open; the
     Quick Settings footer's shading is reversed (T8) — flyouts and highlight fixed (T39a): every taskbar flyout and
-    menu takes the foreground as Explorer's and closes when it loses it (Win+A and Win+N too); still open: the
-    footer's shading
+    menu takes the foreground as Explorer's and closes when it loses it (Win+A and Win+N too); the footer's shading
+    fixed (T39b)
   - The first opening of a flyout shows for a frame before it's hidden (T40) — not reproduced (T39a): 60 fps
     recordings of the first Quick Settings, jump list and network menu after a start slide in cleanly
   - Task button menu narrower than Explorer's; its launch item shows a generic glyph, not the app's icon (T10) — fixed
@@ -550,7 +550,15 @@ Found while working on milestone 19, not done yet.
   - Win+arrow moves jump; Explorer slides them over about 250 ms (T28)
   - Quick Settings: night light's moon keeps faint sun rays; a 2-3 frame resize between pages; with the light theme
     and accent on Windows' panel is light-accent; footer colour, slider and page-dot spacing; the panel sits 1 px left
-    (T32). The Bluetooth page's battery glyph, Disconnect button and row spacing weren't compared (T33)
+    (T32). The Bluetooth page's battery glyph, Disconnect button and row spacing weren't compared (T33) — fixed (T39b),
+    from ControlCenter's and DevicesFlowUI's own XAML (decoded from their PRIs): Windows' panel and page colours in
+    all four theme/accent combinations (in-app acrylic matched over black, grey and white to 1-3 levels; the light
+    accent panel), the footer plain below its rule and the tiles on the lighter layer, 360 wide with the border, the
+    volume row, pager, gear and page links to the pixel, the tile icons' sizes and night light's moon with its faint
+    rays, the Bluetooth rows, battery glyph and plain Disconnect; the page transition no longer jumps left of the
+    widget sidebar nor shows empty frames. Still differs: Windows crossfades old and new content between pages
+    (NeoShell cuts), animates nearby sharing's arrow on turning on; the night light moon's swap timing; not run live:
+    the Bluetooth page (no radio; checked with fake devices)
   - Snap Assist's cards fade in after 170 ms; Explorer's fly in from the windows after about 450 ms (T27)
   - The auto-hidden taskbar's 2 px edge can't be reached under a topmost maximized window; a maximized window's border
     covers the sidebar's resize grip (T3)

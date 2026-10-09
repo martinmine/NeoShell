@@ -1,7 +1,9 @@
+using Microsoft.UI.Xaml;
 using NeoShell.Interop.Bluetooth;
 using NeoShell.Interop.Display;
 using NeoShell.Interop.Network;
 using NeoShell.Interop.Power;
+using Windows.UI;
 
 namespace NeoShell.QuickSettings;
 
@@ -15,6 +17,22 @@ public static class QuickSettingsDisplay
 
     /// <summary>The page to show after the tiles changed: the same one, or the last if it's gone.</summary>
     public static int ClampPage(int page, int tiles) => Math.Clamp(page, 0, PageCount(tiles) - 1);
+
+    /// <summary>
+    /// The panel's acrylic: Windows' in-app acrylic (ControlCenter's ShellSurfaceBackgroundBrush, #202020 or #F3F3F3)
+    /// or, with the accent colour shown on Start and taskbar, its accent acrylic (SystemControlAcrylicAccentElementBrush,
+    /// the accent's Dark2 shade, or Light3 in the light theme). The tint's opacity is the brushes' own; how much of the
+    /// desktop shows through (the luminosity's opacity) was measured over black, grey and white.
+    /// </summary>
+    /// <param name="accent">The accent shade to tint with, or null when the accent colour isn't shown.</param>
+    public static (Color Tint, (float Tint, float Luminosity) Opacities) Backdrop(ElementTheme theme, Color? accent) =>
+        (theme == ElementTheme.Light, accent) switch
+        {
+            (false, null) => (Color.FromArgb(255, 0x20, 0x20, 0x20), (0.5f, 0.96f)),
+            (true, null) => (Color.FromArgb(255, 0xF3, 0xF3, 0xF3), (0f, 0.9f)),
+            (false, { } color) => (color, (0.8f, 0.8f)),
+            (true, { } color) => (color, (0.8f, 0.9f)),
+        };
 
     /// <summary>Wi-Fi signal in 0 to 4 bars.</summary>
     public static string WifiGlyph(int bars) => bars switch
@@ -67,6 +85,22 @@ public static class QuickSettingsDisplay
     /// <summary>The battery level beside the status, while the device is connected and reports one.</summary>
     public static string? BluetoothBattery(PairedDevice device) =>
         device.IsConnected && device.Battery is int level ? $"{level}%" : null;
+
+    /// <summary>
+    /// A device's battery glyph, as Windows' Bluetooth page draws it (DevicesFlowUI's BatteryStatusToGlyphConverter):
+    /// seven steps from U+ECB9 (0-4%) to U+ECBF (95-100%), none past 100.
+    /// </summary>
+    public static string BluetoothBatteryGlyph(int percent) => percent switch
+    {
+        > 100 => "",
+        <= 4 => "",
+        <= 22 => "",
+        <= 40 => "",
+        <= 58 => "",
+        <= 76 => "",
+        <= 94 => "",
+        _ => "",
+    };
 
     /// <summary>
     /// What choosing a device does, as in Windows: a paired audio device connects straight away, a connected one opens

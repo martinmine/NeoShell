@@ -38,20 +38,33 @@
                 <Setter Property="Margin" Value="4,8,0,8" />
             </Style>
 
-            <!-- The bar at the bottom of a page, with its link to Settings: 48 high, as Windows'. -->
+            <!-- A page's header and content lie on a lighter layer, as the tiles do; its footer doesn't. -->
+            <Style x:Key="PageLayerStyle" TargetType="Border">
+                <Setter Property="Grid.RowSpan" Value="2" />
+                <Setter Property="Background" Value="{ThemeResource LayerOnAcrylicFillColorDefaultBrush}" />
+            </Style>
+
+            <!-- The bar at the bottom of a page, with its link to Settings: 48 high below a darker rule, as Windows'. -->
             <Style x:Key="PageFooterStyle" TargetType="Border">
                 <Setter Property="Height" Value="48" />
                 <Setter Property="Padding" Value="8,0" />
-                <Setter Property="Background" Value="{ThemeResource LayerOnAcrylicFillColorDefaultBrush}" />
-                <Setter Property="BorderBrush" Value="{ThemeResource DividerStrokeColorDefaultBrush}" />
+                <Setter Property="BorderBrush" Value="{ThemeResource CardStrokeColorDefaultBrush}" />
                 <Setter Property="BorderThickness" Value="0,1,0,0" />
             </Style>
 
+            <!-- A page's link to Settings: 12-pixel text in Windows' link colour (L2FooterLinkTemplate, LinkButtonStyle). -->
             <Style x:Key="FooterLinkStyle" TargetType="Button">
                 <Setter Property="VerticalAlignment" Value="Center" />
                 <Setter Property="Padding" Value="8,6" />
+                <Setter Property="FontSize" Value="12" />
+                <Setter Property="Foreground" Value="{ThemeResource SystemControlForegroundBaseMediumBrush}" />
                 <Setter Property="Background" Value="Transparent" />
                 <Setter Property="BorderThickness" Value="0" />
+            </Style>
+
+            <!-- A pip of the tiles' pager. -->
+            <Style x:Key="PipStyle" TargetType="Ellipse">
+                <Setter Property="Fill" Value="{ThemeResource ControlStrongFillColorDefaultBrush}" />
             </Style>
 
             <Style x:Key="SecondaryTextStyle" TargetType="TextBlock" BasedOn="{StaticResource CaptionTextBlockStyle}">
@@ -86,7 +99,8 @@
         </ResourceDictionary>
     </UserControl.Resources>
 
-    <Grid Width="360">
+    <!-- 358 inside the flyout's 1-pixel border: Windows' panel is 360 wide, its border included. -->
+    <Grid Width="358">
         <!-- Tiles, volume and footer. -->
         <Grid x:Name="MainPage">
             <Grid.RowDefinitions>
@@ -95,12 +109,16 @@
                 <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
 
-            <!-- Three tiles of 96 with gaps of 12 from the left edge's 24; the page dots sit in the right margin. -->
+            <!-- Windows lays the tiles and sliders on a lighter layer and leaves the footer the panel's own colour
+                 (ControlCenterView's ControlCenterOverlayBrush). -->
+            <Border Grid.RowSpan="2" Background="{ThemeResource LayerOnAcrylicFillColorDefaultBrush}" />
+
+            <!-- Three tiles of 96 with gaps of 12 from the left edge's 23; the page dots sit in the right margin. -->
             <Grid Height="212" Background="Transparent" PointerWheelChanged="Tiles_PointerWheelChanged">
                 <ItemsControl
                     x:Name="TileGrid"
                     Width="324"
-                    Margin="24,22,0,0"
+                    Margin="23,22,0,0"
                     HorizontalAlignment="Left"
                     VerticalAlignment="Top"
                     IsTabStop="False"
@@ -129,8 +147,26 @@
                                         IsEnabled="{x:Bind IsAvailable, Mode=OneWay}"
                                         IsChecked="{x:Bind IsOn, Mode=OneWay}"
                                         Click="Tile_Click">
-                                        <StackPanel Orientation="Horizontal" Spacing="8">
-                                            <FontIcon Glyph="{x:Bind Glyph, Mode=OneWay}" FontSize="{x:Bind GlyphSize, Mode=OneWay}" />
+                                        <StackPanel Orientation="Horizontal" Spacing="7">
+                                            <Grid>
+                                                <FontIcon Glyph="{x:Bind Glyph, Mode=OneWay}" FontSize="{x:Bind GlyphSize, Mode=OneWay}" />
+                                                <!-- What's left of the sun's rays around night light's moon, where Windows' animation ends. -->
+                                                <Canvas
+                                                    Width="0"
+                                                    Height="0"
+                                                    HorizontalAlignment="Center"
+                                                    VerticalAlignment="Center"
+                                                    Opacity="0.4"
+                                                    Visibility="{x:Bind RaysVisibility, Mode=OneWay}">
+                                                    <FontIcon Canvas.Left="3.5" Canvas.Top="-7" FontSize="2" Glyph="&#xE91F;" />
+                                                    <FontIcon Canvas.Left="-6.5" Canvas.Top="-6" FontSize="2" Glyph="&#xE91F;" />
+                                                    <FontIcon Canvas.Left="-4" Canvas.Top="-3" FontSize="2" Glyph="&#xE91F;" />
+                                                    <FontIcon Canvas.Left="-4" Canvas.Top="1" FontSize="2" Glyph="&#xE91F;" />
+                                                    <FontIcon Canvas.Left="-8" Canvas.Top="2" FontSize="2" Glyph="&#xE91F;" />
+                                                    <FontIcon Canvas.Left="5" Canvas.Top="2" FontSize="2" Glyph="&#xE91F;" />
+                                                    <FontIcon Canvas.Left="0.5" Canvas.Top="6" FontSize="2" Glyph="&#xE91F;" />
+                                                </Canvas>
+                                            </Grid>
                                             <FontIcon Glyph="&#xE76C;" FontSize="10" Visibility="{x:Bind InlineChevronVisibility, Mode=OneWay}" />
                                         </StackPanel>
                                     </ToggleButton>
@@ -158,8 +194,10 @@
                     </ItemsControl.ItemTemplate>
                 </ItemsControl>
 
-                <!-- Which page of tiles is shown; the arrows turn them, as the mouse wheel does. -->
-                <StackPanel Width="20" Margin="0,0,6,0" VerticalAlignment="Center" HorizontalAlignment="Right" Spacing="4">
+                <!-- Which page of tiles is shown, as Windows' PipsPager: 12-high pips (6 across while chosen, else 4)
+                     between 20-high arrows, which keep their place while hidden; the arrows turn the pages, as the
+                     mouse wheel does. -->
+                <StackPanel x:Name="TilePager" Width="20" Margin="0,0,2,0" VerticalAlignment="Center" HorizontalAlignment="Right">
                     <Button
                         x:Name="PreviousTilesButton"
                         AutomationProperties.AutomationId="PreviousTilesButton"
@@ -169,9 +207,9 @@
                         Height="20"
                         Margin="0"
                         Click="PreviousTiles_Click">
-                        <FontIcon Glyph="&#xEDDB;" FontSize="8" />
+                        <FontIcon Glyph="&#xEDDB;" FontSize="8" Foreground="{ThemeResource ControlStrongFillColorDefaultBrush}" />
                     </Button>
-                    <StackPanel x:Name="PageDots" HorizontalAlignment="Center" Spacing="6" />
+                    <StackPanel x:Name="PageDots" HorizontalAlignment="Center" />
                     <Button
                         x:Name="NextTilesButton"
                         AutomationProperties.AutomationId="NextTilesButton"
@@ -181,16 +219,17 @@
                         Height="20"
                         Margin="0"
                         Click="NextTiles_Click">
-                        <FontIcon Glyph="&#xEDDC;" FontSize="8" />
+                        <FontIcon Glyph="&#xEDDC;" FontSize="8" Foreground="{ThemeResource ControlStrongFillColorDefaultBrush}" />
                     </Button>
                 </StackPanel>
             </Grid>
 
-            <!-- The sliders: brightness (where the screen's can be set) over volume, the two slider tracks lined up. -->
+            <!-- The sliders: brightness (where the screen's can be set) over volume, the two slider tracks lined up. As
+                 Windows' (ControlCenter's VolumeSliderTemplate): a 40-wide button, the slider 4 in from either side,
+                 a 40-wide button, 12 from the left and 14 from the right. -->
             <Grid
                 Grid.Row="1"
-                Padding="12,16"
-                ColumnSpacing="4"
+                Padding="12,17,14,15"
                 BorderBrush="{ThemeResource DividerStrokeColorDefaultBrush}"
                 BorderThickness="0,1,0,0">
                 <Grid.ColumnDefinitions>
@@ -206,7 +245,7 @@
                     x:Name="BrightnessIcon"
                     Width="40"
                     Height="40"
-                    Margin="2,0,2,8"
+                    Margin="0,0,0,8"
                     FontSize="16"
                     Glyph="&#xE706;"
                     Visibility="Collapsed" />
@@ -227,6 +266,8 @@
                     Grid.Row="1"
                     AutomationProperties.AutomationId="MuteButton"
                     Style="{StaticResource FlatButtonStyle}"
+                    Margin="0"
+                    Padding="0,2,0,0"
                     Click="Mute_Click">
                     <FontIcon x:Name="MuteIcon" FontSize="16" />
                 </Button>
@@ -249,25 +290,26 @@
                     AutomationProperties.Name="Select a sound output"
                     ToolTipService.ToolTip="Select a sound output"
                     Style="{StaticResource FlatButtonStyle}"
-                    Width="Auto"
-                    Padding="8,0"
+                    Margin="0"
+                    Padding="0,2,0,0"
                     Click="SoundOutputButton_Click">
-                    <StackPanel Orientation="Horizontal" Spacing="6">
+                    <StackPanel Orientation="Horizontal">
                         <FontIcon Glyph="&#xF4C3;" FontSize="16" />
-                        <FontIcon Glyph="&#xE76C;" FontSize="10" />
+                        <FontIcon Glyph="&#xE974;" FontSize="12" />
                     </StackPanel>
                 </Button>
             </Grid>
 
+            <!-- The footer, on the panel's own colour below a darker rule, as Windows' (ControlCenterView's FooterGrid). -->
             <Grid
                 Grid.Row="2"
                 Height="48"
-                Padding="12,0,8,0"
-                Background="{ThemeResource LayerOnAcrylicFillColorDefaultBrush}"
-                BorderBrush="{ThemeResource DividerStrokeColorDefaultBrush}"
+                Padding="8,0,4,0"
+                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
                 BorderThickness="0,1,0,0">
                 <StackPanel
                     x:Name="BatteryInfo"
+                    Margin="4,0,0,0"
                     Orientation="Horizontal"
                     Spacing="8"
                     VerticalAlignment="Center"
@@ -282,10 +324,10 @@
                     AutomationProperties.Name="All settings"
                     ToolTipService.ToolTip="All settings"
                     Style="{StaticResource FlatButtonStyle}"
-                    Width="32"
-                    Height="32"
+                    Margin="0,3,6,0"
+                    VerticalAlignment="Top"
                     Click="AllSettings_Click">
-                    <FontIcon Glyph="&#xE713;" FontSize="14" />
+                    <FontIcon Glyph="&#xE713;" FontSize="16" />
                 </Button>
             </Grid>
         </Grid>
@@ -297,6 +339,7 @@
                 <RowDefinition />
                 <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
+            <Border Style="{StaticResource PageLayerStyle}" />
             <StackPanel Padding="8,8,12,4" Orientation="Horizontal" Spacing="8">
                 <Button AutomationProperties.AutomationId="SoundOutputBackButton" Style="{StaticResource BackButtonStyle}" Click="Back_Click">
                     <FontIcon Glyph="&#xE72B;" FontSize="14" />
@@ -413,6 +456,7 @@
                 <RowDefinition />
                 <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
+            <Border Style="{StaticResource PageLayerStyle}" />
             <Grid Padding="8,8,12,4" ColumnSpacing="8">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" />
@@ -527,6 +571,7 @@
                 <RowDefinition />
                 <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
+            <Border Style="{StaticResource PageLayerStyle}" />
             <Grid Padding="8,8,12,4" ColumnSpacing="8">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" />
@@ -558,44 +603,80 @@
                     AutomationProperties.Name="Paired devices">
                     <ListView.ItemTemplate>
                         <DataTemplate x:DataType="local:BluetoothItem">
-                            <StackPanel Padding="0,8" Spacing="8" AutomationProperties.Name="{x:Bind Name}">
-                                <Grid ColumnSpacing="12">
+                            <!-- As Windows' (DevicesFlowUI's repainted device tile and BluetoothDisconnectDeviceView): a
+                                 36-wide glyph column, the name 11 and the glyph 15 from the top of a row at least 60
+                                 high, the battery's percentage and glyph at the right; a connected audio device, chosen,
+                                 opens with a plain Disconnect button, at least 148 wide, 16 above the row's end. -->
+                            <StackPanel AutomationProperties.Name="{x:Bind Name}">
+                                <Grid MinHeight="60">
                                     <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="36" />
                                         <ColumnDefinition />
+                                        <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
-                                    <FontIcon Glyph="{x:Bind Glyph}" FontSize="16" VerticalAlignment="Top" Margin="0,2,0,0" />
-                                    <StackPanel Grid.Column="1">
-                                        <TextBlock Text="{x:Bind Name}" TextTrimming="CharacterEllipsis" />
-                                        <StackPanel Orientation="Horizontal" Spacing="8">
-                                            <TextBlock
-                                                AutomationProperties.AutomationId="BluetoothDeviceStatus"
-                                                Style="{StaticResource SecondaryTextStyle}"
-                                                Text="{x:Bind Status, Mode=OneWay}" />
-                                            <!-- The battery, as Windows shows it for devices that report one. -->
-                                            <StackPanel Orientation="Horizontal" Spacing="4" Visibility="{x:Bind DeviceBatteryVisibility, Mode=OneWay}">
-                                                <FontIcon
-                                                    Glyph="{x:Bind DeviceBatteryGlyph, Mode=OneWay}"
-                                                    FontSize="12"
-                                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                                                <TextBlock
-                                                    AutomationProperties.AutomationId="BluetoothDeviceBattery"
-                                                    Style="{StaticResource SecondaryTextStyle}"
-                                                    Text="{x:Bind DeviceBatteryText, Mode=OneWay}" />
-                                            </StackPanel>
-                                        </StackPanel>
+                                    <TextBlock
+                                        Padding="0,15,12,0"
+                                        FontFamily="{ThemeResource SymbolThemeFontFamily}"
+                                        FontSize="16"
+                                        Text="{x:Bind Glyph}" />
+                                    <StackPanel Grid.Column="1" Margin="0,11,0,0">
+                                        <TextBlock Margin="0,0,20,0" Text="{x:Bind Name}" TextTrimming="CharacterEllipsis" />
+                                        <TextBlock
+                                            AutomationProperties.AutomationId="BluetoothDeviceStatus"
+                                            Style="{StaticResource SecondaryTextStyle}"
+                                            Text="{x:Bind Status, Mode=OneWay}" />
+                                    </StackPanel>
+                                    <StackPanel
+                                        Grid.Column="2"
+                                        Orientation="Horizontal"
+                                        VerticalAlignment="Center"
+                                        Visibility="{x:Bind DeviceBatteryVisibility, Mode=OneWay}">
+                                        <TextBlock
+                                            AutomationProperties.AutomationId="BluetoothDeviceBattery"
+                                            VerticalAlignment="Center"
+                                            Style="{StaticResource SecondaryTextStyle}"
+                                            Text="{x:Bind DeviceBatteryText, Mode=OneWay}" />
+                                        <TextBlock
+                                            VerticalAlignment="Center"
+                                            FontFamily="{ThemeResource SymbolThemeFontFamily}"
+                                            FontSize="16"
+                                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                            Text="{x:Bind DeviceBatteryGlyph, Mode=OneWay}" />
                                     </StackPanel>
                                 </Grid>
-                                <!-- A connected audio device, chosen: disconnect it. -->
                                 <Button
                                     MinWidth="148"
+                                    Margin="0,0,0,16"
                                     HorizontalAlignment="Right"
                                     AutomationProperties.AutomationId="BluetoothDisconnectButton"
-                                    Style="{StaticResource AccentButtonStyle}"
                                     Content="Disconnect"
                                     IsEnabled="{x:Bind IsIdle, Mode=OneWay}"
                                     Visibility="{x:Bind DisconnectVisibility, Mode=OneWay}"
-                                    Click="BluetoothDisconnect_Click" />
+                                    Click="BluetoothDisconnect_Click">
+                                    <!-- A standard button, not the panel's flat ones (FlatButtons.xaml). -->
+                                    <Button.Resources>
+                                        <ResourceDictionary>
+                                            <ResourceDictionary.ThemeDictionaries>
+                                                <ResourceDictionary x:Key="Default">
+                                                    <StaticResource x:Key="ButtonBackground" ResourceKey="ControlFillColorDefaultBrush" />
+                                                    <StaticResource x:Key="ButtonBackgroundPointerOver" ResourceKey="ControlFillColorSecondaryBrush" />
+                                                    <StaticResource x:Key="ButtonBackgroundPressed" ResourceKey="ControlFillColorTertiaryBrush" />
+                                                    <StaticResource x:Key="ButtonBorderBrush" ResourceKey="ControlElevationBorderBrush" />
+                                                    <StaticResource x:Key="ButtonBorderBrushPointerOver" ResourceKey="ControlElevationBorderBrush" />
+                                                    <StaticResource x:Key="ButtonBorderBrushPressed" ResourceKey="ControlStrokeColorDefaultBrush" />
+                                                </ResourceDictionary>
+                                                <ResourceDictionary x:Key="Light">
+                                                    <StaticResource x:Key="ButtonBackground" ResourceKey="ControlFillColorDefaultBrush" />
+                                                    <StaticResource x:Key="ButtonBackgroundPointerOver" ResourceKey="ControlFillColorSecondaryBrush" />
+                                                    <StaticResource x:Key="ButtonBackgroundPressed" ResourceKey="ControlFillColorTertiaryBrush" />
+                                                    <StaticResource x:Key="ButtonBorderBrush" ResourceKey="ControlElevationBorderBrush" />
+                                                    <StaticResource x:Key="ButtonBorderBrushPointerOver" ResourceKey="ControlElevationBorderBrush" />
+                                                    <StaticResource x:Key="ButtonBorderBrushPressed" ResourceKey="ControlStrokeColorDefaultBrush" />
+                                                </ResourceDictionary>
+                                            </ResourceDictionary.ThemeDictionaries>
+                                        </ResourceDictionary>
+                                    </Button.Resources>
+                                </Button>
                             </StackPanel>
                         </DataTemplate>
                     </ListView.ItemTemplate>
@@ -625,6 +706,7 @@
                 <RowDefinition />
                 <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
+            <Border Style="{StaticResource PageLayerStyle}" />
             <StackPanel Padding="8,8,12,4" Orientation="Horizontal" Spacing="8">
                 <Button AutomationProperties.AutomationId="AccessibilityBackButton" Style="{StaticResource BackButtonStyle}" Click="Back_Click">
                     <FontIcon Glyph="&#xE72B;" FontSize="14" />
@@ -657,6 +739,7 @@
                 <RowDefinition />
                 <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
+            <Border Style="{StaticResource PageLayerStyle}" />
             <StackPanel Padding="8,8,12,4" Orientation="Horizontal" Spacing="8">
                 <Button AutomationProperties.AutomationId="CastBackButton" Style="{StaticResource BackButtonStyle}" Click="Back_Click">
                     <FontIcon Glyph="&#xE72B;" FontSize="14" />
@@ -691,6 +774,7 @@
                 <RowDefinition />
                 <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
+            <Border Style="{StaticResource PageLayerStyle}" />
             <StackPanel Padding="8,8,12,4" Orientation="Horizontal" Spacing="8">
                 <Button AutomationProperties.AutomationId="ProjectBackButton" Style="{StaticResource BackButtonStyle}" Click="Back_Click">
                     <FontIcon Glyph="&#xE72B;" FontSize="14" />
@@ -723,6 +807,7 @@
                 <RowDefinition />
                 <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
+            <Border Style="{StaticResource PageLayerStyle}" />
             <StackPanel Padding="8,8,12,4" Orientation="Horizontal" Spacing="8">
                 <Button AutomationProperties.AutomationId="VpnBackButton" Style="{StaticResource BackButtonStyle}" Click="Back_Click">
                     <FontIcon Glyph="&#xE72B;" FontSize="14" />
@@ -780,12 +865,9 @@
                     Visibility="Collapsed" />
             </Grid>
             <Border Grid.Row="2" Style="{StaticResource PageFooterStyle}">
-                <!-- Smaller and dimmer than the other pages' links, as Windows'. -->
                 <Button
                     AutomationProperties.AutomationId="MoreVpnSettingsButton"
                     Style="{StaticResource FooterLinkStyle}"
-                    FontSize="12"
-                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                     Content="More VPN settings"
                     Click="VpnSettings_Click" />
             </Border>
@@ -798,6 +880,7 @@
                 <RowDefinition />
                 <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
+            <Border Style="{StaticResource PageLayerStyle}" />
             <Grid Padding="8,8,12,4" ColumnSpacing="8">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" />

@@ -17,6 +17,9 @@ public static unsafe class PopupWindows
     private static readonly Dictionary<nint, WindowSubclass> s_concealed = [];
     // Where concealed popups are partly shown (sliding), held there against WinUI's moves until shown in full.
     private static readonly Dictionary<nint, int> s_held = [];
+    // Where popups' right edges are held (KeepRight), and the subclasses holding them.
+    private static readonly Dictionary<nint, int> s_rights = [];
+    private static readonly Dictionary<nint, WindowSubclass> s_rightSubclasses = [];
     // Set while Place moves a popup: an offset or a hold only applies to the moves WinUI makes.
     private static bool s_placing;
 
@@ -127,6 +130,48 @@ public static unsafe class PopupWindows
                 s_held.Remove(popup);
             if (!s_placing && (position->flags & User32.SWP_NOMOVE) == 0 && s_held.TryGetValue(popup, out int y))
                 position->y = y;
+            return null;
+        });
+    }
+
+    /// <summary>
+    /// Keeps the popup's right edge at <paramref name="right"/> (screen pixels) whenever WinUI moves or resizes it, or
+    /// lets it go again (null). WinUI places a popup inside the monitor's work area again each time its size changes,
+    /// which leaves out the widget sidebar: a flyout at the screen's right edge would jump left of the sidebar until
+    /// WinUI is told otherwise by its popup's offset. Call on the UI thread.
+    /// </summary>
+    public static void KeepRight(nint popup, int? right)
+    {
+        foreach (nint gone in s_rightSubclasses.Keys.Where(w => !Exists(w)).ToList())
+        {
+            s_rightSubclasses.Remove(gone);
+            s_rights.Remove(gone);
+        }
+        if (right is not { } edge)
+        {
+            s_rights.Remove(popup);
+            return;
+        }
+
+        s_rights[popup] = edge;
+        if (s_rightSubclasses.ContainsKey(popup))
+            return;
+        s_rightSubclasses[popup] = new WindowSubclass(popup, (message, _, lParam) =>
+        {
+            var position = (User32.WINDOWPOS*)lParam;
+            if (message != User32.WM_WINDOWPOSCHANGING || s_placing || !s_rights.TryGetValue(popup, out int held)
+                || (position->flags & (User32.SWP_NOMOVE | User32.SWP_NOSIZE)) == (User32.SWP_NOMOVE | User32.SWP_NOSIZE)
+                || !User32.GetWindowRect(popup, out User32.RECT rect))
+            {
+                return null;
+            }
+            if ((position->flags & User32.SWP_NOMOVE) != 0)
+            {
+                position->y = rect.top;
+                position->flags &= ~User32.SWP_NOMOVE;
+            }
+            int width = (position->flags & User32.SWP_NOSIZE) != 0 ? rect.right - rect.left : position->cx;
+            position->x = held - width;
             return null;
         });
     }

@@ -43,6 +43,10 @@ internal static class TaskbarFlyouts
     // Flyouts whose slide out is over, closing for real.
     private static readonly HashSet<FlyoutBase> s_slidOut = [];
     private static readonly HashSet<FlyoutBase> s_atPointer = [];
+    // Presenters whose size changes are followed (ShiftAgain), and the open flyouts they're followed for: placed, their
+    // slide in under way or over.
+    private static readonly HashSet<FrameworkElement> s_resizeWatched = [];
+    private static readonly HashSet<FlyoutBase> s_placed = [];
     // The windows of menus at the pointer and their submenus, which no other flyout has.
     private static readonly HashSet<nint> s_pointerWindows = [];
     private static nint s_pointerOwner;
@@ -256,6 +260,12 @@ internal static class TaskbarFlyouts
             CloseFocusToolTips(flyout);
         };
         flyout.Closing += (_, e) => StartSlideOut(flyout, e);
+        flyout.Closed += (_, _) =>
+        {
+            s_placed.Remove(flyout);
+            if (s_windows.TryGetValue(flyout, out nint window))
+                PopupWindows.KeepRight(window, null);
+        };
     }
 
     // Opened from the keyboard (Win+A), a flyout puts the keyboard focus on its first control, whose tooltip WinUI then
@@ -341,6 +351,9 @@ internal static class TaskbarFlyouts
             if (popup.Child is not FrameworkElement presenter || !IsPresenterOf(presenter, flyout))
                 continue;
 
+            if (s_resizeWatched.Add(presenter))
+                presenter.SizeChanged += (_, _) => ShiftAgain(flyout, presenter);
+
             // Where the presenter will be on screen once its window is in place.
             nint taskbarWindow = Win32Interop.GetWindowFromWindowId(root.ContentIslandEnvironment.AppWindowId);
             RectInt32 taskbarBounds = TopLevelWindows.GetBounds(taskbarWindow);
@@ -421,12 +434,17 @@ internal static class TaskbarFlyouts
                 }
                 // Across, it goes by its popup's offset (see the remarks above). WinUI moves the window there itself
                 // only some frames later, so it starts sliding there at once.
-                int shift = Shift(slide);
+                int shift = Shift(slide.Flyout, slide.Presenter);
                 if (shift != 0)
                     slide.Popup.HorizontalOffset += shift / slide.Presenter.XamlRoot.RasterizationScale;
                 slide.To = bounds.Y;
                 slide.Since = Stopwatch.GetTimestamp();
                 PopupWindows.Place(slide.Window, slide.Edge, slide.Edge, bounds.X + shift);
+                if (s_lefts.ContainsKey(slide.Flyout))
+                {
+                    PopupWindows.KeepRight(slide.Window, bounds.X + shift + bounds.Width);
+                    s_placed.Add(slide.Flyout);
+                }
             }
             else if (Stopwatch.GetElapsedTime(slide.Since) > TimeSpan.FromMilliseconds(500))
             {
@@ -456,14 +474,32 @@ internal static class TaskbarFlyouts
     }
 
     // How far right of where WinUI put it the flyout's window goes, in pixels.
-    private static int Shift(Slide slide)
+    private static int Shift(FlyoutBase flyout, FrameworkElement presenter)
     {
-        if (!s_lefts.TryGetValue(slide.Flyout, out Func<double, double>? left) || slide.Flyout.Target is not { } target)
+        if (!s_lefts.TryGetValue(flyout, out Func<double, double>? left) || flyout.Target is not { } target)
             return 0;
 
         FrameworkElement taskbar = Taskbar(target);
-        double actual = slide.Presenter.TransformToVisual(taskbar).TransformPoint(default).X;
-        return (int)Math.Round((left(slide.Presenter.ActualWidth) - actual) * taskbar.XamlRoot.RasterizationScale);
+        double actual = presenter.TransformToVisual(taskbar).TransformPoint(default).X;
+        return (int)Math.Round((left(presenter.ActualWidth) - actual) * taskbar.XamlRoot.RasterizationScale);
+    }
+
+    // WinUI places an open flyout afresh when its size changes (Quick Settings' pages), inside the work area again (see
+    // the remarks); its window stays put (PopupWindows.KeepRight), and WinUI is told again by the popup's offset.
+    // Only once the opening has been placed: a size change while it opens is the slide's to place.
+    private static void ShiftAgain(FlyoutBase flyout, FrameworkElement presenter)
+    {
+        if (!s_placed.Contains(flyout) || s_slideOut?.Flyout == flyout || flyout.XamlRoot is not { } root)
+            return;
+
+        presenter.DispatcherQueue.TryEnqueue(DispatcherQueuePriority.Low, () =>
+        {
+            if (!s_placed.Contains(flyout) || !flyout.IsOpen || PopupOf(flyout, root) is not { } popup)
+                return;
+            int shift = Shift(flyout, presenter);
+            if (shift != 0)
+                popup.HorizontalOffset += shift / root.RasterizationScale;
+        });
     }
 
     private static bool IsPresenterOf(FrameworkElement presenter, FlyoutBase flyout) => (presenter, flyout) switch

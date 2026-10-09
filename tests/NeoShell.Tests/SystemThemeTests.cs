@@ -18,6 +18,12 @@ public sealed class SystemThemeTests
         Assert.Equal(Color.FromArgb(255, 0x00, 0x33, 0x7C), SystemTheme.ParseAccent(1, Palette));
     }
 
+    [Fact]
+    public void Lightest_shade_is_the_first()
+    {
+        Assert.Equal(Color.FromArgb(255, 0x9C, 0xEB, 0xFF), SystemTheme.ParseAccent(1, Palette, SystemTheme.Light3));
+    }
+
     [Theory]
     [InlineData(0)]
     [InlineData(null)]
