@@ -18,4 +18,15 @@
     <ProjectReference Include="..\NeoShell.Interop\NeoShell.Interop.csproj" />
   </ItemGroup>
 
+  <!--
+    Explorer's battery font (SystemTray's SysBatt Fluent Icons), taken from this PC's Windows: WinUI loads fonts only
+    from the app's own folder (ms-appx), not from Windows'. Without it the battery shows Segoe Fluent Icons' glyphs.
+  -->
+  <PropertyGroup>
+    <BatteryFont>$(WinDir)\SystemApps\MicrosoftWindows.Client.Core_cw5n1h2txyewy\SystemTray\Assets\Sysbatt.ttf</BatteryFont>
+  </PropertyGroup>
+  <ItemGroup>
+    <None Include="$(BatteryFont)" Link="Assets\Sysbatt.ttf" CopyToOutputDirectory="PreserveNewest" Condition="Exists('$(BatteryFont)')" />
+  </ItemGroup>
+
 </Project>

@@ -16,7 +16,8 @@
 
                 <!-- The search entry point's colours, measured on Explorer's taskbar (its dark brushes for the box are
                      stronger than WinUI's; on an accent-coloured taskbar it uses the dark ones). The borders are one
-                     pixel round a 32 px high pill, whose top row (in light the bottom row of the box) differs. -->
+                     pixel round a 32 px high pill, whose top row (in light the bottom row of the box) differs.
+                     The battery's fill colours are SystemTray's (OmniAccentGreen/Yellow/RedOverlayForeground). -->
                 <ResourceDictionary.ThemeDictionaries>
                     <ResourceDictionary x:Key="Default">
                         <LinearGradientBrush x:Key="SearchIconRingBrush" StartPoint="0,0" EndPoint="1,1">
@@ -42,6 +43,9 @@
                             <GradientStop Offset="0.03" Color="#12FFFFFF" />
                         </LinearGradientBrush>
                         <SolidColorBrush x:Key="SearchPillBorderBrushPressed" Color="#0CFFFFFF" />
+                        <SolidColorBrush x:Key="BatteryFillAdequateBrush" Color="#9FD89F" />
+                        <SolidColorBrush x:Key="BatteryFillWarningBrush" Color="#EAA300" />
+                        <SolidColorBrush x:Key="BatteryFillCriticalBrush" Color="#D92C2C" />
                     </ResourceDictionary>
                     <ResourceDictionary x:Key="Light">
                         <LinearGradientBrush x:Key="SearchIconRingBrush" StartPoint="0,0" EndPoint="1,1">
@@ -67,6 +71,9 @@
                             <GradientStop Offset="0.03" Color="#0B000000" />
                         </LinearGradientBrush>
                         <SolidColorBrush x:Key="SearchPillBorderBrushPressed" Color="#03000000" />
+                        <SolidColorBrush x:Key="BatteryFillAdequateBrush" Color="#107C10" />
+                        <SolidColorBrush x:Key="BatteryFillWarningBrush" Color="#EAA300" />
+                        <SolidColorBrush x:Key="BatteryFillCriticalBrush" Color="#C50F1F" />
                     </ResourceDictionary>
                 </ResourceDictionary.ThemeDictionaries>
 
@@ -222,6 +229,52 @@
                                         VerticalAlignment="Center"
                                         Foreground="{TemplateBinding Foreground}"
                                         Content="{TemplateBinding Content}" />
+                                </Grid>
+                            </ControlTemplate>
+                        </Setter.Value>
+                    </Setter>
+                </Style>
+
+                <!-- The battery's charge, by the colour Windows gives it (ShowBattery); styles, so the theme changes it. -->
+                <Style x:Key="BatteryFillDefaultStyle" TargetType="FontIcon">
+                    <Setter Property="Foreground" Value="{ThemeResource TextFillColorPrimaryBrush}" />
+                </Style>
+                <Style x:Key="BatteryFillAdequateStyle" TargetType="FontIcon">
+                    <Setter Property="Foreground" Value="{ThemeResource BatteryFillAdequateBrush}" />
+                </Style>
+                <Style x:Key="BatteryFillWarningStyle" TargetType="FontIcon">
+                    <Setter Property="Foreground" Value="{ThemeResource BatteryFillWarningBrush}" />
+                </Style>
+                <Style x:Key="BatteryFillCriticalStyle" TargetType="FontIcon">
+                    <Setter Property="Foreground" Value="{ThemeResource BatteryFillCriticalBrush}" />
+                </Style>
+
+                <!--
+                    Show desktop, as Explorer's: nothing to see until hovered, then a short line in the middle
+                    (SystemTray's ShowDesktopPipe, ShowDesktopPipePointerOver and ShowDesktopPipePressed).
+                -->
+                <Style x:Key="ShowDesktopButtonStyle" TargetType="Button">
+                    <Setter Property="Template">
+                        <Setter.Value>
+                            <ControlTemplate TargetType="Button">
+                                <Grid Background="Transparent">
+                                    <VisualStateManager.VisualStateGroups>
+                                        <VisualStateGroup x:Name="CommonStates">
+                                            <VisualState x:Name="Normal" />
+                                            <VisualState x:Name="PointerOver">
+                                                <VisualState.Setters>
+                                                    <Setter Target="Pipe.Fill" Value="{ThemeResource ControlStrongStrokeColorDefaultBrush}" />
+                                                </VisualState.Setters>
+                                            </VisualState>
+                                            <VisualState x:Name="Pressed">
+                                                <VisualState.Setters>
+                                                    <Setter Target="Pipe.Fill" Value="{ThemeResource ControlStrongStrokeColorDisabledBrush}" />
+                                                </VisualState.Setters>
+                                            </VisualState>
+                                            <VisualState x:Name="Disabled" />
+                                        </VisualStateGroup>
+                                    </VisualStateManager.VisualStateGroups>
+                                    <Rectangle x:Name="Pipe" Width="1" Height="24" RadiusX="0.5" RadiusY="0.5" Fill="Transparent" />
                                 </Grid>
                             </ControlTemplate>
                         </Setter.Value>
@@ -673,15 +726,50 @@
                     Click="QuickSettingsButton_Click"
                     ContextRequested="QuickSettingsButton_ContextRequested"
                     PointerWheelChanged="Volume_PointerWheelChanged">
+                    <!--
+                        Explorer's hover plate has a faint top edge (SystemTray's ShellTaskbarItemStrokeColorQuinary over
+                        the fill), a pixel or two high, which stays while pressed.
+                    -->
+                    <Button.Resources>
+                        <ResourceDictionary>
+                            <ResourceDictionary.ThemeDictionaries>
+                                <ResourceDictionary x:Key="Default">
+                                    <LinearGradientBrush x:Key="ButtonBackgroundPointerOver" StartPoint="0,0" EndPoint="0,1">
+                                        <GradientStop Offset="0.03" Color="#18FFFFFF" />
+                                        <GradientStop Offset="0.03" Color="#0FFFFFFF" />
+                                    </LinearGradientBrush>
+                                    <LinearGradientBrush x:Key="ButtonBackgroundPressed" StartPoint="0,0" EndPoint="0,1">
+                                        <GradientStop Offset="0.03" Color="#18FFFFFF" />
+                                        <GradientStop Offset="0.03" Color="#0AFFFFFF" />
+                                    </LinearGradientBrush>
+                                </ResourceDictionary>
+                                <ResourceDictionary x:Key="Light">
+                                    <LinearGradientBrush x:Key="ButtonBackgroundPointerOver" StartPoint="0,0" EndPoint="0,1">
+                                        <GradientStop Offset="0.03" Color="#0E000000" />
+                                        <GradientStop Offset="0.03" Color="#09000000" />
+                                    </LinearGradientBrush>
+                                    <LinearGradientBrush x:Key="ButtonBackgroundPressed" StartPoint="0,0" EndPoint="0,1">
+                                        <GradientStop Offset="0.03" Color="#0E000000" />
+                                        <GradientStop Offset="0.03" Color="#06000000" />
+                                    </LinearGradientBrush>
+                                </ResourceDictionary>
+                            </ResourceDictionary.ThemeDictionaries>
+                        </ResourceDictionary>
+                    </Button.Resources>
                     <Grid>
                         <!-- While Quick Settings is open the button keeps its hover plate, as Explorer's does. -->
                         <Border
                             x:Name="QuickSettingsOpenPlate"
                             CornerRadius="4"
-                            Background="{ThemeResource SubtleFillColorSecondaryBrush}"
+                            Background="{ThemeResource ButtonBackgroundPointerOver}"
                             Visibility="Collapsed" />
+                        <!--
+                            As Explorer's: each icon 4 in from its cell's sides and 4 between cells, the battery's glyph
+                            20 wide. Wi-Fi's bars and the speaker's waves stand on all of them, faint (Underlay).
+                        -->
                         <StackPanel Margin="4,0" Orientation="Horizontal" Spacing="4">
                             <Grid x:Name="NetworkIndicator" Width="24" Height="40" Background="Transparent" AutomationProperties.AutomationId="NetworkIndicator">
+                                <FontIcon x:Name="NetworkUnderlayIcon" FontSize="16" Foreground="{ThemeResource SystemControlForegroundBaseLowBrush}" />
                                 <!-- Explorer's menus on the network and speaker icons; the button's flyout is Quick Settings. -->
                                 <FontIcon x:Name="NetworkIcon" FontSize="16">
                                     <FlyoutBase.AttachedFlyout>
@@ -718,6 +806,7 @@
                                 </FontIcon>
                             </Grid>
                             <Grid x:Name="VolumeIndicator" Width="24" Height="40" Background="Transparent" AutomationProperties.AutomationId="VolumeIndicator">
+                                <FontIcon x:Name="VolumeUnderlayIcon" FontSize="16" Foreground="{ThemeResource SystemControlForegroundBaseLowBrush}" />
                                 <FontIcon x:Name="VolumeIcon" FontSize="16">
                                     <FlyoutBase.AttachedFlyout>
                                         <!-- Explorer's items, glyphs and separator: the first has no glyph. -->
@@ -747,14 +836,16 @@
                                     </FlyoutBase.AttachedFlyout>
                                 </FontIcon>
                             </Grid>
+                            <!-- Windows' battery glyphs: an outline and the charge over it, in its colour (ShowBattery). -->
                             <Grid
                                 x:Name="BatteryIndicator"
-                                Width="24"
+                                Width="28"
                                 Height="40"
                                 Background="Transparent"
                                 Visibility="Collapsed"
                                 AutomationProperties.AutomationId="BatteryIndicator">
                                 <FontIcon x:Name="BatteryIcon" FontSize="16" />
+                                <FontIcon x:Name="BatteryFillIcon" FontSize="16" />
                             </Grid>
                             <!-- Energy saver's leaf, while it's on and there's no battery icon to show it. -->
                             <Grid
@@ -818,10 +909,7 @@
                 ToolTipService.ToolTip="Show desktop"
                 Width="12"
                 Height="48"
-                Padding="0"
-                CornerRadius="0"
-                BorderThickness="1,0,0,0"
-                BorderBrush="{ThemeResource DividerStrokeColorDefaultBrush}"
+                Style="{StaticResource ShowDesktopButtonStyle}"
                 Click="ShowDesktopButton_Click" />
         </StackPanel>
 

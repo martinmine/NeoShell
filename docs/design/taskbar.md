@@ -173,6 +173,9 @@ and task buttons. Part of the [NeoShell design](../design.md).
   Settings, File Explorer, Search, Run, Shut down or sign out (the power menus' choices, filled as it opens), Desktop. As the
   shell, Settings pages are Control Panel applets. Run is shell32's `RunFileDlg` (ordinal 61) on a thread of its
   own, moved above the taskbar's left end by a thread CBT hook as it activates.
+- Show desktop is Explorer's sliver, 12 wide at the taskbar's far end: nothing shows until it's hovered, then a 1 by
+  24 line in its middle in `ControlStrongStrokeColorDefaultBrush`, `ControlStrongStrokeColorDisabledBrush` while
+  pressed (SystemTray's ShowDesktopPipe). Peeking at the desktop on hover isn't done.
 - Show desktop minimizes every minimizable window of other processes (`SW_SHOWMINNOACTIVE`) and the next click
   restores those still minimized; Explorer's own toggle isn't available as the shell. `ShowDesktop` also does
   Win+M (minimize all, adding to those minimized before), Win+Shift+M (restore them) and Win+Home (all but the

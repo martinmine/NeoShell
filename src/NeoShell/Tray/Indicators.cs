@@ -29,6 +29,7 @@ internal sealed class Indicators : IDisposable
     private readonly RadioSwitches _radios = new();
     private readonly EnergySaver _energySaver = new();
     private readonly BatteryMonitor _battery = new();
+    private readonly BatteryIcon _batteryIcon = new();
     private readonly InputMethods? _inputMethods;
     private readonly QuickActions _quickActions = new();
     // How many input methods the switcher counted when the list was last read.
@@ -43,6 +44,7 @@ internal sealed class Indicators : IDisposable
         _radios.Changed += OnRadiosChanged;
         _energySaver.Changed += QueueUpdate;
         _battery.Changed += QueueUpdate;
+        _batteryIcon.Changed += QueueUpdate;
         _microphoneUsage.Changed += QueueUpdate;
         _locationUsage.Changed += QueueUpdate;
         _quickActions.Changed += QueueUpdate;
@@ -241,6 +243,9 @@ internal sealed class Indicators : IDisposable
     /// <summary>Null on a PC without a battery.</summary>
     public BatteryState? Battery { get; private set; }
 
+    /// <summary>The battery's glyphs as Explorer's taskbar shows them; null until Windows has worked them out.</summary>
+    public BatteryGlyphs? BatteryGlyphs => _batteryIcon.Glyphs;
+
     /// <summary>Win+Alt+K: mutes the default microphone, or unmutes it.</summary>
     public void ToggleMicrophoneMute()
     {
@@ -321,6 +326,7 @@ internal sealed class Indicators : IDisposable
         _radios.Dispose();
         _energySaver.Dispose();
         _battery.Dispose();
+        _batteryIcon.Dispose();
         _audio?.Dispose();
         _microphone?.Dispose();
         _microphoneUsage.Dispose();

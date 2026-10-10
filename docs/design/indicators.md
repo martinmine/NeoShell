@@ -17,14 +17,17 @@ design](../design.md).
   in the default browser: `https://www.bing.com/search?q=Internet%20speed%20test&form=wspeed2`), Network and Internet
   settings (U+E713, `ms-settings:network`; shell mode `ncpa.cpl`). Read from the processes Explorer started; both
   links work as the shell too. Glyphs matched by correlating Explorer's 16 px icons with Segoe Fluent Icons' glyphs.
+- Wi-Fi's one to four bars are Explorer's U+EC3C to U+EC3F (NetworkIcon.dll's Wifi1Bar…Wifi4Bars), drawn on all four
+  bars at `SystemBaseLowColor` (20%) so the missing ones show, as SystemTray's Underlay layer does.
 
 ### Volume
 
 - `IMMDeviceEnumerator` → default render endpoint → `IAudioEndpointVolume` with `IAudioEndpointVolumeCallback`
   (`AudioEndpoint`).
 - `IMMNotificationClient` to follow default-device changes.
-- Icon reflects mute and level (0 / low / medium / high glyphs). Mouse wheel over the button changes volume in 2%
-  steps.
+- Icon reflects mute and level (0 / low / medium / high glyphs, U+E992 to U+E995) on all three waves (U+EBC5) at 20%,
+  as Explorer's Underlay; muted is U+EA85 (the speaker with a crossed circle), no device U+E74F (SystemTray.dll's
+  strings). Mouse wheel over the button changes volume in 2% steps.
 - Right-click menu on the icon, as Explorer's (T39a): Troubleshoot sound problems (no glyph; Get Help's
   `ms-contact-support://windows-speaker-icon/`, which works as the shell too), a line, Open volume mixer (U+E713,
   `ms-settings:apps-volume`; shell mode the classic `sndvol.exe`) and Sound settings (U+E713).
@@ -33,8 +36,15 @@ design](../design.md).
 
 ### Battery and energy saver
 
-- `Battery.AggregateBattery` (WinRT) and its `ReportUpdated` (`BatteryMonitor`): the charge in tenths, with the
-  plug while charging; tooltip "Battery: 54% remaining". Shown only on PCs with a battery.
+- `Battery.AggregateBattery` (WinRT) and its `ReportUpdated` (`BatteryMonitor`): shown only on PCs with a battery;
+  tooltip "Battery: 54% remaining".
+- The icon is Explorer's (Interop `Power/BatteryIcon`): `WindowsUdk.UI.Shell.PowerUX.BatteryIcon` in
+  windowsudk.shellcommon.dll works out the outline (U+F8D0; with a bolt, U+F8DB, while charging or full on power; a
+  plug, U+F8E4), the charge over it and the charge's colour: the text colour, or SystemTray's green (#9FD89F dark,
+  #107C10 light), yellow (#EAA300) or red (#D92C2C, #C50F1F). Its `GetMobileIconData` has the glyphs of SystemTray's own
+  font, SysBatt Fluent Icons (`SystemTray\Assets\Sysbatt.ttf`, 20 px wide at 16 px), which WinUI loads only from the
+  app's folder: the build copies it from the PC's Windows into `Assets`. Without the class or the font, Segoe Fluent
+  Icons' battery in tenths (U+EBA0…, with the plug U+EBAB…).
 - Energy saver's leaf shows after the volume while energy saver is on and there's no battery icon (a desktop).
 
 ### The button
@@ -49,6 +59,11 @@ design](../design.md).
   each), input indicator (44), this button (60 with network and speaker) and the clock sit right against each other
   and against Show desktop: 1506, 1538, 1570, 1614, 1674 and 1752 on this VM's 1764 px screen, which NeoShell now
   matches to the pixel (its buttons had 2 px margins, which put the tray 5 px left).
+- **Cells** (re-measured at 150% with UI Automation and screenshots side by side): each glyph 4 in from its cell's sides
+  and 4 between cells, so 24 per icon and 28 for the battery (its glyph is 20 wide); the plate 4 more each side (92 with
+  network, speaker and battery), 40 high, corner radius 4, glyphs 16 below the taskbar's top. Hovered, pressed or open,
+  the plate has a faint top edge 1 high (SystemTray's `ShellTaskbarItemStrokeColorQuinary`, #0AFFFFFF dark, #05000000
+  light, over `SubtleFillColorSecondary` or `Tertiary`), drawn as a gradient in the plate's background.
 
 ### Privacy indicator (Interop `Privacy/CapabilityUsage`)
 
