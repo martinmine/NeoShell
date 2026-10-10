@@ -10,22 +10,26 @@ using NeoShell.Logging;
 namespace NeoShell.Notifications;
 
 /// <summary>
-/// The notifications Windows keeps, read once a second (an unpackaged app gets no change event), and the state of Do
-/// not disturb. UI thread only.
+/// The notifications Windows keeps and the state of Do not disturb, read whenever the notification platform says they
+/// changed (an unpackaged app gets no change event from the listener), or once a second if it can't. UI thread only.
 /// </summary>
 internal sealed class NotificationCenter : IDisposable
 {
     private const string SettingsKey = @"Software\Microsoft\Windows\CurrentVersion\Notifications\Settings";
 
+    private readonly DispatcherQueue _dispatcher = DispatcherQueue.GetForCurrentThread();
     private readonly DispatcherQueueTimer _timer;
     private readonly Dictionary<string, Task<ImageSource?>> _logos = new(StringComparer.OrdinalIgnoreCase);
+    private NotificationChanges? _changes;
     // Null until the first reading.
     private Dictionary<uint, ToastInfo>? _known;
     private bool _reading;
+    // A change came during a reading, which may have missed it.
+    private bool _readAgain;
 
     public NotificationCenter()
     {
-        _timer = DispatcherQueue.GetForCurrentThread().CreateTimer();
+        _timer = _dispatcher.CreateTimer();
         _timer.Interval = TimeSpan.FromSeconds(1);
         _timer.Tick += (_, _) => Read();
     }
@@ -54,11 +58,24 @@ internal sealed class NotificationCenter : IDisposable
 
     public void Start()
     {
+        try
+        {
+            _changes = new NotificationChanges();
+            _changes.Changed += () => _dispatcher.TryEnqueue(Read);
+        }
+        catch (InvalidOperationException ex)
+        {
+            Log.Warn("Polling notifications", ex);
+            _timer.Start();
+        }
         Read();
-        _timer.Start();
     }
 
-    public void Dispose() => _timer.Stop();
+    public void Dispose()
+    {
+        _timer.Stop();
+        _changes?.Dispose();
+    }
 
     /// <summary>Whether Windows still has the notification, whether the notification center shows it or not.</summary>
     public bool IsStored(uint id) => _known?.ContainsKey(id) == true;
@@ -216,9 +233,13 @@ internal sealed class NotificationCenter : IDisposable
     private async void Read()
     {
         if (_reading)
+        {
+            _readAgain = true;
             return;
+        }
 
         _reading = true;
+        _readAgain = false;
         try
         {
             // Off the UI thread: both are calls into other processes, which can take a while to answer. _known isn't
@@ -258,6 +279,8 @@ internal sealed class NotificationCenter : IDisposable
         finally
         {
             _reading = false;
+            if (_readAgain)
+                Read();
         }
     }
 

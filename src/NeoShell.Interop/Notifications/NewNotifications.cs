@@ -12,7 +12,7 @@ namespace NeoShell.Interop.Notifications;
 /// </summary>
 public static class NewNotifications
 {
-    private const ulong WNF_SHEL_NOTIFICATIONS = 0x0D83063EA3BC1035;
+    internal const ulong WNF_SHEL_NOTIFICATIONS = 0x0D83063EA3BC1035;
 
     /// <summary>The count, or null if it can't be read.</summary>
     public static unsafe int? ReadCount()

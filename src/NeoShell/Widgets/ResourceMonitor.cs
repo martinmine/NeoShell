@@ -1,6 +1,7 @@
 using System.Net.NetworkInformation;
 using Microsoft.UI.Dispatching;
 using NeoShell.Interop.Performance;
+using NeoShell.Interop.Power;
 
 namespace NeoShell.Widgets;
 
@@ -12,8 +13,8 @@ public sealed record DriveUsage(string Name, ulong Free, ulong Total, double Bus
 public sealed record AdapterUsage(string Id, string Name, double DownloadRate, double UploadRate);
 
 /// <summary>
-/// Samples processor, GPU, memory, disk and network use once a second while anyone listens to <see cref="Sampled"/>,
-/// keeping the last minute of each for the graphs. The sidebar shares one, so the resource widget keeps its graphs
+/// Samples processor, GPU, memory, disk and network use once a second while anyone listens to <see cref="Sampled"/>
+/// and the display is on, keeping the last minute of each for the graphs. The sidebar shares one, so the resource widget keeps its graphs
 /// when it's moved (a new widget is made each time).
 /// </summary>
 internal sealed class ResourceMonitor : IDisposable
@@ -30,35 +31,42 @@ internal sealed class ResourceMonitor : IDisposable
     public static string AdapterKey(string id) => "adapter:" + id;
 
     private readonly DispatcherQueueTimer _timer;
+    private readonly DisplayPower _display = new();
     private readonly Dictionary<string, List<double>> _history = [];
     private readonly Dictionary<string, (long Received, long Sent)> _lastBytes = [];
     private SystemUsage? _usage;
     private Action? _sampled;
     private long _lastSample;
+    // Listing the adapters is most of a sample's cost (and a wake of other services), so they're listed again only
+    // when an adapter comes, goes or changes its addresses; each sample reads just their byte counters. Null to list.
+    private volatile NetworkInterface[]? _adapters;
     // A sample being read off the UI thread.
     private Task? _reading;
 
     public ResourceMonitor()
     {
-        _timer = DispatcherQueue.GetForCurrentThread().CreateTimer();
+        DispatcherQueue dispatcher = DispatcherQueue.GetForCurrentThread();
+        _timer = dispatcher.CreateTimer();
         _timer.Interval = TimeSpan.FromSeconds(1);
         _timer.Tick += (_, _) => Sample();
+        NetworkChange.NetworkAddressChanged += OnNetworkAddressChanged;
+        _display.Changed += () => dispatcher.TryEnqueue(StartOrStop);
     }
 
-    /// <summary>Raised on the UI thread after each sample; sampling runs only while someone listens.</summary>
+    /// <summary>
+    /// Raised on the UI thread after each sample; sampling runs only while someone listens, and the display is on.
+    /// </summary>
     public event Action? Sampled
     {
         add
         {
             _sampled += value;
-            if (!_timer.IsRunning)
-                Start();
+            StartOrStop();
         }
         remove
         {
             _sampled -= value;
-            if (_sampled is null)
-                _timer.Stop();
+            StartOrStop();
         }
     }
 
@@ -80,9 +88,21 @@ internal sealed class ResourceMonitor : IDisposable
     public void Dispose()
     {
         _timer.Stop();
+        NetworkChange.NetworkAddressChanged -= OnNetworkAddressChanged;
+        _display.Dispose();
         // The counters can't be closed while a read is using them.
         _reading?.Wait(TimeSpan.FromSeconds(1));
         _usage?.Dispose();
+    }
+
+    // Nobody sees the widgets while the display is off (a locked PC's goes off within a minute or so), and a wake each
+    // second keeps a laptop from idling down.
+    private void StartOrStop()
+    {
+        if (_sampled is null || !_display.IsOn)
+            _timer.Stop();
+        else if (!_timer.IsRunning)
+            Start();
     }
 
     private void Start()
@@ -179,16 +199,8 @@ internal sealed class ResourceMonitor : IDisposable
         var bytes = new Dictionary<string, (long Received, long Sent)>();
         try
         {
-            foreach (NetworkInterface adapter in NetworkInterface.GetAllNetworkInterfaces())
+            foreach (NetworkInterface adapter in _adapters ??= ListAdapters())
             {
-                // Each adapter's filter drivers (QoS, WFP) are listed as adapters of their own with the same byte counts,
-                // but without IP.
-                if (adapter.OperationalStatus != OperationalStatus.Up
-                    || adapter.NetworkInterfaceType is NetworkInterfaceType.Loopback or NetworkInterfaceType.Tunnel
-                    || !(adapter.Supports(NetworkInterfaceComponent.IPv4) || adapter.Supports(NetworkInterfaceComponent.IPv6)))
-                {
-                    continue;
-                }
                 IPInterfaceStatistics statistics = adapter.GetIPStatistics();
                 (long received, long sent) = bytes[adapter.Id] = (statistics.BytesReceived, statistics.BytesSent);
                 if (_lastBytes.TryGetValue(adapter.Id, out var last))
@@ -201,11 +213,22 @@ internal sealed class ResourceMonitor : IDisposable
         }
         catch (NetworkInformationException)
         {
-            // Adapters changing under us; the next sample counts again.
+            // Adapters changing under us; the next sample lists them and counts again.
+            _adapters = null;
         }
         _lastBytes.Clear();
         foreach ((string id, var counts) in bytes)
             _lastBytes[id] = counts;
         return adapters;
     }
+
+    private static NetworkInterface[] ListAdapters() =>
+        // Each adapter's filter drivers (QoS, WFP) are listed as adapters of their own with the same byte counts, but
+        // without IP.
+        [.. NetworkInterface.GetAllNetworkInterfaces().Where(adapter =>
+            adapter.OperationalStatus == OperationalStatus.Up
+            && adapter.NetworkInterfaceType is not (NetworkInterfaceType.Loopback or NetworkInterfaceType.Tunnel)
+            && (adapter.Supports(NetworkInterfaceComponent.IPv4) || adapter.Supports(NetworkInterfaceComponent.IPv6)))];
+
+    private void OnNetworkAddressChanged(object? sender, EventArgs e) => _adapters = null;
 }

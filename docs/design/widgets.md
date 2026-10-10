@@ -83,8 +83,8 @@ Small widgets about the computer and its user, as Windows Vista's sidebar gadget
   adapter's filter drivers are listed as adapters too, with the same counts). Its settings show each drive and each
   adapter as a row of its own. Sampled once a second by `ResourceMonitor` (PDH through `SystemUsage`, wildcard
   counters for GPU engines and logical disks, `GlobalMemoryStatusEx`, `DriveInfo`, `NetworkInterface` statistics;
-  read on the thread pool, about 10 ms a time) only while the widget is shown; it keeps the last minute of each, so moving the widget keeps its graphs. Each row
-  expands to its graph (networks scaled to the minute's peak). A bar shows use and goes while the graph is open; a
+  read on the thread pool; the adapters are listed again only when addresses change) only while the widget is shown and the display is on; it keeps the last minute of each, so moving the widget keeps its graphs. Each row
+  expands to its graph (networks scaled to the minute's peak). A bar (drawn as a ProgressBar looks: a ProgressBar animates each change of value, which kept the compositor busy) shows use and goes while the graph is open; a
   disk's bar shows its space used, as Explorer's, and stays. Colours per kind (drives take the disk's, adapters the
   network's) from Windows' accent palette.
 - **Pictures**: a slideshow of the user's Pictures folder and the folders in it (up to 2,000 jpg/png/bmp/gif/webp,

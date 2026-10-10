@@ -33,7 +33,22 @@
                 <FontIcon x:Name="Chevron" Grid.Column="2" Glyph="&#xE70D;" FontSize="8" />
             </Grid>
         </Button>
-        <ProgressBar x:Name="Bar" Margin="4,0" Maximum="100" />
+        <!--
+            Drawn as a ProgressBar looks rather than one: a ProgressBar animates every change of value, which for
+            bars updated each second kept the compositor drawing nearly all the time.
+        -->
+        <Grid x:Name="Bar" Height="3" Margin="4,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition x:Name="BarFilled" Width="0*" />
+                <ColumnDefinition x:Name="BarEmpty" Width="100*" />
+            </Grid.ColumnDefinitions>
+            <Rectangle
+                Grid.ColumnSpan="2"
+                Height="1"
+                VerticalAlignment="Center"
+                Fill="{ThemeResource ProgressBarBackground}" />
+            <Rectangle x:Name="BarFill" RadiusX="1.5" RadiusY="1.5" />
+        </Grid>
         <Grid
             x:Name="Graph"
             Height="56"

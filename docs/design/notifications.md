@@ -18,7 +18,7 @@ notification center 12 epx above it and as tall as its notifications need, up to
   toggles it on the primary taskbar (shell mode).
 - **Notifications** (`NotificationCenter`, Interop `UserNotifications`): read with WinRT's
   `UserNotificationListener`, which an unpackaged app may use (access is the Privacy setting "Let apps access your
-  notifications"), but its `NotificationChanged` event needs package identity, so they're read once a second; an
+  notifications"), but its `NotificationChanged` event needs package identity, so they're read whenever the platform republishes `WNF_SHEL_NOTIFICATIONS` (on every notification that comes or goes, seen or not) or the quiet hours profile (`NotificationChanges`), or once a second if those can't be followed; an
   unchanged set of IDs changes nothing. The notification platform keeps notifications whether or not a shell runs.
   The listener gives each one's app (AppUserModelID and name), time and texts, not the toast's XML (its sound,
   arguments, images, buttons): a click is carried out by the notification platform itself (see Toast activation),

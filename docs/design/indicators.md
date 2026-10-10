@@ -204,7 +204,7 @@ Explorer's clock area is SystemTray.dll (Client.Core): `ClockSystemTrayIconDataM
   was last open and publishes it in the WNF state `WNF_SHEL_NOTIFICATIONS` (`0x0D83063EA3BC1035`, a DWORD), which
   Explorer's bell subscribes to. Opening or closing a notification center calls `INotificationController::
   SetNocenterStatus` (Explorer passes 1 on open, 0 on close, traced with cdb in WpnUserService); any change marks
-  every notification seen and the count drops to 0. NeoShell reads the state with the notifications once a second
+  every notification seen and the count drops to 0. NeoShell reads the state with the notifications whenever it is published
   (`NewNotifications.ReadCount`) and calls `SetNocenterStatus` as its flyout opens and closes, so either shell's
   notification center clears both bells. The platform keeps counting without Explorer (checked as the shell).
 - **Menu**: right-click opens Explorer's clock menu, at the right as the other tray menus: "Adjust date and time"
