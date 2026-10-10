@@ -1,0 +1,82 @@
+# Builds, tests and packages NeoShell on each push to master, and puts the packages on the rolling "latest"
+# prerelease so there is always one link to the newest build.
+name: Build
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+
+# A newer push replaces the release, so an older run still going is only in the way.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Each architecture on its own runner, so the tests run natively.
+          - arch: x64
+            runner: windows-latest
+          - arch: arm64
+            runner: windows-11-arm
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Test
+        run: dotnet test -c Release -p:NeoShellArchitecture=${{ matrix.arch }}
+
+      # Self-contained, so a downloaded package runs without installing the .NET runtime first.
+      - name: Package
+        shell: pwsh
+        run: |
+          foreach ($config in 'Release', 'Debug') {
+              $name = "NeoShell-$config-${{ matrix.arch }}"
+              $dir = "packages/$name"
+              dotnet publish src/NeoShell -c $config -p:NeoShellArchitecture=${{ matrix.arch }} --self-contained -o "$dir/NeoShell"
+              if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+              Copy-Item tools -Destination $dir -Recurse
+              Copy-Item README.md -Destination $dir
+              Compress-Archive -Path "$dir/*" -DestinationPath "packages/$name.zip"
+          }
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: NeoShell-${{ matrix.arch }}
+          path: packages/*.zip
+
+  release:
+    needs: build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: packages
+          merge-multiple: true
+
+      - name: Replace the latest release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          gh release delete latest --yes --cleanup-tag || true
+          gh release create latest packages/*.zip \
+            --prerelease \
+            --target "$GITHUB_SHA" \
+            --title "Latest build" \
+            --notes "Built from $GITHUB_SHA on $(date -u '+%Y-%m-%d %H:%M UTC').
+
+          Unzip and run \`NeoShell\NeoShell.exe\`. Pick the zip for your PC's architecture (x64 or arm64); the Debug build is unoptimized, for debugging.
+          To try NeoShell as the shell, read \"Using NeoShell as the shell\" and \"Recovery\" in the README first, and use a test account or a virtual machine."

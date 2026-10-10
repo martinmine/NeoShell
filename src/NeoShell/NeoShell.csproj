@@ -5,6 +5,8 @@
     <UseWinUI>true</UseWinUI>
     <WindowsPackageType>None</WindowsPackageType>
     <WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
+    <!-- Without it, dotnet publish of an unpackaged app leaves out NeoShell.pri, and with it the compiled XAML. -->
+    <EnableMsixTooling>true</EnableMsixTooling>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <!-- Program.cs owns Main: single instance and /exit are handled before WinUI starts. -->
     <DefineConstants>$(DefineConstants);DISABLE_XAML_GENERATED_MAIN</DefineConstants>
