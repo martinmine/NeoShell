@@ -392,7 +392,7 @@ internal static unsafe partial class User32
     [LibraryImport("user32.dll")]
     public static partial nint CallNextHookEx(nint hook, int code, nint wParam, nint lParam);
 
-    // The Ptr variants only exist as exports on 64-bit Windows; NeoShell is x64 only.
+    // The Ptr variants only exist as exports on 64-bit Windows; NeoShell is 64-bit only (x64 and ARM64).
     [LibraryImport("user32.dll", EntryPoint = "GetWindowLongPtrW")]
     public static partial nint GetWindowLongPtr(nint hwnd, int index);
 

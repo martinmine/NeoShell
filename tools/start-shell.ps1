@@ -17,10 +17,18 @@
     .\start-shell.ps1 -Path C:\NeoShell\NeoShell.exe
 #>
 param(
-    [string]$Path = (Join-Path $PSScriptRoot '..\src\NeoShell\bin\Debug\net10.0-windows10.0.26100.0\win-x64\NeoShell.exe')
+    [string]$Path
 )
 
 $ErrorActionPreference = 'Stop'
+
+if (-not $Path) {
+    # The Debug build for the machine's own architecture, as Directory.Build.props picks it. The machine's, not this
+    # PowerShell's: an x64 PowerShell runs emulated on ARM64 and says AMD64.
+    $machine = (Get-ItemProperty -LiteralPath 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Environment').PROCESSOR_ARCHITECTURE
+    $architecture = if ($machine -eq 'ARM64') { 'arm64' } else { 'x64' }
+    $Path = Join-Path $PSScriptRoot "..\src\NeoShell\bin\Debug\net10.0-windows10.0.26100.0\win-$architecture\NeoShell.exe"
+}
 
 if (-not (Test-Path -LiteralPath $Path)) {
     throw "NeoShell.exe not found at $Path. Build it first (dotnet build) or pass -Path."
