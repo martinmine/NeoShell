@@ -84,6 +84,8 @@ internal sealed partial class TaskbarWindow : Window
     private readonly NotificationArea? _tray;
     private readonly Indicators? _indicators;
     private QuickSettingsPage _quickSettingsPage;
+    // Made by PrepareQuickSettings, on the primary taskbar only.
+    private QuickSettingsPanel? _quickSettings;
     // Explorer's input switcher slides in (in about 67 ms) and out faster than its other flyouts. A popup window of
     // ours shows on screen some 40 ms after it starts to slide, so its slide takes longer for the same look.
     private static readonly TimeSpan s_inputSwitcherOpening = TimeSpan.FromMilliseconds(100);
@@ -266,8 +268,6 @@ internal sealed partial class TaskbarWindow : Window
         if (_indicators is not null)
         {
             IndicatorArea.Visibility = Visibility.Visible;
-            QuickSettings.Attach(_indicators, owner.RunMode, owner.Icons);
-            QuickSettings.CloseRequested += QuickSettingsFlyout.Hide;
             InputSwitcher.MethodChosen += method =>
             {
                 _inputMethodToSwitch = method;
@@ -315,7 +315,7 @@ internal sealed partial class TaskbarWindow : Window
             if (_indicators is not null)
             {
                 _indicators.Changed -= RefreshIndicators;
-                QuickSettings.Detach();
+                _quickSettings?.Detach();
             }
             _autoHideTimer?.Stop();
             _unhideTimer?.Stop();
@@ -495,7 +495,8 @@ internal sealed partial class TaskbarWindow : Window
         // Quick Settings keeps Windows' theme even on the accent: its panel takes a light shade of it in the light theme.
         Color? panelAccent = accent is null || theme != ElementTheme.Light ? accent : SystemTheme.ReadAccent(SystemTheme.Light3);
         (Color panelTint, (float, float) panelOpacities) = QuickSettingsDisplay.Backdrop(theme, panelAccent);
-        QuickSettings.RequestedTheme = theme;
+        if (_quickSettings is not null)
+            _quickSettings.RequestedTheme = theme;
         QuickSettingsFlyout.SystemBackdrop = new ShellBackdrop(Backdrop.Acrylic) { Theme = theme, Tint = panelTint, TintOpacities = panelOpacities };
         InputSwitcher.RequestedTheme = Root.RequestedTheme;
         InputFlyout.SystemBackdrop = new ShellBackdrop(Backdrop.Acrylic) { Theme = Root.RequestedTheme, Tint = accent };
@@ -862,18 +863,34 @@ internal sealed partial class TaskbarWindow : Window
         if (_indicators is null)
             return;
 
+        PrepareQuickSettings();
         if (QuickSettingsFlyout.IsOpen)
         {
             if (page == _quickSettingsPage)
                 QuickSettingsFlyout.Hide();
             else
-                QuickSettings.Navigate(page);
+                _quickSettings!.Navigate(page);
             _quickSettingsPage = page;
             return;
         }
         _quickSettingsPage = page;
         Reveal();
         TaskbarFlyouts.ShowAtRight(QuickSettingsFlyout, QuickSettingsButton);
+    }
+
+    /// <summary>
+    /// Makes Quick Settings' panel, unless it's made already. It's left out of the taskbar's own XAML: it takes about
+    /// as long to build as the rest of the taskbar, which shows first.
+    /// </summary>
+    public void PrepareQuickSettings()
+    {
+        if (_quickSettings is not null || _indicators is null)
+            return;
+
+        _quickSettings = new QuickSettingsPanel { RequestedTheme = _theme };
+        _quickSettings.Attach(_indicators, _owner.RunMode, _owner.Icons);
+        _quickSettings.CloseRequested += QuickSettingsFlyout.Hide;
+        QuickSettingsFlyout.Content = _quickSettings;
     }
 
     // The icon under the pointer gets its own menu; from the keyboard, the speaker's.
@@ -889,14 +906,14 @@ internal sealed partial class TaskbarWindow : Window
             TaskbarFlyouts.ShowAtRight(VolumeMenu, VolumeIndicator);
     }
 
-    private void QuickSettingsFlyout_Opening(object sender, object e) => QuickSettings.Opening(_quickSettingsPage);
+    private void QuickSettingsFlyout_Opening(object sender, object e) => _quickSettings?.Opening(_quickSettingsPage);
 
     private void QuickSettingsFlyout_Opened(object sender, object e) => QuickSettingsOpenPlate.Visibility = Visibility.Visible;
 
     private void QuickSettingsFlyout_Closed(object sender, object e)
     {
         QuickSettingsOpenPlate.Visibility = Visibility.Collapsed;
-        QuickSettings.Closed();
+        _quickSettings?.Closed();
         _quickSettingsPage = QuickSettingsPage.Main;
     }
 

@@ -139,24 +139,9 @@ internal sealed partial class WidgetFrame : UserControl
         timeout.Start();
         // Content that's ready may not be drawn yet (a new view's text takes a frame or two): the picture stays until it is.
         if (Widget.IsReady)
-            AfterFramesDrawn(Uncover);
+            UiThread.AfterFramesDrawn(Uncover);
         else
-            Widget.Ready += () => AfterFramesDrawn(Uncover);
-    }
-
-    /// <summary>Runs an action once the next two frames have been drawn: then what's in the tree now shows.</summary>
-    public static void AfterFramesDrawn(Action action)
-    {
-        int frames = 0;
-        EventHandler<object>? rendered = null;
-        rendered = (_, _) =>
-        {
-            if (++frames < 2)
-                return;
-            CompositionTarget.Rendered -= rendered;
-            action();
-        };
-        CompositionTarget.Rendered += rendered;
+            Widget.Ready += () => UiThread.AfterFramesDrawn(Uncover);
     }
 
     private void Root_PointerEntered(object sender, PointerRoutedEventArgs e) => SetPointerOver(true);

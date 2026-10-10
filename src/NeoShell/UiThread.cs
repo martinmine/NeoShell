@@ -1,4 +1,5 @@
 using Microsoft.UI.Dispatching;
+using Microsoft.UI.Xaml.Media;
 using NeoShell.Logging;
 
 namespace NeoShell;
@@ -15,6 +16,21 @@ internal static class UiThread
 
     public static bool Post(this DispatcherQueue dispatcher, DispatcherQueuePriority priority, Action action) =>
         dispatcher.TryEnqueue(priority, () => RunLogged(action));
+
+    /// <summary>Runs an action once the next two frames have been drawn: then what's in the tree now shows.</summary>
+    public static void AfterFramesDrawn(Action action)
+    {
+        int frames = 0;
+        EventHandler<object>? rendered = null;
+        rendered = (_, _) =>
+        {
+            if (++frames < 2)
+                return;
+            CompositionTarget.Rendered -= rendered;
+            RunLogged(action);
+        };
+        CompositionTarget.Rendered += rendered;
+    }
 
     private static void RunLogged(Action action)
     {

@@ -46,6 +46,7 @@ internal sealed class Taskbars : IDisposable
     private long _lastKeyboardToggle;
     private bool _updateQueued;
     private bool _recreate;
+    private bool _disposed;
 
     public Taskbars(RunMode runMode, SettingsStore settings, Action exit, Action switchToExplorer)
     {
@@ -144,12 +145,7 @@ internal sealed class Taskbars : IDisposable
             Tray.BalloonWithdrawn += key => _toasts?.Hide(key);
             _appBars = new AppBars(Tray, () => PrimaryWindow?.ScreenBounds, () => _windowSettings.AutoHide);
         }
-        // Created up front, so it opens instantly and its app catalog is already loaded.
-        _startMenu = new StartMenuWindow(this);
         Notifications = new NotificationCenter();
-        _focus = new FocusSession(Notifications, asShell: RunMode == RunMode.Shell);
-        _clockFlyout = new ClockFlyout(Notifications, _focus, Settings, RunMode);
-        _clockFlyout.OpenChanged += ShowClockOpen;
         // Explorer shows toasts itself while it runs.
         if (RunMode == RunMode.Shell)
         {
@@ -160,12 +156,41 @@ internal sealed class Taskbars : IDisposable
                 () => (_theme, _accent),
                 () => IsClockFlyoutOpen);
         }
-        Notifications.Start();
-        QueueRecreate();
+        _recreate = true;
+        Update();
+        // Start, the clock's flyout and Quick Settings take over half a second to build: the taskbar shows first.
+        // They're made up front still, so they open instantly (and Start's app catalog is loaded), unless clicked
+        // before they're made.
+        UiThread.AfterFramesDrawn(() =>
+        {
+            if (_disposed)
+                return;
+            _ = StartMenu;
+            _ = ClockFlyout;
+            PrimaryWindow?.PrepareQuickSettings();
+            Notifications.Start();
+        });
+    }
+
+    private StartMenuWindow StartMenu => _startMenu ??= new StartMenuWindow(this);
+
+    private ClockFlyout ClockFlyout
+    {
+        get
+        {
+            if (_clockFlyout is null)
+            {
+                _focus = new FocusSession(Notifications!, asShell: RunMode == RunMode.Shell);
+                _clockFlyout = new ClockFlyout(Notifications!, _focus, Settings, RunMode);
+                _clockFlyout.OpenChanged += ShowClockOpen;
+            }
+            return _clockFlyout;
+        }
     }
 
     public void Dispose()
     {
+        _disposed = true;
         Settings.Changed -= OnSettingsChanged;
         _clockSettingsWatcher.Dispose();
         _additionalClocksWatcher.Dispose();
@@ -192,17 +217,15 @@ internal sealed class Taskbars : IDisposable
     /// <summary>Opens Start above <paramref name="taskbar"/>, or closes it if it's open.</summary>
     public void ToggleStartMenu(TaskbarWindow taskbar)
     {
-        if (_startMenu is null)
-            return;
-
-        if (_startMenu.IsOpen)
+        StartMenuWindow startMenu = StartMenu;
+        if (startMenu.IsOpen)
         {
-            _startMenu.Hide();
+            startMenu.Hide();
         }
-        else if (!_startMenu.WasJustDeactivated)
+        else if (!startMenu.WasJustDeactivated)
         {
             taskbar.Reveal();
-            _startMenu.Show(taskbar.Monitor, taskbar.ScreenBounds, taskbar.Handle, Settings.Current.TaskbarAlignment == TaskbarAlignment.Center, _theme, _accent);
+            startMenu.Show(taskbar.Monitor, taskbar.ScreenBounds, taskbar.Handle, Settings.Current.TaskbarAlignment == TaskbarAlignment.Center, _theme, _accent);
         }
     }
 
@@ -240,7 +263,7 @@ internal sealed class Taskbars : IDisposable
     /// <summary>Win+S: opens Start, whose search box has the focus.</summary>
     public void OpenStartMenu()
     {
-        if (_startMenu is { IsOpen: false } && PrimaryWindow is { } window)
+        if (!IsStartMenuOpen && PrimaryWindow is { } window)
             ToggleStartMenu(window);
     }
 
@@ -265,18 +288,16 @@ internal sealed class Taskbars : IDisposable
     /// <summary>Opens the notification center and calendar at the right of <paramref name="taskbar"/>, or closes them.</summary>
     public void ToggleClockFlyout(TaskbarWindow taskbar)
     {
-        if (_clockFlyout is null)
-            return;
-
-        if (_clockFlyout.IsOpen)
+        ClockFlyout clockFlyout = ClockFlyout;
+        if (clockFlyout.IsOpen)
         {
-            _clockFlyout.Hide();
+            clockFlyout.Hide();
         }
-        else if (!_clockFlyout.WasJustDeactivated)
+        else if (!clockFlyout.WasJustDeactivated)
         {
             taskbar.Reveal();
             _clockFlyoutTaskbar = taskbar;
-            _clockFlyout.Show(taskbar.Monitor, taskbar.ScreenBounds, _theme, _accent);
+            clockFlyout.Show(taskbar.Monitor, taskbar.ScreenBounds, _theme, _accent);
         }
     }
 

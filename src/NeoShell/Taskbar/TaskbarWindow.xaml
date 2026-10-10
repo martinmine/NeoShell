@@ -4,8 +4,7 @@
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:local="using:NeoShell.Taskbar"
-    xmlns:tray="using:NeoShell.Tray"
-    xmlns:qs="using:NeoShell.QuickSettings">
+    xmlns:tray="using:NeoShell.Tray">
 
     <!-- Transparent, not null: the background must take right-clicks for the context menu. -->
     <Grid x:Name="Root" Background="Transparent" ContextRequested="Root_ContextRequested">
@@ -784,7 +783,7 @@
                                     <Setter Property="Background" Value="Transparent" />
                                 </Style>
                             </Flyout.FlyoutPresenterStyle>
-                            <qs:QuickSettingsPanel x:Name="QuickSettings" />
+                            <!-- The panel is made in code (QuickSettings): after the taskbar has shown. -->
                         </Flyout>
                     </FlyoutBase.AttachedFlyout>
                 </Button>

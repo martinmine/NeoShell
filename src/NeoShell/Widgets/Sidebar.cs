@@ -371,7 +371,7 @@ internal sealed class Sidebar : IDisposable
         void OnLoaded(object sender, RoutedEventArgs e)
         {
             docked.Loaded -= OnLoaded;
-            WidgetFrame.AfterFramesDrawn(() => Close(window));
+            UiThread.AfterFramesDrawn(() => Close(window));
         }
         docked.Loaded += OnLoaded;
     }

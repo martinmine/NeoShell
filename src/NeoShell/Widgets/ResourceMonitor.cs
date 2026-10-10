@@ -93,7 +93,6 @@ internal sealed class ResourceMonitor : IDisposable
             _history.Clear();
             _lastBytes.Clear();
         }
-        _usage ??= new SystemUsage();
         _timer.Start();
         Sample();
     }
@@ -107,11 +106,12 @@ internal sealed class ResourceMonitor : IDisposable
         double seconds = _lastSample == 0 ? 1 : Math.Max(0.1, (now - _lastSample) / 1000.0);
         _lastSample = now;
 
-        // Off the UI thread: reading every network adapter and GPU engine takes about 10 ms, a hitch in a drag.
-        SystemUsage reader = _usage!;
+        // Off the UI thread: reading every network adapter and GPU engine takes about 10 ms, a hitch in a drag, and
+        // setting the counters up the first time over 100 ms. Dispose waits for this read before it closes them.
         Task<(UsageSample, List<DriveUsage>, List<AdapterUsage>)> reading = Task.Run(() =>
         {
-            UsageSample usage = reader.Sample();
+            _usage ??= new SystemUsage();
+            UsageSample usage = _usage.Sample();
             return (usage, ReadDrives(usage), ReadAdapters(seconds));
         });
         _reading = reading;

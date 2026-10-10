@@ -113,7 +113,13 @@ public sealed unsafe class InputMethods : IDisposable
         Marshal.ThrowExceptionForHR(_control.ClickImeModeItem(0, (long)pointer.Y << 32 | (uint)pointer.X, User32.RECT.From(anchor)));
 
     /// <summary>The enabled input methods, in the order of the user's language list.</summary>
-    public static IReadOnlyList<InputMethod> Enabled()
+    /// <remarks>
+    /// Read on a thread-pool thread, never the UI thread: there, TSF's profile objects share the thread's TSF state
+    /// with WinUI's text boxes, and a text box's teardown as WinUI shuts down then corrupts the heap.
+    /// </remarks>
+    public static IReadOnlyList<InputMethod> Enabled() => Task.Run(ReadEnabled).GetAwaiter().GetResult();
+
+    private static List<InputMethod> ReadEnabled()
     {
         var manager = Ole32.Create<ITfInputProcessorProfileMgr>(TextServices.CLSID_TF_InputProcessorProfiles, CLSCTX_INPROC_SERVER);
         Marshal.ThrowExceptionForHR(manager.EnumProfiles(0, out IEnumTfInputProcessorProfiles all));
@@ -122,7 +128,8 @@ public sealed unsafe class InputMethods : IDisposable
         TF_INPUTPROCESSORPROFILE profile;
         while (all.Next(1, &profile, out uint fetched) == 0 && fetched == 1)
         {
-            if ((profile.dwFlags & TextServices.TF_IPP_FLAG_ENABLED) == 0)
+            // A profile for no language in particular (langid 0) has no culture to show, as one Windows doesn't know.
+            if ((profile.dwFlags & TextServices.TF_IPP_FLAG_ENABLED) == 0 || profile.langid == 0)
                 continue;
 
             CultureInfo culture;
