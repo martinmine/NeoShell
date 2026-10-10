@@ -31,6 +31,8 @@ internal sealed partial class NotesWidget : WidgetView
 
     public override bool CanResize => true;
 
+    public override bool ContentUnderButtons => true;
+
     public override double ContentHeight
     {
         get => NoteBox.Height;

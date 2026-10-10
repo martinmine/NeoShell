@@ -47,7 +47,13 @@ Small widgets about the computer and its user, as Windows Vista's sidebar gadget
 ### Each widget (`WidgetFrame`, `WidgetView`)
 
 - `WidgetFrame` draws the card (none when floating: the window is the card) and, while the pointer is over it, a
-  settings button (a flyout with the widget's own settings) and a close button, on a solid plate at the top right.
+  settings button (a flyout with the widget's own settings, headed by the widget's name) and a close button, on a
+  solid plate at the top right.
+- No widget shows a heading: each says what it is by itself. Its name (`WidgetView.Title`) is in the add menu, its
+  settings flyout and its UI Automation name. Where the widget's own content reaches the top right
+  (`WidgetView.ContentUnderButtons`: Resource usage's first value, Wireless devices' first level, a note's text), the
+  buttons show only while the pointer is near them (16 epx around the plate), so they don't hide the content while
+  it's read, expanded or typed into.
 - Pressing anywhere the widget's own controls don't take and moving 4 epx drags it. A widget dragged from the sidebar
   is lifted out of the column (invisible and without height, kept in the tree so it keeps the pointer; each card keeps
   its gap below itself rather than the panel's spacing, so a lifted one leaves none). While a widget is over the

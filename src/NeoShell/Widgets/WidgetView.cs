@@ -17,7 +17,10 @@ internal partial class WidgetView : UserControl
     /// <summary>The widget changed its own settings (from its settings flyout), for the sidebar to save them.</summary>
     public event Action<WidgetSettings>? SettingsChanged;
 
-    /// <summary>The name in the add menu and in the settings flyout.</summary>
+    /// <summary>
+    /// The name in the add menu, in the settings flyout and for UI Automation. Not shown on the widget: the ones that
+    /// show a heading have it in their own XAML.
+    /// </summary>
     public static string Title(WidgetKind kind) => kind switch
     {
         WidgetKind.Profile => "Profile",
@@ -58,6 +61,12 @@ internal partial class WidgetView : UserControl
 
     /// <summary>Content that fills the card to its edges (a picture), without the card's padding and border.</summary>
     public virtual bool FillsCard => false;
+
+    /// <summary>
+    /// Content reaches the top right, under the settings and close buttons (a list's values, a note's text): they show
+    /// only while the pointer is near them, not anywhere over the widget, so they don't hide it while it's used.
+    /// </summary>
+    public virtual bool ContentUnderButtons => false;
 
     /// <summary>The controls of the settings flyout, built each time it opens.</summary>
     public virtual FrameworkElement CreateSettings() => new StackPanel();

@@ -17,22 +17,16 @@
         <Thickness x:Key="TextControlBorderThemeThicknessFocused">0</Thickness>
     </local:WidgetView.Resources>
 
-    <StackPanel Spacing="4">
-        <TextBlock
-            Height="28"
-            Text="Notes"
-            Style="{StaticResource CaptionTextBlockStyle}"
-            Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-        <TextBox
-            x:Name="NoteBox"
-            Padding="0,4"
-            BorderThickness="0"
-            AutomationProperties.AutomationId="NoteText"
-            AutomationProperties.Name="Note"
-            AcceptsReturn="True"
-            TextWrapping="Wrap"
-            PlaceholderText="Write a note"
-            ScrollViewer.VerticalScrollBarVisibility="Auto"
-            TextChanged="NoteBox_TextChanged" />
-    </StackPanel>
+    <!-- No heading: the widget's buttons show over the top right while the pointer is near them (ContentUnderButtons). -->
+    <TextBox
+        x:Name="NoteBox"
+        Padding="0,0,0,4"
+        BorderThickness="0"
+        AutomationProperties.AutomationId="NoteText"
+        AutomationProperties.Name="Note"
+        AcceptsReturn="True"
+        TextWrapping="Wrap"
+        PlaceholderText="Write a note"
+        ScrollViewer.VerticalScrollBarVisibility="Auto"
+        TextChanged="NoteBox_TextChanged" />
 </local:WidgetView>

@@ -25,6 +25,8 @@ internal sealed partial class WirelessWidget : WidgetView
 
     private int PollMinutes => Math.Clamp(Settings.PollMinutes ?? 5, 1, 60);
 
+    public override bool ContentUnderButtons => true;
+
     public override void Close() => _monitor.Updated -= Refresh;
 
     public override FrameworkElement CreateSettings()

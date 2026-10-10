@@ -16,6 +16,9 @@ internal sealed partial class WidgetFrame : UserControl
     // Effective pixels the pointer moves with the button down before a press becomes a drag.
     private const double DragThreshold = 4;
 
+    // How near the buttons, in effective pixels, the pointer brings them up over content under them.
+    private const double ButtonsReach = 16;
+
     private (PointInt32 Start, Point Grab)? _press;
     private bool _dragging;
     private bool _pointerOver;
@@ -39,6 +42,9 @@ internal sealed partial class WidgetFrame : UserControl
             Card.Padding = new Thickness(0);
             Card.BorderThickness = new Thickness(0);
         }
+        // Also the moves the widget's own controls take (a resource row is a button).
+        if (widget.ContentUnderButtons)
+            Root.AddHandler(PointerMovedEvent, new PointerEventHandler((_, e) => SetPointerOver(NearButtons(e))), true);
     }
 
     public WidgetView Widget { get; }
@@ -95,7 +101,16 @@ internal sealed partial class WidgetFrame : UserControl
         return Widget;
     }
 
-    private void Root_PointerEntered(object sender, PointerRoutedEventArgs e) => SetPointerOver(true);
+    private void Root_PointerEntered(object sender, PointerRoutedEventArgs e) => SetPointerOver(NearButtons(e));
+
+    // Anywhere over the widget, unless its content runs under the buttons.
+    private bool NearButtons(PointerRoutedEventArgs e)
+    {
+        if (!Widget.ContentUnderButtons)
+            return true;
+        Point point = e.GetCurrentPoint(Buttons).Position;
+        return point.X >= -ButtonsReach && point.Y <= Buttons.ActualHeight + ButtonsReach;
+    }
 
     private void Root_PointerExited(object sender, PointerRoutedEventArgs e) => SetPointerOver(false);
 

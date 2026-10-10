@@ -270,6 +270,8 @@ Tick items off as they land. The feature details are in [design.md](design.md) a
 - [x] Widgets docked or undocked don't load again: the same view moves between the sidebar and its floating window
       (and to a new sidebar window on another monitor), keeping its content and state; the cover pictures and
       `WidgetView.Ready` are gone
+- [x] No heading on Resource usage, Wireless devices and Notes; their buttons show only near the top right corner,
+      so they don't cover the first value or the note's text
 
 ## 19. Explorer parity (2)
 

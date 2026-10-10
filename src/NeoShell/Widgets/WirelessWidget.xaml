@@ -4,13 +4,8 @@
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:local="using:NeoShell.Widgets">
+    <!-- No heading: the widget's buttons show over the top right while the pointer is near them (ContentUnderButtons). -->
     <StackPanel Spacing="4">
-        <TextBlock
-            Height="28"
-            Margin="4,0"
-            Text="Wireless devices"
-            Style="{StaticResource CaptionTextBlockStyle}"
-            Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
         <StackPanel x:Name="Rows" AutomationProperties.AutomationId="WirelessDeviceList" />
         <TextBlock
             x:Name="StatusText"
