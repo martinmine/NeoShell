@@ -23,7 +23,9 @@ shell-mode testing): a killed Explorer stays down, so start `explorer.exe` again
 - **Clean, simple, readable.** Write the smallest readable thing that works. No speculative abstractions,
   no interfaces with a single implementation, no layers "for later". Follow standard C# conventions.
 - **BCL first.** Approved packages, and no others without asking the user first:
-  - `Microsoft.WindowsAppSDK` (WinUI 3)
+  - The Windows App SDK's `Microsoft.WindowsAppSDK.WinUI` and `.InteractiveExperiences` (WinUI 3); not the
+    `Microsoft.WindowsAppSDK` meta-package: NeoShell doesn't use its AI, ML, Search and Widgets parts, a third of
+    the download
   - `System.Data.OleDb` (Windows Search Indexer queries)
   - Tests only: `xunit`, `xunit.runner.visualstudio`, `Microsoft.NET.Test.Sdk`
 - No DI container — `App` creates and wires the few long-lived objects by hand.

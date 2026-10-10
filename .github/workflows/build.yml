@@ -35,14 +35,14 @@ jobs:
       - name: Test
         run: dotnet test -c Release -p:NeoShellArchitecture=${{ matrix.arch }}
 
-      # Self-contained, so a downloaded package runs without installing the .NET runtime first.
+      # Self-contained and trimmed (NeoShell.csproj), so a downloaded package runs without installing .NET first.
       - name: Package
         shell: pwsh
         run: |
           foreach ($config in 'Release', 'Debug') {
               $name = "NeoShell-$config-${{ matrix.arch }}"
               $dir = "packages/$name"
-              dotnet publish src/NeoShell -c $config -p:NeoShellArchitecture=${{ matrix.arch }} --self-contained -o "$dir/NeoShell"
+              dotnet publish src/NeoShell -c $config -p:NeoShellArchitecture=${{ matrix.arch }} -o "$dir/NeoShell"
               if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
               Copy-Item tools -Destination $dir -Recurse
               Copy-Item README.md -Destination $dir
