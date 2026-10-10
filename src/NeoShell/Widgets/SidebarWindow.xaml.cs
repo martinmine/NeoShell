@@ -164,10 +164,10 @@ internal sealed partial class SidebarWindow : Window
     /// </summary>
     public static void Lift(WidgetFrame frame, bool lifted)
     {
-        // It keeps its size, with the cards below drawn up over it: its view stays laid out as it was, for the
-        // picture taken of it as it was pressed (WidgetFrame.PressSnapshot), which may be drawn only after this.
+        // Without height rather than drawn over: its view leaves it once the widget is dragged off the sidebar.
         frame.Opacity = lifted ? 0 : 1;
-        frame.Margin = new Thickness(0, 0, 0, lifted ? -frame.ActualHeight : CardGap);
+        frame.Height = lifted ? 0 : double.NaN;
+        frame.Margin = new Thickness(0, 0, 0, lifted ? 0 : CardGap);
     }
 
     public void Remove(WidgetFrame frame) => Cards.Children.Remove(frame);

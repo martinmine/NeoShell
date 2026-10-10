@@ -1,28 +1,18 @@
 using System.Runtime.InteropServices;
-using System.Runtime.InteropServices.WindowsRuntime;
-using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Imaging;
-using NeoShell.Interop.Imaging;
 using NeoShell.Interop.Windowing;
 using Windows.Foundation;
 using Windows.Graphics;
-using Windows.Storage.Streams;
 
 namespace NeoShell.Widgets;
 
-/// <summary>A picture of a widget's content as it was shown, in effective pixels.</summary>
-internal sealed record WidgetSnapshot(ImageSource Image, double Width, double Height);
-
 internal sealed partial class WidgetFrame : UserControl
 {
-    // How long a new view stays covered at most, should it never say it's ready (a picture that won't load).
-    private static readonly TimeSpan s_coverTimeout = TimeSpan.FromSeconds(2);
-
     // Effective pixels the pointer moves with the button down before a press becomes a drag.
     private const double DragThreshold = 4;
 
@@ -68,80 +58,41 @@ internal sealed partial class WidgetFrame : UserControl
     public event Action<WidgetFrame, PointInt32>? DragEnded;
 
     /// <summary>
-    /// A picture of the widget taken as it was last pressed, for its next place should the press become a drag. Taken
-    /// on the press, while the widget still shows: rendering it takes a while (100 ms and more), and a docked widget
-    /// dragged is lifted out of sight at once.
+    /// Takes the view out of this frame, for a frame of the widget in its other place (the sidebar or the desktop): it
+    /// goes there as it is, without loading again. WinUI moves an element to another window once it has left its old
+    /// parent. Null if it was taken already; the frame is left empty.
     /// </summary>
-    public Task<WidgetSnapshot?> PressSnapshot { get; private set; } = Task.FromResult<WidgetSnapshot?>(null);
-
-    /// <summary>A picture of the widget's content as it shows now; null if it isn't shown.</summary>
-    private async Task<WidgetSnapshot?> SnapshotAsync()
+    public WidgetView? Release()
     {
-        double width = Widget.ActualWidth, height = Widget.ActualHeight;
-        if (width <= 0 || height <= 0)
+        if (Card.Child != Widget)
             return null;
-        var bitmap = new RenderTargetBitmap();
-        try
-        {
-            await bitmap.RenderAsync(Widget);
-            // Copied out: a RenderTargetBitmap shows only in the window it was rendered in, and the picture goes to
-            // the widget's next window.
-            IBuffer pixels = await bitmap.GetPixelsAsync();
-            ImageSource image = AppIcons.ToImageSource(new IconBitmap(bitmap.PixelWidth, bitmap.PixelHeight, pixels.ToArray()));
-            return new WidgetSnapshot(image, width, height);
-        }
-        catch (Exception ex) when (ex is ArgumentException or COMException)
-        {
-            return null;
-        }
+        Card.Child = null;
+        return Widget;
     }
 
     /// <summary>
-    /// Shows the widget as it looked in its other place (the sidebar or the desktop) until this new view of it is
-    /// ready (<see cref="WidgetView.Ready"/>) and drawn: moved, the widget then stays as it was rather than showing
-    /// empty and filling in. The view keeps the picture's height meanwhile.
+    /// Takes the view out as <see cref="Release"/> does, leaving a picture of it in its place, so the frame's window
+    /// can stay until the view is drawn in its other place without showing it gone.
     /// </summary>
-    public void Cover(WidgetSnapshot snapshot)
+    public async Task<WidgetView?> ReleaseAsync()
     {
-        var image = new Image
-        {
-            Source = snapshot.Image,
-            Width = snapshot.Width,
-            Height = snapshot.Height,
-            Stretch = Stretch.Fill,
-            HorizontalAlignment = HorizontalAlignment.Left,
-            VerticalAlignment = VerticalAlignment.Top,
-            IsHitTestVisible = false,
-            // Where the card puts the view.
-            Margin = new Thickness(
-                Card.BorderThickness.Left + Card.Padding.Left,
-                Card.BorderThickness.Top + Card.Padding.Top,
-                0,
-                0),
-        };
-        Root.Children.Insert(Root.Children.IndexOf(Card) + 1, image);
-        double minHeight = Widget.MinHeight;
-        Widget.MinHeight = snapshot.Height;
-        Widget.Opacity = 0;
+        if (Card.Child != Widget)
+            return null;
 
-        DispatcherQueueTimer timeout = DispatcherQueue.CreateTimer();
-        timeout.Interval = s_coverTimeout;
-        timeout.IsRepeating = false;
-        void Uncover()
+        double width = Widget.ActualWidth, height = Widget.ActualHeight;
+        var picture = new RenderTargetBitmap();
+        try
         {
-            timeout.Stop();
-            if (!Root.Children.Remove(image))
-                return;
-            Widget.MinHeight = minHeight;
-            Widget.Opacity = 1;
+            await picture.RenderAsync(Widget);
         }
-        timeout.Tick += (_, _) => Uncover();
-        timeout.Start();
-        // Content that's ready may not be drawn yet (a new view's text takes a frame or two): the picture stays until it is.
-        if (Widget.IsReady)
-            UiThread.AfterFramesDrawn(Uncover);
-        else
-            Widget.Ready += () => UiThread.AfterFramesDrawn(Uncover);
+        catch (Exception ex) when (ex is ArgumentException or COMException)
+        {
+            return Release();
+        }
+        if (Card.Child != Widget)
+            return null;
+        Card.Child = new Image { Source = picture, Width = width, Height = height, Stretch = Stretch.Fill };
+        return Widget;
     }
 
     private void Root_PointerEntered(object sender, PointerRoutedEventArgs e) => SetPointerOver(true);
@@ -189,7 +140,6 @@ internal sealed partial class WidgetFrame : UserControl
 
         _press = (Cursor.Position(), e.GetCurrentPoint(Root).Position);
         Root.CapturePointer(e.Pointer);
-        PressSnapshot = SnapshotAsync();
     }
 
     // On-screen positions rather than the pointer's in the window: the window itself moves while it's dragged.

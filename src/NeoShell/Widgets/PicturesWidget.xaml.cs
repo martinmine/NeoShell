@@ -14,10 +14,6 @@ namespace NeoShell.Widgets;
 /// <summary>A slideshow of the pictures in a folder (the user's Pictures, and the folders in it), in random order.</summary>
 internal sealed partial class PicturesWidget : WidgetView
 {
-    // The picture each pictures widget shows, by widget: a widget moved between the sidebar and the desktop gets a
-    // new view, which goes on from that picture rather than another.
-    private static readonly Dictionary<string, string> s_shown = [];
-
     private static readonly HashSet<string> s_extensions = new(StringComparer.OrdinalIgnoreCase) { ".jpg", ".jpeg", ".png", ".bmp", ".gif", ".webp" };
 
     // Enough for a slideshow, without walking a whole photo archive.
@@ -39,8 +35,6 @@ internal sealed partial class PicturesWidget : WidgetView
     }
 
     public override bool FillsCard => true;
-
-    protected override bool LoadsContent => true;
 
     private string Folder => Settings.PictureFolder ?? Environment.GetFolderPath(Environment.SpecialFolder.MyPictures);
 
@@ -100,8 +94,6 @@ internal sealed partial class PicturesWidget : WidgetView
             return;
 
         Random.Shared.Shuffle(pictures);
-        if (s_shown.TryGetValue(Settings.Id, out string? shown) && Array.IndexOf(pictures, shown) is > 0 and var at)
-            (pictures[0], pictures[at]) = (pictures[at], pictures[0]);
         _pictures = pictures;
         _next = 0;
         if (pictures.Length == 0)
@@ -109,7 +101,6 @@ internal sealed partial class PicturesWidget : WidgetView
             Picture.Background = null;
             _shown = null;
             StatusText.Text = $"No pictures in {folder}";
-            MarkReady();
             return;
         }
         StatusText.Text = "";
@@ -155,14 +146,13 @@ internal sealed partial class PicturesWidget : WidgetView
             using var stream = new MemoryStream(bytes);
             await image.SetSourceAsync(stream.AsRandomAccessStream());
             Picture.Background = new ImageBrush { ImageSource = image, Stretch = Stretch.UniformToFill };
-            _shown = s_shown[Settings.Id] = path;
+            _shown = path;
         }
         catch (Exception ex)
         {
             // Moved, deleted or not really a picture; the next one shows on the next tick.
             Log.Warn($"Could not show {path}", ex);
         }
-        MarkReady();
     }
 
     private void Picture_DoubleTapped(object sender, DoubleTappedRoutedEventArgs e)

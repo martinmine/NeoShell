@@ -85,7 +85,7 @@ internal sealed class Sidebar : IDisposable
 
         var widget = new WidgetSettings { Kind = kind };
         Save([.. Widgets, widget]);
-        WidgetFrame frame = CreateFrame(widget, floating: false);
+        WidgetFrame frame = CreateFrame(CreateView(widget), floating: false);
         _window.Insert(frame, int.MaxValue);
         frame.Loaded += (_, _) => frame.StartBringIntoView();
         Log.Info($"Added the {kind} widget");
@@ -135,12 +135,9 @@ internal sealed class Sidebar : IDisposable
             DisplayMonitor? primary = PrimaryMonitor();
             if (primary is null)
                 return;
-            // On another monitor, or one at another scale: a new window, laid out for it.
+            // On another monitor, or one at another scale: a new window, laid out for it, showing the same views.
             if (primary.Handle != _window.Monitor.Handle || primary.Dpi != _window.Monitor.Dpi || primary.Bounds != _window.Monitor.Bounds)
-            {
-                CloseWindow();
-                CreateWindow();
-            }
+                CreateWindow(ShutWindow());
             else
             {
                 _window.Place(primary, _settings.Current.WidgetSidebarWidth);
@@ -159,29 +156,47 @@ internal sealed class Sidebar : IDisposable
     private static DisplayMonitor? PrimaryMonitor() =>
         DisplayMonitor.GetAll() is var monitors && monitors.Count > 0 ? monitors.FirstOrDefault(m => m.IsPrimary) ?? monitors[0] : null;
 
-    private void CreateWindow()
+    /// <param name="views">Views of the docked widgets to show (from the window this one replaces); others are made.</param>
+    private void CreateWindow(IReadOnlyList<WidgetView>? views = null)
     {
         if (PrimaryMonitor() is not { } monitor)
+        {
+            foreach (WidgetView view in views ?? [])
+                view.Close();
             return;
+        }
 
         _window = new SidebarWindow(this, _runMode, monitor, _settings.Current.WidgetSidebarWidth, _settings.Current.ShowWidgetPanel, _backdrop, _taskbars.Theme, _taskbars.Accent);
         foreach (WidgetSettings widget in Widgets.Where(w => !w.IsFloating))
-            _window.Insert(CreateFrame(widget, floating: false), int.MaxValue);
+        {
+            WidgetView view = views?.FirstOrDefault(v => v.Settings.Id == widget.Id) ?? CreateView(widget);
+            _window.Insert(CreateFrame(view, floating: false), int.MaxValue);
+        }
         _window.AppWindow.Show(activateWindow: false);
     }
 
     private void CloseWindow()
     {
-        if (_window is null)
-            return;
-
-        foreach (WidgetFrame frame in _window.Frames)
-            frame.Widget.Close();
-        _window.Shut();
-        _window = null;
+        foreach (WidgetView view in ShutWindow())
+            view.Close();
     }
 
-    private WidgetFrame CreateFrame(WidgetSettings widget, bool floating)
+    // Shuts the sidebar's window, ending a drag out of it, and returns the views it showed.
+    private List<WidgetView> ShutWindow()
+    {
+        if (_window is null)
+            return [];
+
+        CloseDragOut();
+        List<WidgetView> views = [.. _window.Frames.Select(frame => frame.Release()).OfType<WidgetView>()];
+        _window.Shut();
+        _window = null;
+        return views;
+    }
+
+    private bool IsDocked(WidgetFrame frame) => _window is not null && _window.Frames.Contains(frame);
+
+    private WidgetView CreateView(WidgetSettings widget)
     {
         WidgetView view = widget.Kind switch
         {
@@ -208,7 +223,11 @@ internal sealed class Sidebar : IDisposable
                 }));
             }
         };
+        return view;
+    }
 
+    private WidgetFrame CreateFrame(WidgetView view, bool floating)
+    {
         var frame = new WidgetFrame(view, floating);
         frame.CloseRequested += Remove;
         frame.DragStarted += (_, grab) => _grab = grab;
@@ -232,14 +251,20 @@ internal sealed class Sidebar : IDisposable
 
     private void ShowFloating(WidgetSettings widget, PointInt32 topLeft)
     {
-        FloatingWidgetWindow window = NewFloatingWindow(widget, topLeft);
+        FloatingWidgetWindow window = NewFloatingWindow(widget, CreateView(widget), topLeft);
         window.AppWindow.Show(activateWindow: false);
         _floating[widget.Id] = window;
     }
 
-    private FloatingWidgetWindow NewFloatingWindow(WidgetSettings widget, PointInt32 topLeft)
+    private FloatingWidgetWindow NewFloatingWindow(WidgetSettings widget, WidgetView view, PointInt32 topLeft)
     {
-        var window = new FloatingWidgetWindow(CreateFrame(widget, floating: true), topLeft, _backdrop, _taskbars.Theme, _taskbars.Accent);
+        var window = new FloatingWidgetWindow(
+            CreateFrame(view, floating: true),
+            widget.FloatingWidth ?? SidebarLayout.FloatingWidth,
+            topLeft,
+            _backdrop,
+            _taskbars.Theme,
+            _taskbars.Accent);
         window.Resized += (width, contentHeight) =>
         {
             if (Widgets.FirstOrDefault(w => w.Id == widget.Id) is { } stored)
@@ -273,6 +298,8 @@ internal sealed class Sidebar : IDisposable
 
     private void MoveDocked(WidgetFrame frame, PointInt32 cursor)
     {
+        if (!IsDocked(frame))
+            return;
         if (IsOverSidebar(cursor))
         {
             _dragOut?.AppWindow.Hide();
@@ -282,43 +309,42 @@ internal sealed class Sidebar : IDisposable
         _window?.HideDropSlot();
 
         PointInt32 topLeft = TopLeftAt(cursor, _grab, frame.XamlRoot.RasterizationScale);
-        if (_dragOut is null)
-        {
-            _dragOut = NewFloatingWindow(Widgets.Single(w => w.Id == frame.Widget.Settings.Id), topLeft);
-            CoverWithPressSnapshot(_dragOut.Frame, frame);
-        }
-        _dragOut.MoveTo(topLeft);
-        _dragOut.AppWindow.Show(activateWindow: false);
+        // Off the sidebar the widget's own view goes into a window of its own, as it is; the card it leaves keeps the
+        // pointer.
+        if (_dragOut is null && frame.Release() is { } view)
+            _dragOut = NewFloatingWindow(Widgets.Single(w => w.Id == view.Settings.Id), view, topLeft);
+        _dragOut?.MoveTo(topLeft);
+        _dragOut?.AppWindow.Show(activateWindow: false);
     }
 
     private void DropDocked(WidgetFrame frame, PointInt32 cursor)
     {
+        // The sidebar's window was replaced or closed during the drag (ShutWindow ended it).
+        if (!IsDocked(frame))
+            return;
+
         string id = frame.Widget.Settings.Id;
         if (IsOverSidebar(cursor) || _dragOut is null)
         {
+            // Back from the desktop, the view comes back from the window that followed the pointer.
+            WidgetFrame docked = _dragOut?.Frame.Release() is { } view ? CreateFrame(view, floating: false) : frame;
             CloseDragOut();
-            if (_window is null)
-            {
-                SidebarWindow.Lift(frame, false);
-                return;
-            }
-            int index = _window.DropSlotIndex;
+            int index = _window!.DropSlotIndex;
             Save(SidebarLayout.Dock(Widgets, id, index));
             // Into the gap once the press that holds it has ended.
             _dispatcher.Post(() =>
             {
                 _window?.Remove(frame);
                 _window?.HideDropSlot();
-                _window?.Insert(frame, index);
+                _window?.Insert(docked, index);
             });
             return;
         }
 
-        // Out on the desktop: the window that followed the pointer stays there.
+        // Out on the desktop: the window that followed the pointer stays there, with the view.
         FloatingWidgetWindow window = _dragOut;
         _dragOut = null;
         _floating[id] = window;
-        frame.Widget.Close();
         _dispatcher.Post(() => _window?.Remove(frame));
         _window?.HideDropSlot();
         SaveFloating(id, window.TopLeft);
@@ -349,44 +375,38 @@ internal sealed class Sidebar : IDisposable
             return;
         }
 
-        // Back into the sidebar: it goes straight into the gap the others made, and takes its place among them. Its new
-        // card shows a picture of it until the new view is ready and drawn, and the window goes once the card is drawn:
-        // there's no moment without either, nor the widget empty and filling in.
+        // Back into the sidebar: its view goes into the gap the others made, as it is. The window jumps into the gap
+        // and shows a picture of the widget in the view's place until the card has been drawn: a window doesn't go in
+        // step with what WinUI draws (hiding one even holds WinUI's next frame up by about 100 ms), and going first it
+        // left the gap empty for a frame or more, while staying empty it covered the card.
         int index = _window.DropSlotIndex;
         _floating.Remove(id);
         Save(SidebarLayout.Dock(Widgets, id, index));
         window.MoveTo(_window.DropSlotTopLeft);
-        WidgetSnapshot? snapshot = await frame.PressSnapshot;
-        if (_window is null)
+        if (await frame.ReleaseAsync() is { } view)
         {
-            Close(window);
-            return;
+            if (_window is null)
+            {
+                view.Close();
+            }
+            else
+            {
+                _window.HideDropSlot();
+                _window.Insert(CreateFrame(view, floating: false), index);
+            }
         }
-        WidgetFrame docked = CreateFrame(Widgets.Single(w => w.Id == id), floating: false);
-        if (snapshot is not null)
-            docked.Cover(snapshot);
-        _window.HideDropSlot();
-        _window.Insert(docked, index);
-        // Once: the card loads again whenever it's moved among the others, long after the window has gone.
-        void OnLoaded(object sender, RoutedEventArgs e)
+        // Hidden before it's closed: closing, it shows white for a moment.
+        UiThread.AfterFramesDrawn(() =>
         {
-            docked.Loaded -= OnLoaded;
+            window.AppWindow.Hide();
             UiThread.AfterFramesDrawn(() => Close(window));
-        }
-        docked.Loaded += OnLoaded;
+        });
     }
 
     private void SaveFloating(string id, PointInt32 topLeft)
     {
         if (Widgets.FirstOrDefault(w => w.Id == id) is { } widget)
             Save(SidebarLayout.Replace(Widgets, widget with { X = topLeft.X, Y = topLeft.Y }));
-    }
-
-    /// <summary>Covers a new view of a widget with the picture of it taken as it was pressed, once that's taken.</summary>
-    private static async void CoverWithPressSnapshot(WidgetFrame frame, WidgetFrame pressed)
-    {
-        if (await pressed.PressSnapshot is { } snapshot)
-            frame.Cover(snapshot);
     }
 
     private void Save(IReadOnlyList<WidgetSettings> widgets) => _settings.Update(_settings.Current with { Widgets = widgets });
@@ -415,7 +435,7 @@ internal sealed class Sidebar : IDisposable
 
     private static void Close(FloatingWidgetWindow window)
     {
-        window.Frame.Widget.Close();
+        window.Frame.Release()?.Close();
         window.Shut();
     }
 }

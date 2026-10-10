@@ -267,6 +267,9 @@ Tick items off as they land. The feature details are in [design.md](design.md) a
 - [x] Widgets moved between the sidebar and the desktop stay as they were instead of showing empty and filling in: the
       new view is covered with a picture of the old one until it's ready; dropped on the sidebar, a widget takes its
       place at once (no slide), and the pictures widget keeps its picture
+- [x] Widgets docked or undocked don't load again: the same view moves between the sidebar and its floating window
+      (and to a new sidebar window on another monitor), keeping its content and state; the cover pictures and
+      `WidgetView.Ready` are gone
 
 ## 19. Explorer parity (2)
 

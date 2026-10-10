@@ -49,29 +49,32 @@ Small widgets about the computer and its user, as Windows Vista's sidebar gadget
 - `WidgetFrame` draws the card (none when floating: the window is the card) and, while the pointer is over it, a
   settings button (a flyout with the widget's own settings) and a close button, on a solid plate at the top right.
 - Pressing anywhere the widget's own controls don't take and moving 4 epx drags it. A widget dragged from the sidebar
-  is lifted out of the column (invisible and kept in the tree at its size, so it keeps the pointer, with a negative
-  bottom margin so it takes no room; each card keeps its gap below itself rather than the panel's spacing, so a lifted
-  one leaves none). While a widget is over the sidebar, the others
+  is lifted out of the column (invisible and without height, kept in the tree so it keeps the pointer; each card keeps
+  its gap below itself rather than the panel's spacing, so a lifted one leaves none). While a widget is over the
+  sidebar, the others
   make room for it (moves of a desktop-level window leave its z-order alone, so dragging stays smooth): a
   card-shaped gap opens where it would go (before the first card whose middle is below the
   pointer, measured as if the gap weren't there), and the cards slide (`RepositionThemeTransition`). Off the sidebar
   the widget follows the pointer in its own window, held where it was grabbed, and stays where it's let go. Let go
   over the sidebar it takes the gap's place at once.
-- Moving between the sidebar and the desktop makes a new view in the other window (WinUI can't move an element between
-  windows), so the move hands over without showing it empty and filling in: a picture of the widget is taken as it's
-  pressed (`RenderTargetBitmap`, its pixels copied into a `WriteableBitmap`, as a render target shows only in its own
-  window; on the press as it takes 60-200 ms on the VM), and the new view is hidden under it, at its height, until the
-  view is ready (`WidgetView.Ready`: once laid out, or for the profile picture, weather, pictures and now playing once
-  they show their content) and two more frames are drawn, or 2 s at most. A floating widget dropped on the sidebar
-  jumps into the gap, and its window closes once the new card is drawn. The pictures widget goes on with the picture
-  it showed.
+- Moving between the sidebar and the desktop moves the widget itself: its view leaves the card (`WidgetFrame.Release`)
+  and goes into a frame in the other window, so it shows exactly what it showed, without loading anything again (the
+  same picture and slideshow, forecast, track and art, open graphs, devices, and unsaved typing in a note). Dragged
+  off the sidebar, the view goes into the window that follows the pointer as soon as the pointer leaves the sidebar
+  (the lifted card stays behind, empty, holding the pointer), and back into a new card if it's let go over the
+  sidebar after all. A floating widget dropped on the sidebar jumps into the gap and its view goes into a new card
+  there; the window stays over the gap with a picture of the widget in its place (`RenderTargetBitmap`, taken as it's
+  dropped) until the card has been drawn, then is hidden and closed. A window doesn't show or go in step with what
+  WinUI draws (hiding one holds WinUI's next frame up by about 100 ms), so going at once it left the gap empty for a
+  frame or more, and staying empty it covered the card.
 - A floating note can be resized by its bottom-right corner (`WidgetView.CanResize`): its width (200 to 640 epx) and
   the height of its text (60 to 900 epx), saved as `FloatingWidth` and `ContentHeight`; the text keeps its height when
   the note is docked.
 - `ShellSettings.Widgets` keeps every widget, docked and floating; the docked ones in the sidebar's order. Each has an
   id, its kind, a position while floating and its kind's options (`WidgetSettings`; unset options take defaults and
-  aren't written). A widget's view is made anew when it moves between the sidebar and the desktop, so what it keeps
-  lives in its settings, a file or a shared service. The default widgets have fixed ids.
+  aren't written). A widget's view is made once and kept while it's shown, also when the sidebar's window is made
+  anew for another monitor; what must outlast a restart lives in its settings or a file. The default widgets have
+  fixed ids.
 
 ### The widgets
 
