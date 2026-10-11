@@ -120,6 +120,10 @@ windows over the title bars (see [Options](#options)).
 | E. Bundle DWMBlurGlass | Ship or detect DWMBlurGlass and write its `config.ini` from NeoShell's settings | No (global only) | Its Aero preset | As D, and its updates are someone else's | Needs approval (a third-party native component) |
 | F. Per-process skinning | A global hook DLL (32- and 64-bit) subclassing every window's `WM_NCPAINT`, as WindowBlinds | Yes | Faithful | Inside every app; crashes take apps down; anti-cheat and protected processes | No |
 
+Option C for XP's Luna, by a separate elevated helper, was spiked on 2026-10-11: see
+[Luna through overlay windows](window-frames-overlay.md) (feasible; owned layered windows, one thread per app, a
+one-frame lag on moves, the app's own frame in thumbnails and animations).
+
 **Recommendation:** build the prototype on A (and B as one more preset), with the rules, presets and editor below,
 and treat the XP and Vista presets honestly as approximations. Try C as a separate spike only if the owner wants the
 real looks without injection, measuring the lag first. D/E are the only route to faithful Aero glass and need the

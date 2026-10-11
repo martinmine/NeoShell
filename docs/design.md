@@ -96,6 +96,8 @@ Each area has its own file in [design/](design/):
 - [Widgets](design/widgets.md) — The widget sidebar, floating widgets and each widget.
 - [Window frames](design/window-frames.md) — Restyling other apps' title bars and frames (research and the
   prototype built from it): what DWM lets NeoShell change, prior art, options, presets.
+  - [Luna through overlay windows](design/window-frames-overlay.md) — Feasibility of an elevated helper drawing XP's
+    Luna frame over other apps' windows (spike findings, process model).
 - [Settings](design/settings.md) — The settings record and its file.
 - [Settings window](design/settings-window.md) — NeoShell's Settings window, Start's button for it, and the menus
   whose settings moved into it.

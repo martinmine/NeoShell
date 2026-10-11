@@ -662,6 +662,11 @@ Built as the spec's option A + B: NeoShell's own `DwmSetWindowAttribute` calls, 
   the overlay spike (C)? Is a DWM extension (D) or bundling DWMBlurGlass (E) acceptable at all? Where do the settings
   live once NeoShell has a settings window? Also: should Luna (or any style) get an inactive caption colour, applied on
   foreground changes (XP's inactive caption was #7A96DF)?
+- [x] Feasibility spike (2026-10-11): Luna through overlay windows of a separate elevated helper
+      (design/window-frames-overlay.md): owned layered windows per app window, z-order, following moves, restore,
+      activation, hangs, input, elevation, cost — measured on test windows and Registry Editor
+- [ ] Build the overlay helper — waiting for the owner's answers in design/window-frames-overlay.md; not run live yet:
+      other DPI scales, a second monitor, virtual desktops
 
 ## Settings window
 
