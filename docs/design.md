@@ -97,4 +97,6 @@ Each area has its own file in [design/](design/):
 - [Window frames](design/window-frames.md) — Restyling other apps' title bars and frames (research and the
   prototype built from it): what DWM lets NeoShell change, prior art, options, presets.
 - [Settings](design/settings.md) — The settings record and its file.
+- [Settings window](design/settings-window.md) — NeoShell's Settings window, Start's button for it, and the menus
+  whose settings moved into it.
 - [Testing strategy](design/testing.md) — How NeoShell is tested: unit tests, live UI checks, shell mode.

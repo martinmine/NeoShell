@@ -43,7 +43,10 @@ public sealed class SettingsStoreTests : IDisposable
                 new StartPin(Folder: new StartFolder("f1", "Games", [new PinnedApp("Solitaire", AppUserModelId: "Microsoft.MicrosoftSolitaireCollection_8wekyb3d8bbwe!App")])),
             ],
             StartAppsOpened = ["P~Microsoft.WindowsCalculator_8wekyb3d8bbwe!App"],
+            StartMenuWidth = 700,
+            StartMenuHeight = 640,
             ShowWidgetSidebar = false,
+            ShowWidgetPanel = false,
             WidgetSidebarWidth = 400,
             Widgets =
             [

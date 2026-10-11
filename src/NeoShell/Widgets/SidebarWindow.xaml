@@ -20,13 +20,19 @@
             </ResourceDictionary>
         </Grid.Resources>
         <FlyoutBase.AttachedFlyout>
+            <!-- Adding widgets, then the sidebar's settings (in the Settings window), as Vista's sidebar had Properties. -->
             <MenuFlyout x:Name="SidebarMenu" MenuFlyoutPresenterStyle="{StaticResource SidebarMenuPresenterStyle}" Opening="SidebarMenu_Opening">
-                <ToggleMenuFlyoutItem
-                    x:Name="ShowPanelItem"
-                    AutomationProperties.AutomationId="ShowWidgetPanelMenuItem"
-                    Text="Show panel background"
-                    Click="ShowPanelItem_Click" />
-                <MenuFlyoutSubItem x:Name="AddSubMenu" AutomationProperties.AutomationId="AddWidgetMenuItem" Text="Add widget" />
+                <MenuFlyoutSubItem x:Name="AddSubMenu" AutomationProperties.AutomationId="AddWidgetMenuItem" Text="Add widget">
+                    <MenuFlyoutSubItem.Icon>
+                        <FontIcon Glyph="&#xE710;" />
+                    </MenuFlyoutSubItem.Icon>
+                </MenuFlyoutSubItem>
+                <MenuFlyoutSeparator />
+                <MenuFlyoutItem AutomationProperties.AutomationId="WidgetSettingsMenuItem" Text="Widget settings" Click="WidgetSettings_Click">
+                    <MenuFlyoutItem.Icon>
+                        <FontIcon Glyph="&#xE713;" />
+                    </MenuFlyoutItem.Icon>
+                </MenuFlyoutItem>
             </MenuFlyout>
         </FlyoutBase.AttachedFlyout>
         <Grid.RowDefinitions>

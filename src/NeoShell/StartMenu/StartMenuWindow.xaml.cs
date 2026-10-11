@@ -2028,6 +2028,12 @@ internal sealed partial class StartMenuWindow : Window
         Launcher.OpenSettings(_owner.RunMode, "Start folders", "ms-settings:personalization-start-places");
     }
 
+    private void NeoShellSettingsButton_Click(object sender, RoutedEventArgs e)
+    {
+        Hide();
+        _owner.OpenSettings();
+    }
+
     private async void SwitchToExplorerButton_Click(object sender, RoutedEventArgs e)
     {
         var dialog = new ContentDialog

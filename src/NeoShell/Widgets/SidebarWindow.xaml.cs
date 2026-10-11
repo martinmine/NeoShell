@@ -98,6 +98,9 @@ internal sealed partial class SidebarWindow : Window
 
     public DisplayMonitor Monitor => _monitor;
 
+    /// <summary>The width it was last placed at, in effective pixels.</summary>
+    public double Width => _width;
+
     public RectInt32 ScreenBounds => _placement.Bounds;
 
     public IEnumerable<WidgetFrame> Frames => Cards.Children.OfType<WidgetFrame>();
@@ -284,13 +287,9 @@ internal sealed partial class SidebarWindow : Window
             SidebarMenu.ShowAt(Root);
     }
 
-    private void SidebarMenu_Opening(object sender, object e)
-    {
-        ShowPanelItem.IsChecked = _panelShown;
-        FillAddMenu(AddSubMenu.Items);
-    }
+    private void SidebarMenu_Opening(object sender, object e) => FillAddMenu(AddSubMenu.Items);
 
-    private void ShowPanelItem_Click(object sender, RoutedEventArgs e) => _owner.SetPanelShown(ShowPanelItem.IsChecked);
+    private void WidgetSettings_Click(object sender, RoutedEventArgs e) => _owner.OpenSettings();
 
     private void AddMenu_Opening(object sender, object e) => FillAddMenu(AddMenu.Items);
 

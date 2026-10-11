@@ -696,7 +696,10 @@
             PointerReleased="Grip_PointerReleased"
             PointerCaptureLost="Grip_PointerReleased" />
 
-        <!-- User; Switch to Explorer, the folders chosen for Start (see ShowPlaces), Power. -->
+        <!--
+            User; NeoShell's own buttons (Switch to Explorer, NeoShell settings), then Explorer's: the folders chosen for
+            Start (see ShowPlaces), Power. See docs/design/settings-window.md for why the settings button goes here.
+        -->
         <Grid
             Grid.Row="2"
             Padding="52,12,53,12"
@@ -909,6 +912,15 @@
                     ToolTipService.ToolTip="Switch to Explorer"
                     Click="SwitchToExplorerButton_Click">
                     <FontIcon Glyph="&#xE8AB;" FontSize="16" />
+                </Button>
+                <!-- Not the gear: that's Windows' Settings among the folders. -->
+                <Button
+                    x:Name="NeoShellSettingsButton"
+                    AutomationProperties.AutomationId="NeoShellSettingsButton"
+                    AutomationProperties.Name="NeoShell settings"
+                    ToolTipService.ToolTip="NeoShell settings"
+                    Click="NeoShellSettingsButton_Click">
+                    <FontIcon Glyph="&#xE9E9;" FontSize="16" />
                 </Button>
                 <StackPanel x:Name="PlacesPanel" Orientation="Horizontal" Background="Transparent">
                     <StackPanel.ContextFlyout>

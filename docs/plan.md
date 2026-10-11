@@ -662,3 +662,17 @@ Built as the spec's option A + B: NeoShell's own `DwmSetWindowAttribute` calls, 
   the overlay spike (C)? Is a DWM extension (D) or bundling DWMBlurGlass (E) acceptable at all? Where do the settings
   live once NeoShell has a settings window? Also: should Luna (or any style) get an inactive caption colour, applied on
   foreground changes (XP's inactive caption was #7A96DF)?
+
+## Settings window
+
+NeoShell's own settings in one window in the style of Windows 11's Settings app (design/settings-window.md).
+
+- [x] `SettingsWindow`: NavigationView pages (Taskbar, Start, Desktop and wallpaper, Widgets, Window frames, About) of
+      Settings-style cards and expanders, Mica, light/dark live (caption buttons too), one at a time, brought to the
+      front on the page asked for; every setting saved and applied as it changes; AutomationIds
+- [x] Window frames' window moved in as a page (editor and preview included)
+- [x] Start: a NeoShell settings button beside Switch to Explorer, before Explorer's folders and Power
+- [x] Taskbar menu as Explorer 25H2's (Task Manager, Taskbar settings; Exit NeoShell alongside Explorer); its toggles
+      moved to the Taskbar page. Sidebar menu: Add widget and Widget settings; the panel background moved to Widgets
+- [x] Unit tests (pages, version text, run mode texts, the settings round trip); live in both run modes — not run
+      live: About's Switch to Explorer (Start's code), Windows' Settings links as the shell

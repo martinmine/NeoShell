@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="utf-8"?>
+<local:SettingsPageView
+    x:Class="NeoShell.Settings.AboutSettingsPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:NeoShell.Settings">
+    <local:SettingsPageView.Resources>
+        <ResourceDictionary Source="ms-appx:///Settings/SettingsStyles.xaml" />
+    </local:SettingsPageView.Resources>
+
+    <StackPanel Spacing="4">
+        <local:SettingsCard
+            x:Name="VersionCard"
+            Glyph="&#xE9E9;"
+            Header="NeoShell"
+            Description="A replacement for Explorer's shell, built with WinUI 3">
+            <TextBlock
+                x:Name="VersionText"
+                IsTextSelectionEnabled="True"
+                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                AutomationProperties.AutomationId="NeoShellVersionText" />
+        </local:SettingsCard>
+        <local:SettingsCard x:Name="RunModeCard" Glyph="&#xE7F4;" Header="Run mode">
+            <TextBlock
+                x:Name="RunModeText"
+                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                AutomationProperties.AutomationId="RunModeText" />
+        </local:SettingsCard>
+
+        <!-- As the shell: back to Explorer; alongside it: just close NeoShell. -->
+        <local:SettingsCard
+            x:Name="SwitchCard"
+            Glyph="&#xE8AB;"
+            Header="Switch to Explorer"
+            Description="NeoShell closes and Explorer becomes your shell again, now and the next time you sign in">
+            <Button
+                Content="Switch to Explorer"
+                MinWidth="120"
+                AutomationProperties.AutomationId="SwitchToExplorerSettingsButton"
+                Click="SwitchToExplorer_Click" />
+        </local:SettingsCard>
+        <local:SettingsCard
+            x:Name="ExitCard"
+            Glyph="&#xE7E8;"
+            Header="Exit NeoShell"
+            Description="Closes NeoShell's taskbar, Start and widgets; Explorer's stay">
+            <Button
+                Content="Exit"
+                MinWidth="120"
+                AutomationProperties.AutomationId="ExitNeoShellButton"
+                Click="Exit_Click" />
+        </local:SettingsCard>
+
+        <TextBlock Style="{StaticResource SettingsSectionStyle}" Text="Related links" />
+        <Button
+            Style="{StaticResource SettingsLinkCardStyle}"
+            AutomationProperties.AutomationId="DocumentationLink"
+            AutomationProperties.Name="Documentation"
+            Click="Documentation_Click">
+            <local:SettingsCard
+                Style="{StaticResource SettingsLinkContentStyle}"
+                Glyph="&#xE897;"
+                Header="Documentation"
+                Description="What NeoShell does and how, part by part">
+                <FontIcon Glyph="&#xE8A7;" FontSize="14" />
+            </local:SettingsCard>
+        </Button>
+    </StackPanel>
+</local:SettingsPageView>

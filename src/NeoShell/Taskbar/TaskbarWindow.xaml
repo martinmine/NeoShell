@@ -859,125 +859,28 @@
         </Popup>
 
         <FlyoutBase.AttachedFlyout>
-            <!-- Opened at the pointer by Root_ContextRequested (TaskbarFlyouts). -->
-            <MenuFlyout x:Name="TaskbarMenu" Opening="TaskbarMenu_Opening" MenuFlyoutPresenterStyle="{StaticResource ShellMenuPresenterStyle}">
-                <!-- No icons: next to the toggles' check column, an icon column pushes every label far right. -->
+            <!--
+                Opened at the pointer by Root_ContextRequested (TaskbarFlyouts). Explorer 25H2's items, glyphs and separator;
+                "Taskbar settings" opens NeoShell's own, as Explorer's opens Windows'. Alongside Explorer, Exit NeoShell too.
+            -->
+            <MenuFlyout x:Name="TaskbarMenu" MenuFlyoutPresenterStyle="{StaticResource ShellMenuPresenterStyle}">
                 <MenuFlyoutItem
                     AutomationProperties.AutomationId="TaskManagerMenuItem"
                     Text="Task Manager"
-                    Click="TaskManager_Click" />
+                    Click="TaskManager_Click">
+                    <MenuFlyoutItem.Icon>
+                        <FontIcon Glyph="&#xE9D9;" />
+                    </MenuFlyoutItem.Icon>
+                </MenuFlyoutItem>
                 <MenuFlyoutSeparator />
-                <RadioMenuFlyoutItem
-                    x:Name="AlignCenterItem"
-                    AutomationProperties.AutomationId="AlignCenterMenuItem"
-                    GroupName="Alignment"
-                    Text="Center taskbar items"
-                    Click="Alignment_Click" />
-                <RadioMenuFlyoutItem
-                    x:Name="AlignLeftItem"
-                    AutomationProperties.AutomationId="AlignLeftMenuItem"
-                    GroupName="Alignment"
-                    Text="Left-align taskbar items"
-                    Click="Alignment_Click" />
-                <!-- Settings' choices, in its order. -->
-                <MenuFlyoutSubItem AutomationProperties.AutomationId="SearchMenuItem" Text="Search">
-                    <RadioMenuFlyoutItem
-                        x:Name="SearchHiddenItem"
-                        AutomationProperties.AutomationId="SearchHiddenMenuItem"
-                        GroupName="Search"
-                        Text="Hide"
-                        Click="Search_Click" />
-                    <RadioMenuFlyoutItem
-                        x:Name="SearchIconItem"
-                        AutomationProperties.AutomationId="SearchIconMenuItem"
-                        GroupName="Search"
-                        Text="Search icon only"
-                        Click="Search_Click" />
-                    <RadioMenuFlyoutItem
-                        x:Name="SearchIconAndLabelItem"
-                        AutomationProperties.AutomationId="SearchIconAndLabelMenuItem"
-                        GroupName="Search"
-                        Text="Search icon and label"
-                        Click="Search_Click" />
-                    <RadioMenuFlyoutItem
-                        x:Name="SearchBoxItem"
-                        AutomationProperties.AutomationId="SearchBoxMenuItem"
-                        GroupName="Search"
-                        Text="Search box"
-                        Click="Search_Click" />
-                </MenuFlyoutSubItem>
-                <ToggleMenuFlyoutItem
-                    x:Name="ShowWidgetsItem"
-                    AutomationProperties.AutomationId="ShowWidgetsMenuItem"
-                    Text="Show widgets"
-                    Click="ShowWidgets_Click" />
-                <MenuFlyoutSubItem AutomationProperties.AutomationId="CombineMenuItem" Text="Combine taskbar buttons">
-                    <RadioMenuFlyoutItem
-                        x:Name="CombineAlwaysItem"
-                        AutomationProperties.AutomationId="CombineAlwaysMenuItem"
-                        GroupName="Combine"
-                        Text="Always"
-                        Click="Combine_Click" />
-                    <RadioMenuFlyoutItem
-                        x:Name="CombineWhenFullItem"
-                        AutomationProperties.AutomationId="CombineWhenFullMenuItem"
-                        GroupName="Combine"
-                        Text="When taskbar is full"
-                        Click="Combine_Click" />
-                    <RadioMenuFlyoutItem
-                        x:Name="CombineNeverItem"
-                        AutomationProperties.AutomationId="CombineNeverMenuItem"
-                        GroupName="Combine"
-                        Text="Never"
-                        Click="Combine_Click" />
-                </MenuFlyoutSubItem>
-                <MenuFlyoutSubItem AutomationProperties.AutomationId="BackdropMenuItem" Text="Taskbar backdrop">
-                    <RadioMenuFlyoutItem
-                        x:Name="BackdropAcrylicItem"
-                        AutomationProperties.AutomationId="BackdropAcrylicMenuItem"
-                        GroupName="Backdrop"
-                        Text="Acrylic"
-                        Click="Backdrop_Click" />
-                    <RadioMenuFlyoutItem
-                        x:Name="BackdropMicaItem"
-                        AutomationProperties.AutomationId="BackdropMicaMenuItem"
-                        GroupName="Backdrop"
-                        Text="Mica"
-                        Click="Backdrop_Click" />
-                    <RadioMenuFlyoutItem
-                        x:Name="BackdropTranslucentItem"
-                        AutomationProperties.AutomationId="BackdropTranslucentMenuItem"
-                        GroupName="Backdrop"
-                        Text="Translucent"
-                        Click="Backdrop_Click" />
-                    <RadioMenuFlyoutItem
-                        x:Name="BackdropTransparentItem"
-                        AutomationProperties.AutomationId="BackdropTransparentMenuItem"
-                        GroupName="Backdrop"
-                        Text="Transparent"
-                        Click="Backdrop_Click" />
-                </MenuFlyoutSubItem>
-                <ToggleMenuFlyoutItem
-                    x:Name="AutoHideItem"
-                    AutomationProperties.AutomationId="AutoHideMenuItem"
-                    Text="Automatically hide the taskbar"
-                    Click="AutoHide_Click" />
-                <ToggleMenuFlyoutItem
-                    x:Name="HiddenIconMenuItem"
-                    AutomationProperties.AutomationId="HiddenIconMenuMenuItem"
-                    Text="Show hidden icon menu"
-                    Click="HiddenIconMenu_Click" />
-                <ToggleMenuFlyoutItem
-                    x:Name="AllDisplaysItem"
-                    AutomationProperties.AutomationId="AllDisplaysMenuItem"
-                    Text="Show taskbar on all displays"
-                    Click="AllDisplays_Click" />
-                <MenuFlyoutSeparator />
-                <!-- NeoShell's own settings, until it has a settings window. -->
                 <MenuFlyoutItem
-                    AutomationProperties.AutomationId="WindowFramesMenuItem"
-                    Text="Window frames..."
-                    Click="WindowFrames_Click" />
+                    AutomationProperties.AutomationId="TaskbarSettingsMenuItem"
+                    Text="Taskbar settings"
+                    Click="TaskbarSettings_Click">
+                    <MenuFlyoutItem.Icon>
+                        <FontIcon Glyph="&#xE713;" />
+                    </MenuFlyoutItem.Icon>
+                </MenuFlyoutItem>
                 <MenuFlyoutSeparator x:Name="ExitSeparator" />
                 <MenuFlyoutItem
                     x:Name="ExitItem"

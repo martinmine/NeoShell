@@ -6,6 +6,8 @@ The settings record and its file. Part of the [NeoShell design](../design.md).
 
 A single `record Settings` serialized with `System.Text.Json` (source-generated context), loaded at startup,
 saved on change. Unknown/missing values fall back to defaults; a corrupt file is renamed to `.bak` and defaults used.
+The user changes them in the [Settings window](settings-window.md) (and by dragging Start's corner and the sidebar's
+edge).
 
 ```
 TaskbarAlignment     Center | Left
@@ -23,6 +25,7 @@ StartMenuWidth       double (epx)
 StartMenuHeight      double (epx)
 DesktopSortOrder     Name | Size | ItemType | DateModified
 ShowWidgetSidebar    bool
+ShowWidgetPanel      bool (on)
 WidgetSidebarWidth   double (epx)
 Widgets              list (id, kind, X/Y and size while floating, the kind's options)
 WindowFramesEnabled  bool (off)

@@ -91,21 +91,20 @@ internal sealed class Sidebar : IDisposable
         Log.Info($"Added the {kind} widget");
     }
 
-    /// <summary>The sidebar's edge was dragged to <paramref name="width"/> effective pixels.</summary>
-    public void SetWidth(double width)
-    {
-        width = Math.Clamp(width, SidebarLayout.MinWidth, SidebarLayout.MaxWidth);
-        _settings.Update(_settings.Current with { WidgetSidebarWidth = width });
-        _window?.Place(_window.Monitor, width);
-    }
+    /// <summary>The sidebar's edge was dragged to <paramref name="width"/> effective pixels (placed by the settings change).</summary>
+    public void SetWidth(double width) =>
+        _settings.Update(_settings.Current with { WidgetSidebarWidth = Math.Clamp(width, SidebarLayout.MinWidth, SidebarLayout.MaxWidth) });
 
-    /// <summary>The sidebar's menu turned its own backdrop behind the widgets on or off.</summary>
-    public void SetPanelShown(bool shown) => _settings.Update(_settings.Current with { ShowWidgetPanel = shown });
+    /// <summary>The sidebar's menu: the Settings window's Widgets page.</summary>
+    public void OpenSettings() => _taskbars.OpenSettings(SettingsPage.Widgets);
 
     private void OnSettingsChanged()
     {
         ShellSettings current = _settings.Current;
         _window?.SetPanelShown(current.ShowWidgetPanel);
+        // Its edge dragged, or the Settings window's slider.
+        if (_window is not null && _window.Width != current.WidgetSidebarWidth)
+            _window.Place(_window.Monitor, current.WidgetSidebarWidth);
         if (current.ShowWidgetSidebar != (_window is not null))
         {
             if (current.ShowWidgetSidebar)

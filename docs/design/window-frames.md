@@ -213,7 +213,7 @@ Option A + B as specified above; no injection, no new packages, no native code.
   `DWMWA_COLOR_NONE`. `WindowFrame.Read` gives the facts rules and eligibility need (process, class, styles, cloaked).
 - `NeoShell/Frames/`: `FrameRules` (rule matching, eligibility), `FrameColors` (style to attributes, the colour
   keywords `Accent`, `None` and `Contrast`, the parts to reset), `FramePresets`, `WindowFrames` (the live part,
-  created by `App` while enabled, in both run modes), `WindowFramesWindow` (the settings window) and
+  created by `App` while enabled, in both run modes), `WindowFramesPage` (its page in the Settings window) and
   `FramePreviewWindow`.
 - `WindowFrames` styles every top-level window at start, new ones on `Shown`/`Uncloaked`, and the foreground window on
   `Foreground` and once more 250 ms later (see above). It remembers what it gave each window; on a settings change it
@@ -229,14 +229,15 @@ Option A + B as specified above; no injection, no new packages, no native code.
   Brethorsting's "Windows System Colors"). The border #0831D9 is the dark blue of Luna's frame bitmap, kept from the
   spec; not checked against a pixel reference. DWM takes one caption colour, so Luna is flat and stays #0054E3 when
   inactive (only the caption buttons grey).
-- The settings window (from the taskbar's menu, "Window frames...", until NeoShell has a settings window): on/off,
+- The Window frames page of NeoShell's [Settings window](settings-window.md) (until then a window of its own from the
+  taskbar's menu, "Window frames..."): on/off,
   the style for all windows, rules (added from a menu of the running apps' processes; optional class; style or
   "Leave alone"; remove), and the style editor: presets read-only, Duplicate makes an editable copy ("... copy"),
   rename (references follow), Delete (references fall back to Windows default), backdrop, light/dark, title bar, text
   and border colours (Windows default / Accent / Black or white / No border / Custom with a colour picker), corners,
   basic frame. Preview opens a NeoShell window with Windows' standard title bar beside the editor, wearing the edited
   style live. Mica backdrop, content drawn into the title bar, follows the app light/dark mode live; AutomationIds on
-  every control (`WindowFramesMenuItem`, `WindowFramesToggle`, `GlobalStyleBox`, `AddRuleButton`, `AddRuleMenuItem`,
+  every control (`WindowFramesNavigationItem`, `WindowFramesToggle`, `GlobalStyleBox`, `AddRuleButton`, `AddRuleMenuItem`,
   `FrameRule`, `RuleClassBox`, `RuleStyleBox`, `RemoveRuleButton`, `EditStyleBox`, `PreviewToggle`,
   `DuplicateStyleButton`, `DeleteStyleButton`, `StyleNameBox`, `BackdropBox`, `ThemeBox`, `CaptionColorBox`,
   `CaptionColorButton`, `CaptionColorPicker`, the same for `TextColor` and `BorderColor`, `CornersBox`,
@@ -277,4 +278,5 @@ app modes. Not done: a second monitor, other DPI scales, shell mode (the code pa
    be tried for the real looks?
 2. Is a native DWM extension (D) or bundling DWMBlurGlass (E) acceptable at all? Both need admin at logon and code
    inside `dwm.exe`, outside NeoShell's interop rules and approved packages.
-3. Where should the feature's settings live, given NeoShell has no settings window yet?
+3. Where should the feature's settings live, given NeoShell has no settings window yet? (Answered: a page of the
+   [Settings window](settings-window.md).)

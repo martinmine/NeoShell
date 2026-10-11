@@ -1112,13 +1112,6 @@ internal sealed partial class TaskbarWindow : Window
         _trayPress = null;
     }
 
-    // Explorer's "Hidden icon menu" (Settings > Personalization > Taskbar), which Settings can't show without Explorer.
-    private void HiddenIconMenu_Click(object sender, RoutedEventArgs e)
-    {
-        if (_tray is not null)
-            _tray.ChevronVisible = HiddenIconMenuItem.IsChecked;
-    }
-
     // Dragging tray icons between the taskbar and the overflow and along each, as in Explorer (SystemTray.dll's
     // DragDropManager): the icon stays in its place, dimmed, while a copy follows the pointer with a caption above it.
     private void StartTrayDrag(TrayPress press)
@@ -2125,71 +2118,9 @@ internal sealed partial class TaskbarWindow : Window
         OverflowChevron.Rotation = degrees;
     }
 
-    private void TaskbarMenu_Opening(object sender, object e)
-    {
-        ShellSettings settings = _owner.Settings.Current;
-        AutoHideItem.IsChecked = settings.AutoHide;
-        AlignCenterItem.IsChecked = settings.TaskbarAlignment == TaskbarAlignment.Center;
-        AlignLeftItem.IsChecked = settings.TaskbarAlignment == TaskbarAlignment.Left;
-        SearchHiddenItem.IsChecked = _searchMode == TaskbarSearchMode.Hidden;
-        SearchIconItem.IsChecked = _searchMode == TaskbarSearchMode.Icon;
-        SearchIconAndLabelItem.IsChecked = _searchMode == TaskbarSearchMode.IconAndLabel;
-        SearchBoxItem.IsChecked = _searchMode == TaskbarSearchMode.Box;
-        ShowWidgetsItem.IsChecked = settings.ShowWidgetSidebar;
-        CombineAlwaysItem.IsChecked = settings.CombineButtons == CombineButtons.Always;
-        CombineWhenFullItem.IsChecked = settings.CombineButtons == CombineButtons.WhenFull;
-        CombineNeverItem.IsChecked = settings.CombineButtons == CombineButtons.Never;
-        AllDisplaysItem.IsChecked = settings.ShowOnAllDisplays;
-        HiddenIconMenuItem.Visibility = _tray is not null ? Visibility.Visible : Visibility.Collapsed;
-        HiddenIconMenuItem.IsChecked = _tray?.ChevronVisible == true;
-        BackdropAcrylicItem.IsChecked = settings.TaskbarBackdrop == Backdrop.Acrylic;
-        BackdropMicaItem.IsChecked = settings.TaskbarBackdrop == Backdrop.Mica;
-        BackdropTranslucentItem.IsChecked = settings.TaskbarBackdrop == Backdrop.Translucent;
-        BackdropTransparentItem.IsChecked = settings.TaskbarBackdrop == Backdrop.Transparent;
-    }
-
     private void TaskManager_Click(object sender, RoutedEventArgs e) => _owner.OpenTaskManager();
 
-    private void Alignment_Click(object sender, RoutedEventArgs e) =>
-        _owner.Settings.Update(_owner.Settings.Current with
-        {
-            TaskbarAlignment = ReferenceEquals(sender, AlignLeftItem) ? TaskbarAlignment.Left : TaskbarAlignment.Center,
-        });
-
-    private void Search_Click(object sender, RoutedEventArgs e) =>
-        _owner.SetSearchMode(
-            ReferenceEquals(sender, SearchHiddenItem) ? TaskbarSearchMode.Hidden
-            : ReferenceEquals(sender, SearchIconItem) ? TaskbarSearchMode.Icon
-            : ReferenceEquals(sender, SearchIconAndLabelItem) ? TaskbarSearchMode.IconAndLabel
-            : TaskbarSearchMode.Box);
-
-    private void ShowWidgets_Click(object sender, RoutedEventArgs e) =>
-        _owner.Settings.Update(_owner.Settings.Current with { ShowWidgetSidebar = ShowWidgetsItem.IsChecked });
-
-    private void Combine_Click(object sender, RoutedEventArgs e) =>
-        _owner.Settings.Update(_owner.Settings.Current with
-        {
-            CombineButtons = ReferenceEquals(sender, CombineNeverItem) ? CombineButtons.Never
-                : ReferenceEquals(sender, CombineWhenFullItem) ? CombineButtons.WhenFull
-                : CombineButtons.Always,
-        });
-
-    private void Backdrop_Click(object sender, RoutedEventArgs e) =>
-        _owner.Settings.Update(_owner.Settings.Current with
-        {
-            TaskbarBackdrop = ReferenceEquals(sender, BackdropMicaItem) ? Backdrop.Mica
-                : ReferenceEquals(sender, BackdropTranslucentItem) ? Backdrop.Translucent
-                : ReferenceEquals(sender, BackdropTransparentItem) ? Backdrop.Transparent
-                : Backdrop.Acrylic,
-        });
-
-    private void AutoHide_Click(object sender, RoutedEventArgs e) =>
-        _owner.Settings.Update(_owner.Settings.Current with { AutoHide = AutoHideItem.IsChecked });
-
-    private void AllDisplays_Click(object sender, RoutedEventArgs e) =>
-        _owner.Settings.Update(_owner.Settings.Current with { ShowOnAllDisplays = AllDisplaysItem.IsChecked });
-
-    private void WindowFrames_Click(object sender, RoutedEventArgs e) => _owner.OpenWindowFrames();
+    private void TaskbarSettings_Click(object sender, RoutedEventArgs e) => _owner.OpenSettings(SettingsPage.Taskbar);
 
     private void Exit_Click(object sender, RoutedEventArgs e) => _owner.Exit();
 

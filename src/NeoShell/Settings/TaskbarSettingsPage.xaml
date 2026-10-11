@@ -1,0 +1,187 @@
+<?xml version="1.0" encoding="utf-8"?>
+<local:SettingsPageView
+    x:Class="NeoShell.Settings.TaskbarSettingsPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:NeoShell.Settings">
+    <local:SettingsPageView.Resources>
+        <ResourceDictionary Source="ms-appx:///Settings/SettingsStyles.xaml" />
+    </local:SettingsPageView.Resources>
+
+    <!-- Settings' Personalization > Taskbar, in its order, with what NeoShell adds (the backdrop). -->
+    <StackPanel Spacing="4">
+        <Expander Style="{StaticResource SettingsExpanderStyle}" IsExpanded="True" AutomationProperties.AutomationId="TaskbarItemsExpander">
+            <Expander.Header>
+                <StackPanel Margin="0,12">
+                    <TextBlock Text="Taskbar items" />
+                    <TextBlock Style="{StaticResource SettingsDescriptionStyle}" Text="Show or hide buttons that appear on the taskbar" />
+                </StackPanel>
+            </Expander.Header>
+            <StackPanel>
+                <Grid Style="{StaticResource SettingsExpanderRowStyle}" BorderThickness="0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel VerticalAlignment="Center">
+                        <TextBlock Text="Search" />
+                        <TextBlock Style="{StaticResource SettingsDescriptionStyle}" Text="Windows' own setting: Explorer's taskbar follows it too" />
+                    </StackPanel>
+                    <ComboBox
+                        x:Name="SearchModeBox"
+                        Grid.Column="1"
+                        MinWidth="200"
+                        VerticalAlignment="Center"
+                        AutomationProperties.AutomationId="SearchModeBox"
+                        AutomationProperties.Name="Search"
+                        SelectionChanged="SearchModeBox_SelectionChanged">
+                        <x:String>Hide</x:String>
+                        <x:String>Search icon only</x:String>
+                        <x:String>Search icon and label</x:String>
+                        <x:String>Search box</x:String>
+                    </ComboBox>
+                </Grid>
+                <Grid Style="{StaticResource SettingsExpanderRowStyle}">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel VerticalAlignment="Center">
+                        <TextBlock Text="Widgets" />
+                        <TextBlock Style="{StaticResource SettingsDescriptionStyle}" Text="NeoShell's widget sidebar, on the right of the main display" />
+                    </StackPanel>
+                    <ToggleSwitch
+                        x:Name="ShowWidgetsToggle"
+                        Grid.Column="1"
+                        MinWidth="0"
+                        AutomationProperties.AutomationId="ShowWidgetsToggle"
+                        AutomationProperties.Name="Widgets"
+                        Toggled="ShowWidgetsToggle_Toggled" />
+                </Grid>
+            </StackPanel>
+        </Expander>
+
+        <!-- Only while NeoShell keeps the tray (as the shell): otherwise it's Explorer's, in Windows' Settings. -->
+        <Expander
+            x:Name="TrayExpander"
+            Style="{StaticResource SettingsExpanderStyle}"
+            IsExpanded="True"
+            AutomationProperties.AutomationId="OtherTrayIconsExpander">
+            <Expander.Header>
+                <StackPanel Margin="0,12">
+                    <TextBlock Text="Other system tray icons" />
+                    <TextBlock Style="{StaticResource SettingsDescriptionStyle}" Text="Show or hide the hidden icon menu; drag icons between the taskbar and the menu" />
+                </StackPanel>
+            </Expander.Header>
+            <Grid Style="{StaticResource SettingsExpanderRowStyle}" BorderThickness="0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <StackPanel VerticalAlignment="Center">
+                    <TextBlock Text="Hidden icon menu" />
+                    <TextBlock Style="{StaticResource SettingsDescriptionStyle}" Text="Windows' own setting, kept where Explorer keeps it" />
+                </StackPanel>
+                <ToggleSwitch
+                    x:Name="HiddenIconMenuToggle"
+                    Grid.Column="1"
+                    MinWidth="0"
+                    AutomationProperties.AutomationId="HiddenIconMenuToggle"
+                    AutomationProperties.Name="Hidden icon menu"
+                    Toggled="HiddenIconMenuToggle_Toggled" />
+            </Grid>
+        </Expander>
+
+        <Expander Style="{StaticResource SettingsExpanderStyle}" IsExpanded="True" AutomationProperties.AutomationId="TaskbarBehaviorsExpander">
+            <Expander.Header>
+                <StackPanel Margin="0,12">
+                    <TextBlock Text="Taskbar behaviors" />
+                    <TextBlock Style="{StaticResource SettingsDescriptionStyle}" Text="Taskbar alignment, automatically hide, multiple displays and combining buttons" />
+                </StackPanel>
+            </Expander.Header>
+            <StackPanel>
+                <Grid Style="{StaticResource SettingsExpanderRowStyle}" BorderThickness="0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="Taskbar alignment" VerticalAlignment="Center" />
+                    <ComboBox
+                        x:Name="AlignmentBox"
+                        Grid.Column="1"
+                        MinWidth="200"
+                        VerticalAlignment="Center"
+                        AutomationProperties.AutomationId="TaskbarAlignmentBox"
+                        AutomationProperties.Name="Taskbar alignment"
+                        SelectionChanged="AlignmentBox_SelectionChanged">
+                        <x:String>Center</x:String>
+                        <x:String>Left</x:String>
+                    </ComboBox>
+                </Grid>
+                <Grid Style="{StaticResource SettingsExpanderRowStyle}">
+                    <CheckBox
+                        x:Name="AutoHideCheckBox"
+                        Content="Automatically hide the taskbar"
+                        AutomationProperties.AutomationId="AutoHideCheckBox"
+                        Click="AutoHideCheckBox_Click" />
+                </Grid>
+                <Grid Style="{StaticResource SettingsExpanderRowStyle}">
+                    <CheckBox
+                        x:Name="AllDisplaysCheckBox"
+                        Content="Show my taskbar on all displays"
+                        AutomationProperties.AutomationId="AllDisplaysCheckBox"
+                        Click="AllDisplaysCheckBox_Click" />
+                </Grid>
+                <Grid Style="{StaticResource SettingsExpanderRowStyle}">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="Combine taskbar buttons and hide labels" VerticalAlignment="Center" TextWrapping="Wrap" />
+                    <ComboBox
+                        x:Name="CombineBox"
+                        Grid.Column="1"
+                        MinWidth="200"
+                        VerticalAlignment="Center"
+                        AutomationProperties.AutomationId="CombineButtonsBox"
+                        AutomationProperties.Name="Combine taskbar buttons and hide labels"
+                        SelectionChanged="CombineBox_SelectionChanged">
+                        <x:String>Always</x:String>
+                        <x:String>When taskbar is full</x:String>
+                        <x:String>Never</x:String>
+                    </ComboBox>
+                </Grid>
+            </StackPanel>
+        </Expander>
+
+        <TextBlock Style="{StaticResource SettingsSectionStyle}" Text="NeoShell" />
+        <local:SettingsCard Glyph="&#xE790;" Header="Taskbar backdrop" Description="The material behind the taskbar and the widgets">
+            <ComboBox
+                x:Name="BackdropBox"
+                MinWidth="200"
+                AutomationProperties.AutomationId="TaskbarBackdropBox"
+                AutomationProperties.Name="Taskbar backdrop"
+                SelectionChanged="BackdropBox_SelectionChanged">
+                <x:String>Acrylic</x:String>
+                <x:String>Mica</x:String>
+                <x:String>Translucent</x:String>
+                <x:String>Transparent</x:String>
+            </ComboBox>
+        </local:SettingsCard>
+
+        <TextBlock Style="{StaticResource SettingsSectionStyle}" Text="Related settings" />
+        <Button
+            Style="{StaticResource SettingsLinkCardStyle}"
+            AutomationProperties.AutomationId="WindowsTaskbarSettingsLink"
+            AutomationProperties.Name="More taskbar settings"
+            Click="WindowsTaskbarSettings_Click">
+            <local:SettingsCard
+                Style="{StaticResource SettingsLinkContentStyle}"
+                Glyph="&#xE713;"
+                Header="More taskbar settings"
+                Description="Badges, flashing, seconds on the clock and the far corner: Windows' own, which NeoShell's taskbar follows">
+                <FontIcon Glyph="&#xE8A7;" FontSize="14" />
+            </local:SettingsCard>
+        </Button>
+    </StackPanel>
+</local:SettingsPageView>

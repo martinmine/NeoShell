@@ -9,6 +9,7 @@ using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using NeoShell.Interop.Windowing;
 using NeoShell.Settings;
+using NeoShell.Taskbar;
 using Windows.Graphics;
 using VirtualKey = Windows.System.VirtualKey;
 using Windows.UI;
@@ -16,17 +17,14 @@ using Windows.UI;
 namespace NeoShell.Frames;
 
 /// <summary>
-/// The window frames settings, opened from the taskbar's menu until NeoShell has a settings window: the feature on or
-/// off, the style for all windows, app rules, and the style editor with its presets and a live preview.
+/// The Settings window's Window frames page: the feature on or off, the style for all windows, app rules, and the
+/// style editor with its presets and a live preview.
 /// </summary>
-internal sealed partial class WindowFramesWindow : Window
+internal sealed partial class WindowFramesPage : SettingsPageView
 {
     private const string LeaveAlone = "Leave alone";
     private const uint DefaultCustomColor = 0xFF0054E3;
 
-    private static WindowFramesWindow? s_open;
-
-    private readonly SettingsStore _settings;
     private readonly ColorButton _captionColor;
     private readonly ColorButton _textColor;
     private readonly ColorButton _borderColor;
@@ -34,31 +32,12 @@ internal sealed partial class WindowFramesWindow : Window
     private FramePreviewWindow? _preview;
     // The style shown in the editor, by name.
     private string _editing;
-    private bool _loading;
 
-    /// <summary>Opens the window in front, or brings it back to the front when it's open already.</summary>
-    public static void Open(SettingsStore settings)
+    public WindowFramesPage(Taskbars taskbars)
+        : base(taskbars)
     {
-        if (s_open is null)
-        {
-            s_open = new WindowFramesWindow(settings);
-            s_open.Closed += (_, _) => s_open = null;
-        }
-        s_open.Activate();
-    }
-
-    public static void CloseOpen() => s_open?.Close();
-
-    private WindowFramesWindow(SettingsStore settings)
-    {
-        _settings = settings;
-        _editing = settings.Current.WindowFrameStyle;
+        _editing = taskbars.Settings.Current.WindowFrameStyle;
         InitializeComponent();
-        Title = "Window frames";
-        SystemBackdrop = new MicaBackdrop();
-        ExtendsContentIntoTitleBar = true;
-        SetTitleBar(TitleBar);
-        AppWindow.TitleBar.PreferredHeightOption = TitleBarHeightOption.Tall;
 
         _captionColor = new ColorButton(CaptionColorButton, "CaptionColorPicker", OnColorPicked);
         _textColor = new ColorButton(TextColorButton, "TextColorPicker", OnColorPicked);
@@ -69,30 +48,23 @@ internal sealed partial class WindowFramesWindow : Window
         _colorCommit.IsRepeating = false;
         _colorCommit.Tick += (_, _) => CommitEditor();
 
-        DisplayMonitor monitor = DisplayMonitor.GetAll().FirstOrDefault(m => m.IsPrimary) ?? DisplayMonitor.GetAll()[0];
-        double scale = monitor.Dpi / 96.0;
-        RectInt32 area = monitor.WorkArea;
-        var size = new SizeInt32((int)(860 * scale), Math.Min((int)(920 * scale), area.Height - (int)(40 * scale)));
-        AppWindow.MoveAndResize(new RectInt32(area.X + (int)(40 * scale), area.Y + (area.Height - size.Height) / 2, size.Width, size.Height));
-
-        Closed += (_, _) =>
+        // Another page, or the window closing.
+        Unloaded += (_, _) =>
         {
             _colorCommit.Stop();
             _preview?.Close();
         };
-        Load();
     }
 
-    private ShellSettings Settings => _settings.Current;
+    private ShellSettings Settings => Current;
 
     private IEnumerable<FrameStyle> AllStyles => FramePresets.All.Concat(Settings.WindowFrameStyles);
 
     private FrameStyle EditedStyle => FramePresets.Find(_editing, Settings.WindowFrameStyles) ?? FramePresets.All[0];
 
     /// <summary>Fills every control from the settings.</summary>
-    private void Load()
+    protected override void Load()
     {
-        _loading = true;
         EnabledToggle.IsOn = Settings.WindowFramesEnabled;
 
         string[] names = [.. AllStyles.Select(style => style.Name)];
@@ -100,7 +72,6 @@ internal sealed partial class WindowFramesWindow : Window
         Fill(EditStyleBox, names, EditedStyle.Name);
         LoadRules(names);
         LoadEditor();
-        _loading = false;
     }
 
     private static void Fill(ComboBox box, IReadOnlyList<string> names, string? selected)
@@ -146,7 +117,7 @@ internal sealed partial class WindowFramesWindow : Window
         AutomationProperties.SetName(style, $"Style for {rule.ProcessName}");
         style.SelectionChanged += (_, _) =>
         {
-            if (!_loading && style.SelectedItem is string name)
+            if (!IsFilling && style.SelectedItem is string name)
                 UpdateRule(index, rule with { Style = name == LeaveAlone ? null : name });
         };
 
@@ -162,7 +133,7 @@ internal sealed partial class WindowFramesWindow : Window
 
         var row = new Grid
         {
-            Style = (Style)Root.Resources["CardStyle"],
+            Style = (Style)Resources["CardStyle"],
             MinHeight = 0,
             ColumnDefinitions =
             {
@@ -189,9 +160,9 @@ internal sealed partial class WindowFramesWindow : Window
 
     private void SaveRules(IReadOnlyList<FrameRule> rules)
     {
-        _settings.Update(Settings with { WindowFrameRules = rules });
+        Save(Settings with { WindowFrameRules = rules });
         // Later, so a combo box isn't rebuilt from inside its own event.
-        DispatcherQueue.TryEnqueue(Load);
+        DispatcherQueue.TryEnqueue(Reload);
     }
 
     private void LoadEditor()
@@ -246,7 +217,7 @@ internal sealed partial class WindowFramesWindow : Window
 
     private void Editor_Changed(object sender, RoutedEventArgs e)
     {
-        if (_loading || FramePresets.IsPreset(_editing))
+        if (IsFilling || FramePresets.IsPreset(_editing))
             return;
         UpdateColorButtons(preset: false);
         CommitEditor();
@@ -254,7 +225,7 @@ internal sealed partial class WindowFramesWindow : Window
 
     private void OnColorPicked()
     {
-        if (_loading || FramePresets.IsPreset(_editing))
+        if (IsFilling || FramePresets.IsPreset(_editing))
             return;
         _preview?.ShowStyle(EditorStyle());
         _colorCommit.Stop();
@@ -265,7 +236,7 @@ internal sealed partial class WindowFramesWindow : Window
     {
         FrameStyle style = EditorStyle();
         _preview?.ShowStyle(style);
-        _settings.Update(Settings with
+        Save(Settings with
         {
             WindowFrameStyles = [.. Settings.WindowFrameStyles.Select(existing => existing.Name == _editing ? style : existing)],
         });
@@ -293,57 +264,55 @@ internal sealed partial class WindowFramesWindow : Window
 
         string old = _editing;
         _editing = name;
-        _settings.Update(Settings with
+        Save(Settings with
         {
             WindowFrameStyle = Settings.WindowFrameStyle == old ? name : Settings.WindowFrameStyle,
             WindowFrameStyles = [.. Settings.WindowFrameStyles.Select(style => style.Name == old ? style with { Name = name } : style)],
             WindowFrameRules = [.. Settings.WindowFrameRules.Select(rule => rule.Style == old ? rule with { Style = name } : rule)],
         });
-        Load();
+        Reload();
     }
 
     private void EnabledToggle_Toggled(object sender, RoutedEventArgs e)
     {
-        if (!_loading)
-            _settings.Update(Settings with { WindowFramesEnabled = EnabledToggle.IsOn });
+        if (!IsFilling)
+            Save(Settings with { WindowFramesEnabled = EnabledToggle.IsOn });
     }
 
     private void GlobalStyleBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        if (!_loading && GlobalStyleBox.SelectedItem is string name)
-            _settings.Update(Settings with { WindowFrameStyle = name });
+        if (!IsFilling && GlobalStyleBox.SelectedItem is string name)
+            Save(Settings with { WindowFrameStyle = name });
     }
 
     private void EditStyleBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        if (_loading || EditStyleBox.SelectedItem is not string name)
+        if (IsFilling || EditStyleBox.SelectedItem is not string name)
             return;
         _editing = name;
-        _loading = true;
-        LoadEditor();
-        _loading = false;
+        Filling(LoadEditor);
     }
 
     private void DuplicateButton_Click(object sender, RoutedEventArgs e)
     {
         FrameStyle copy = EditedStyle with { Name = FramePresets.CopyName(EditedStyle.Name, Settings.WindowFrameStyles) };
-        _settings.Update(Settings with { WindowFrameStyles = [.. Settings.WindowFrameStyles, copy] });
+        Save(Settings with { WindowFrameStyles = [.. Settings.WindowFrameStyles, copy] });
         _editing = copy.Name;
-        Load();
+        Reload();
     }
 
     /// <summary>Deletes the edited style; whatever used it goes back to Windows' own frames.</summary>
     private void DeleteButton_Click(object sender, RoutedEventArgs e)
     {
         string old = _editing;
-        _settings.Update(Settings with
+        Save(Settings with
         {
             WindowFrameStyle = Settings.WindowFrameStyle == old ? FramePresets.WindowsDefault : Settings.WindowFrameStyle,
             WindowFrameStyles = [.. Settings.WindowFrameStyles.Where(style => style.Name != old)],
             WindowFrameRules = [.. Settings.WindowFrameRules.Select(rule => rule.Style == old ? rule with { Style = FramePresets.WindowsDefault } : rule)],
         });
         _editing = Settings.WindowFrameStyle;
-        Load();
+        Reload();
     }
 
     private void PreviewToggle_Changed(object sender, RoutedEventArgs e)
@@ -367,11 +336,12 @@ internal sealed partial class WindowFramesWindow : Window
         }
     }
 
-    /// <summary>Beside this window, right or left, where the monitor has room; else over its top right corner.</summary>
+    /// <summary>Beside the Settings window, right or left, where the monitor has room; else over its top right corner.</summary>
     private RectInt32 PreviewBounds()
     {
-        PointInt32 position = AppWindow.Position;
-        SizeInt32 size = AppWindow.Size;
+        AppWindow window = AppWindow.GetFromWindowId(XamlRoot.ContentIslandEnvironment.AppWindowId);
+        PointInt32 position = window.Position;
+        SizeInt32 size = window.Size;
         var editor = new RectInt32(position.X, position.Y, size.Width, size.Height);
         DisplayMonitor monitor = DisplayMonitor.GetAll().FirstOrDefault(m => m.Handle == DisplayMonitor.HandleFromRect(editor, nearest: true))
             ?? DisplayMonitor.GetAll()[0];

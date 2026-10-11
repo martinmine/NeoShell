@@ -146,5 +146,6 @@ Explorer's look (Taskbar.View.dll `SearchBoxButton`/`SearchBoxLaunchListButton`,
 
 ## Taskbar context menu
 
-Task Manager, the taskbar settings toggles (alignment, search, combine, backdrop, auto-hide, hidden icon menu, all displays),
-Exit NeoShell (alongside Explorer only).
+Explorer 25H2's: Task Manager, a separator, Taskbar settings (which opens NeoShell's Settings window on its Taskbar
+page), and NeoShell's Exit NeoShell alongside Explorer only. The toggles it used to hold are on that page; see
+[Settings window](settings-window.md#menus-that-became-explorers).

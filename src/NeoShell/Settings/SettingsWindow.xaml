@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Window
+    x:Class="NeoShell.Settings.SettingsWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- Laid out as Windows 11's Settings app: the title bar over the navigation and the page, all on Mica. -->
+    <Grid x:Name="Root">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="48" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <!-- Title bar: the content reaches into it, as Windows 11's own apps do. -->
+        <Grid x:Name="TitleBar" Padding="16,0,0,0" ColumnSpacing="12">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <FontIcon Glyph="&#xE9E9;" FontSize="16" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
+            <TextBlock Grid.Column="1" Text="NeoShell settings" Style="{StaticResource CaptionTextBlockStyle}" VerticalAlignment="Center" />
+        </Grid>
+
+        <NavigationView
+            x:Name="Navigation"
+            Grid.Row="1"
+            AutomationProperties.AutomationId="SettingsNavigation"
+            PaneDisplayMode="Auto"
+            OpenPaneLength="300"
+            IsBackButtonVisible="Collapsed"
+            IsSettingsVisible="False"
+            IsTitleBarAutoPaddingEnabled="False"
+            DisplayModeChanged="Navigation_DisplayModeChanged"
+            SelectionChanged="Navigation_SelectionChanged">
+            <!-- No plates of its own: the pane and the page sit on the window's Mica, as in Settings. -->
+            <NavigationView.Resources>
+                <SolidColorBrush x:Key="NavigationViewContentBackground" Color="Transparent" />
+                <SolidColorBrush x:Key="NavigationViewContentGridBorderBrush" Color="Transparent" />
+                <SolidColorBrush x:Key="NavigationViewExpandedPaneBackground" Color="Transparent" />
+                <SolidColorBrush x:Key="NavigationViewDefaultPaneBackground" Color="Transparent" />
+                <SolidColorBrush x:Key="NavigationViewTopPaneBackground" Color="Transparent" />
+            </NavigationView.Resources>
+
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+                <TextBlock
+                    x:Name="PageTitle"
+                    Margin="40,4,40,16"
+                    Style="{StaticResource TitleTextBlockStyle}"
+                    AutomationProperties.AutomationId="SettingsPageTitle"
+                    AutomationProperties.HeadingLevel="Level1" />
+                <ScrollViewer x:Name="PageScroller" Grid.Row="1" Padding="40,0,40,0" AutomationProperties.AutomationId="SettingsPageScroller">
+                    <ContentPresenter x:Name="PageHost" MaxWidth="1000" Padding="0,0,0,36" />
+                </ScrollViewer>
+            </Grid>
+        </NavigationView>
+    </Grid>
+</Window>

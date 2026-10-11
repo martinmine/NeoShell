@@ -322,6 +322,8 @@ The Start menu: Pinned and folders of pins, All, app menus, the app catalog, sea
     silhouette (`%ProgramData%\Microsoft\User Account Pictures\user-32/40/48/192.png`, `user.png` above), as
     Explorer's (StartDocked.dll names `user.png`). It opens the [**Account menu**](account-and-power-menus.md#account-menu-startmenuwindow-accountflyout-interop-shellaccountmenu).
   - Switch to Explorer button (see [Switch to Explorer](lifecycle.md#switch-to-explorer)), shell mode only, behind a confirmation dialog that defaults to Cancel.
+  - NeoShell settings button (glyph E9E9, both run modes), opening NeoShell's [Settings window](settings-window.md);
+    NeoShell's buttons come before Explorer's folders and Power so those stay as Explorer lays them out.
   - **Folders beside the power button** (Settings → Personalization → Start → Folders; Interop
     `Shell/StartPlaces`, unit tested), read each time Start opens: Explorer too shows a change the next time it
     opens. Settings keeps them in `HKCU\Software\Microsoft\Windows\CurrentVersion\Start\VisiblePlaces`, a

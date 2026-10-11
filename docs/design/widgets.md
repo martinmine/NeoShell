@@ -23,9 +23,10 @@ Small widgets about the computer and its user, as Windows Vista's sidebar gadget
   open), whose menu lists every kind; Profile, Resource usage, Now playing and
   Weather show once only (disabled in the menu while shown), Pictures and Notes as often as wanted. Widgets are cards
   in a scrolling column.
-- Hidden or shown from the taskbar's menu ("Show widgets", `ShowWidgetSidebar`); floating widgets stay.
-- Right-clicking the sidebar or a widget in it opens its menu: "Show panel background" (`ShowWidgetPanel`) and
-  "Add widget". Without the panel the header goes and the window is cut to its cards (`WindowRegion.SetRoundedRects`,
+- Hidden or shown from the Settings window (Taskbar > Widgets, or the Widgets page; `ShowWidgetSidebar`); floating
+  widgets stay.
+- Right-clicking the sidebar or a widget in it opens its menu: "Add widget" and "Widget settings" (the Settings
+  window's Widgets page, which has the panel background, `ShowWidgetPanel`, and the width). Without the panel the header goes and the window is cut to its cards (`WindowRegion.SetRoundedRects`,
   kept up with layout and scrolling): each widget keeps the backdrop behind it, as floating ones do, and the rest of
   the strip shows the desktop and lets clicks through. The space stays reserved.
 - `FloatingWidgetWindow`: a widget dragged out of the sidebar, a rounded window of its own, 300 epx wide and as tall

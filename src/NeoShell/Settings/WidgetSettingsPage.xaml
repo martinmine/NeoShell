@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<local:SettingsPageView
+    x:Class="NeoShell.Settings.WidgetSettingsPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:NeoShell.Settings">
+    <local:SettingsPageView.Resources>
+        <ResourceDictionary Source="ms-appx:///Settings/SettingsStyles.xaml" />
+    </local:SettingsPageView.Resources>
+
+    <StackPanel Spacing="4">
+        <local:SettingsCard Glyph="&#xF246;" Header="Widget sidebar" Description="Widgets docked on the right of the main display, as Vista's sidebar">
+            <ToggleSwitch
+                x:Name="SidebarToggle"
+                MinWidth="0"
+                AutomationProperties.AutomationId="WidgetSidebarToggle"
+                AutomationProperties.Name="Widget sidebar"
+                Toggled="SidebarToggle_Toggled" />
+        </local:SettingsCard>
+        <local:SettingsCard Glyph="&#xE790;" Header="Panel background" Description="The sidebar's own backdrop behind its widgets; without it, only the widgets show">
+            <ToggleSwitch
+                x:Name="PanelToggle"
+                MinWidth="0"
+                AutomationProperties.AutomationId="WidgetPanelToggle"
+                AutomationProperties.Name="Panel background"
+                Toggled="PanelToggle_Toggled" />
+        </local:SettingsCard>
+        <local:SettingsCard Glyph="&#xE9A6;" Header="Sidebar width" Description="Also set by dragging the sidebar's left edge">
+            <Slider
+                x:Name="WidthSlider"
+                Width="200"
+                StepFrequency="8"
+                SmallChange="8"
+                LargeChange="40"
+                AutomationProperties.AutomationId="WidgetSidebarWidthSlider"
+                AutomationProperties.Name="Sidebar width"
+                ValueChanged="WidthSlider_ValueChanged" />
+        </local:SettingsCard>
+        <TextBlock
+            Margin="1,8,0,0"
+            Style="{StaticResource SettingsDescriptionStyle}"
+            Text="Add widgets with the + at the top of the sidebar or from its right-click menu. Each widget's own settings are behind the gear on its card; drag a widget out of the sidebar to float it on the desktop." />
+    </StackPanel>
+</local:SettingsPageView>

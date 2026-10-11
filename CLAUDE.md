@@ -81,8 +81,9 @@ src/NeoShell/                 WinUI app
   Widgets/                    Widget sidebar, floating widgets, and the widgets (profile, resources, pictures, media,
                               weather, notes, wireless devices, about Windows)
   Frames/                     Window frames (prototype): other apps' title bars restyled through DWM attributes, by
-                              style and app rule; its settings window (taskbar menu) and preview window
-  Settings/                   Settings record + JSON load/save (%LOCALAPPDATA%\NeoShell\settings.json)
+                              style and app rule; its page in the Settings window and the preview window
+  Settings/                   Settings record + JSON load/save (%LOCALAPPDATA%\NeoShell\settings.json); the Settings
+                              window (Start's NeoShell settings button, "Taskbar settings"), its pages and cards
 src/NeoShell.Interop/
   Native/                     LibraryImport: User32, Shell32, Dwmapi, Kernel32, Advapi32, PowrProf, Comctl32, Pdh, Hid,
                               Wintrust, Combase, Rasapi32, BluetoothApis
@@ -187,7 +188,7 @@ the desktop and back. Full spec in docs/design/widgets.md.
     layout for the picture taken on the press (`PressSnapshot`): `RenderTargetBitmap` takes 60-200 ms here, and
     renders only in its own window (its pixels are copied out).
 - **Testing live.** Every interactive control has an AutomationId (`Widget` + Name = title, `WidgetSettingsButton`,
-  `WidgetCloseButton`, `AddWidgetButton`, `Add<Kind>WidgetMenuItem`, `ShowWidgetPanelMenuItem`, `WidgetResizeGrip`,
+  `WidgetCloseButton`, `AddWidgetButton`, `Add<Kind>WidgetMenuItem`, `WidgetSettingsMenuItem`, `WidgetResizeGrip`,
   `*ResourceRow*`, `NoteText`…). Widgets behind other windows aren't laid out or rendered: move one into view (its
   X/Y in settings.json, edited only while NeoShell is stopped) before judging its layout. Drags need real mouse input
   (`mouse_event`), not UIA.
@@ -207,7 +208,11 @@ the desktop and back. Full spec in docs/design/widgets.md.
   freeform masks, Snipping Tool's settings and editor link, the Print Screen key), what a focus session changes in
   Explorer's settings, the taskbar flashing setting, toast texts naming app resources, how many entries a jump list's parts show,
   toast content (images, inputs, buttons and their invoke IDs, layout and timing), window frames (rule priority,
-  eligibility, style to DWM attributes, colours, the parts reset, presets, their settings).
+  eligibility, style to DWM attributes, colours, the parts reset, presets, their settings), the Settings window's
+  pages, version and run mode texts.
+- The Settings window's controls all have AutomationIds (`<Page>NavigationItem`, `SettingsPageTitle`, `SearchModeBox`,
+  `TaskbarAlignmentBox`, `AutoHideCheckBox`, `WidgetSidebarWidthSlider`…; list in docs/design/settings-window.md). Open
+  it by invoking `StartButton` then `NeoShellSettingsButton`; select pages through the items' SelectionItem pattern.
 - When testing the UI live, drive it through UI Automation (set `AutomationProperties.AutomationId` on interactive
   controls). Never use global keystrokes like SendKeys: they go to whichever window has focus.
 - Always stop a running NeoShell with `/exit` (or its taskbar menu), never by killing the process. A kill leaves the

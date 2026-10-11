@@ -119,8 +119,8 @@ design](../design.md).
     state after it and the other way round, and follows changes to them while running (`RegistryWatcher` on the
     subtree, and on `TrayNotify`). It skips `Publisher` and `IconSnapshot` (Explorer fills them in when it next sees
     the icon). Its own process's icons (the shell service objects: Safely Remove Hardware…) are filed under
-    `%windir%\explorer.exe`, as Explorer files them. Settings can't open in shell mode, so the taskbar menu has
-    "Show hidden icon menu"; promoting is by dragging, as in Explorer. The drag picture and the marker are windowed
+    `%windir%\explorer.exe`, as Explorer files them. Settings can't open in shell mode, so NeoShell's Settings window has
+    "Hidden icon menu" (Taskbar page); promoting is by dragging, as in Explorer. The drag picture and the marker are windowed
     popups of the taskbar; the overflow's icons are hit tested from its popup window's real place (TaskbarFlyouts
     moves that window behind WinUI's back). A release over another window reaches the icon only as
     `PointerCaptureLost`, which is then the drop; a press on a taskbar icon cancels the overflow's light dismiss.

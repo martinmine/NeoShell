@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<local:SettingsPageView
+    x:Class="NeoShell.Settings.StartSettingsPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:NeoShell.Settings">
+    <local:SettingsPageView.Resources>
+        <ResourceDictionary Source="ms-appx:///Settings/SettingsStyles.xaml" />
+    </local:SettingsPageView.Resources>
+
+    <StackPanel Spacing="4">
+        <local:SettingsCard x:Name="SizeCard" Glyph="&#xE740;" Header="Size">
+            <Button
+                x:Name="ResetSizeButton"
+                Content="Reset"
+                MinWidth="120"
+                AutomationProperties.AutomationId="ResetStartSizeButton"
+                AutomationProperties.Name="Reset Start's size"
+                Click="ResetSizeButton_Click" />
+        </local:SettingsCard>
+        <TextBlock
+            Margin="1,8,0,0"
+            Style="{StaticResource SettingsDescriptionStyle}"
+            Text="Start's layout, what it recommends and the folders beside the power button are Windows' own settings: NeoShell's Start follows them as Explorer's does." />
+
+        <TextBlock Style="{StaticResource SettingsSectionStyle}" Text="Related settings" />
+        <Button
+            Style="{StaticResource SettingsLinkCardStyle}"
+            AutomationProperties.AutomationId="WindowsStartSettingsLink"
+            AutomationProperties.Name="Start settings"
+            Click="WindowsStartSettings_Click">
+            <local:SettingsCard
+                Style="{StaticResource SettingsLinkContentStyle}"
+                Glyph="&#xE713;"
+                Header="Start settings"
+                Description="Layout, recently added and most used apps, recommendations">
+                <FontIcon Glyph="&#xE8A7;" FontSize="14" />
+            </local:SettingsCard>
+        </Button>
+        <Button
+            Style="{StaticResource SettingsLinkCardStyle}"
+            AutomationProperties.AutomationId="StartFoldersLink"
+            AutomationProperties.Name="Folders"
+            Click="StartFolders_Click">
+            <local:SettingsCard
+                Style="{StaticResource SettingsLinkContentStyle}"
+                Glyph="&#xE8B7;"
+                Header="Folders"
+                Description="The folders beside the power button">
+                <FontIcon Glyph="&#xE8A7;" FontSize="14" />
+            </local:SettingsCard>
+        </Button>
+    </StackPanel>
+</local:SettingsPageView>

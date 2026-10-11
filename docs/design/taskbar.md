@@ -87,7 +87,7 @@ and task buttons. Part of the [NeoShell design](../design.md).
   sidebar shown a maximized window doesn't cover the monitor, so the taskbar comes back over it. It hides again after ~0.75 s with the pointer off it,
   unless a menu or flyout is open, the thumbnails or Start are open, or it has the keyboard (Win+T). Start, Win+T and
   Win+1…9 reveal it first.
-- Backdrop by setting (`ShellBackdrop`), chosen in the taskbar menu: Acrylic (default) or Mica — a
+- Backdrop by setting (`ShellBackdrop`), chosen in the Settings window's Taskbar page: Acrylic (default) or Mica — a
   `DesktopAcrylicController` or `MicaController` whose configuration keeps `IsInputActive` true — or Translucent: a
   see-through colour brush in the window's system backdrop slot, with DWM blur-behind on an empty region so the
   window's alpha shows the desktop instead of black — or Transparent: the same, with a fully clear brush that ignores

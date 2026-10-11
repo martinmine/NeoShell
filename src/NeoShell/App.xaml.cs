@@ -78,7 +78,7 @@ public partial class App : Application
             _wallpaper.Show();
         }
 
-        _taskbars = new Taskbars(_runMode, _settings, Shutdown, SwitchToExplorer, () => WindowFramesWindow.Open(_settings));
+        _taskbars = new Taskbars(_runMode, _settings, Shutdown, SwitchToExplorer);
         _taskbars.Show();
         _sidebar = new Sidebar(_runMode, _settings, _taskbars);
         _sidebar.Show();
@@ -145,7 +145,7 @@ public partial class App : Application
         // Other apps' windows get their own frames back.
         _settings.Changed -= UpdateWindowFrames;
         _windowFrames?.Dispose();
-        WindowFramesWindow.CloseOpen();
+        SettingsWindow.CloseOpen();
         // The sidebar and taskbars next: they give the reserved screen space back.
         _sidebar?.Dispose();
         _taskbars?.Dispose();
