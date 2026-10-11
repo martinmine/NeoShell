@@ -4,7 +4,8 @@ Feasibility spec for drawing XP's blue Luna frame over other apps' windows with 
 option C of [Window frames](window-frames.md#options), worked out and tested. Part of the
 [NeoShell design](../design.md).
 
-Status: **feasibility spike only** (2026-10-11, title-bar-prototype branch). Nothing is built in the repo. The
+Status: **feasibility spike**, and XP's Luna measured in an XP VM with a renderer drawing it from the numbers (see
+[Luna layout](#luna-layout); 2026-10-11, title-bar-prototype branch). Nothing is built in the repo. The
 findings come from a throwaway WinForms spike (overlay engine, Luna-like drawing, test windows) run on this VM
 (Windows 11 25H2, build 26200, one 1764x988 monitor at 100%), measured with logs, `CopyFromScreen`, `PrintWindow`,
 UIA-free `mouse_event` input and 60 fps `ffmpeg -f gdigrab` recordings stepped frame by frame.
@@ -174,12 +175,14 @@ All rectangles in physical pixels (the helper is per-monitor DPI aware v2):
   (Registry Editor: title bar to y 181, client from 201; the first version covered the menu).
 - Caption = (`V.left - 4`, `V.top`) to (`V.right + 4`, title bar bottom); left/right strips from the title bar bottom to
   `C.bottom`, `V.left - 4` to `C.left` (and mirrored); bottom strip `C.bottom` to `V.bottom + 4`. Measured on a
-  standard window at 100%: `V` is 7 px inside the window rect, the caption band 31 px (XP's Luna: 25 px caption plus
-  frame, about 30 px to the client: a close fit), client inset 1 px from `V`.
+  standard window at 100%: `V` is 7 px inside the window rect, the caption band 31 px (XP's Luna: 30 px from the
+  window's top to the client, 29 for dialog frames, measured: one row short; the caption's flat middle rows can take
+  the extra row), client inset 1 px from `V`.
 - No caption to cover when `C.top - V.top` is under 10 px or `rgstate[0]` of `TITLEBARINFO` says invisible (custom
   title bars, full-screen windows): leave the window alone (measured on the custom-title-bar test window).
 - Buttons window = from Windows' own caption buttons' left edge (`DWMWA_CAPTION_BUTTON_BOUNDS`, window-relative) to the
-  caption's right end. XP's buttons 21x21 px, 2 px gaps, vertically centred +1, right edge 2 px inside the frame.
+  caption's right end. XP's buttons: 21x21 px, 23 px apart, at y 6 (sizable) or 5 (dialog frame), the rightmost
+  ending 6 px (sizable) or 5 px (dialog) inside the window's right edge (measured, [Luna layout](#luna-layout)).
   Which buttons: `WS_MINIMIZEBOX`/`WS_MAXIMIZEBOX` style bits, `WS_EX_CONTEXTHELP` (?), and `TITLEBARINFO.rgstate` for
   disabled ones (greyed close of `CS_NOCLOSE` windows).
 - DPI: scale our metrics by the **monitor's** DPI, not `GetDpiForWindow(app)` (a DPI-unaware app reports 96 but DWM
@@ -213,7 +216,7 @@ The prototype's `FrameRules.IsEligible` (visible, top-level, has a caption, not 
 cloaked, not NeoShell's or the helper's own) plus: a standard caption to cover (section 2), not class `Ghost`, not
 full-screen. Rules per process (and class) as today, with "Luna (overlay)" as a style. Dialogs, message boxes and
 property sheets get the close-only caption. Owned tool windows with a small caption (`WS_EX_TOOLWINDOW`) are left out
-at first (XP drew them with a 15 px caption).
+at first (XP drew them with a 21 px caption band and a 13 px close button, measured).
 
 ## 5. Process model and elevation
 
@@ -240,20 +243,15 @@ at first (XP drew them with a 15 px caption).
 
 ## 6. Drawing
 
-- Our own artwork: a set of small images drawn for this project to look like Luna (caption left/middle/right for
-  active and inactive, the button faces in normal/hover/pressed/disabled for minimize, maximize, restore, close and
-  help, and the frame edges), stretched and tiled as XP's msstyles did; or the same drawn in code as the spike did
-  (gradients, rounded top corners of 8 px, buttons with a white rim and glyphs). The spike's colours were eyeballed
-  from memory of XP's caption (#0058E6 middle, a #3D95FF highlight near the top, darker #0043CB bottom; inactive
-  #7A96DF; red close #E5785A to #C5371A): to be matched against a reference screenshot, not Microsoft's files.
-- Title: Trebuchet MS Bold 13 px (`trebucbd.ttf` ships with Windows 11), white with a 1 px dark-blue shadow when
-  active, #D8E4F8 when inactive; icon from `WM_GETICON` (`ICON_SMALL2`, `SendMessageTimeout` with
+- Drawn in code (the owner's choice), from numbers measured in XP: see [Luna layout](#luna-layout) and its renderer,
+  which matches XP's pixels to within 8 levels on 99.65% of the frame. (The first spike's eyeballed gradients and
+  8 px corners are replaced.)
+- Title: Trebuchet MS Bold 13 px with GDI grayscale antialiasing, white over a `0A1883` shadow when active, `D8E4F8`
+  when inactive (details under Luna layout); icon from `WM_GETICON` (`ICON_SMALL2`, `SendMessageTimeout` with
   `SMTO_ABORTIFHUNG`) or `GCLP_HICONSM`.
-- The spike used GDI+ (System.Drawing through WinForms). For the real helper, without new packages: compose the
-  parts into a premultiplied DIB in C# (spans), decode the artwork with WIC (`NeoShell.Interop/Imaging` already
-  decodes pictures), and draw the title with GDI `DrawText` onto the opaque caption (the caption is opaque except its
-  two rounded corners, so ClearType works; then set alpha 255 there). GDI+ on an alpha bitmap allows only grayscale
-  antialiasing.
+- The first spike used GDI+ (System.Drawing through WinForms). The renderer composes the frame into a premultiplied
+  buffer in C# and draws the title with GDI `DrawText` onto the opaque caption, as the helper should: no packages,
+  nothing to decode. XP used grayscale antialiasing, not ClearType, and so does the renderer.
 
 ## 7. Cost (measured, two styled windows)
 
@@ -261,12 +259,228 @@ at first (XP drew them with a 15 px caption).
 - Memory: 45 MB working set, 11 MB private for the WinForms spike (the WinForms runtime dominates); the bitmaps are
   tens of KB per window. One thread per styled app UI thread (about 1 MB reserved stack each).
 
+## Luna layout
+
+XP's blue Luna frame measured in a real Windows XP (2026-10-11) so it can be drawn in code, and a renderer that draws
+it from these numbers, compared with XP pixel by pixel.
+
+### How it was measured
+
+- XP ran in the owner's v86 emulator page in Edge: 1280x720, 32-bit colour, 96 DPI ("Normal size"), "Windows XP
+  style", colour scheme "Default (blue)", font size "Normal", font smoothing "Standard" (all read in Display
+  Properties). The page shows XP's screen 1:1 (a 1280x720 canvas on 1280x720 screen pixels; one-pixel lines are
+  crisp), so `CopyFromScreen` over the canvas gives XP's own pixels. Input: real mouse moves (the page locks the
+  pointer, so the XP pointer was found in each screenshot and moved in small relative steps) and keys with scan codes.
+- Windows: Notepad (sizable frame), Explorer (My Documents), Calculator (fixed dialog frame, minimize, disabled
+  maximize), Run (dialog frame, help and close), Display Properties and its Advanced dialog (long title), a message
+  box (close only), Paint's floating Fonts toolbar (tool window). States: active, inactive, each button hovered and
+  pressed (pressed, dragged off, released outside), hovered on an inactive window, maximized with the restore button.
+- Not seen: the page rounds its canvas's corners, so the outer 11x11 px of a maximized caption's two top corners are
+  unknown (the renderer repeats the nearest measured rows there); a pressed button on an inactive window (the press
+  activates it); a disabled close button; DPI other than 96.
+
+### Geometry
+
+Pixels, relative to the window rectangle (XP's window rectangle is the visible frame: no invisible borders).
+
+| | Sizable (Notepad, Explorer) | Dialog frame (Run, Calculator, message box) | Tool window (small caption) | Maximized |
+|---|---|---|---|---|
+| Caption band, window top to client top | 30 | 29: the sizable rows without row 11 | 21 | Window at -4,-4 (frame off screen); 26 caption rows on screen, a gradient of their own |
+| Side and bottom borders | 4 | 3: the sizable border's inner three (left drops `0019CF`, right drops `0048F1`, bottom drops `003DDC`) | 3, as dialogs | Off screen |
+| Top corners | Rounded: rows 0-4 leave 5, 3, 2, 1, 1 pixels transparent at each end (a window region, no partial alpha) | As sizable | Square | Square |
+| Bottom corners | Square | Square | Square | — |
+| Icon, 16x16 | (6, 8) | (7, 7) | None | (2, 4) on screen |
+| Title x (GDI origin) | 26 with an icon, 7 without | 25 with an icon, 7 without | 3 | 22 with an icon |
+| Title top (`DrawText` rectangle top) | 8 | 7 | 5 | 4 |
+| Buttons | 21x21 at y 6; the rightmost ends 6 px inside the right edge (x = width - 27); 23 px apart (2 px gaps) | 21x21 at y 5; rightmost at x = width - 26 | Close only, 13x13 at y 5, x = width - 18 | 21x21 at y 2; rightmost ends 2 px from the screen's right edge |
+| Title's right limit | Ends before the leftmost button's x - 3, with an end ellipsis (`DT_END_ELLIPSIS`; "...Standard PCI Gra..." matched to the pixel) | As sizable | As sizable | As sizable |
+
+Buttons from the right: close; then maximize (or restore) and minimize; or help instead of them (`WS_EX_CONTEXTHELP`
+without minimize/maximize boxes). A dialog with only a close button has just that one.
+
+### Caption gradient, every row
+
+The middle of the caption is one colour per row (the columns vary by ±1-3 in three bands where XP stretched a
+three-pixel-wide image; the renderer uses the median).
+
+| Row | Sizable active | Sizable inactive | Active left edge, columns 0-3 | Active right edge, columns w-5..w-1 |
+|---|---|---|---|---|
+| 0 | `0058EB` | `688DE0` | (corner) | (corner) |
+| 1 | `3D95FF` | `98B2E8` | (corner) | (corner) |
+| 2 | `2B90FF` | `9DB9EB` | (corner) | (corner) |
+| 3 | `0372FF` | `8AACE7` | (corner) | (corner) |
+| 4 | `0365F1` | `7EA2E4` | (corner) | (corner) |
+| 5 | `005CE9` | `7B9DE1` | 0032C1 004ADC 004BCD 0053DA | 003DCC 0037CB 0032C1 0032C1 0015A0 |
+| 6 | `0058E6` | `7A99E0` | 0032C1 0032C1 0041CA 014CD0 | 0031C6 0032C1 002AB7 0026AC 0015A0 |
+| 7 | `0054E3` | `7996DE` | 0024A6 0032C1 0041CA 014CD0 | 0031C6 0032C1 0022B9 0024A6 000E7D |
+| 8 | `0054E3` | `7996DE` | 0018AB 0032C1 003DCC 0245D0 | 0031C6 002CC8 0022B9 0024A6 000E7D |
+| 9 | `0054E3` | `7996DE` | 0018AB 0032C1 003DCC 0047D7 | 0037CB 002CC8 0020C8 0024A6 000E7D |
+| 10 | `0055E5` | `7A96DF` | 0018AB 0031C6 003FD2 004AD8 | 0036D2 002CC8 0020C8 0026AC 000E7D |
+| 11 | `0055E5` | `7A96DF` | 0018AB 0031C6 003FD2 004AD8 | 0036D2 002CC8 0020C8 0026AC 000E7D |
+| 12 | `0055E5` | `7A96DF` | 001ABC 0037CB 003BD2 004ADC | 0036D2 002CC8 0020C8 0024A6 000E7D |
+| 13 | `0055E5` | `7A96E0` | 001ABC 0036D2 0040DC 004ADC | 0036D2 0029D0 0020C8 0026AC 000E7D |
+| 14 | `0055E5` | `7B97E0` | 001ABC 0036D2 0040DC 004ADC | 0035D8 0029D0 0020C8 0026AC 000E7D |
+| 15 | `0055EA` | `7B99E1` | 001ABC 0036D2 0040DC 0050E2 | 0035D8 0036D2 0029D0 002AB7 000E7D |
+| 16 | `0055EA` | `7B99E1` | 0020C8 0038D8 0046E4 0051E5 | 003AD9 0035D8 0029D0 0026AC 00138B |
+| 17 | `0058EE` | `7D9BE3` | 0020C8 0038D8 0046E4 0051E5 | 003BE0 0035D8 0023D6 002AB7 00138B |
+| 18 | `005BF2` | `7D9BE3` | 001FD2 003DDC 0046E4 0055E5 | 0040E1 003BE0 002EDC 002AB7 001592 |
+| 19 | `005AF5` | `7F9FE6` | 001FD2 003BE0 0046E4 0055EA | 0041E8 003BE2 002EDC 002AB7 001592 |
+| 20 | `0060F9` | `7FA2E6` | 0023D6 003BE0 0046EA 0051EB | 0046EA 0041E8 003BE2 0032C1 001592 |
+| 21 | `0164F9` | `80A5E7` | 0023D6 003BE0 004BE7 0058EB | 0047EF 0041E8 0038EA 002CC8 001592 |
+| 22 | `026AFE` | `81A7E8` | 001FD2 003BE2 004BEB 0058EE | 0047EF 0046EA 0038EA 0031C6 001592 |
+| 23 | `026AFE` | `82A9E9` | 001ACF 003BE2 004BEB 0058EE | 004CF3 0047EF 0038EA 0032C1 001592 |
+| 24 | `026AFE` | `82A9E9` | 001ACF 003BE2 004BEB 0058EE | 004CF3 0047EF 0038EA 0032C1 00138B |
+| 25 | `026AFE` | `81A7E8` | 001ACF 003BE2 004BEB 0058EE | 004CF3 0047EF 0038EA 0032C1 00138B |
+| 26 | `0065FD` | `80A5E7` | 001ACF 003BE0 004BEB 0058EE | 0047EF 0046EA 0038EA 0032C1 00138B |
+| 27 | `0060F9` | `7E9DE5` | 001ACF 003BE0 004BEB 004DE3 | 0047EF 0047EF 0038EA 0032C1 00138B |
+| 28 | `004DE3` | `7A93DF` | 001ACF 003BE0 003BE0 004BE0 | 0035D8 003BE0 0038EA 0032C1 00138B |
+| 29 | `0143CF` | `7A93DF` | 001ACF 003BE0 003BE0 004BE0 | 0043CF 003BE0 002EDC 0032C1 001592 |
+
+| Row | Tool active | Tool inactive | Maximized active | Maximized inactive |
+|---|---|---|---|---|
+| 0 | `3485EB` | `789AE2` | `3E96FF` | `99B3E9` |
+| 1 | `5DB3FF` | `9FBAEB` | `2C8AFF` | `9DB9EB` |
+| 2 | `1983FE` | `89ADE8` | `0370FF` | `88AEE9` |
+| 3 | `036CF5` | `7C9FE2` | `0465F1` | `7EA1E5` |
+| 4 | `026AEF` | `7C9CE2` | `015CE9` | `7B9CE1` |
+| 5 | `0265EC` | `7A99E0` | `005AE7` | `7998DF` |
+| 6 | `0064EB` | `7A99E0` | `0055E3` | `7998DF` |
+| 7 | `0064EB` | `7A99E0` | `0055E3` | `7A97DF` |
+| 8 | `0064EE` | `7A99E0` | `0055E3` | `7A97DF` |
+| 9 | `0067F1` | `7A99E0` | `0055E6` | `7A97E0` |
+| 10 | `0067F1` | `7C9CE2` | `0055E6` | `7A97E0` |
+| 11 | `0067F1` | `7A99E0` | `0056E8` | `7B98E1` |
+| 12 | `0067F1` | `7C9CE2` | `0054EC` | `7C99E2` |
+| 13 | `0067F4` | `7E9DE5` | `0055F1` | `7C99E2` |
+| 14 | `006BF8` | `7FA0E6` | `005AF2` | `7E9BE5` |
+| 15 | `0270FD` | `80A5E7` | `015DF4` | `7E9EE5` |
+| 16 | `0673FE` | `81A7E8` | `005DF9` | `7FA1E6` |
+| 17 | `0776FF` | `81A7E8` | `0162FA` | `80A4E7` |
+| 18 | `0A78FF` | `82A9E9` | `0269FE` | `81A8E9` |
+| 19 | `006BFD` | `7E9CE5` | `036CFE` | `81A9E8` |
+| 20 | `014ADF` | `7993DE` | `036CFE` | `82ABE9` |
+| 21 | | | `0269FE` | `81A9E8` |
+| 22 | | | `0266FB` | `80A6E8` |
+| 23 | | | `0162FA` | `7E9EE5` |
+| 24 | | | `014DE1` | `7A95DF` |
+| 25 | | | `0043CF` | `7A95DF` |
+
+The caption's ends are shaded: past the edge columns, each column adds an offset to its row's colour (left end: 26
+columns, up to +8 green and -15 blue near the edge; right end: 43 columns, green -4 to -12), and the first 5 and
+last 4 rows of the ends (the rounded corner's highlight, the bottom's shading; 16 columns on the left, 25 on the right)
+are measured pixels because they don't separate into row and column. Every number, inactive, tool and maximized
+included, is in the renderer's `LunaArt.cs` (below).
+
+### Borders below the caption
+
+| | Left, outside in | Right, inside out | Bottom, top down |
+|---|---|---|---|
+| Sizable active | `0019CF 0831D9 166AEE 0855DD` | `0048F1 003DDC 001EA0 00138C` | `0048F1 003DDC 001EA0 00138C` |
+| Sizable inactive | `5B68CD 7480DC 758CDD 758CDC` | `7586DC 7587DD 6D74CD 4F53BC` | `7586DC 7587DD 6D74CD 4F53BC` |
+| Dialog and tool active | `0831D9 166AEE 0855DD` | `003DDC 001EA0 00138C` | `0048F1 001EA0 00138C` |
+| Dialog and tool inactive | `7480DC 758CDD 758CDC` | `7587DD 6D74CD 4F53BC` | `7586DC 6D74CD 4F53BC` |
+
+The bottom corners are mitred (a 4x5 or 3x4 patch of their own each, in `LunaArt.cs`); the borders vary by ±1 along
+their length (stretched art), which the renderer ignores.
+
+### Title
+
+- Trebuchet MS Bold, 13 px (10 pt at 96 DPI, weight 700); tool windows Tahoma Bold, 11 px (8 pt). Both ship with
+  Windows 11 (`trebucbd.ttf`, `tahomabd.ttf`).
+- XP's "Standard" smoothing is GDI's grayscale antialiasing: drawn on Windows 11 with `ANTIALIASED_QUALITY` the glyphs
+  match XP's to the pixel, edge levels included.
+- Active: white `FFFFFF` over a `0A1883` shadow offset (1, 1). Inactive: `D8E4F8`, no shadow. Tool windows: white
+  or `D8E4F8`, no shadow.
+- The shadow must be drawn by GDI straight onto the caption, then the white text over it: XP's shadow edge pixels are
+  much lighter than the text's (GDI blends a dark colour's coverage differently; an edge pixel with 50% white coverage
+  has 9% shadow). Compositing the shadow from a white-on-black mask left about 90 pixels of Notepad's title off by
+  more than 24 levels; drawing it with GDI leaves 1-3.
+
+### Caption buttons
+
+- **Rim:** white, 1 px, with rounded corners that fade over three pixels: alpha in sixteenths 0, 6, 12 from each
+  corner along both sides, and 11-12 on the diagonal pixel inside (the 13 px tool button: 4 at the corner pixel, 5 on
+  the diagonal). The rim lies over the caption behind the button, not over the face: an inactive close button's rim
+  is bluish (`BCC7ED`), not pink.
+- **Face:** a gradient, light at the top left and dark at the bottom right, with sharp light and dark lines just
+  inside the rim. Drawn as a bilinear mesh of 9x9 colours (control points at 1, 2, 3, 6, 10, 14, 17, 18, 19 px; 7x7
+  at 1, 2, 4, 6, 8, 10, 11 on the 13 px tool button), fitted to XP's buttons: mean error 0.6-1.8 levels, at most
+  10.
+- **Glyphs** (white, alpha maps in `LunaArt.cs`): minimize a 7x3 bar at (5, 13); maximize an 11x11 window at (5, 5),
+  3 px top and 1 px sides and bottom; restore two 7x7 windows, back at (8, 5) and front at (5, 8), 2 px tops; close
+  an X from (5, 5) to (15, 15), 3 px strokes with lighter end pixels; help a `?` 9 px wide from (6, 4), antialiased,
+  with its dot at (9-10, 15-16); the tool window's close a 7x7 X at (3, 3).
+
+| Face | Top left | Centre | Bottom right | Rim opacity | Glyph opacity |
+|---|---|---|---|---|---|
+| Blue normal (minimize, maximize, restore, help) | `90AFF9` | `3A76F5` | `0045D3` | 1 | 1 |
+| Blue hot | `97B9FF` | `4A94FF` | `0A5DDD` | 1 | 1 |
+| Blue pressed | `002A62` | `0050B5` | `0054B9` | 1 | 0.47 |
+| Blue, inactive window | `849FEA` | `597FE9` | `3F6DDC` | 0.48 | 1 |
+| Blue disabled (Calculator's maximize) | `4C80EA` | `1F5DEA` | `0049E3` | 0.5 | 0.42 |
+| Blue disabled, inactive window | `7D97E2` | `6984E2` | `6083E1` | 0.2 | 0.23 |
+| Red normal (close) | `EFA390` | `E5603A` | `C22A00` | 1 | 1 |
+| Red hot | `FFAEA5` | `FF836E` | `E54930` | 1 | 1 |
+| Red pressed | `69220F` | `C2401D` | `C5431F` | 1 | 0.47 |
+| Red, inactive window | `B399B5` | `AE748A` | `A06072` | 0.49 | 1 |
+| Tool close normal / hot / pressed / inactive | `F0A794` / `FFB4AB` / `912D14` / `B396B6` | | `E23A03` / `FD724D` / `CC4921` / `B06573` | 1 / 1 / 1 / 0.49 | 1 / 1 / 0.49 / 1 |
+
+Hovering a button of an inactive window shows the same hot button as on an active one; the rest of the caption stays
+inactive. A pressed button released outside it does nothing and returns to normal.
+
+### The renderer
+
+`LunaFrame.Render(LunaWindow)` draws a window's frame into a premultiplied `0xAARRGGBB` buffer (client area left
+transparent): kind (sizable, dialog, tool), active, maximized, title, an optional 16x16 icon, and the buttons with
+their states. `LunaArt` holds the numbers above as C# string tables, generated from the measurements; the title goes
+through GDI (`CreateFontW`, `DrawTextW` on a DIB section). No image files, no packages; user32 and gdi32 only. It
+lives with the spike for now (`E:\NeoShellWork\luna\src\LunaFrame.cs`, `LunaArt.cs`; the measuring and comparing
+scripts in `E:\NeoShellWork\luna\ana`), to move into the helper project when that's built.
+
+Compared with XP pixel by pixel (same window size, title and state; XP's icon and pointer left out; every frame pixel
+we draw counted), 29 cases, 707,000 pixels: 75.9% identical, 89.2% within 2 levels, 99.65% within 8, 0.08% (583
+pixels) off by more than 24.
+
+| Case | Pixels | Identical % | Within 8 % | Off > 24 | Mean |
+|---|---|---|---|---|---|
+| Notepad active / inactive | 36040 | 74.0 / 83.4 | 99.86 / 99.93 | 3 / 3 | 0.70 / 0.29 |
+| Notepad, each button hot / pressed (active) | 35980 | 73.8-74.1 | 99.62-99.84 | 11-87 | 0.71-1.18 |
+| Notepad inactive, minimize / close hot | 35980 | 83.5 / 83.2 | 99.94 / 99.71 | 3 / 60 | 0.29 / 0.57 |
+| Maximized active / inactive | 32845 | 78.1 / 71.2 | 99.91 / 99.77 | 0 / 2 | 0.71 / 0.59 |
+| Maximized, restore hot / pressed | 32785 | 78.0 / 78.1 | 99.86 / 99.86 | 24 / 24 | 0.76 / 0.77 |
+| Run active / inactive / help hot / help pressed | 12004 | 70.2 / 77.3 / 69.8 / 70.3 | 99.56 / 99.90 / 99.35 / 99.23 | 10 / 3 / 34 / 26 | 0.90 / 0.43 / 1.25 / 0.99 |
+| Calculator active / inactive (disabled maximize) | 9408 | 67.7 / 76.0 | 98.75 / 99.34 | 6 / 3 | 0.91 / 0.51 |
+| Explorer, My Documents (not used for fitting) | 31448 | 73.8 | 99.83 | 3 | 0.69 |
+| Message box (not used for fitting) | 25468 | 73.0 | 99.85 | 1 | 0.82 |
+| Display Properties active / inactive (not used for fitting) | 15442 | 71.6 / 80.8 | 99.64 / 99.92 | 2 / 3 | 0.75 / 0.36 |
+| Advanced dialog, title cut with an ellipsis (not used for fitting) | 15442 | 72.5 | 99.64 | 2 | 0.71 |
+| Tool window active / inactive / close hot / close pressed | 11538 | 81.1 / 65.2 / 81.1 / 81.3 | 97.63 / 99.77 / 97.29 / 97.63 | 15 / 0 / 58 / 18 | 0.83 / 0.73 / 1.69 / 0.84 |
+
+What still differs, and why:
+
+- **Button faces**, ±1-5 levels (at most 10): the 9x9 gradient mesh smooths XP's bitmap. A denser mesh (11x11) gets
+  under 1 level mean; a coarser one (7x7) about 2.5 with ±15 at the edges.
+- **Button rim corners**, 10-20 levels on a few pixels per button: the partial pixels' alpha is one map for every
+  state.
+- **The caption's middle**, ±1-3 in two vertical bands per row (XP stretched a three-pixel image; we draw one colour).
+- **The ends' interior rows**, mostly ±1-6 (the shading is modelled as row colour plus a column offset); the tool
+  window's caption fits worst (97.6% within 8).
+- **Text**: identical glyphs and edge levels; a few edge pixels per title differ by up to 10-20 where the shadow and
+  the white overlap.
+- **Hot and pressed shots** count some pixels of XP's pointer shadow as differences (the larger "off > 24" counts).
+- **Maximized top corners** (11x11 px each) are not compared: the emulator page hides them.
+
 ## Open questions for the owner
 
-1. Is the result worth the seams (one-frame lag, the app's own frame in thumbnails and animations, no Snap layouts
-   flyout, custom-title-bar apps untouched)? If yes, build it as a third project with the process model above.
-2. The helper is a new executable that installs an elevated scheduled task: OK?
-3. Artwork: images drawn by us (more faithful) or drawn in code (no assets)? Either way a reference screenshot of XP
-   is needed to match the colours and sizes.
-4. Same mechanism for other looks later (Windows 7 Basic/Aero buttons, classic): the overlays don't care what they
-   draw, but glass would need `DesktopAcrylic`-like blur behind our windows, which a layered window can't have.
+Answered (2026-10-11): the spike is a good starting point; a separate program with an elevated logon task is fine;
+the artwork is drawn in code, no image files (now measured in an XP VM and rendered, see [Luna layout](#luna-layout)).
+
+1. Other looks later (Windows 7 Basic/Aero buttons, classic): the overlays don't care what they draw, but glass would
+   need `DesktopAcrylic`-like blur behind our windows, which a layered window can't have.
+2. The button faces are 9x9 gradient meshes and parts of the caption's ends measured rows, all fitted to XP's
+   bitmaps: numbers, not image files, but close copies of Microsoft's art at this size. If that's too close, a
+   simpler drawing (one gradient per row and per column, no mesh) costs about 5-8 levels on the faces.
+3. Other DPI scales: XP at 120 DPI had its own, larger Luna art (not measured: the VM's XP runs at 96 DPI). Scaling
+   the 96 DPI numbers is the fallback; a second measuring session at 120 DPI in the VM would settle it.
+4. Where the renderer lives once the helper project exists (`LunaFrame.cs` and `LunaArt.cs` are in the spike folder
+   today, outside the repo).

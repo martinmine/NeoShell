@@ -665,8 +665,13 @@ Built as the spec's option A + B: NeoShell's own `DwmSetWindowAttribute` calls, 
 - [x] Feasibility spike (2026-10-11): Luna through overlay windows of a separate elevated helper
       (design/window-frames-overlay.md): owned layered windows per app window, z-order, following moves, restore,
       activation, hangs, input, elevation, cost — measured on test windows and Registry Editor
-- [ ] Build the overlay helper — waiting for the owner's answers in design/window-frames-overlay.md; not run live yet:
-      other DPI scales, a second monitor, virtual desktops
+- [x] Luna measured in an XP VM (2026-10-11; design/window-frames-overlay.md, "Luna layout"): caption heights,
+      borders, corners, every caption row, title font and shadow, icon, buttons in every state, maximized, dialog and
+      tool frames; a renderer drawing it in code from the numbers (spike folder, `LunaFrame`, `LunaArt`), compared
+      with XP over 29 windows and states: 99.65% of frame pixels within 8 levels, 76% identical — not measured: DPI
+      other than 96, a disabled close button, a pressed button of an inactive window
+- [ ] Build the overlay helper — the owner agreed (separate elevated program, a logon task, art drawn in code); not
+      run live yet: other DPI scales, a second monitor, virtual desktops
 
 ## Settings window
 

@@ -231,8 +231,9 @@ Option A + B as specified above; no injection, no new packages, no native code.
 - Luna's colours checked against XP's blue scheme: `ActiveCaption` 0,84,227 (#0054E3), caption text white,
   `InactiveCaption` 122,150,223 and `InactiveCaptionText` 216,228,248 (luna.msstyles' system colours, as tabulated in
   Brethorsting's "Windows System Colors"). The border #0831D9 is the dark blue of Luna's frame bitmap, kept from the
-  spec; not checked against a pixel reference. DWM takes one caption colour, so Luna is flat and stays #0054E3 when
-  inactive (only the caption buttons grey).
+  spec. Checked against XP's pixels since (window-frames-overlay.md, "Luna layout"): the caption's middle rows are
+  #0054E3-#0055E5, the frame's second column is #0831D9, inactive text #D8E4F8. DWM takes one caption colour, so
+  Luna is flat and stays #0054E3 when inactive (only the caption buttons grey).
 - The Window frames page of NeoShell's [Settings window](settings-window.md) (until then a window of its own from the
   taskbar's menu, "Window frames..."): on/off,
   the style for all windows, rules (added from a menu of the running apps' processes; optional class; style or
