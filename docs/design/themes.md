@@ -6,9 +6,9 @@ and how to add one. Part of the [NeoShell design](../design.md).
 ## What a theme is
 
 A theme is which Windows the **taskbar and Start** look like and how their own parts behave (layout, sizes, button
-shapes, menus, flyouts). Windows 11 is the default and so far the only one; Windows XP (Luna taskbar with the green
-Start button, Quick Launch, the notification area and clock, the two-column Start menu) is next, and Windows 98,
-Vista or 7 may follow.
+shapes, menus, flyouts). Windows 11 is the default; Windows XP (Luna taskbar with the green Start button, Quick
+Launch, the notification area and clock, the two-column Start menu) is the second, see [Theme: Windows XP](theme-xp.md);
+Windows 98, Vista or 7 may follow.
 
 A theme replaces whole views, not styles: XP's taskbar is not a restyled Windows 11 taskbar (30 px high, labelled
 buttons that group when full, a Start button with text, a Quick Launch bar, a tray whose chevron expands in place),
@@ -118,29 +118,14 @@ as the view's own `Root` field always did.
    items) gets unit tests.
 5. This file (what the theme replaces and how), `CLAUDE.md`'s layout, and the area's own spec file for its numbers.
 
-## The XP theme (next)
+## The XP theme
 
-What the XP task needs to know:
+Built as described above: `Themes/WindowsXp/`, measured and compared in [Theme: Windows XP](theme-xp.md). What it
+added to the shared parts: `SystemMenu` and `TopLevelWindows.Cascade`/`Tile` in Interop (a task button's system menu,
+the taskbar's and a group's arrange commands), italic fonts and `GdiText.Measure`, the Start Menu folders' reader
+(`StartMenu/StartMenuFolders`), and a fix in `ShellBackdrop`: a see-through backdrop made before any acrylic or mica
+one (XP's popups are all see-through) needs the thread's system dispatcher queue, which only those controllers had
+been making (`EnsureSystemDispatcherQueue`; without it NeoShell failed to start in the XP theme).
 
-- **Taskbar**: `TaskbarDock` with height 30 (`TaskbarLayout.Bounds(…, 30)` is tested); XP had no centred alignment,
-  so the view can ignore `TaskbarAlignment`. Buttons: labelled, up to about 160 px wide, narrowing and then grouped
-  by app when the taskbar fills (`TaskListBuilder.Build(…, combine: true)` already groups); a group's click opens a
-  menu of its windows. Right-click on a button is the window's system menu (Restore, Move, Size, Minimize, Maximize,
-  Close), which needs `GetSystemMenu` and a way to send the chosen command in `NeoShell.Interop` (`TrackPopupMenuEx`
-  is declared in `Native/User32.cs`). No thumbnails, no jump lists: `busy` can return false.
-- **Quick Launch**: XP's was the folder `%APPDATA%\Microsoft\Internet Explorer\Quick Launch`; NeoShell has no model for
-  it yet. The simplest real choice is `ShellSettings.PinnedTaskbarApps` (the same pins as Windows 11) shown as small
-  icons; reading the folder would need a new reader.
-- **Tray and clock**: icons inline from `NotificationArea.PromotedIcons`, the `<` chevron expanding the hidden ones in
-  place (`OverflowIcons`, `ChevronVisible`), presses through `TrayIconInput`. The clock is one line (time only);
-  double-click opens `timedate.cpl` (`Launcher.OpenSettings`); no notification center. Indicators: XP showed volume
-  and network as ordinary tray icons; `Indicators` has their state.
-- **Start**: user picture and name at the top (`UserAccount`), pinned Internet and E-mail plus `StartPins` on the
-  left, the most used programs below them (`UserAssist` has launch counts), All Programs as cascading menus of the
-  Start Menu folders (per-user and common; `StartCatalog` reads `shell:AppsFolder`, flat, so the folder tree needs a
-  reader), the right column's places (`StartPlaces`, `ShellLaunch`), Log Off and Turn Off Computer
-  (`PowerItems`, XP's own dialogs to draw). XP's Start opens at once above the Start button, no slide.
-- **Look**: Luna's colours and metrics for frames were measured in an XP VM (design/window-frames-overlay.md, "Luna
-  layout"); the taskbar and Start need the same kind of measurement in an XP VM.
-- Hotkeys stay the shell's: Win (Start), Win+D, Win+E, Win+R, Win+M exist in XP; the Windows 11-only ones (Win+A,
-  Win+X…) reach the view, which ignores them.
+How XP's views draw (one picture per surface, drawn in code from measured numbers, with icons and invisible buttons
+over it) is the pattern for an older Windows' look; Windows 11's views stay XAML.

@@ -13,6 +13,7 @@ public static class ShellThemes
 
     public static string Name(ShellTheme theme) => theme switch
     {
+        ShellTheme.WindowsXP => "Windows XP",
         _ => "Windows 11",
     };
 }
@@ -25,11 +26,13 @@ internal static class ThemeViews
 {
     public static ITaskbarView CreateTaskbar(ShellTheme theme, Taskbars owner, DisplayMonitor monitor, ShellSettings settings) => theme switch
     {
+        ShellTheme.WindowsXP => new WindowsXp.XpTaskbarWindow(owner, monitor, settings),
         _ => new TaskbarWindow(owner, monitor, settings, owner.Theme, owner.Accent),
     };
 
     public static IStartMenuView CreateStartMenu(ShellTheme theme, Taskbars owner) => theme switch
     {
+        ShellTheme.WindowsXP => new WindowsXp.XpStartMenuWindow(owner),
         _ => new StartMenuWindow(owner),
     };
 }

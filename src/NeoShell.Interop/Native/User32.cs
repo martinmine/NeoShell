@@ -734,6 +734,21 @@ internal static unsafe partial class User32
     [LibraryImport("user32.dll")]
     public static partial int GetMenuItemCount(nint menu);
 
+    [LibraryImport("user32.dll")]
+    public static partial nint GetSystemMenu(nint hwnd, [MarshalAs(UnmanagedType.Bool)] bool revert);
+
+    public const nint SC_SIZE = 0xF000;
+    public const nint SC_MOVE = 0xF010;
+
+    public const uint MDITILE_VERTICAL = 0x0000;
+    public const uint MDITILE_HORIZONTAL = 0x0001;
+
+    [LibraryImport("user32.dll")]
+    public static partial ushort CascadeWindows(nint parent, uint how, RECT* rect, uint count, nint* windows);
+
+    [LibraryImport("user32.dll")]
+    public static partial ushort TileWindows(nint parent, uint how, RECT* rect, uint count, nint* windows);
+
     [LibraryImport("user32.dll", EntryPoint = "GetMenuItemInfoW")]
     [return: MarshalAs(UnmanagedType.Bool)]
     public static partial bool GetMenuItemInfo(nint menu, uint item, [MarshalAs(UnmanagedType.Bool)] bool byPosition, MENUITEMINFOW* info);

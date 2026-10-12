@@ -709,5 +709,13 @@ NeoShell's taskbar and Start in the look of other Windows versions, over the sam
       notification center and calendar, taskbar menu, jump list, thumbnail and hidden icons pixel-identical to the
       build before, alongside Explorer and as the shell; tray clicks, task buttons, Win+7, Win+T, auto-hide, full
       screen; switching back and forth with a temporary second theme
-- [ ] Windows XP theme: Luna taskbar (green Start button, Quick Launch, labelled and grouped task buttons, the
-      notification area with its chevron, the clock) and XP's two-column Start menu with All Programs
+- [x] Windows XP theme (2026-10-12, design/theme-xp.md): Luna taskbar (green Start button, Quick Launch from the
+      pinned apps, labelled task buttons grouped by program when full with the group menu, a window's system menu,
+      the notification area with its chevron and the clock, volume and network as XP's tray icons, XP's tooltips and
+      menus) and XP's two-column Start menu (pinned and most used programs, cascading All Programs from the Start Menu
+      folders, the places, Log Off and Turn Off Computer with XP-like dialogs), measured in an XP VM and drawn in code;
+      compared with XP pixel by pixel (taskbar 99.2% within 8 levels, Start 99.05%); unit tests for widths, grouping,
+      the tray, Quick Launch, the system menu's states, the Start Menu folders and Start's layout. Differs: the
+      `start` text (76% within 8), a flashing button looks hot (not caught in XP), the dialogs are approximations
+      without the greyed screen, no Toolbars submenu, 96 DPI art only. Not run live: Log Off and the power choices,
+      a second monitor, other DPIs, auto-hide

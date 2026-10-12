@@ -73,6 +73,10 @@ src/NeoShell/                 WinUI app
                               their menus (every monitor)
   Themes/                     The theme seam: ITaskbarView, IStartMenuView, ThemeViews (each theme's views),
                               ShellThemes; other themes' views go in Themes/<Name>/
+    WindowsXp/                XP's Luna taskbar, menus, tooltips, Start and power dialogs, drawn in code from measured
+                              art (XpArt*, XpCanvas, XpBand); XpPopup windows with invisible XpHit buttons over them;
+                              XP's AutomationIds: StartButton, TaskButton, QuickLaunchButton, TrayIcon, TrayChevron,
+                              ClockButton, AllProgramsButton, <place>PlaceButton, LogOffButton, TurnOffButton
   Taskbar/                    Taskbars, TaskbarWindow (Windows 11's view), TaskbarDock (what every theme's taskbar
                               shares: placement, auto-hide, full screen), TaskButtonList, task list + grouping, pinned
                               apps, thumbnail popup, clock
@@ -82,7 +86,8 @@ src/NeoShell/                 WinUI app
   QuickSettings/              Quick Settings: tiles, Windows' quick actions (night light, nearby sharing, hotspot, VPN,
                               rotation lock, brightness), Wi-Fi, Bluetooth, Accessibility, VPN, Nearby sharing, Cast,
                               Project and Sound output pages
-  StartMenu/                  StartMenuWindow (Windows 11's view), app list, search results, power menu
+  StartMenu/                  StartMenuWindow (Windows 11's view), app list, search results, power menu, the Start
+                              Menu folders (XP's All Programs)
   Switcher/                   Alt+Tab window switcher (shell mode)
   Snap/                       Snap (shell mode): layouts flyout (maximize button hover, Win+Z), Snap bar, dragging and
                               Win+arrows, Snap Assist, snap groups, the Multitasking settings
@@ -228,7 +233,9 @@ the desktop and back. Full spec in docs/design/widgets.md.
   eligibility, style to DWM attributes, colours, the parts reset, presets, their settings), XP Luna (the renderer's
   caption rows, corners, buttons, faces, borders, titles and icons against XP's numbers; the overlays' layout and
   buttons; which windows the frames program draws over; the settings it reads; its sign-in task), the Settings
-  window's pages, version and run mode texts, themes (the choice, names, the setting) and a theme's taskbar height.
+  window's pages, version and run mode texts, themes (the choice, names, the setting) and a theme's taskbar height,
+  the XP theme (button widths, grouping, tray and Quick Launch widths, group menu titles, system menu states, the Start
+  Menu folders, Start's layout).
 - The Settings window's controls all have AutomationIds (`<Page>NavigationItem`, `SettingsPageTitle`, `SearchModeBox`,
   `TaskbarAlignmentBox`, `AutoHideCheckBox`, `WidgetSidebarWidthSlider`…; list in docs/design/settings-window.md). Open
   it by invoking `StartButton` then `NeoShellSettingsButton`; select pages through the items' SelectionItem pattern.

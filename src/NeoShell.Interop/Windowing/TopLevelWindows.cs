@@ -434,6 +434,25 @@ public static unsafe class TopLevelWindows
     /// <summary>Asks the window to close, as its title bar's close button would; it may ask to save first.</summary>
     public static void Close(nint hwnd) => User32.PostMessage(hwnd, User32.WM_SYSCOMMAND, User32.SC_CLOSE, 0);
 
+    /// <summary>Cascades the windows over the work area, as XP's taskbar menus did (all of them when the list is empty).</summary>
+    public static void Cascade(IReadOnlyList<nint> windows)
+    {
+        nint[] list = [.. windows];
+        fixed (nint* items = list)
+            User32.CascadeWindows(0, 0, null, (uint)list.Length, list.Length > 0 ? items : null);
+    }
+
+    /// <summary>Tiles the windows over the work area, side by side or one above another (all of them when the list is empty).</summary>
+    public static void Tile(IReadOnlyList<nint> windows, bool sideBySide)
+    {
+        nint[] list = [.. windows];
+        fixed (nint* items = list)
+        {
+            User32.TileWindows(0, sideBySide ? User32.MDITILE_VERTICAL : User32.MDITILE_HORIZONTAL, null, (uint)list.Length,
+                list.Length > 0 ? items : null);
+        }
+    }
+
     /// <summary>
     /// Ends the window's process at once, without asking it to close: Explorer's "End task". The window manager
     /// (CSRSS) ends it, so hung and elevated apps end too. Only that process: its children keep running. Blocks

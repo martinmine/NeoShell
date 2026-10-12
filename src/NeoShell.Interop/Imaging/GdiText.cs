@@ -3,8 +3,8 @@ using Windows.Graphics;
 
 namespace NeoShell.Interop.Imaging;
 
-/// <summary>A GDI font for <see cref="GdiText"/>: a face, its height in pixels, bold or not.</summary>
-public sealed record GdiFont(string Face, int PixelHeight, bool Bold);
+/// <summary>A GDI font for <see cref="GdiText"/>: a face, its height in pixels, bold or not, italic or not.</summary>
+public sealed record GdiFont(string Face, int PixelHeight, bool Bold, bool Italic = false);
 
 /// <summary>
 /// One line of text drawn by GDI straight onto opaque pixels, with grayscale antialiasing (<c>ANTIALIASED_QUALITY</c>,
@@ -45,8 +45,7 @@ public static unsafe class GdiText
             buffer[i] &= 0xFFFFFF;
 
         nint oldBitmap = Gdi32.SelectObject(dc, bitmap);
-        nint gdiFont = Gdi32.CreateFont(-font.PixelHeight, 0, 0, 0, font.Bold ? Gdi32.FW_BOLD : 0, 0, 0, 0, 1, 0, 0,
-            Gdi32.ANTIALIASED_QUALITY, 0, font.Face);
+        nint gdiFont = Create(font);
         nint oldFont = Gdi32.SelectObject(dc, gdiFont);
         Gdi32.SetBkMode(dc, Gdi32.TRANSPARENT);
         const uint Format = User32.DT_SINGLELINE | User32.DT_NOPREFIX | User32.DT_END_ELLIPSIS;
@@ -76,6 +75,25 @@ public static unsafe class GdiText
         Gdi32.DeleteObject(bitmap);
         Gdi32.DeleteDC(dc);
     }
+
+    /// <summary>How wide <paramref name="text"/> is in <paramref name="font"/>, in pixels.</summary>
+    public static int Measure(string text, GdiFont font)
+    {
+        if (text.Length == 0)
+            return 0;
+
+        nint dc = Gdi32.CreateCompatibleDC(0);
+        nint gdiFont = Create(font);
+        nint oldFont = Gdi32.SelectObject(dc, gdiFont);
+        Gdi32.GetTextExtentPoint32(dc, text, text.Length, out User32.SIZE size);
+        Gdi32.SelectObject(dc, oldFont);
+        Gdi32.DeleteObject(gdiFont);
+        Gdi32.DeleteDC(dc);
+        return size.cx;
+    }
+
+    private static nint Create(GdiFont font) => Gdi32.CreateFont(-font.PixelHeight, 0, 0, 0, font.Bold ? Gdi32.FW_BOLD : 0,
+        font.Italic ? 1u : 0, 0, 0, 1, 0, 0, Gdi32.ANTIALIASED_QUALITY, 0, font.Face);
 
     private static uint ToColorRef(uint argb) => ((argb & 0xFF) << 16) | (argb & 0xFF00) | ((argb >> 16) & 0xFF);
 }

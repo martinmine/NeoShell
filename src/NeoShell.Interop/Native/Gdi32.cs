@@ -88,6 +88,10 @@ internal static unsafe partial class Gdi32
         uint underline, uint strikeOut, uint charSet, uint outPrecision, uint clipPrecision, uint quality, uint pitchAndFamily,
         string faceName);
 
+    [LibraryImport("gdi32.dll", EntryPoint = "GetTextExtentPoint32W", StringMarshalling = StringMarshalling.Utf16)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static partial bool GetTextExtentPoint32(nint hdc, string text, int length, out User32.SIZE size);
+
     public const int TRANSPARENT = 1;
 
     [LibraryImport("gdi32.dll")]

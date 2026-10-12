@@ -75,7 +75,9 @@ internal sealed class ShellBackdrop(Backdrop kind) : SystemBackdrop
                 break;
             case Backdrop.Translucent:
             case Backdrop.Transparent:
-                // The system backdrop slot takes a brush from the system compositor, not WinUI's.
+                // The system backdrop slot takes a brush from the system compositor, not WinUI's; that compositor needs
+                // the thread's system dispatcher queue, which only an acrylic or mica controller made before had made.
+                Microsoft.UI.Dispatching.DispatcherQueue.GetForCurrentThread().EnsureSystemDispatcherQueue();
                 s_compositor ??= new Windows.UI.Composition.Compositor();
                 _brush ??= s_compositor.CreateColorBrush();
                 target.SystemBackdrop = _brush;
