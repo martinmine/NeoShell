@@ -57,6 +57,17 @@ public sealed class WidgetTests
         Assert.Equal(expected, SidebarLayout.DropIndex([50, 200, 350], y));
     }
 
+    [Theory]
+    [InlineData(1, 0, 0)] // up: before the first card
+    [InlineData(1, 1, 1)] // its own place
+    [InlineData(1, 2, 1)] // just before the card after it: also where it is
+    [InlineData(1, 3, 2)] // down: the cards after it close up first
+    [InlineData(0, 4, 3)] // to the end of four
+    public void Dragged_card_moved_before_another_ends_up_where_the_others_leave_room(int from, int before, int expected)
+    {
+        Assert.Equal(expected, SidebarLayout.MovedIndex(from, before));
+    }
+
     [Fact]
     public void Docking_puts_the_widget_among_the_docked_ones_and_forgets_its_position()
     {

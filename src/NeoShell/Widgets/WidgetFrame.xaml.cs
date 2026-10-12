@@ -1,10 +1,7 @@
-using System.Runtime.InteropServices;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
-using Microsoft.UI.Xaml.Media;
-using Microsoft.UI.Xaml.Media.Imaging;
 using NeoShell.Interop.Windowing;
 using Windows.Foundation;
 using Windows.Graphics;
@@ -76,30 +73,11 @@ internal sealed partial class WidgetFrame : UserControl
         return Widget;
     }
 
-    /// <summary>
-    /// Takes the view out as <see cref="Release"/> does, leaving a picture of it in its place, so the frame's window
-    /// can stay until the view is drawn in its other place without showing it gone.
-    /// </summary>
-    public async Task<WidgetView?> ReleaseAsync()
-    {
-        if (Card.Child != Widget)
-            return null;
+    /// <summary>Whether the view is in this frame (it's not after <see cref="Release"/>).</summary>
+    public bool HoldsWidget => Card.Child == Widget;
 
-        double width = Widget.ActualWidth, height = Widget.ActualHeight;
-        var picture = new RenderTargetBitmap();
-        try
-        {
-            await picture.RenderAsync(Widget);
-        }
-        catch (Exception ex) when (ex is ArgumentException or COMException)
-        {
-            return Release();
-        }
-        if (Card.Child != Widget)
-            return null;
-        Card.Child = new Image { Source = picture, Width = width, Height = height, Stretch = Stretch.Fill };
-        return Widget;
-    }
+    /// <summary>Puts the view back after <see cref="Release"/>, from wherever it went since (it must have left there).</summary>
+    public void Return() => Card.Child = Widget;
 
     private void Root_PointerEntered(object sender, PointerRoutedEventArgs e) => SetPointerOver(NearButtons(e));
 

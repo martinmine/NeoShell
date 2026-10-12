@@ -26,6 +26,7 @@ internal sealed class FloatingWidgetWindow : Window
     private Color? _accent;
     // Where the corner was pressed, and the size then, while the widget is being resized.
     private (PointInt32 Start, double Width, double ContentHeight)? _resize;
+    private bool _concealed;
 
     /// <param name="width">The widget's width, in effective pixels.</param>
     public FloatingWidgetWindow(WidgetFrame frame, double width, PointInt32 topLeft, Backdrop backdrop, ElementTheme theme, Color? accent)
@@ -99,6 +100,19 @@ internal sealed class FloatingWidgetWindow : Window
 
     public void MoveTo(PointInt32 topLeft) => _placement.Bounds = _placement.Bounds with { X = topLeft.X, Y = topLeft.Y };
 
+    /// <summary>
+    /// Makes the window invisible while its widget shows in the sidebar's drop slot, or visible again. It's cut to
+    /// nothing rather than hidden: it keeps the pointer it's being dragged with, and hiding a window holds WinUI's next
+    /// frame up by about 100 ms. Its size is kept meanwhile, so the widget comes back as it left.
+    /// </summary>
+    public void Conceal(bool concealed)
+    {
+        _concealed = concealed;
+        WindowRegion.SetRoundedRects(_hwnd, concealed ? [] : null, 0);
+        if (!concealed)
+            Resize();
+    }
+
     public void SetTheme(ElementTheme theme, Color? accent)
     {
         _theme = theme;
@@ -121,7 +135,7 @@ internal sealed class FloatingWidgetWindow : Window
     // The window follows the widget's size, and its scale on another monitor.
     private void Resize()
     {
-        if (_root.XamlRoot is not { } root || Frame.ActualHeight <= 0)
+        if (_concealed || _root.XamlRoot is not { } root || Frame.ActualHeight <= 0)
             return;
 
         double scale = root.RasterizationScale;

@@ -55,25 +55,29 @@ Small widgets about the computer and its user, as Windows Vista's sidebar gadget
   (`WidgetView.ContentUnderButtons`: Resource usage's first value, Wireless devices' first level, a note's text), the
   buttons show only while the pointer is near them (16 epx around the plate), so they don't hide the content while
   it's read, expanded or typed into.
-- Pressing anywhere the widget's own controls don't take and moving 4 epx drags it. A widget dragged from the sidebar
-  is lifted out of the column (invisible and without height, kept in the tree so it keeps the pointer; each card keeps
-  its gap below itself rather than the panel's spacing, so a lifted one leaves none). While a widget is over the
-  sidebar, the others
-  make room for it (moves of a desktop-level window leave its z-order alone, so dragging stays smooth): a
-  card-shaped gap opens where it would go (before the first card whose middle is below the
-  pointer, measured as if the gap weren't there), and the cards slide (`RepositionThemeTransition`). Off the sidebar
-  the widget follows the pointer in its own window, held where it was grabbed, and stays where it's let go. Let go
-  over the sidebar it takes the gap's place at once.
+- Pressing anywhere the widget's own controls don't take and moving 4 epx drags it. While a widget is over the
+  sidebar it shows itself where it would go if let go (before the first card whose middle is below the pointer,
+  measured as if it weren't there), and the other cards slide to make room (`RepositionThemeTransition`); it moves
+  from place to place as the pointer does, sliding too. Off the sidebar it follows the pointer in its own window, held
+  where it was grabbed, and stays where it's let go. Let go over the sidebar it simply stays where it shows: nothing
+  moves on release. (Until 2026-10 the sidebar opened an empty card-shaped gap, a `Border` with the subtle fill and
+  card stroke, while the dragged widget stayed in its window or, dragged within the sidebar, was invisible; the
+  owner saw that as an empty container drawn before letting go.)
+- How (`SidebarWindow.ShowDropSlot`, the drop slot): a docked widget's own card is moved among the others
+  (`UIElementCollection.Move`): an element moved stays in the tree, so it keeps the pointer it's being dragged with and
+  its pictures; taken out and put back, its pictures were drawn anew and missing for about 100 ms (6 frames at 60 fps).
+  A floating widget's view moves into a new card there as the pointer enters the sidebar, and back as it leaves; its
+  window stays meanwhile, cut to nothing (`FloatingWidgetWindow.Conceal`, an empty window region) rather than hidden,
+  so it keeps the pointer and needs no new frame from WinUI (hiding a window holds WinUI's next frame up by about 100
+  ms), and keeps its size. Measured (ffmpeg, 60 fps): the widget is missing for one frame as it enters, the frame
+  between the region taking effect and the sidebar drawing the card; the window is closed once let go.
 - Moving between the sidebar and the desktop moves the widget itself: its view leaves the card (`WidgetFrame.Release`)
   and goes into a frame in the other window, so it shows exactly what it showed, without loading anything again (the
   same picture and slideshow, forecast, track and art, open graphs, devices, and unsaved typing in a note). Dragged
-  off the sidebar, the view goes into the window that follows the pointer as soon as the pointer leaves the sidebar
-  (the lifted card stays behind, empty, holding the pointer), and back into a new card if it's let go over the
-  sidebar after all. A floating widget dropped on the sidebar jumps into the gap and its view goes into a new card
-  there; the window stays over the gap with a picture of the widget in its place (`RenderTargetBitmap`, taken as it's
-  dropped) until the card has been drawn, then is hidden and closed. A window doesn't show or go in step with what
-  WinUI draws (hiding one holds WinUI's next frame up by about 100 ms), so going at once it left the gap empty for a
-  frame or more, and staying empty it covered the card.
+  off the sidebar, the view goes into a window that follows the pointer as soon as the pointer leaves the sidebar
+  (its card stays behind, lifted: empty, invisible and without height, holding the pointer; each card keeps its gap
+  below itself rather than the panel's spacing, so a lifted one leaves none), and back into its card if the pointer
+  comes back. With the panel background off the sidebar's window region follows the cards, the one being dragged in.
 - A floating note can be resized by its bottom-right corner (`WidgetView.CanResize`): its width (200 to 640 epx) and
   the height of its text (60 to 900 epx), saved as `FloatingWidth` and `ContentHeight`; the text keeps its height when
   the note is docked.

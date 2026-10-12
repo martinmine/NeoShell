@@ -30,8 +30,9 @@ internal sealed class Sidebar : IDisposable
     // A docked widget dragged off the sidebar: its window on the desktop, shown while the pointer is off the sidebar.
     private FloatingWidgetWindow? _dragOut;
     private Point _grab;
-    // The height of the docked widget being dragged, for the gap it leaves where it would go.
-    private double _dragHeight;
+    // A floating widget dragged over the sidebar: a card there showing it where it would go; let go there, it stays as
+    // the widget's card.
+    private WidgetFrame? _slot;
 
     public Sidebar(RunMode runMode, SettingsStore settings, Taskbars taskbars)
     {
@@ -188,6 +189,14 @@ internal sealed class Sidebar : IDisposable
 
         CloseDragOut();
         List<WidgetView> views = [.. _window.Frames.Select(frame => frame.Release()).OfType<WidgetView>()];
+        // A floating widget dragged over the sidebar goes back to its window.
+        if (_slot is not null && _floating.TryGetValue(_slot.Widget.Settings.Id, out FloatingWidgetWindow? floating))
+        {
+            views.Remove(_slot.Widget);
+            floating.Frame.Return();
+            floating.Conceal(false);
+        }
+        _slot = null;
         _window.Shut();
         _window = null;
         return views;
@@ -237,11 +246,6 @@ internal sealed class Sidebar : IDisposable
         }
         else
         {
-            frame.DragStarted += (dragged, _) =>
-            {
-                _dragHeight = dragged.ActualHeight;
-                SidebarWindow.Lift(dragged, true);
-            };
             frame.DragMoved += MoveDocked;
             frame.DragEnded += DropDocked;
         }
@@ -295,25 +299,44 @@ internal sealed class Sidebar : IDisposable
 
     private bool IsOverSidebar(PointInt32 cursor) => _window is not null && SidebarLayout.Contains(_window.ScreenBounds, cursor);
 
+    // Over the sidebar a widget being dragged shows itself where it would go, and the others make room (the drop slot):
+    // a docked one in its own card, moved among the others, and one from the desktop in a new card, its view moved there
+    // from its window. Its window, concealed, keeps the pointer meanwhile. Off the sidebar it shows in its own window,
+    // which follows the pointer; a docked one's view moves to a new window then, its card staying behind, lifted and
+    // empty, holding the pointer.
     private void MoveDocked(WidgetFrame frame, PointInt32 cursor)
     {
         if (!IsDocked(frame))
             return;
         if (IsOverSidebar(cursor))
         {
-            _dragOut?.AppWindow.Hide();
-            _window!.ShowDropSlot(cursor, _dragHeight, except: frame);
+            // Back from the desktop.
+            if (_dragOut?.Frame.Release() is not null)
+            {
+                _dragOut.Conceal(true);
+                frame.Return();
+                SidebarWindow.Lift(frame, false);
+            }
+            _window!.ShowDropSlot(cursor, frame);
             return;
         }
-        _window?.HideDropSlot();
 
         PointInt32 topLeft = TopLeftAt(cursor, _grab, frame.XamlRoot.RasterizationScale);
-        // Off the sidebar the widget's own view goes into a window of its own, as it is; the card it leaves keeps the
-        // pointer.
-        if (_dragOut is null && frame.Release() is { } view)
-            _dragOut = NewFloatingWindow(Widgets.Single(w => w.Id == view.Settings.Id), view, topLeft);
         _dragOut?.MoveTo(topLeft);
-        _dragOut?.AppWindow.Show(activateWindow: false);
+        if (frame.Release() is not { } view)
+            return;
+        SidebarWindow.Lift(frame, true);
+        _window!.EndDropSlot();
+        if (_dragOut is null)
+        {
+            _dragOut = NewFloatingWindow(Widgets.Single(w => w.Id == view.Settings.Id), view, topLeft);
+            _dragOut.AppWindow.Show(activateWindow: false);
+        }
+        else
+        {
+            _dragOut.Frame.Return();
+            _dragOut.Conceal(false);
+        }
     }
 
     private void DropDocked(WidgetFrame frame, PointInt32 cursor)
@@ -322,30 +345,22 @@ internal sealed class Sidebar : IDisposable
         if (!IsDocked(frame))
             return;
 
+        MoveDocked(frame, cursor);
         string id = frame.Widget.Settings.Id;
-        if (IsOverSidebar(cursor) || _dragOut is null)
+        _window!.EndDropSlot();
+        if (frame.HoldsWidget || _dragOut is not { } window)
         {
-            // Back from the desktop, the view comes back from the window that followed the pointer.
-            WidgetFrame docked = _dragOut?.Frame.Release() is { } view ? CreateFrame(view, floating: false) : frame;
+            // Let go over the sidebar: its card is where it would go already, and stays there.
             CloseDragOut();
-            int index = _window!.DropSlotIndex;
-            Save(SidebarLayout.Dock(Widgets, id, index));
-            // Into the gap once the press that holds it has ended.
-            _dispatcher.Post(() =>
-            {
-                _window?.Remove(frame);
-                _window?.HideDropSlot();
-                _window?.Insert(docked, index);
-            });
+            Save(SidebarLayout.Dock(Widgets, id, _window.DropSlotIndex));
             return;
         }
 
         // Out on the desktop: the window that followed the pointer stays there, with the view.
-        FloatingWidgetWindow window = _dragOut;
         _dragOut = null;
         _floating[id] = window;
+        // Once the press that the lifted card holds has ended.
         _dispatcher.Post(() => _window?.Remove(frame));
-        _window?.HideDropSlot();
         SaveFloating(id, window.TopLeft);
     }
 
@@ -355,51 +370,45 @@ internal sealed class Sidebar : IDisposable
             return;
 
         window.MoveTo(TopLeftAt(cursor, _grab, frame.XamlRoot.RasterizationScale));
-        // Over the sidebar the widgets make room where it would go.
         if (IsOverSidebar(cursor))
-            _window!.ShowDropSlot(cursor, frame.ActualHeight, except: null);
-        else
+        {
+            if (_slot is null && frame.Release() is { } view)
+            {
+                _slot = CreateFrame(view, floating: false);
+                window.Conceal(true);
+            }
+            if (_slot is not null)
+                _window!.ShowDropSlot(cursor, _slot);
+        }
+        else if (_slot?.Release() is not null)
+        {
             _window?.HideDropSlot();
+            _slot = null;
+            frame.Return();
+            window.Conceal(false);
+        }
     }
 
-    private async void DropFloating(WidgetFrame frame, PointInt32 cursor)
+    private void DropFloating(WidgetFrame frame, PointInt32 cursor)
     {
         string id = frame.Widget.Settings.Id;
         if (!_floating.TryGetValue(id, out FloatingWidgetWindow? window))
             return;
 
-        if (!IsOverSidebar(cursor) || _window is null)
+        MoveFloating(frame, cursor);
+        if (_slot is null || _window is null)
         {
             SaveFloating(id, window.TopLeft);
             return;
         }
 
-        // Back into the sidebar: its view goes into the gap the others made, as it is. The window jumps into the gap
-        // and shows a picture of the widget in the view's place until the card has been drawn: a window doesn't go in
-        // step with what WinUI draws (hiding one even holds WinUI's next frame up by about 100 ms), and going first it
-        // left the gap empty for a frame or more, while staying empty it covered the card.
-        int index = _window.DropSlotIndex;
+        // Back into the sidebar: it's there already, in its new card, which stays; its window, concealed and empty,
+        // goes once the press it holds has ended.
+        _window.EndDropSlot();
+        _slot = null;
         _floating.Remove(id);
-        Save(SidebarLayout.Dock(Widgets, id, index));
-        window.MoveTo(_window.DropSlotTopLeft);
-        if (await frame.ReleaseAsync() is { } view)
-        {
-            if (_window is null)
-            {
-                view.Close();
-            }
-            else
-            {
-                _window.HideDropSlot();
-                _window.Insert(CreateFrame(view, floating: false), index);
-            }
-        }
-        // Hidden before it's closed: closing, it shows white for a moment.
-        UiThread.AfterFramesDrawn(() =>
-        {
-            window.AppWindow.Hide();
-            UiThread.AfterFramesDrawn(() => Close(window));
-        });
+        Save(SidebarLayout.Dock(Widgets, id, _window.DropSlotIndex));
+        _dispatcher.Post(() => Close(window));
     }
 
     private void SaveFloating(string id, PointInt32 topLeft)

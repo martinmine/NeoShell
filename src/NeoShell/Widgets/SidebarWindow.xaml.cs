@@ -38,6 +38,8 @@ internal sealed partial class SidebarWindow : Window
     private bool _panelShown = true;
     // The cards the window is cut to while the panel is hidden, in pixels; null shows all of it.
     private List<RectInt32>? _region;
+    // The card showing a widget dragged over the sidebar where it would go (ShowDropSlot), while it's among the cards.
+    private WidgetFrame? _slot;
 
     /// <param name="panelShown">The sidebar's own backdrop behind the widgets; otherwise only the widgets show.</param>
     public SidebarWindow(Sidebar owner, RunMode runMode, DisplayMonitor monitor, double width, bool panelShown, Backdrop backdrop, ElementTheme theme, Color? accent)
@@ -98,17 +100,6 @@ internal sealed partial class SidebarWindow : Window
     /// <summary>Where among the widgets the drop slot is (see <see cref="ShowDropSlot"/>).</summary>
     public int DropSlotIndex { get; private set; }
 
-    /// <summary>The drop slot's place on screen, in pixels.</summary>
-    public PointInt32 DropSlotTopLeft
-    {
-        get
-        {
-            double scale = Root.XamlRoot.RasterizationScale;
-            Point slot = DropSlot.TransformToVisual(Root).TransformPoint(default);
-            return new PointInt32(_placement.Bounds.X + (int)Math.Round(slot.X * scale), _placement.Bounds.Y + (int)Math.Round(slot.Y * scale));
-        }
-    }
-
     /// <summary>Docks the sidebar on <paramref name="monitor"/>, <paramref name="width"/> effective pixels wide.</summary>
     public void Place(DisplayMonitor monitor, double width)
     {
@@ -158,16 +149,16 @@ internal sealed partial class SidebarWindow : Window
     public void Insert(WidgetFrame frame, int index)
     {
         Lift(frame, false);
-        Cards.Children.Insert(ChildIndex(index, except: null), frame);
+        Cards.Children.Insert(ChildIndex(index), frame);
     }
 
     /// <summary>
-    /// Takes a widget being dragged out of the column, leaving no gap, or puts it back. It stays in the tree, though
-    /// (without height, invisible): otherwise it would lose the pointer it's being dragged with.
+    /// Takes a widget dragged off the sidebar out of the column, leaving no gap, or puts it back. It stays in the tree,
+    /// though (without height, invisible): otherwise it would lose the pointer it's being dragged with.
     /// </summary>
     public static void Lift(WidgetFrame frame, bool lifted)
     {
-        // Without height rather than drawn over: its view leaves it once the widget is dragged off the sidebar.
+        // Without height rather than drawn over: its view leaves it while the widget is off the sidebar.
         frame.Opacity = lifted ? 0 : 1;
         frame.Height = lifted ? 0 : double.NaN;
         frame.Margin = new Thickness(0, 0, 0, lifted ? 0 : CardGap);
@@ -176,47 +167,66 @@ internal sealed partial class SidebarWindow : Window
     public void Remove(WidgetFrame frame) => Cards.Children.Remove(frame);
 
     /// <summary>
-    /// Opens a gap <paramref name="height"/> effective pixels tall among the widgets, where one dropped at
-    /// <paramref name="screen"/> would go, and returns its place among them, <paramref name="except"/> left out (the
-    /// widget being dragged, when it comes from here).
+    /// Shows <paramref name="slot"/>, the card of the widget being dragged (its own, or a new one for a widget from the
+    /// desktop), among the others where it would go if let go at <paramref name="screen"/>; the others slide to make
+    /// room. Returns its place among them.
     /// </summary>
-    public int ShowDropSlot(PointInt32 screen, double height, WidgetFrame? except)
+    public int ShowDropSlot(PointInt32 screen, WidgetFrame slot)
     {
+        if (_slot is not null && _slot != slot)
+            HideDropSlot();
+        _slot = slot;
+
         double y = (screen.Y - _placement.Bounds.Y) / Root.XamlRoot.RasterizationScale;
-        int slotChild = DropSlot.Visibility == Visibility.Visible ? Cards.Children.IndexOf(DropSlot) : int.MaxValue;
+        int from = Cards.Children.IndexOf(slot);
         List<double> middles = [];
         foreach (WidgetFrame frame in Frames)
         {
-            if (frame == except)
+            if (frame == slot)
                 continue;
-            // Where the card would be without the gap, so the gap doesn't chase the pointer.
+            // Where the card would be without the slot, so the slot doesn't chase the pointer.
             double top = frame.TransformToVisual(Root).TransformPoint(default).Y;
-            if (Cards.Children.IndexOf(frame) > slotChild)
-                top -= DropSlot.ActualHeight + CardGap;
+            if (from >= 0 && Cards.Children.IndexOf(frame) > from)
+                top -= slot.ActualHeight + CardGap;
             middles.Add(top + frame.ActualHeight / 2);
         }
 
         int index = SidebarLayout.DropIndex(middles, y);
-        DropSlot.Height = height;
-        if (index != DropSlotIndex || DropSlot.Visibility != Visibility.Visible)
+        int to = ChildIndex(index);
+        if (from < 0)
         {
-            Cards.Children.Remove(DropSlot);
-            Cards.Children.Insert(ChildIndex(index, except), DropSlot);
-            DropSlotIndex = index;
-            DropSlot.Visibility = Visibility.Visible;
+            Lift(slot, false);
+            Cards.Children.Insert(to, slot);
         }
+        else if (SidebarLayout.MovedIndex(from, to) != from)
+        {
+            // Moved rather than taken out and put back: it keeps the pointer it's being dragged with, and its pictures
+            // (an element put back in the tree draws them anew, missing for a few frames); it slides there as the
+            // others do.
+            Cards.Children.Move((uint)from, (uint)SidebarLayout.MovedIndex(from, to));
+        }
+        DropSlotIndex = index;
         return index;
     }
 
-    public void HideDropSlot() => DropSlot.Visibility = Visibility.Collapsed;
+    /// <summary>Takes a new card shown as the drop slot out again (its widget was dragged off the sidebar).</summary>
+    public void HideDropSlot()
+    {
+        if (_slot is not null)
+            Cards.Children.Remove(_slot);
+        _slot = null;
+    }
 
-    // Where the index-th widget (except one) is among the panel's children, the drop slot among them.
-    private int ChildIndex(int index, WidgetFrame? except)
+    /// <summary>The drop slot stays where it is, as a card (or lifted, its widget dragged off the sidebar).</summary>
+    public void EndDropSlot() => _slot = null;
+
+    // Where the index-th widget (the drop slot left out) is among the panel's children.
+    private int ChildIndex(int index)
     {
         int widgets = 0;
         for (int i = 0; i < Cards.Children.Count; i++)
         {
-            if (Cards.Children[i] is WidgetFrame frame && frame != except)
+            if (Cards.Children[i] is WidgetFrame frame && frame != _slot)
             {
                 if (widgets == index)
                     return i;

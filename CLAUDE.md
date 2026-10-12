@@ -214,13 +214,15 @@ the desktop and back. Full spec in docs/design/widgets.md.
     z-order changes with a minimized window around, and with a window pushed below the wallpaper.
   - Keep periodic work off the UI thread (resource sampling reads adapters and GPU engines on the thread pool): any
     hitch shows as a stutter while a widget is dragged.
-  - A card being dragged stays in the tree (lifted: invisible, no height) or it loses the pointer, also after its view
-    has gone into the floating window that follows the pointer; cards keep their gap in their own margin so a lifted
-    card leaves none.
+  - A card being dragged stays in the tree or it loses the pointer. Over the sidebar the widget shows where it would go
+    (the drop slot, never an empty gap): a docked one's own card is moved with `Cards.Children.Move` (taken out and put
+    back, it would lose the pointer and its pictures would be drawn anew, ~100 ms missing); off the sidebar its view
+    goes to a floating window and the card stays lifted (empty, invisible, no height). Cards keep their gap in their
+    own margin so a lifted card leaves none.
   - A window doesn't appear, move or go in step with what WinUI draws, and hiding or closing one holds WinUI's next
-    frame up (~100 ms). A floating widget dropped on the sidebar therefore keeps its window over the gap, showing a
-    `RenderTargetBitmap` of the view (`WidgetFrame.ReleaseAsync`), until the docked card has been drawn; the window is
-    hidden before it's closed (closing, it shows white). Check such hand-overs with a burst of screen captures.
+    frame up (~100 ms). So a floating widget dragged over the sidebar doesn't hide its window: its view goes into a new
+    card there and the window is cut to an empty region (`FloatingWidgetWindow.Conceal`), keeping the pointer; on the
+    drop the card stays and the concealed window is closed. Check such hand-overs with ffmpeg at 60 fps.
 - **Testing live.** Every interactive control has an AutomationId (`Widget` + Name = title, `WidgetSettingsButton`,
   `WidgetCloseButton`, `AddWidgetButton`, `Add<Kind>WidgetMenuItem`, `WidgetSettingsMenuItem`, `WidgetResizeGrip`,
   `*ResourceRow*`, `NoteText`…). Widgets behind other windows aren't laid out or rendered: move one into view (its

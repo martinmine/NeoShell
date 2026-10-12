@@ -75,15 +75,6 @@
                         <RepositionThemeTransition />
                     </TransitionCollection>
                 </StackPanel.ChildrenTransitions>
-                <!-- Where a widget dragged over the sidebar would go; moved among the cards while it's dragged. -->
-                <Border
-                    x:Name="DropSlot"
-                    Margin="0,0,0,12"
-                    CornerRadius="8"
-                    BorderThickness="1"
-                    Background="{ThemeResource SubtleFillColorSecondaryBrush}"
-                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                    Visibility="Collapsed" />
             </StackPanel>
         </ScrollViewer>
 

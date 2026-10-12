@@ -49,6 +49,12 @@ public static class SidebarLayout
     public static int DropIndex(IReadOnlyList<double> middles, double y) => middles.Count(middle => middle < y);
 
     /// <summary>
+    /// Where an item at <paramref name="from"/> ends up when moved to just before the item at <paramref name="before"/>
+    /// (the count, for the end): the items after it close up once it's taken out.
+    /// </summary>
+    public static int MovedIndex(int from, int before) => before > from ? before - 1 : before;
+
+    /// <summary>
     /// The widgets with <paramref name="id"/> docked in the sidebar as its <paramref name="dockedIndex"/>-th widget
     /// (counting only docked ones). The sidebar's order is the order of the docked widgets in the list.
     /// </summary>
