@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using System.Security.Principal;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml.Media;
@@ -65,6 +66,12 @@ internal sealed class DesktopIcons : IDisposable
 
     /// <summary>Raised on the UI thread after every refresh, when the icons or the view settings may have changed.</summary>
     public event Action? Refreshed;
+
+    /// <summary>
+    /// Raised once, after <see cref="ShellMenu.WarmUpAsync"/> has built the context menus off the UI thread, for the
+    /// views to do the UI thread's part.
+    /// </summary>
+    public event Action? MenusWarmedUp;
 
     /// <summary>The icons got new places (and maybe new monitors): the views lay them out again.</summary>
     public event Action? Arranged;
@@ -134,6 +141,8 @@ internal sealed class DesktopIcons : IDisposable
 
             View = view;
             Update(DesktopContents.Sort(entries, SortOrder), locations);
+            if (!_loaded)
+                UiThread.AfterFramesDrawn(WarmUpMenus);
             _loaded = true;
             _reloadImages = true;
             Arrange();
@@ -142,6 +151,33 @@ internal sealed class DesktopIcons : IDisposable
         catch (Exception ex)
         {
             Log.Error("Refreshing the desktop icons failed", ex);
+        }
+    }
+
+    /// <summary>
+    /// Builds the context menus once, off the UI thread, after the icons have first shown: the first menu after a start
+    /// otherwise takes about a second and misses items the shell fills in meanwhile (see docs/design/desktop-icons.md).
+    /// </summary>
+    private async void WarmUpMenus()
+    {
+        if (_disposed)
+            return;
+        long start = Stopwatch.GetTimestamp();
+        IReadOnlyList<DesktopItem> kinds = DesktopContents.MenuKinds(Icons.Select(icon => icon.Item));
+        try
+        {
+            await ShellMenu.WarmUpAsync(kinds);
+            Log.Info($"Desktop menus warmed up ({kinds.Count} kind(s) of icon) in {Stopwatch.GetElapsedTime(start).TotalMilliseconds:F0} ms");
+            // When the UI thread is otherwise idle: building the menu there takes a moment.
+            _dispatcher.Post(DispatcherQueuePriority.Low, () =>
+            {
+                if (!_disposed)
+                    MenusWarmedUp?.Invoke();
+            });
+        }
+        catch (Exception ex)
+        {
+            Log.Warn("Could not warm up the desktop's menus", ex);
         }
     }
 

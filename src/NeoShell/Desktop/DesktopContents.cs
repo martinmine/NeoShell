@@ -115,6 +115,17 @@ public static class DesktopContents
         return [.. sorted.ThenBy(entry => entry.Item.Name, NameComparer)];
     }
 
+    /// <summary>
+    /// One item of each kind on the desktop, in the given order, for warming up their context menus
+    /// (<see cref="ShellMenu.WarmUpAsync"/>): the handlers depend on the kind, so one folder, one file of each
+    /// extension and each system folder. At most <paramref name="limit"/>, so a crowded desktop stays cheap.
+    /// </summary>
+    public static IReadOnlyList<DesktopItem> MenuKinds(IEnumerable<DesktopItem> items, int limit = 8) =>
+        [.. items
+            .DistinctBy(item => item.Path is null ? item.ParsingName : item.IsFolder ? "\\" : System.IO.Path.GetExtension(item.Path),
+                StringComparer.OrdinalIgnoreCase)
+            .Take(limit)];
+
     private static string TypeOf(DesktopItem item) =>
         item.IsFolder || item.Path is null ? "" : System.IO.Path.GetExtension(item.Path);
 }

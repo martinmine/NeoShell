@@ -97,6 +97,28 @@ public sealed class DesktopTests
         Assert.Equal(["b.docx", "c.txt", "a.txt"], Names(DesktopContents.Sort(entries, DesktopSortOrder.DateModified)));
     }
 
+    [Fact]
+    public void Menus_warm_up_with_one_item_of_each_kind()
+    {
+        DesktopItem[] items =
+        [
+            System(RecycleBin, "Recycle Bin"),
+            System(ThisPc, "This PC"),
+            Folder(@"C:\Users\ann\Desktop\Photos"),
+            Folder(@"C:\Users\ann\Desktop\Work"),
+            File(@"C:\Users\ann\Desktop\a.txt"),
+            File(@"C:\Users\Public\Desktop\Edge.lnk"),
+            File(@"C:\Users\ann\Desktop\B.TXT"),
+            File(@"C:\Users\ann\Desktop\VLC.lnk"),
+            File(@"C:\Users\ann\Desktop\README"),
+        ];
+
+        Assert.Equal(
+            ["Recycle Bin", "This PC", "Photos", "a.txt", "Edge.lnk", "README"],
+            DesktopContents.MenuKinds(items).Select(item => item.Name));
+        Assert.Equal(["Recycle Bin", "This PC", "Photos"], DesktopContents.MenuKinds(items, limit: 3).Select(item => item.Name));
+    }
+
     [Theory]
     [InlineData(32, 32)]
     [InlineData(96, 96)]

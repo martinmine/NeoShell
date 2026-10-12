@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices.Marshalling;
 using NeoShell.Interop.Com;
 using NeoShell.Interop.Imaging;
 using NeoShell.Interop.Native;
@@ -29,14 +30,15 @@ public sealed class ShellMenuItem
 /// <summary>
 /// The shell's context menu for desktop items, the desktop background or an app, as Explorer builds it (shell extensions
 /// and the New, Send to and Open with submenus included), read into <see cref="ShellMenuItem"/>s for NeoShell to show
-/// in its own menu. Keep it until the menu closes: the handlers run the chosen command. UI thread only: handlers
-/// expect an STA and show UI owned by <c>owner</c>.
+/// in its own menu. Keep it until the menu closes: the handlers run the chosen command. UI thread only (but for
+/// <see cref="WarmUpAsync"/>): handlers expect an STA and show UI owned by <c>owner</c>.
 /// </summary>
 public sealed unsafe class ShellMenu : IDisposable
 {
     private const uint FirstCommand = 1;
     private const uint LastCommand = 0x7FFF;
     private static readonly Guid BHID_SFUIObject = new("3981e225-f559-11d3-8e3a-00c04f6837d5");
+    private static MessageLoop? s_warmUpLoop;
 
     private readonly IContextMenu _menu;
     private readonly nint _owner;
@@ -89,6 +91,50 @@ public sealed unsafe class ShellMenu : IDisposable
         return item.BindToHandler(0, &handler, &iid, &menu) == 0
             ? new ShellMenu(ComPointer.TakeOwnership<IContextMenu>(menu), owner, 0)
             : null;
+    }
+
+    /// <summary>
+    /// Builds the desktop background's menu and each item's menu on a thread kept for it, below normal priority, and
+    /// throws them away. The first menu of a process otherwise takes a second or more (the handlers' DLLs load, the New
+    /// menu reads every file type and the packaged apps' entries) and comes without what the shell fills in the
+    /// background meanwhile (packaged apps' verbs, Send to's places): afterwards the menus on the UI thread find it all
+    /// loaded and cached. Each menu is built twice: a type's second menu loads the handlers of the verbs the first one
+    /// only found out about. Nothing is shown and no command runs, so no window is needed.
+    /// </summary>
+    public static Task WarmUpAsync(IReadOnlyList<DesktopItem> items)
+    {
+        // The thread stays (its loop idle): COM unloads the DLLs an apartment loaded when it ends, and the next menu
+        // would load them again (and Defender's handler check its signature again).
+        s_warmUpLoop ??= MessageLoop.StartThread("Shell menu warm-up");
+        var done = new TaskCompletionSource();
+        s_warmUpLoop.Post(() =>
+        {
+            Thread.CurrentThread.Priority = ThreadPriority.BelowNormal;
+            try
+            {
+                for (int pass = 0; pass < 2; pass++)
+                {
+                    Discard(ShellContextMenu.CreateForBackground(0), Shell32.CMF_NODEFAULT);
+                    foreach (DesktopItem item in items)
+                        Discard(ShellContextMenu.CreateForItems(0, [item]), Shell32.CMF_CANRENAME);
+                }
+                done.SetResult();
+            }
+            catch (Exception ex)
+            {
+                done.SetException(ex);
+            }
+        });
+        return done.Task;
+    }
+
+    // Released in the handlers' own apartment, rather than by the finalizer from another thread.
+    private static void Discard(IContextMenu? menu, uint flags)
+    {
+        if (menu is null)
+            return;
+        new ShellMenu(menu, 0, flags).Dispose();
+        ((ComObject)(object)menu).FinalRelease();
     }
 
     /// <summary>Runs the item's command, as chosen at a screen point (physical pixels).</summary>

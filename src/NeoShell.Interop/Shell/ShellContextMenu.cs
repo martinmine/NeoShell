@@ -53,7 +53,7 @@ public static unsafe class ShellContextMenu
             Guid iid = typeof(IContextMenu).GUID;
             nint menu;
             return desktop.GetUIObjectOf(owner, (uint)items.Count, idLists, &iid, null, &menu) == 0
-                ? ComPointer.TakeOwnership<IContextMenu>(menu)
+                ? ComPointer.TakeOwnershipUnique<IContextMenu>(menu)
                 : null;
         }
         finally
@@ -68,7 +68,7 @@ public static unsafe class ShellContextMenu
         IShellFolder desktop = DesktopFolder.Open();
         Guid iid = typeof(IContextMenu).GUID;
         nint menu;
-        return desktop.CreateViewObject(owner, &iid, &menu) == 0 ? ComPointer.TakeOwnership<IContextMenu>(menu) : null;
+        return desktop.CreateViewObject(owner, &iid, &menu) == 0 ? ComPointer.TakeOwnershipUnique<IContextMenu>(menu) : null;
     }
 
     /// <summary>Fills a temporary menu from the context menu (handlers expect that before a command runs).</summary>

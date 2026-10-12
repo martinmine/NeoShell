@@ -147,6 +147,62 @@ Shell mode only, like the wallpaper: alongside Explorer, Explorer's desktop has 
     spinner stayed over the menu until the pointer moved.
   - The chosen command is invoked by its ID once the WinUI menu has closed, so it behaves exactly as in Explorer
     (Recycle Bin, confirmations, progress, installed apps' commands). The `ShellMenu` is released after that.
+  - **First menu after a start.** It took about a second and missed items; now it's as quick and full as later
+    ones. Measured as the shell on the VM (2026-10-12), from the button going up to the menu drawn (Stopwatch logging
+    around each step, `QueryPerformanceCounter` shared with the test that clicks; the screen polled for Explorer):
+
+    | Step (ms) | Desktop, first | Desktop, warm | jpg file, first | jpg, warm | Folder, first | Folder, warm |
+    |---|---|---|---|---|---|---|
+    | Click to `ContextRequested` (first click activates the window) | 53-79 | 1-2 | 79 | 2 | 66 | 2 |
+    | View, Sort by, Paste, Undo items (JIT, first XAML types, undo text) | 24 | 3 | – | – | – | – |
+    | `CreateViewObject` / `GetUIObjectOf` | 5 | 0.2 | 3 | 0.5 | 1 | 0.5 |
+    | `QueryContextMenu` | 356-420 | 25-40 | 531-610 | 112-136 | 336 | 67-89 |
+    | Submenus' `WM_INITMENUPOPUP` (New; Open with, Cast to Device, Give access to) | 334 | 6-9 | 248 | 80-100 | 4 | 3 |
+    | Reading the `HMENU` (texts, verbs, bitmaps) | < 2 | < 1 | < 3 | < 1 | < 2 | < 1 |
+    | WinUI items | 9 | 1 | 10 | 2-3 | 5 | 2 |
+    | `ShowAt` to drawn (presenter template, first popup) | 150-160 | 90-120 | 194 | 110 | 226 | 105-130 |
+    | **Total** | **~1000** | **140-165** | **~1000** | **310-340** | **680** | **180-225** |
+
+    The Recycle Bin's menu is cheap either way (240 first, 100-125 warm). Where the shell's time goes (cdb stack
+    samples of a test process building the menus as `ShellMenu` does, and each registered handler timed alone):
+    - Desktop `QueryContextMenu`: about two thirds the registry verbs (`CRegistryVerbsContextMenu`): the
+      `DesktopBackground\shell` commands (Display, Personalize, Spotlight's, stickers) and packaged apps' verbs from
+      the State Repository (Open in Terminal), activated through the SCM; the rest the `shellex` handlers, cold: OneDrive's
+      FileSyncEx 39, Sharing (ntshrui) 48, Work Folders 17, New 4.5, DesktopSlideshow (stobject) 3.
+    - New: `CNewMenu::_InitMenuPopup` mostly waits for `StateRepoNewMenuCache` (packaged apps' New entries from the
+      State Repository), then each type's icon and name.
+    - Files: Microsoft Defender's handler (`shellext.dll`, "Scan with Microsoft Defender") checks its own signature
+      (`WinVerifyTrust`) as it loads its strings; packaged apps' verbs (Edit with Photos, Paint, Clipchamp, Edit in
+      Notepad) are activated through the SCM, some in `dllhost` surrogates; Open with lists and draws its apps.
+    - The first menu of a process also misses what the shell looks up in the background on first use, shown from the
+      second menu on: Open in Terminal (desktop, folders), the jpg's three Edit with verbs (28 items of 31), Send to's
+      places (3 of 6 for the jpg, none for the folder), Include in library ("Retrieving libraries...").
+    - Explorer's own menu (Windows 11's, its full one is a click further), after restarting Explorer, from the screen:
+      desktop 1460 ms first, 330 warm (to its first pixels; 410-430 to the end of its fade); a file (an .exe) 965 first,
+      250-350 warm. NeoShell's warm menus were already quicker.
+
+    The fix: `DesktopIcons`, two frames after the icons first show, has `ShellMenu.WarmUpAsync` build and throw away
+    the desktop's menu and one menu per kind of icon (`DesktopContents.MenuKinds`, unit tested: a folder, a file per
+    extension, each system folder; at most 8), read in full (submenus filled), twice: a type's second menu loads the
+    handlers of the verbs the first only found out about. That runs on a thread of its own (an STA `MessageLoop`, below
+    normal priority; 2.4-3.6 s here, the UI thread untouched), released there (`FinalRelease`; unique wrappers).
+    - The thread stays, idle: COM unloads the DLLs an apartment loaded when it ends, so with a thread that ended, the
+      first jpg menu still took 740 ms in `QueryContextMenu` (Defender's signature check again, the handlers loaded
+      again); with it kept, 115-140, as warm.
+    - Then, at low priority, the view builds the desktop's menu once on the UI thread without showing it (about 70 ms,
+      once): the UI thread's own share, which another thread can't warm (the desktop's `QueryContextMenu` 117 ms on the
+      first real menu without it, 30 with it), and compiling the menu code. Putting a menu presenter in the tree to
+      load its template as well saved 40 ms more, but NeoShell once ended (a XAML fail-fast, `E_UNEXPECTED`) a few
+      seconds later: left out.
+    - Filling New, Send to and Open with only when they open, as Explorer's own popups do, isn't needed for speed and
+      would change when handlers run; not done.
+
+    After (same measurements, both themes; the desktop's menu is the same in each): desktop first 196-268 (warm
+    130-165), jpg first 370-500 (warm 300-340), folder first 240-360 (warm 180-240), Recycle Bin first 176-189, every
+    first menu with all its items. What's left: the first click activates the desktop's window (50-120 ms before
+    `ContextRequested`; 4 ms when the desktop was clicked before), and packaged apps' handlers that run in `dllhost`
+    surrogates (Photos, Paint, Clipchamp on pictures) end a while after their last menu, so a picture's menu after a
+    long pause starts them again (870-930 ms, as Explorer's does).
   - Icons: the shell's menu as is (Open, Open with, Send to, Give access to, Cut, Copy, Create shortcut, Delete,
     Rename, Properties, installed apps' commands...).
   - Desktop: what Explorer's view adds itself, View (icon size, Show desktop icons), Sort by, Refresh, Paste and

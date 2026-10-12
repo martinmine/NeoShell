@@ -67,6 +67,7 @@ internal sealed partial class DesktopIconsView : UserControl
     private DesktopDragDrop? _dragDrop;
     /// <summary>The grid's selection is being brought in line with the shared one: not the user's doing.</summary>
     private bool _syncing;
+    private static bool s_menuWarmedUp;
 
     /// <param name="hwnd">The wallpaper window: owner of the shell's menus and dialogs.</param>
     /// <param name="monitor">The monitor this view shows the icons of.</param>
@@ -87,6 +88,7 @@ internal sealed partial class DesktopIconsView : UserControl
             icons.MarqueeChanged += ShowMarquee;
             icons.FocusRequested += FocusIcon;
             icons.OwnDragChanged += FollowOwnDrag;
+            icons.MenusWarmedUp += WarmUpMenu;
             Apply();
             icons.QueueRefresh();
             StartDragDrop();
@@ -99,6 +101,7 @@ internal sealed partial class DesktopIconsView : UserControl
             icons.MarqueeChanged -= ShowMarquee;
             icons.FocusRequested -= FocusIcon;
             icons.OwnDragChanged -= FollowOwnDrag;
+            icons.MenusWarmedUp -= WarmUpMenu;
             _dragDrop?.Dispose();
             _dragDrop = null;
         };
@@ -590,8 +593,24 @@ internal sealed partial class DesktopIconsView : UserControl
         else if (!icon.IsSelected)
             _icons.SelectOnly([icon]);
 
-        MenuFlyout menu = icon is null ? BackgroundMenu(point) : ItemMenu(Selection, point);
+        MenuFlyout menu = icon is null ? BackgroundMenu(point, ShellMenu.ForBackground(_hwnd)) : ItemMenu(Selection, point);
         menu.ShowAt(Root, new FlyoutShowOptions { Position = point });
+    }
+
+    /// <summary>
+    /// Builds the desktop's menu once without showing it, after <see cref="ShellMenu.WarmUpAsync"/>: what that can't
+    /// do from its own thread is this thread's part (the shell's handlers here, compiling the menu's code, the XAML
+    /// types' first use), which otherwise made the first menu after a start slower than the next. Once per process:
+    /// the views share the UI thread.
+    /// </summary>
+    private void WarmUpMenu()
+    {
+        if (s_menuWarmedUp)
+            return;
+        s_menuWarmedUp = true;
+
+        using ShellMenu? shellMenu = ShellMenu.ForBackground(_hwnd);
+        _ = BackgroundMenu(default, shellMenu);
     }
 
     /// <summary>The shell's menu for the items: everything Explorer's menu has, "Show more options" included.</summary>
@@ -606,7 +625,7 @@ internal sealed partial class DesktopIconsView : UserControl
     /// The desktop's own menu as Explorer's full one: its view, sort and paste commands, then the shell's (installed
     /// apps' commands, New, Display settings, Personalize).
     /// </summary>
-    private MenuFlyout BackgroundMenu(Point point)
+    private MenuFlyout BackgroundMenu(Point point, ShellMenu? shellMenu)
     {
         var view = new MenuFlyoutSubItem { Text = "View", Icon = Glyph("") };
         AutomationProperties.SetAutomationId(view, "DesktopViewMenuItem");
@@ -643,7 +662,7 @@ internal sealed partial class DesktopIconsView : UserControl
         MenuFlyout menu = Menu(
             [view, sort, MenuItem("Refresh", "", "DesktopRefreshMenuItem", () => _ = _icons.RefreshAsync())],
             [paste, pasteShortcut, UndoItem(undo: true), UndoItem(undo: false)]);
-        AddShellItems(menu, ShellMenu.ForBackground(_hwnd), point, renameTarget: null);
+        AddShellItems(menu, shellMenu, point, renameTarget: null);
         return menu;
     }
 

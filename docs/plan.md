@@ -538,6 +538,11 @@ Each item is done when it looks and behaves as Explorer's (layout, behaviour, an
       Boot). Reproduced with Calculator, traced in the app with cdb, and tried with a test host started as
       CustomShellHost starts it (fail-fast in `CFallbackWindow`'s `CreateWindowInBand`); the Control Panel fallbacks
       stay — see design/lifecycle.md, "UWP (CoreWindow) apps as the shell"
+- [x] Fix: the first right-click on the desktop after a start took about a second (and its menu missed items the
+      shell fills in meanwhile: Open in Terminal, packaged apps' Edit with… verbs, Send to's places): the menus are
+      built once at idle, off the UI thread, then the desktop's once on it; breakdown and before/after numbers in
+      design/desktop-icons.md, "First menu after a start"; checked as the shell in both themes and against
+      Explorer's first right-click
 
 ## Future work
 
