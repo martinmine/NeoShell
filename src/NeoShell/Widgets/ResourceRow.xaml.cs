@@ -33,7 +33,7 @@ internal sealed partial class ResourceRow : UserControl
     public void SetColor(Color color)
     {
         var brush = new SolidColorBrush(color);
-        Bar.Foreground = brush;
+        BarFill.Fill = brush;
         Line.Stroke = brush;
         Area.Fill = new SolidColorBrush(Color.FromArgb(0x40, color.R, color.G, color.B));
     }
@@ -44,7 +44,11 @@ internal sealed partial class ResourceRow : UserControl
     {
         ValueText.Text = value;
         if (percent is { } fill)
-            Bar.Value = fill;
+        {
+            fill = Math.Clamp(fill, 0, 100);
+            BarFilled.Width = new GridLength(fill, GridUnitType.Star);
+            BarEmpty.Width = new GridLength(100 - fill, GridUnitType.Star);
+        }
         _history = history;
         _max = max;
         if (IsExpanded)

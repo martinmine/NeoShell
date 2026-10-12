@@ -222,7 +222,9 @@ internal sealed class NotificationArea : IDisposable
     // NotificationAreaIconManager2::AddIcon), hidden ones too.
     private void FindSettings(TrayIconState icon)
     {
-        if (WindowInfo.Read(icon.Window).ProcessPath is not { } path)
+        // Only the path: the shell service objects' icon windows are NeoShell's own, and their thread is the one waiting
+        // on this message (Bluetooth's held the taskbar back ~30 s at startup when its title was read).
+        if (WindowInfo.ReadProcessPath(icon.Window) is not { } path)
             return;
         // The shell service objects' icons (Safely Remove Hardware…) are the shell's: Explorer's, in its settings.
         if (string.Equals(path, Environment.ProcessPath, StringComparison.OrdinalIgnoreCase))

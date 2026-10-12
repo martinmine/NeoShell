@@ -8,13 +8,16 @@ namespace NeoShell.Interop.Windowing;
 public static unsafe class Peek
 {
     /// <summary>Peeks at <paramref name="window"/>. Ignored while a peek is on: end that one first.</summary>
-    /// <param name="taskbar">The taskbar the peek comes from, as Explorer passes its own.</param>
-    public static void Show(nint window, nint taskbar) =>
-        Dwmapi.DwmpActivateLivePreview(1, window, taskbar, Dwmapi.LPT_TASKBAR, 0);
+    /// <param name="above">
+    /// The window the peek comes from (a thumbnail popup, or the taskbar), kept above the peeked window; being excluded
+    /// from peek alone doesn't keep a window there.
+    /// </param>
+    public static void Show(nint window, nint above) =>
+        Dwmapi.DwmpActivateLivePreview(1, window, above, Dwmapi.LPT_TASKBAR, 0);
 
     /// <summary>Ends the peek: every window shows again.</summary>
-    public static void End(nint taskbar) =>
-        Dwmapi.DwmpActivateLivePreview(0, 0, taskbar, Dwmapi.LPT_TASKBAR, 0);
+    public static void End(nint above) =>
+        Dwmapi.DwmpActivateLivePreview(0, 0, above, Dwmapi.LPT_TASKBAR, 0);
 
     /// <summary>Keeps the window visible while peeking, as Explorer's own taskbar, desktop and thumbnails are.</summary>
     public static void Exclude(nint hwnd)

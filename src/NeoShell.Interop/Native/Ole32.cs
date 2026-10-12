@@ -48,6 +48,12 @@ internal static unsafe partial class Ole32
     public static partial int CreateClassMoniker(in Guid clsid, out nint moniker);
 
     [LibraryImport("ole32.dll")]
+    public static partial int OleInitialize(nint reserved);
+
+    [LibraryImport("ole32.dll")]
+    public static partial void OleUninitialize();
+
+    [LibraryImport("ole32.dll")]
     public static partial int RegisterDragDrop(nint hwnd, nint dropTarget);
 
     [LibraryImport("ole32.dll")]

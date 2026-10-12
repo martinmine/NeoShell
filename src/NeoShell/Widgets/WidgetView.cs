@@ -5,35 +5,22 @@ using NeoShell.Settings;
 namespace NeoShell.Widgets;
 
 /// <summary>
-/// A widget's content. A new one is made each time the widget moves between the sidebar and the desktop, so what it
-/// keeps lives in its <see cref="Settings"/>, a file of its own or a service the sidebar shares.
+/// A widget's content. One is made when the widget is shown and goes with it, as it is, when it moves between the
+/// sidebar and the desktop (from one window's <see cref="WidgetFrame"/> to the other's), so it shows the same thing
+/// without loading again. Its options live in its <see cref="Settings"/>, and what must outlast a session in a file of
+/// its own (a note's text).
 /// </summary>
 internal partial class WidgetView : UserControl
 {
-    public WidgetView()
-    {
-        Loaded += (_, _) =>
-        {
-            if (!LoadsContent)
-                MarkReady();
-        };
-    }
-
     public WidgetSettings Settings { get; protected set; } = new();
-
-    /// <summary>
-    /// The widget shows its content: once it's laid out, or for one that loads its content (a picture, the weather)
-    /// once that's shown. A widget moving between the sidebar and the desktop is covered with a picture of how it
-    /// looked until then (<see cref="WidgetFrame.Cover"/>), so it doesn't show empty and fill in.
-    /// </summary>
-    public bool IsReady { get; private set; }
-
-    public event Action? Ready;
 
     /// <summary>The widget changed its own settings (from its settings flyout), for the sidebar to save them.</summary>
     public event Action<WidgetSettings>? SettingsChanged;
 
-    /// <summary>The name in the add menu and in the settings flyout.</summary>
+    /// <summary>
+    /// The name in the add menu, in the settings flyout and for UI Automation. Not shown on the widget: the ones that
+    /// show a heading have it in their own XAML.
+    /// </summary>
     public static string Title(WidgetKind kind) => kind switch
     {
         WidgetKind.Profile => "Profile",
@@ -50,15 +37,15 @@ internal partial class WidgetView : UserControl
     /// <summary>Segoe Fluent Icons glyph for the add menu.</summary>
     public static string Glyph(WidgetKind kind) => kind switch
     {
-        WidgetKind.Profile => "\uE77B",
-        WidgetKind.Resources => "\uE9D9",
-        WidgetKind.Pictures => "\uE91B",
-        WidgetKind.Media => "\uE8D6",
-        WidgetKind.Weather => "\uE706",
-        WidgetKind.Notes => "\uE70B",
-        WidgetKind.Wireless => "\uE957",
-        WidgetKind.Windows => "\uE770",
-        _ => "\uE74C",
+        WidgetKind.Profile => "",
+        WidgetKind.Resources => "",
+        WidgetKind.Pictures => "",
+        WidgetKind.Media => "",
+        WidgetKind.Weather => "",
+        WidgetKind.Notes => "",
+        WidgetKind.Wireless => "",
+        WidgetKind.Windows => "",
+        _ => "",
     };
 
     /// <summary>Whether the sidebar and desktop may show more than one of this kind.</summary>
@@ -75,22 +62,16 @@ internal partial class WidgetView : UserControl
     /// <summary>Content that fills the card to its edges (a picture), without the card's padding and border.</summary>
     public virtual bool FillsCard => false;
 
+    /// <summary>
+    /// Content reaches the top right, under the settings and close buttons (a list's values, a note's text): they show
+    /// only while the pointer is near them, not anywhere over the widget, so they don't hide it while it's used.
+    /// </summary>
+    public virtual bool ContentUnderButtons => false;
+
     /// <summary>The controls of the settings flyout, built each time it opens.</summary>
     public virtual FrameworkElement CreateSettings() => new StackPanel();
 
-    /// <summary>The widget loads what it shows, and says so with <see cref="MarkReady"/>; otherwise it's ready once laid out.</summary>
-    protected virtual bool LoadsContent => false;
-
-    /// <summary>The widget's content is shown, or couldn't be loaded.</summary>
-    protected void MarkReady()
-    {
-        if (IsReady)
-            return;
-        IsReady = true;
-        Ready?.Invoke();
-    }
-
-    /// <summary>The widget is going away: stop timers and let go of events.</summary>
+    /// <summary>The widget is going away (closed, or the sidebar hidden): stop timers and let go of events.</summary>
     public virtual void Close()
     {
     }

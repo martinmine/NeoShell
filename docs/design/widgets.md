@@ -10,15 +10,12 @@ Small widgets about the computer and its user, as Windows Vista's sidebar gadget
 
 - `SidebarWindow`: a strip along the right of the primary monitor, from the top to the taskbar (the work area's
   height), 320 epx wide by default (`WidgetSidebarWidth`, 240 to 560); dragging its left edge (`EdgeGrip`) resizes
-  it, the edge keeping where it was grabbed. The grip is 6 epx plus a maximized window's invisible resize border wide
-  (`SidebarLayout.GripWidth`, 14 epx at 100%, tested): a maximized window's bounds reach that border (8 px at 96 DPI)
-  past the work area, over the sidebar's edge, and it takes the pointer there, so a 6 epx grip couldn't be reached
-  beside one (T39d; Explorer has no sidebar). It reserves its space so maximized windows stop at its edge: alongside Explorer as an app bar on the right
-  (`AppBar.DockRight`, left of other app bars there); as the shell through `ShellWorkArea` (see the taskbar's
-  [Window](taskbar.md#window)), which keeps the taskbar's bottom and the sidebar's right reservation per monitor so neither undoes the
-  other's; the sidebar's height comes from what's reserved there, not from Windows' work area, which follows a moment
-  later. While the edge is
-  dragged only the window moves; the space is reserved again when it's let go.
+  it, the edge keeping where it was grabbed (a 6 epx grip). The sidebar is part of the desktop: it reserves no space,
+  so maximized windows cover it as they cover the desktop, as Vista's sidebar did when not kept on top. It sits at the
+  right of the work area (`SidebarLayout.Bounds`), so it ends above the taskbar and keeps left of other apps' app bars;
+  as the shell that work area is what `ShellWorkArea` reserved (see the taskbar's [Window](taskbar.md#window)), not
+  Windows' own, which follows a moment later. While the edge is dragged only the window moves; the width is saved when
+  it's let go.
 - No header text: only an add button at the top right, invisible until the pointer is over it (or its menu is
   open), whose menu lists every kind; Profile, Resource usage, Now playing and
   Weather show once only (disabled in the menu while shown), Pictures and Notes as often as wanted. Widgets are cards
@@ -28,7 +25,7 @@ Small widgets about the computer and its user, as Windows Vista's sidebar gadget
 - Right-clicking the sidebar or a widget in it opens its menu: "Add widget" and "Widget settings" (the Settings
   window's Widgets page, which has the panel background, `ShowWidgetPanel`, and the width). Without the panel the header goes and the window is cut to its cards (`WindowRegion.SetRoundedRects`,
   kept up with layout and scrolling): each widget keeps the backdrop behind it, as floating ones do, and the rest of
-  the strip shows the desktop and lets clicks through. The space stays reserved.
+  the strip shows the desktop and lets clicks through.
 - `FloatingWidgetWindow`: a widget dragged out of the sidebar, a rounded window of its own, 300 epx wide and as tall
   as the widget (it follows the widget's height and the monitor's scale). The widget sits top-aligned in a
   non-scrolling `ScrollViewer`, so it takes its natural height; the window is resized after the layout pass, through
@@ -51,31 +48,40 @@ Small widgets about the computer and its user, as Windows Vista's sidebar gadget
 ### Each widget (`WidgetFrame`, `WidgetView`)
 
 - `WidgetFrame` draws the card (none when floating: the window is the card) and, while the pointer is over it, a
-  settings button (a flyout with the widget's own settings) and a close button, on a solid plate at the top right.
+  settings button (a flyout with the widget's own settings, headed by the widget's name) and a close button, on a
+  solid plate at the top right.
+- No widget shows a heading: each says what it is by itself. Its name (`WidgetView.Title`) is in the add menu, its
+  settings flyout and its UI Automation name. Where the widget's own content reaches the top right
+  (`WidgetView.ContentUnderButtons`: Resource usage's first value, Wireless devices' first level, a note's text), the
+  buttons show only while the pointer is near them (16 epx around the plate), so they don't hide the content while
+  it's read, expanded or typed into.
 - Pressing anywhere the widget's own controls don't take and moving 4 epx drags it. A widget dragged from the sidebar
-  is lifted out of the column (invisible and kept in the tree at its size, so it keeps the pointer, with a negative
-  bottom margin so it takes no room; each card keeps its gap below itself rather than the panel's spacing, so a lifted
-  one leaves none). While a widget is over the sidebar, the others
+  is lifted out of the column (invisible and without height, kept in the tree so it keeps the pointer; each card keeps
+  its gap below itself rather than the panel's spacing, so a lifted one leaves none). While a widget is over the
+  sidebar, the others
   make room for it (moves of a desktop-level window leave its z-order alone, so dragging stays smooth): a
   card-shaped gap opens where it would go (before the first card whose middle is below the
   pointer, measured as if the gap weren't there), and the cards slide (`RepositionThemeTransition`). Off the sidebar
   the widget follows the pointer in its own window, held where it was grabbed, and stays where it's let go. Let go
   over the sidebar it takes the gap's place at once.
-- Moving between the sidebar and the desktop makes a new view in the other window (WinUI can't move an element between
-  windows), so the move hands over without showing it empty and filling in: a picture of the widget is taken as it's
-  pressed (`RenderTargetBitmap`, its pixels copied into a `WriteableBitmap`, as a render target shows only in its own
-  window; on the press as it takes 60-200 ms on the VM), and the new view is hidden under it, at its height, until the
-  view is ready (`WidgetView.Ready`: once laid out, or for the profile picture, weather, pictures and now playing once
-  they show their content) and two more frames are drawn, or 2 s at most. A floating widget dropped on the sidebar
-  jumps into the gap, and its window closes once the new card is drawn. The pictures widget goes on with the picture
-  it showed.
+- Moving between the sidebar and the desktop moves the widget itself: its view leaves the card (`WidgetFrame.Release`)
+  and goes into a frame in the other window, so it shows exactly what it showed, without loading anything again (the
+  same picture and slideshow, forecast, track and art, open graphs, devices, and unsaved typing in a note). Dragged
+  off the sidebar, the view goes into the window that follows the pointer as soon as the pointer leaves the sidebar
+  (the lifted card stays behind, empty, holding the pointer), and back into a new card if it's let go over the
+  sidebar after all. A floating widget dropped on the sidebar jumps into the gap and its view goes into a new card
+  there; the window stays over the gap with a picture of the widget in its place (`RenderTargetBitmap`, taken as it's
+  dropped) until the card has been drawn, then is hidden and closed. A window doesn't show or go in step with what
+  WinUI draws (hiding one holds WinUI's next frame up by about 100 ms), so going at once it left the gap empty for a
+  frame or more, and staying empty it covered the card.
 - A floating note can be resized by its bottom-right corner (`WidgetView.CanResize`): its width (200 to 640 epx) and
   the height of its text (60 to 900 epx), saved as `FloatingWidth` and `ContentHeight`; the text keeps its height when
   the note is docked.
 - `ShellSettings.Widgets` keeps every widget, docked and floating; the docked ones in the sidebar's order. Each has an
   id, its kind, a position while floating and its kind's options (`WidgetSettings`; unset options take defaults and
-  aren't written). A widget's view is made anew when it moves between the sidebar and the desktop, so what it keeps
-  lives in its settings, a file or a shared service. The default widgets have fixed ids.
+  aren't written). A widget's view is made once and kept while it's shown, also when the sidebar's window is made
+  anew for another monitor; what must outlast a restart lives in its settings or a file. The default widgets have
+  fixed ids.
 
 ### The widgets
 
@@ -87,8 +93,8 @@ Small widgets about the computer and its user, as Windows Vista's sidebar gadget
   adapter's filter drivers are listed as adapters too, with the same counts). Its settings show each drive and each
   adapter as a row of its own. Sampled once a second by `ResourceMonitor` (PDH through `SystemUsage`, wildcard
   counters for GPU engines and logical disks, `GlobalMemoryStatusEx`, `DriveInfo`, `NetworkInterface` statistics;
-  read on the thread pool, about 10 ms a time) only while the widget is shown; it keeps the last minute of each, so moving the widget keeps its graphs. Each row
-  expands to its graph (networks scaled to the minute's peak). A bar shows use and goes while the graph is open; a
+  read on the thread pool; the adapters are listed again only when addresses change) only while the widget is shown and the display is on; it keeps the last minute of each, so moving the widget keeps its graphs. Each row
+  expands to its graph (networks scaled to the minute's peak). A bar (drawn as a ProgressBar looks: a ProgressBar animates each change of value, which kept the compositor busy) shows use and goes while the graph is open; a
   disk's bar shows its space used, as Explorer's, and stays. Colours per kind (drives take the disk's, adapters the
   network's) from Windows' accent palette.
 - **Pictures**: a slideshow of the user's Pictures folder and the folders in it (up to 2,000 jpg/png/bmp/gif/webp,

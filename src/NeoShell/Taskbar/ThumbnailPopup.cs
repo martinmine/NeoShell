@@ -39,7 +39,6 @@ internal sealed class ThumbnailPopup : Window
     private static readonly TimeSpan PeekEndDelay = TimeSpan.FromMilliseconds(100);
 
     private readonly nint _hwnd;
-    private readonly nint _taskbar;
     private readonly WindowTracker _tracker;
     private readonly ShellBackdrop _backdrop = new(Backdrop.Acrylic);
     private readonly Grid _root = new() { Padding = new Thickness(Padding) };
@@ -68,7 +67,6 @@ internal sealed class ThumbnailPopup : Window
     public ThumbnailPopup(WindowTracker tracker, nint taskbar)
     {
         _tracker = tracker;
-        _taskbar = taskbar;
         _root.Children.Add(_cells);
         Content = _root;
         SystemBackdrop = _backdrop;
@@ -493,9 +491,9 @@ internal sealed class ThumbnailPopup : Window
         }
         // DWM ignores a peek at another window while one is on; ending it first crossfades from one to the other.
         if (_peeking)
-            Peek.End(_taskbar);
+            Peek.End(_hwnd);
         _peeking = true;
-        Peek.Show(_peekTarget, _taskbar);
+        Peek.Show(_peekTarget, _hwnd);
     }
 
     private void EndPeek()
@@ -505,7 +503,7 @@ internal sealed class ThumbnailPopup : Window
         if (!_peeking)
             return;
         _peeking = false;
-        Peek.End(_taskbar);
+        Peek.End(_hwnd);
     }
 
     // Cuts the previews off at the taskbar's edge for the popup at screen row <paramref name="top"/>.

@@ -23,7 +23,7 @@ public sealed record ToastInfo(
 /// </summary>
 /// <remarks>
 /// An unpackaged app can read them, but not get the listener's <c>NotificationChanged</c> event (it needs package
-/// identity), so the caller polls. The listener gives a toast's texts but not its XML: its sound, images, buttons and
+/// identity), so the caller reads them on <see cref="NotificationChanges"/>. The listener gives a toast's texts but not its XML: its sound, images, buttons and
 /// inputs come from the app's toast history instead, and clicks are carried out by the notification platform's own
 /// controller.
 /// </remarks>

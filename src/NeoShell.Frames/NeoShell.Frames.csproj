@@ -7,6 +7,12 @@
     <AssemblyTitle>NeoShell window frames</AssemblyTitle>
   </PropertyGroup>
 
+  <!-- Published inside NeoShell's folder, on the .NET that NeoShell carries (NeoShell.csproj); the SDK won't let a
+       self-contained NeoShell reference a program that isn't self-contained too. -->
+  <PropertyGroup Condition="'$(_IsPublishing)' == 'true'">
+    <SelfContained>true</SelfContained>
+  </PropertyGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\NeoShell.Interop\NeoShell.Interop.csproj" />
   </ItemGroup>

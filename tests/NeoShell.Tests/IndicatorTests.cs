@@ -6,11 +6,11 @@ namespace NeoShell.Tests;
 public sealed class IndicatorTests
 {
     [Theory]
-    [InlineData(NetworkKind.WiFi, true, 0, "")]
-    [InlineData(NetworkKind.WiFi, true, 1, "")]
-    [InlineData(NetworkKind.WiFi, true, 2, "")]
-    [InlineData(NetworkKind.WiFi, true, 3, "")]
-    [InlineData(NetworkKind.WiFi, true, 5, "")]
+    [InlineData(NetworkKind.WiFi, true, 0, "")]
+    [InlineData(NetworkKind.WiFi, true, 1, "")]
+    [InlineData(NetworkKind.WiFi, true, 2, "")]
+    [InlineData(NetworkKind.WiFi, true, 3, "")]
+    [InlineData(NetworkKind.WiFi, true, 5, "")]
     [InlineData(NetworkKind.WiFi, false, 5, "")]
     [InlineData(NetworkKind.Ethernet, true, 0, "")]
     [InlineData(NetworkKind.Ethernet, false, 0, "")]
@@ -40,7 +40,7 @@ public sealed class IndicatorTests
     }
 
     [Theory]
-    [InlineData(true, 0.5f, true, "")]
+    [InlineData(true, 0.5f, true, "")]
     [InlineData(false, 0.5f, false, "")]
     [InlineData(true, 0f, false, "")]
     [InlineData(true, 0.2f, false, "")]
@@ -49,6 +49,20 @@ public sealed class IndicatorTests
     public void Volume_glyph_follows_mute_and_level(bool hasDevice, float volume, bool muted, string expected)
     {
         Assert.Equal(expected, IndicatorDisplay.VolumeGlyph(hasDevice, volume, muted));
+    }
+
+    [Fact]
+    public void Underlays_show_the_missing_bars_and_waves_as_Explorer_does()
+    {
+        var wifi = new NetworkState(NetworkKind.WiFi, "Home", true, 2);
+        Assert.Equal("", IndicatorDisplay.NetworkUnderlay(wifi));
+        Assert.Null(IndicatorDisplay.NetworkUnderlay(wifi, airplaneMode: true));
+        Assert.Null(IndicatorDisplay.NetworkUnderlay(wifi with { HasInternet = false }));
+        Assert.Null(IndicatorDisplay.NetworkUnderlay(new NetworkState(NetworkKind.Ethernet, "Ethernet", true, 0)));
+
+        Assert.Equal("", IndicatorDisplay.VolumeUnderlay(hasDevice: true, muted: false));
+        Assert.Null(IndicatorDisplay.VolumeUnderlay(hasDevice: true, muted: true));
+        Assert.Null(IndicatorDisplay.VolumeUnderlay(hasDevice: false, muted: false));
     }
 
     [Fact]

@@ -145,14 +145,7 @@ internal sealed partial class WeatherWidget : WidgetView
             Log.Warn("Could not get the weather", ex);
             ShowStatus("The weather couldn't be fetched. It's tried again in a few minutes.", retry: true);
         }
-        finally
-        {
-            if (!fetch.IsCancellationRequested)
-                MarkReady();
-        }
     }
-
-    protected override bool LoadsContent => true;
 
     private static (double Latitude, double Longitude)? KnownDeviceLocation =>
         s_deviceLocation is { IsCompletedSuccessfully: true } found ? found.Result : null;

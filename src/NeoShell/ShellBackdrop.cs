@@ -13,7 +13,7 @@ namespace NeoShell;
 /// taskbar are inactive nearly all the time. Translucent is a plain see-through colour, without blur; Transparent
 /// shows the desktop as it is.
 /// </summary>
-internal sealed class ShellBackdrop(Backdrop kind) : SystemBackdrop
+internal sealed partial class ShellBackdrop(Backdrop kind) : SystemBackdrop
 {
     private static Windows.UI.Composition.Compositor? s_compositor;
 

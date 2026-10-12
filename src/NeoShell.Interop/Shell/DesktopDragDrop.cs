@@ -61,10 +61,18 @@ public sealed unsafe partial class DesktopDragDrop : IDisposable
         _target = User32.FindWindowEx(owner, 0, "Microsoft.UI.Content.DesktopChildSiteBridge", null);
         if (_target == 0)
             _target = owner;
+        // Drop targets need OLE on the thread (RegisterDragDrop fails with E_OUTOFMEMORY otherwise). WinUI starts it
+        // only for some controls, so whether it's on depends on what was built first. Counted: undone in Dispose.
+        Marshal.ThrowExceptionForHR(Ole32.OleInitialize(0));
         void* target = ComInterfaceMarshaller<IDropTarget>.ConvertToUnmanaged(_dropTarget);
         try
         {
             Marshal.ThrowExceptionForHR(Ole32.RegisterDragDrop(_target, (nint)target));
+        }
+        catch
+        {
+            Ole32.OleUninitialize();
+            throw;
         }
         finally
         {
@@ -154,6 +162,7 @@ public sealed unsafe partial class DesktopDragDrop : IDisposable
         EndOwnDrag();
         Ole32.RevokeDragDrop(_target);
         _dropTarget.Leave();
+        Ole32.OleUninitialize();
     }
 
     /// <summary>The keys held, as OLE passes them to drop targets: Shift moves, Ctrl copies, Alt links.</summary>

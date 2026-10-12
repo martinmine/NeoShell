@@ -81,9 +81,16 @@ public partial class App : Application
         _taskbars = new Taskbars(_runMode, _settings, Shutdown, SwitchToExplorer);
         _taskbars.Show();
         _sidebar = new Sidebar(_runMode, _settings, _taskbars);
-        _sidebar.Show();
-        UpdateWindowFrames();
-        _settings.Changed += UpdateWindowFrames;
+        // After the taskbar has shown: the widgets take a while to build, and styling every window's frame walks them all.
+        Sidebar sidebar = _sidebar;
+        UiThread.AfterFramesDrawn(() =>
+        {
+            if (_shuttingDown)
+                return;
+            sidebar.Show();
+            UpdateWindowFrames();
+            _settings.Changed += UpdateWindowFrames;
+        });
 
         if (_shellRegistration is not null)
         {

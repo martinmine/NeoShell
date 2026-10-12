@@ -149,12 +149,9 @@ internal sealed class AppBars : IDisposable
         var others = _bars.Where(other => other != bar).Select(other => other.Place).ToList();
         foreach (RectInt32 monitor in monitors)
         {
-            (int bottom, int right) = ShellWorkArea.Strips(monitor);
+            int bottom = ShellWorkArea.TaskbarHeight(monitor);
             if (bottom > 0)
                 taskbars.Add(monitor with { Y = monitor.Y + monitor.Height - bottom, Height = bottom });
-            // The sidebar is an app bar on the right alongside Explorer, and is fitted in as one here.
-            if (right > 0)
-                others.Add(new AppBarPlace(0, AppBarEdge.Right, monitor with { X = monitor.X + monitor.Width - right, Width = right }));
         }
         return AppBarLayout.QueryPos(bar.Place, edge, proposed, monitors, taskbars, others);
     }

@@ -43,6 +43,8 @@ internal sealed partial class ResourcesWidget : WidgetView
 
     private bool ShowEachAdapter => Settings.ShowEachAdapter ?? false;
 
+    public override bool ContentUnderButtons => true;
+
     public override void Close() => _monitor.Sampled -= Refresh;
 
     public override FrameworkElement CreateSettings()

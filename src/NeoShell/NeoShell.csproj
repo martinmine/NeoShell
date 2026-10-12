@@ -5,13 +5,48 @@
     <UseWinUI>true</UseWinUI>
     <WindowsPackageType>None</WindowsPackageType>
     <WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
+    <!-- Without it, dotnet publish of an unpackaged app leaves out NeoShell.pri, and with it the compiled XAML. -->
+    <EnableMsixTooling>true</EnableMsixTooling>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <!-- Program.cs owns Main: single instance and /exit are handled before WinUI starts. -->
     <DefineConstants>$(DefineConstants);DISABLE_XAML_GENERATED_MAIN</DefineConstants>
+    <!-- Builds are checked for what trimming a published NeoShell would break: NeoShell's own code by the trim
+         analyzer, and by CsWinRT's analyzer a class deriving from a WinRT type (a SystemBackdrop, a Panel), which
+         must be partial or the trimmed app throws InvalidCastException handing it to WinUI. CsWinRT's generated code
+         for collections passed to WinRT is unsafe. -->
+    <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
+    <CsWinRTAotWarningLevel>1</CsWinRTAotWarningLevel>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
 
+  <!--
+    A published NeoShell carries its own .NET, so nobody has to install it first (a shell that can't start leaves a
+    blank screen), and trimming takes the unused parts out, more than half its size. Only when publishing: a trimmed
+    NeoShell would also be computed for the tests' build, which asks NeoShell for its packaging outputs.
+  -->
+  <PropertyGroup Condition="'$(_IsPublishing)' == 'true'">
+    <SelfContained>true</SelfContained>
+    <PublishTrimmed>true</PublishTrimmed>
+    <!-- System.Data.OleDb (the indexer's search) uses .NET's built-in COM, which trimming turns off and breaks: it
+         takes what OLE DB's COM interfaces need. So built-in COM stays on and OleDb whole (TrimmerRootAssembly). -->
+    <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
+    <!-- The trimmer's warnings about libraries' code don't fail a publish: CsWinRT's generic fallbacks, OleDb's schema
+         and Data Links code and the COM server activation that built-in COM brings, none of which NeoShell reaches. -->
+    <ILLinkTreatWarningsAsErrors>false</ILLinkTreatWarningsAsErrors>
+  </PropertyGroup>
+  <ItemGroup Condition="'$(_IsPublishing)' == 'true'">
+    <TrimmerRootAssembly Include="System.Data.OleDb" />
+    <!-- NeoShell.Frames.exe runs on the trimmed .NET in NeoShell's folder: the trimmer sees only what NeoShell uses of
+         it and would take out its Main, so it's kept whole, and with it what it uses of .NET and NeoShell.Interop. -->
+    <TrimmerRootAssembly Include="NeoShell.Frames" />
+  </ItemGroup>
+
   <ItemGroup>
-    <PackageReference Include="Microsoft.WindowsAppSDK" Version="2.5.1" />
+    <!-- Only the parts of the Windows App SDK NeoShell uses: the meta-package Microsoft.WindowsAppSDK also brings its
+         AI, ML, Search and Widgets parts (onnxruntime, DirectML...), a third of a published NeoShell's size.
+         InteractiveExperiences is named for its version: WinUI asks for one that was never published. -->
+    <PackageReference Include="Microsoft.WindowsAppSDK.WinUI" Version="2.3.9" />
+    <PackageReference Include="Microsoft.WindowsAppSDK.InteractiveExperiences" Version="2.1.9" />
   </ItemGroup>
 
   <ItemGroup>
@@ -19,6 +54,17 @@
     <!-- The frame styles' model and rules, which NeoShell.Frames.exe reads from the same settings; its .exe is copied
          next to NeoShell's, where the logon task runs it from. -->
     <ProjectReference Include="..\NeoShell.Frames\NeoShell.Frames.csproj" />
+  </ItemGroup>
+
+  <!--
+    Explorer's battery font (SystemTray's SysBatt Fluent Icons), taken from this PC's Windows: WinUI loads fonts only
+    from the app's own folder (ms-appx), not from Windows'. Without it the battery shows Segoe Fluent Icons' glyphs.
+  -->
+  <PropertyGroup>
+    <BatteryFont>$(WinDir)\SystemApps\MicrosoftWindows.Client.Core_cw5n1h2txyewy\SystemTray\Assets\Sysbatt.ttf</BatteryFont>
+  </PropertyGroup>
+  <ItemGroup>
+    <None Include="$(BatteryFont)" Link="Assets\Sysbatt.ttf" CopyToOutputDirectory="PreserveNewest" Condition="Exists('$(BatteryFont)')" />
   </ItemGroup>
 
 </Project>

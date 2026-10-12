@@ -11,7 +11,7 @@ internal sealed partial class WindowsWidget : WidgetView
         Settings = settings;
         InitializeComponent();
 
-        // Read once: the build only changes with a restart, and a new view is made each time the widget moves.
+        // Read once: the build only changes with a restart.
         WindowsVersion windows = WindowsVersion.Read();
         NameText.Text = windows.Name;
         VersionText.Text = windows.Version.Length > 0 ? $"Version {windows.Version}" : "";

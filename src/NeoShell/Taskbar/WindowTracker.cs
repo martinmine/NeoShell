@@ -224,12 +224,38 @@ internal sealed class WindowTracker : IDisposable
         string key = TaskGrouping.Key(window);
         if (!_appNames.TryGetValue(key, out string? name))
         {
-            name = (window.AppUserModelId is { } appId ? ShellItems.GetDisplayName(ShellItems.AppsFolderPath(appId)) : null)
-                ?? FileDescription(window.ProcessPath)
-                ?? window.Title;
+            if (window.AppUserModelId is { } appId)
+            {
+                // The shell's name takes a shell item, 80 ms for the first one: read off the UI thread, and the title
+                // meanwhile (a packaged app's process is often a host, named for that).
+                name = window.Title;
+                LoadAppName(key, appId, window.ProcessPath);
+            }
+            else
+            {
+                name = FileDescription(window.ProcessPath) ?? window.Title;
+            }
             _appNames[key] = name;
         }
         return TaskGrouping.AppFor(window, name);
+    }
+
+    private async void LoadAppName(string key, string appId, string? processPath)
+    {
+        try
+        {
+            string? name = await Task.Run(() =>
+                ShellItems.GetDisplayName(ShellItems.AppsFolderPath(appId)) ?? FileDescription(processPath));
+            if (name is not null && _appNames.TryGetValue(key, out string? shown) && shown != name)
+            {
+                _appNames[key] = name;
+                QueueChanged();
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.Warn($"Could not read the name of {appId}", ex);
+        }
     }
 
 

@@ -185,6 +185,8 @@ internal sealed class XpTaskbarWindow : Window, ITaskbarView
 
     public void ShowQuickSettings(QuickSettingsPage page) { }
 
+    public void PrepareQuickSettings() { }
+
     public void RunInputSwitch(InputSwitchCommand command) { }
 
     public void ToggleQuickLinks() { }

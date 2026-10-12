@@ -13,6 +13,7 @@ using Microsoft.UI.Composition;
 using Microsoft.UI.Xaml.Hosting;
 using System.Numerics;
 using NeoShell.Interop.Input;
+using NeoShell.Interop.Power;
 using NeoShell.Interop.Shell;
 using NeoShell.Interop.Tray;
 using NeoShell.Logging;
@@ -62,6 +63,9 @@ internal sealed partial class TaskbarWindow : Window, ITaskbarView
     private PinnedApp? _dragApp;
     private DropGap? _dropGap;
     private static readonly TimeSpan s_layoutAnimationDuration = TimeSpan.FromMilliseconds(250);
+    // Explorer's battery font, copied from Windows into Assets when NeoShell is built (NeoShell.csproj).
+    private static readonly string? s_batteryFont =
+        File.Exists(Path.Combine(AppContext.BaseDirectory, "Assets", "Sysbatt.ttf")) ? "ms-appx:///Assets/Sysbatt.ttf#SysBatt Fluent Icons" : null;
     // Measured on Explorer: open previews move to another button ~200 ms after the pointer enters it, moving or not.
     private static readonly TimeSpan s_previewDelay = TimeSpan.FromMilliseconds(500);
     private static readonly TimeSpan s_previewSwitchDelay = TimeSpan.FromMilliseconds(200);
@@ -77,6 +81,8 @@ internal sealed partial class TaskbarWindow : Window, ITaskbarView
     private readonly NotificationArea? _tray;
     private readonly Indicators? _indicators;
     private QuickSettingsPage _quickSettingsPage;
+    // Made by PrepareQuickSettings, on the primary taskbar only.
+    private QuickSettingsPanel? _quickSettings;
     // Explorer's input switcher slides in (in about 67 ms) and out faster than its other flyouts. A popup window of
     // ours shows on screen some 40 ms after it starts to slide, so its slide takes longer for the same look.
     private static readonly TimeSpan s_inputSwitcherOpening = TimeSpan.FromMilliseconds(100);
@@ -173,8 +179,6 @@ internal sealed partial class TaskbarWindow : Window, ITaskbarView
         if (_indicators is not null)
         {
             IndicatorArea.Visibility = Visibility.Visible;
-            QuickSettings.Attach(_indicators, owner.RunMode, owner.Icons);
-            QuickSettings.CloseRequested += QuickSettingsFlyout.Hide;
             InputSwitcher.MethodChosen += method =>
             {
                 _inputMethodToSwitch = method;
@@ -222,7 +226,7 @@ internal sealed partial class TaskbarWindow : Window, ITaskbarView
             if (_indicators is not null)
             {
                 _indicators.Changed -= RefreshIndicators;
-                QuickSettings.Detach();
+                _quickSettings?.Detach();
             }
             _trayInput?.Stop();
             _hoverTimer.Stop();
@@ -320,7 +324,8 @@ internal sealed partial class TaskbarWindow : Window, ITaskbarView
         // Quick Settings keeps Windows' theme even on the accent: its panel takes a light shade of it in the light theme.
         Color? panelAccent = accent is null || theme != ElementTheme.Light ? accent : SystemTheme.ReadAccent(SystemTheme.Light3);
         (Color panelTint, (float, float) panelOpacities) = QuickSettingsDisplay.Backdrop(theme, panelAccent);
-        QuickSettings.RequestedTheme = theme;
+        if (_quickSettings is not null)
+            _quickSettings.RequestedTheme = theme;
         QuickSettingsFlyout.SystemBackdrop = new ShellBackdrop(Backdrop.Acrylic) { Theme = theme, Tint = panelTint, TintOpacities = panelOpacities };
         InputSwitcher.RequestedTheme = Root.RequestedTheme;
         InputFlyout.SystemBackdrop = new ShellBackdrop(Backdrop.Acrylic) { Theme = Root.RequestedTheme, Tint = accent };
@@ -492,17 +497,19 @@ internal sealed partial class TaskbarWindow : Window, ITaskbarView
 
         bool airplaneMode = _indicators.AirplaneMode == true;
         NetworkIcon.Glyph = IndicatorDisplay.NetworkGlyph(_indicators.Network, airplaneMode);
+        NetworkUnderlayIcon.Glyph = IndicatorDisplay.NetworkUnderlay(_indicators.Network, airplaneMode) ?? "";
         SetToolTip(NetworkIndicator, IndicatorDisplay.NetworkToolTip(_indicators.Network, airplaneMode));
 
         float volume = _indicators.Volume;
         bool muted = _indicators.IsMuted;
         VolumeIcon.Glyph = IndicatorDisplay.VolumeGlyph(_indicators.HasAudioDevice, volume, muted);
+        VolumeUnderlayIcon.Glyph = IndicatorDisplay.VolumeUnderlay(_indicators.HasAudioDevice, muted) ?? "";
         SetToolTip(VolumeIndicator, IndicatorDisplay.VolumeToolTip(_indicators.AudioDeviceName, volume, muted));
 
         BatteryIndicator.Visibility = _indicators.Battery is null ? Visibility.Collapsed : Visibility.Visible;
         if (_indicators.Battery is { } battery)
         {
-            BatteryIcon.Glyph = QuickSettingsDisplay.BatteryGlyph(battery);
+            ShowBattery(battery, _indicators.BatteryGlyphs);
             SetToolTip(BatteryIndicator, QuickSettingsDisplay.BatteryToolTip(battery));
         }
         EnergySaverIndicator.Visibility =
@@ -524,6 +531,29 @@ internal sealed partial class TaskbarWindow : Window, ITaskbarView
         }
 
         RefreshInputIndicator();
+    }
+
+    /// <summary>
+    /// The battery as Explorer draws it: Windows' outline and charge glyphs in SystemTray's own font, the charge
+    /// coloured; until Windows has them, or without the font, Segoe Fluent Icons' battery in tenths.
+    /// </summary>
+    private void ShowBattery(BatteryState battery, BatteryGlyphs? glyphs)
+    {
+        if (glyphs is null || s_batteryFont is not { } font)
+        {
+            BatteryIndicator.Width = 24;
+            BatteryIcon.FontFamily = BatteryFillIcon.FontFamily = (FontFamily)Application.Current.Resources["SymbolThemeFontFamily"];
+            BatteryIcon.Glyph = QuickSettingsDisplay.BatteryGlyph(battery);
+            BatteryFillIcon.Glyph = "";
+            return;
+        }
+
+        BatteryIndicator.Width = 28;
+        if (BatteryIcon.FontFamily.Source != font)
+            BatteryIcon.FontFamily = BatteryFillIcon.FontFamily = new FontFamily(font);
+        BatteryIcon.Glyph = glyphs.Outline;
+        BatteryFillIcon.Glyph = glyphs.Fill;
+        BatteryFillIcon.Style = (Style)Root.Resources[$"BatteryFill{glyphs.FillColor}Style"];
     }
 
     private void RefreshInputIndicator()
@@ -663,18 +693,34 @@ internal sealed partial class TaskbarWindow : Window, ITaskbarView
         if (_indicators is null)
             return;
 
+        PrepareQuickSettings();
         if (QuickSettingsFlyout.IsOpen)
         {
             if (page == _quickSettingsPage)
                 QuickSettingsFlyout.Hide();
             else
-                QuickSettings.Navigate(page);
+                _quickSettings!.Navigate(page);
             _quickSettingsPage = page;
             return;
         }
         _quickSettingsPage = page;
         Reveal();
         TaskbarFlyouts.ShowAtRight(QuickSettingsFlyout, QuickSettingsButton);
+    }
+
+    /// <summary>
+    /// Makes Quick Settings' panel, unless it's made already. It's left out of the taskbar's own XAML: it takes about
+    /// as long to build as the rest of the taskbar, which shows first.
+    /// </summary>
+    public void PrepareQuickSettings()
+    {
+        if (_quickSettings is not null || _indicators is null)
+            return;
+
+        _quickSettings = new QuickSettingsPanel { RequestedTheme = _theme };
+        _quickSettings.Attach(_indicators, _owner.RunMode, _owner.Icons);
+        _quickSettings.CloseRequested += QuickSettingsFlyout.Hide;
+        QuickSettingsFlyout.Content = _quickSettings;
     }
 
     // The icon under the pointer gets its own menu; from the keyboard, the speaker's.
@@ -690,14 +736,14 @@ internal sealed partial class TaskbarWindow : Window, ITaskbarView
             TaskbarFlyouts.ShowAtRight(VolumeMenu, VolumeIndicator);
     }
 
-    private void QuickSettingsFlyout_Opening(object sender, object e) => QuickSettings.Opening(_quickSettingsPage);
+    private void QuickSettingsFlyout_Opening(object sender, object e) => _quickSettings?.Opening(_quickSettingsPage);
 
     private void QuickSettingsFlyout_Opened(object sender, object e) => QuickSettingsOpenPlate.Visibility = Visibility.Visible;
 
     private void QuickSettingsFlyout_Closed(object sender, object e)
     {
         QuickSettingsOpenPlate.Visibility = Visibility.Collapsed;
-        QuickSettings.Closed();
+        _quickSettings?.Closed();
         _quickSettingsPage = QuickSettingsPage.Main;
     }
 

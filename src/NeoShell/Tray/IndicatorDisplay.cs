@@ -15,22 +15,35 @@ public static class IndicatorDisplay
 
     public const string AirplaneGlyph ="";
 
-    /// <summary>The connection's glyph; in airplane mode the plane, whatever is still connected (Ethernet).</summary>
+    /// <summary>Wi-Fi's four bars: Explorer's glyphs for one to four bars are U+EC3C to this (NetworkIcon.dll).</summary>
+    private const string WifiFullGlyph = "";
+
+    /// <summary>
+    /// The connection's glyph; in airplane mode the plane, whatever is still connected (Ethernet). Wi-Fi's bars stand
+    /// on <see cref="NetworkUnderlay"/>.
+    /// </summary>
     public static string NetworkGlyph(NetworkState state, bool airplaneMode = false) => airplaneMode ? AirplaneGlyph : state.Kind switch
     {
         NetworkKind.WiFi when !state.HasInternet => "",   // Wi-Fi with a warning
         NetworkKind.WiFi => state.SignalBars switch
         {
-            <= 1 => "",
-            2 => "",
-            3 => "",
-            _ => "",
+            <= 1 => "",
+            2 => "",
+            3 => "",
+            _ => WifiFullGlyph,
         },
         NetworkKind.Ethernet => state.HasInternet ? "" : "",
         NetworkKind.Cellular => "",
         NetworkKind.Other when state.HasInternet => "",   // globe
         _ => "",                                           // globe, blocked: no network or no internet
     };
+
+    /// <summary>
+    /// What Explorer draws faintly under the network glyph (its Underlay layer): all four bars under Wi-Fi's, so the
+    /// missing ones show; null for none.
+    /// </summary>
+    public static string? NetworkUnderlay(NetworkState state, bool airplaneMode = false) =>
+        !airplaneMode && state is { Kind: NetworkKind.WiFi, HasInternet: true } ? WifiFullGlyph : null;
 
     public static string NetworkToolTip(NetworkState state, bool airplaneMode = false)
     {
@@ -49,13 +62,21 @@ public static class IndicatorDisplay
         return $"{name}\n{(state.HasInternet ? "Internet access" : "No internet access")}";
     }
 
+    /// <summary>Muted: the speaker with a crossed circle (SystemTray.dll's glyph for "muted").</summary>
+    private const string MutedGlyph = "";
+
+    /// <summary>The speaker with its waves for the level; they stand on <see cref="VolumeUnderlay"/>.</summary>
     /// <param name="volume">0 to 1.</param>
     public static string VolumeGlyph(bool hasDevice, float volume, bool muted) =>
-        !hasDevice || muted ? ""
+        !hasDevice ? ""
+        : muted ? MutedGlyph
         : volume <= 0 ? ""
         : volume < 1 / 3f ? ""
         : volume < 2 / 3f ? ""
         : "";
+
+    /// <summary>What Explorer draws faintly under the speaker: all three waves (U+EBC5), so the missing ones show.</summary>
+    public static string? VolumeUnderlay(bool hasDevice, bool muted) => hasDevice && !muted ? "" : null;
 
     public static string VolumeToolTip(string? deviceName, float volume, bool muted) =>
         deviceName is null ? "No audio output device" : $"{deviceName}: {(muted ? "muted" : $"{Percent(volume)}%")}";

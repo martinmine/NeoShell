@@ -155,6 +155,8 @@ internal sealed class Win98TaskbarWindow : Window, ITaskbarView
 
     public void ShowQuickSettings(QuickSettingsPage page) { }
 
+    public void PrepareQuickSettings() { }
+
     public void RunInputSwitch(InputSwitchCommand command) { }
 
     public void ToggleQuickLinks() { }

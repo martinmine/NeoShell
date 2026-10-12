@@ -484,6 +484,11 @@ for the style model). Plain Win32 message loops, no WinUI. Every Windows call go
 CLAUDE.md asks of all Windows calls: the spike's own small interop became Interop classes rather than a second set of
 `User32` declarations in the program.
 
+A published NeoShell (self-contained and trimmed, as the CI packages it) carries the program on its own .NET: the
+project is self-contained when published too (the SDK refuses a self-contained app referencing a program that isn't),
+and `NeoShell.csproj` roots the `NeoShell.Frames` assembly for the trimmer, which otherwise sees only the style model
+NeoShell uses and takes out the program's `Main` ("Entry point not found").
+
 ### Parts
 
 | Part | Project | What it does |

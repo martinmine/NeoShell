@@ -15,7 +15,7 @@ namespace NeoShell.Notifications;
 /// the progress bar, text and selection boxes (a text box with its send button beside it) and rows of buttons, 16
 /// effective pixels apart.
 /// </summary>
-internal sealed class ToastContentView : StackPanel
+internal sealed partial class ToastContentView : StackPanel
 {
     private const double Gap = 16;
     private readonly List<(string Id, Func<string> Value)> _inputs = [];

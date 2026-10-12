@@ -82,6 +82,9 @@ internal interface ITaskbarView
     /// <summary>Win+A, Win+Ctrl+V, Win+K, Win+P.</summary>
     void ShowQuickSettings(QuickSettingsPage page);
 
+    /// <summary>Builds Quick Settings ahead of its first opening, once the taskbar has shown.</summary>
+    void PrepareQuickSettings();
+
     /// <summary>Win+Space as the shell.</summary>
     void RunInputSwitch(InputSwitchCommand command);
 

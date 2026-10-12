@@ -27,10 +27,11 @@ internal sealed class FloatingWidgetWindow : Window
     // Where the corner was pressed, and the size then, while the widget is being resized.
     private (PointInt32 Start, double Width, double ContentHeight)? _resize;
 
-    public FloatingWidgetWindow(WidgetFrame frame, PointInt32 topLeft, Backdrop backdrop, ElementTheme theme, Color? accent)
+    /// <param name="width">The widget's width, in effective pixels.</param>
+    public FloatingWidgetWindow(WidgetFrame frame, double width, PointInt32 topLeft, Backdrop backdrop, ElementTheme theme, Color? accent)
     {
         Frame = frame;
-        frame.Width = frame.Widget.Settings.FloatingWidth ?? SidebarLayout.FloatingWidth;
+        frame.Width = width;
         // Its own height, not the window's: the window follows it, also when it gets smaller.
         frame.VerticalAlignment = VerticalAlignment.Top;
         // A scroll viewer that doesn't scroll lets the widget take the height it wants; the window then follows (Resize).
@@ -70,8 +71,8 @@ internal sealed class FloatingWidgetWindow : Window
 
         // Sized for the monitor it's on until the widget has been laid out.
         uint dpi = DisplayMonitor.GetAll().FirstOrDefault(m => SidebarLayout.Contains(m.Bounds, topLeft))?.Dpi ?? 96;
-        int width = (int)Math.Round(frame.Width * dpi / 96.0);
-        _placement = new PinnedWindow(_hwnd, new RectInt32(topLeft.X, topLeft.Y, width, width / 2), PinnedLayer.Desktop);
+        int pixels = (int)Math.Round(width * dpi / 96.0);
+        _placement = new PinnedWindow(_hwnd, new RectInt32(topLeft.X, topLeft.Y, pixels, pixels / 2), PinnedLayer.Desktop);
 
         // After the layout pass that changed it.
         frame.SizeChanged += (_, _) => DispatcherQueue.TryEnqueue(Resize);

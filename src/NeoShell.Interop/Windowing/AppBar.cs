@@ -47,22 +47,6 @@ public sealed unsafe class AppBar : IDisposable
         return data.rc.ToRectInt32();
     }
 
-    /// <summary>
-    /// Reserves a strip of <paramref name="width"/> pixels along the right of <paramref name="area"/>, left of any
-    /// app bars already there, and returns the strip granted. <paramref name="area"/> gives the strip's height: the
-    /// monitor's work area, so it ends above the taskbar.
-    /// </summary>
-    public RectInt32 DockRight(RectInt32 area, int width)
-    {
-        Shell32.APPBARDATA data = NewData();
-        data.uEdge = Shell32.ABE_RIGHT;
-        data.rc = AlignToRight(User32.RECT.From(area), width);
-        Shell32.SHAppBarMessage(Shell32.ABM_QUERYPOS, &data);
-        data.rc = AlignToRight(data.rc, width);
-        Shell32.SHAppBarMessage(Shell32.ABM_SETPOS, &data);
-        return data.rc.ToRectInt32();
-    }
-
     public void Dispose()
     {
         Shell32.APPBARDATA data = NewData();
@@ -71,8 +55,6 @@ public sealed unsafe class AppBar : IDisposable
     }
 
     internal static User32.RECT AlignToBottom(User32.RECT area, int height) => area with { top = area.bottom - height };
-
-    internal static User32.RECT AlignToRight(User32.RECT area, int width) => area with { left = area.right - width };
 
     private Shell32.APPBARDATA NewData() => new() { cbSize = (uint)sizeof(Shell32.APPBARDATA), hWnd = _hwnd };
 

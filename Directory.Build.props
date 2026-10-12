@@ -2,7 +2,11 @@
   <PropertyGroup>
     <TargetFramework>net10.0-windows10.0.26100.0</TargetFramework>
     <TargetPlatformMinVersion>10.0.22000.0</TargetPlatformMinVersion>
-    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <!-- The machine's own architecture: x64 runs emulated on ARM64, at half the speed. Another one is chosen with
+         -p:NeoShellArchitecture=x64 (or arm64); the SDK won't take a RuntimeIdentifier for a whole solution. -->
+    <NeoShellArchitecture Condition="'$(NeoShellArchitecture)' == '' and '$([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture)' == 'Arm64'">arm64</NeoShellArchitecture>
+    <NeoShellArchitecture Condition="'$(NeoShellArchitecture)' == ''">x64</NeoShellArchitecture>
+    <RuntimeIdentifier>win-$(NeoShellArchitecture)</RuntimeIdentifier>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <LangVersion>latest</LangVersion>

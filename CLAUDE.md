@@ -23,7 +23,9 @@ shell-mode testing): a killed Explorer stays down, so start `explorer.exe` again
 - **Clean, simple, readable.** Write the smallest readable thing that works. No speculative abstractions,
   no interfaces with a single implementation, no layers "for later". Follow standard C# conventions.
 - **BCL first.** Approved packages, and no others without asking the user first:
-  - `Microsoft.WindowsAppSDK` (WinUI 3)
+  - The Windows App SDK's `Microsoft.WindowsAppSDK.WinUI` and `.InteractiveExperiences` (WinUI 3); not the
+    `Microsoft.WindowsAppSDK` meta-package: NeoShell doesn't use its AI, ML, Search and Widgets parts, a third of
+    the download
   - `System.Data.OleDb` (Windows Search Indexer queries)
   - Tests only: `xunit`, `xunit.runner.visualstudio`, `Microsoft.NET.Test.Sdk`
 - No DI container — `App` creates and wires the few long-lived objects by hand.
@@ -67,7 +69,7 @@ Directory.Build.props
 src/NeoShell/                 WinUI app
   Program.cs, App.xaml(.cs)   Custom Main, single instance, /exit, run-mode detection, crash fallback
   ShellSession.cs             Shell-mode duties: registration, ready event, startup apps, session end
-  ShellWorkArea.cs            Shell-mode work area: what the taskbar and the widget sidebar reserve
+  ShellWorkArea.cs            Shell-mode work area: what the taskbar and app bars reserve
   Logging/                    Small file logger
   Desktop/                    WallpaperWindow (one per monitor), slideshow, IDesktopWallpaper server, desktop icons and
                               their menus (every monitor)
@@ -189,15 +191,17 @@ the desktop and back. Full spec in docs/design/widgets.md.
 - **State.** `ShellSettings.Widgets` lists every widget (`WidgetSettings`: id, kind, X/Y while floating, floating size,
   the kind's options; unset options take defaults). Docked ones show in list order. Only `Sidebar` writes the list;
   a view saves its own options through `SaveSettings`, and `Sidebar` keeps the stored position and size when it does.
-- **Views are disposable.** A new view is made whenever a widget moves between sidebar and desktop, so a view keeps
-  nothing that must survive: options go in its settings, text in a file (notes), samples in a shared service. Stop
-  timers and events in `Close()`. A view that loads its content (`LoadsContent`) calls `MarkReady()` once it shows
-  it: until then a moved widget's new view is covered with a picture of the old one (`WidgetFrame.Cover`).
+- **Views move, frames don't.** A widget's `WidgetView` is made once and moves, as it is, between the sidebar and a
+  floating window (and into a new sidebar window when the primary monitor changes): `WidgetFrame.Release()` takes it
+  out of one window's frame and a new frame in the other window takes it. So a moved widget doesn't load again and
+  keeps its state (picture, forecast, open graphs, unsaved typing). Don't reload in `Loaded`: a moved view is
+  unloaded and loaded again. `Close()` (stop timers and events) runs only when the widget is closed or the sidebar
+  hidden. Options still go in its settings and a note's text in its file, to outlast a restart.
 - **Adding a widget kind:** a `WidgetKind` value, a `WidgetView` (XAML + code), its title/glyph/`AllowsSeveral` in
   `WidgetView`, a case in `Sidebar.CreateFrame`; anything that talks to Windows goes in `NeoShell.Interop`.
 - **Windows and layers.** Sidebar and floating widgets sit just above the desktop (`PinnedLayer.Desktop`); moves don't
-  touch the z-order (that walk is too slow per pointer move). The sidebar reserves its space: an app bar alongside
-  Explorer, `ShellWorkArea` as the shell (shared with the taskbar; changes go out off the UI thread).
+  touch the z-order (that walk is too slow per pointer move). The sidebar is part of the desktop and reserves no
+  space: maximized windows cover it. It keeps to the right of the work area (`ShellWorkArea` as the shell).
 - **Pitfalls found the hard way:**
   - Close widget windows with `Shut()`, never `Close()`: it detaches the subclasses and `WindowClosing.IgnoreMoves`,
     without which WinUI can crash handling a move of a window it's tearing down.
@@ -210,10 +214,13 @@ the desktop and back. Full spec in docs/design/widgets.md.
     z-order changes with a minimized window around, and with a window pushed below the wallpaper.
   - Keep periodic work off the UI thread (resource sampling reads adapters and GPU engines on the thread pool): any
     hitch shows as a stutter while a widget is dragged.
-  - A card being dragged stays in the tree (lifted: invisible, its size kept and its bottom margin minus its height)
-    or it loses the pointer; cards keep their gap in their own margin so a lifted card leaves none. Its view keeps its
-    layout for the picture taken on the press (`PressSnapshot`): `RenderTargetBitmap` takes 60-200 ms here, and
-    renders only in its own window (its pixels are copied out).
+  - A card being dragged stays in the tree (lifted: invisible, no height) or it loses the pointer, also after its view
+    has gone into the floating window that follows the pointer; cards keep their gap in their own margin so a lifted
+    card leaves none.
+  - A window doesn't appear, move or go in step with what WinUI draws, and hiding or closing one holds WinUI's next
+    frame up (~100 ms). A floating widget dropped on the sidebar therefore keeps its window over the gap, showing a
+    `RenderTargetBitmap` of the view (`WidgetFrame.ReleaseAsync`), until the docked card has been drawn; the window is
+    hidden before it's closed (closing, it shows white). Check such hand-overs with a burst of screen captures.
 - **Testing live.** Every interactive control has an AutomationId (`Widget` + Name = title, `WidgetSettingsButton`,
   `WidgetCloseButton`, `AddWidgetButton`, `Add<Kind>WidgetMenuItem`, `WidgetSettingsMenuItem`, `WidgetResizeGrip`,
   `*ResourceRow*`, `NoteText`…). Widgets behind other windows aren't laid out or rendered: move one into view (its

@@ -23,18 +23,11 @@ public static class SidebarLayout
         (int)Math.Round(Math.Clamp(width, MinWidth, MaxWidth) * dpi / 96.0);
 
     /// <summary>
-    /// How wide the sidebar's resize edge is, in effective pixels: 6 that can be grabbed even with a maximized window
-    /// beside the sidebar, whose invisible resize border (<paramref name="resizeBorder"/> pixels at
-    /// <paramref name="dpi"/>, past the work area) lies over the sidebar's edge and takes the pointer there.
+    /// The strip along the right of <paramref name="workArea"/>: above the taskbar and left of any app bars. It takes
+    /// no space of its own; windows maximize over it as over the desktop.
     /// </summary>
-    public static double GripWidth(int resizeBorder, uint dpi) => 6 + resizeBorder * 96.0 / dpi;
-
-    /// <summary>
-    /// The strip along the right of <paramref name="monitor"/>, as tall as its work area: it ends above the taskbar.
-    /// The work area may already leave the sidebar out, so only its height counts.
-    /// </summary>
-    public static RectInt32 Bounds(RectInt32 monitor, RectInt32 workArea, int width) =>
-        new(monitor.X + monitor.Width - width, workArea.Y, width, workArea.Height);
+    public static RectInt32 Bounds(RectInt32 workArea, int width) =>
+        new(workArea.X + workArea.Width - width, workArea.Y, width, workArea.Height);
 
     /// <summary>
     /// Where a floating widget goes: where it was left, unless that's no longer on any screen (a monitor was
