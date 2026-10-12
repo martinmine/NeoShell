@@ -1,11 +1,10 @@
-using NeoShell.Settings;
-
 namespace NeoShell.Frames;
 
 /// <summary>The read-only styles NeoShell comes with; "Duplicate" in the window frames window makes an editable copy.</summary>
 public static class FramePresets
 {
     public const string WindowsDefault = "Windows default";
+    public const string XpLuna = "XP Luna";
 
     public static readonly IReadOnlyList<FrameStyle> All =
     [
@@ -24,6 +23,8 @@ public static class FramePresets
         // blue of its frame. Flat: DWM takes one colour, so no gradient, and the same colour when inactive.
         new() { Name = "Luna (XP-like)", CaptionColor = "#0054E3", TextColor = "#FFFFFF", BorderColor = "#0831D9", Corners = FrameCorners.SmallRound },
         new() { Name = "Windows 7 Basic", BasicFrame = true },
+        // XP's blue Luna drawn over the window by NeoShell.Frames.exe (docs/design/window-frames-overlay.md).
+        new() { Name = XpLuna, Overlay = FrameOverlay.Luna },
     ];
 
     public static bool IsPreset(string name) => All.Any(preset => preset.Name == name);

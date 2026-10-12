@@ -806,4 +806,137 @@ internal static unsafe partial class User32
     [LibraryImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     public static partial bool GetAutoRotationState(out int state);
+
+    [LibraryImport("user32.dll", EntryPoint = "GetMessageW")]
+    public static partial int GetMessage(out MSG message, nint hwnd, uint filterMin, uint filterMax);
+
+    [LibraryImport("user32.dll")]
+    public static partial void PostQuitMessage(int exitCode);
+
+    public const uint WM_TIMER = 0x0113;
+
+    [LibraryImport("user32.dll")]
+    public static partial nuint SetTimer(nint hwnd, nuint id, uint milliseconds, nint timerProc);
+
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static partial bool KillTimer(nint hwnd, nuint id);
+
+    public const uint CS_DBLCLKS = 0x0008;
+    public const uint WS_SYSMENU = 0x0008_0000;
+    public const uint WS_EX_TRANSPARENT = 0x0000_0020;
+    public const uint WS_EX_CONTEXTHELP = 0x0000_0400;
+    public const uint SWP_NOOWNERZORDER = 0x0200;
+
+    public const uint WM_SHOWWINDOW = 0x0018;
+    public const uint WM_SETCURSOR = 0x0020;
+    public const nint SW_PARENTCLOSING = 1;
+    public const uint WM_MOUSEACTIVATE = 0x0021;
+    public const nint MA_NOACTIVATE = 3;
+    public const uint WM_MOUSEMOVE = 0x0200;
+    public const uint WM_LBUTTONDOWN = 0x0201;
+    public const uint WM_LBUTTONUP = 0x0202;
+    public const uint WM_LBUTTONDBLCLK = 0x0203;
+    public const uint WM_RBUTTONUP = 0x0205;
+    public const uint WM_MOUSELEAVE = 0x02A3;
+    public const uint WM_CAPTURECHANGED = 0x0215;
+    public const uint WM_NCLBUTTONDOWN = 0x00A1;
+    public const uint WM_NCLBUTTONDBLCLK = 0x00A3;
+    public const nint SC_CONTEXTHELP = 0xF180;
+    public const nint HTCAPTION = 2;
+    public const nint SC_KEYMENU = 0xF100;
+
+    [LibraryImport("user32.dll")]
+    public static partial nint SetCapture(nint hwnd);
+
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static partial bool IsHungAppWindow(nint hwnd);
+
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static partial bool ReleaseCapture();
+
+    public const uint TME_LEAVE = 0x0002;
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct TRACKMOUSEEVENT
+    {
+        public uint cbSize;
+        public uint dwFlags;
+        public nint hwndTrack;
+        public uint dwHoverTime;
+    }
+
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static partial bool TrackMouseEvent(ref TRACKMOUSEEVENT track);
+
+    public const uint ULW_ALPHA = 0x2;
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct BLENDFUNCTION
+    {
+        public byte BlendOp;
+        public byte BlendFlags;
+        public byte SourceConstantAlpha;
+        public byte AlphaFormat;
+    }
+
+    [LibraryImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static partial bool UpdateLayeredWindow(nint hwnd, nint screenDc, POINT* destination, SIZE* size, nint sourceDc,
+        POINT* source, uint colorKey, BLENDFUNCTION* blend, uint flags);
+
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static partial bool GetClientRect(nint hwnd, out RECT rect);
+
+    public const uint STATE_SYSTEM_UNAVAILABLE = 0x0001;
+    public const uint STATE_SYSTEM_INVISIBLE = 0x8000;
+    public const uint STATE_SYSTEM_OFFSCREEN = 0x10000;
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct TITLEBARINFO
+    {
+        public uint cbSize;
+        public RECT rcTitleBar;
+        // The title bar itself, then the reserved slot, minimize, maximize, help and close buttons.
+        public fixed uint rgstate[6];
+    }
+
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static partial bool GetTitleBarInfo(nint hwnd, ref TITLEBARINFO info);
+
+    public const uint WS_ACTIVECAPTION = 0x0001;
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct WINDOWINFO
+    {
+        public uint cbSize;
+        public RECT rcWindow;
+        public RECT rcClient;
+        public uint dwStyle;
+        public uint dwExStyle;
+        public uint dwWindowStatus;
+        public uint cxWindowBorders;
+        public uint cyWindowBorders;
+        public ushort atomWindowType;
+        public ushort wCreatorVersion;
+    }
+
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static partial bool GetWindowInfo(nint hwnd, ref WINDOWINFO info);
+
+    [LibraryImport("user32.dll", EntryPoint = "GetPropW", StringMarshalling = StringMarshalling.Utf16)]
+    public static partial nint GetProp(nint hwnd, string name);
+
+    public const uint DT_SINGLELINE = 0x0020;
+    public const uint DT_NOPREFIX = 0x0800;
+    public const uint DT_END_ELLIPSIS = 0x8000;
+
+    [LibraryImport("user32.dll", EntryPoint = "DrawTextW", StringMarshalling = StringMarshalling.Utf16)]
+    public static partial int DrawText(nint hdc, string text, int length, ref RECT rect, uint format);
 }

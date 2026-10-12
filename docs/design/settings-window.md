@@ -60,8 +60,9 @@ accent comes from the theme resources. 1100 × 820 epx, centred on the primary m
     Control Panel's page sends there) and the classic Desktop icon settings (`desk.cpl,,0`, which works as the shell).
   - **Widgets**: the sidebar on/off, its panel background, its width (slider 240–560 epx in steps of 8; the sidebar
     follows each step, as it follows its edge).
-  - **Window frames**: the prototype's window as a page (`Frames/WindowFramesPage`), unchanged in what it does; its
-    preview window closes when the page is left.
+  - **Window frames**: the prototype's window as a page (`Frames/WindowFramesPage`); its preview window closes when
+    the page is left. Since 2026-10-12 it also starts, stops, installs and removes NeoShell.Frames.exe, which draws the
+    XP Luna style ([Luna through overlay windows](window-frames-overlay.md#as-built)).
   - **About**: version (`1.0.0 (commit)` from the informational version), run mode, Switch to Explorer (as the shell,
     asked first as in Start) or Exit NeoShell (alongside), a link to docs/design.md on GitHub.
 - Settings opened from NeoShell as the shell use `Launcher.OpenSettings`, which falls back to Control Panel (see

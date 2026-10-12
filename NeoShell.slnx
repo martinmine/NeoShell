@@ -1,6 +1,7 @@
 <Solution>
   <Folder Name="/src/">
     <Project Path="src/NeoShell/NeoShell.csproj" />
+    <Project Path="src/NeoShell.Frames/NeoShell.Frames.csproj" />
     <Project Path="src/NeoShell.Interop/NeoShell.Interop.csproj" />
   </Folder>
   <Folder Name="/tests/">

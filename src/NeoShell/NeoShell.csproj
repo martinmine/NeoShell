@@ -16,6 +16,9 @@
 
   <ItemGroup>
     <ProjectReference Include="..\NeoShell.Interop\NeoShell.Interop.csproj" />
+    <!-- The frame styles' model and rules, which NeoShell.Frames.exe reads from the same settings; its .exe is copied
+         next to NeoShell's, where the logon task runs it from. -->
+    <ProjectReference Include="..\NeoShell.Frames\NeoShell.Frames.csproj" />
   </ItemGroup>
 
 </Project>

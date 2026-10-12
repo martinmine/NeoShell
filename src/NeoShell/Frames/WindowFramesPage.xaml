@@ -42,6 +42,30 @@
                 AutomationProperties.Name="Style for all windows"
                 SelectionChanged="GlobalStyleBox_SelectionChanged" />
         </settings:SettingsCard>
+        <settings:SettingsCard
+            Glyph="&#xE770;"
+            Header="XP Luna frames"
+            Description="Styles with XP's Luna frame are drawn over the apps' windows by NeoShell.Frames.exe, which runs as administrator from a sign-in task. Turning it on or off asks for administrator rights.">
+            <StackPanel Orientation="Horizontal" Spacing="12">
+                <TextBlock
+                    x:Name="LunaProgramStatus"
+                    VerticalAlignment="Center"
+                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                    AutomationProperties.AutomationId="LunaProgramStatus" />
+                <Button
+                    x:Name="LunaProgramRunButton"
+                    VerticalAlignment="Center"
+                    AutomationProperties.AutomationId="LunaProgramRunButton"
+                    Click="LunaProgramRunButton_Click" />
+                <ToggleSwitch
+                    x:Name="LunaProgramToggle"
+                    MinWidth="0"
+                    VerticalAlignment="Center"
+                    AutomationProperties.AutomationId="LunaProgramToggle"
+                    AutomationProperties.Name="Run NeoShell.Frames.exe at sign-in"
+                    Toggled="LunaProgramToggle_Toggled" />
+            </StackPanel>
+        </settings:SettingsCard>
 
         <Grid Margin="0,24,0,6">
             <TextBlock Text="App rules" Style="{StaticResource BodyStrongTextBlockStyle}" VerticalAlignment="Center" Margin="1,0,0,0" />
@@ -139,6 +163,7 @@
                         <ColumnDefinition Width="*" />
                     </Grid.ColumnDefinitions>
                     <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
@@ -249,6 +274,20 @@
                         <TextBlock
                             Style="{StaticResource SettingsDescriptionStyle}"
                             Text="Windows stops drawing the frame and the app draws Windows 7 Basic's instead, which hides the settings above. Its title text may look smudged." />
+                    </StackPanel>
+                    <StackPanel Grid.Row="4" Grid.ColumnSpan="2" Spacing="4">
+                        <ComboBox
+                            x:Name="OverlayBox"
+                            Header="Drawn frame"
+                            MinWidth="240"
+                            AutomationProperties.AutomationId="OverlayBox"
+                            SelectionChanged="Editor_Changed">
+                            <x:String>None</x:String>
+                            <x:String>XP Luna</x:String>
+                        </ComboBox>
+                        <TextBlock
+                            Style="{StaticResource SettingsDescriptionStyle}"
+                            Text="Drawn over the window by NeoShell.Frames.exe (XP Luna frames, above), which then sets the window's colours itself: the settings above don't apply. Apps that draw their own title bar keep theirs." />
                     </StackPanel>
                 </Grid>
             </StackPanel>

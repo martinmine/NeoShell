@@ -4,9 +4,9 @@ Feasibility spec for drawing XP's blue Luna frame over other apps' windows with 
 option C of [Window frames](window-frames.md#options), worked out and tested. Part of the
 [NeoShell design](../design.md).
 
-Status: **feasibility spike**, and XP's Luna measured in an XP VM with a renderer drawing it from the numbers (see
-[Luna layout](#luna-layout); 2026-10-11, title-bar-prototype branch). Nothing is built in the repo. The
-findings come from a throwaway WinForms spike (overlay engine, Luna-like drawing, test windows) run on this VM
+Status: **built** as `NeoShell.Frames.exe` (2026-10-12, title-bar-prototype branch; see [As built](#as-built)), after a
+feasibility spike and XP's Luna measured in an XP VM with a renderer drawing it from the numbers (see
+[Luna layout](#luna-layout); 2026-10-11). The spike's findings come from a throwaway WinForms spike (overlay engine, Luna-like drawing, test windows) run on this VM
 (Windows 11 25H2, build 26200, one 1764x988 monitor at 100%), measured with logs, `CopyFromScreen`, `PrintWindow`,
 UIA-free `mouse_event` input and 60 fps `ffmpeg -f gdigrab` recordings stepped frame by frame.
 
@@ -24,6 +24,8 @@ normally underneath. What can't be hidden:
 - **Moves can lag one composition frame.** The overlay follows an out-of-context location event, so on some frames
   of a drag the app has moved and the overlay hasn't (measured: 1-3 of 20-25 position updates). With the app's own
   caption coloured Luna blue underneath through `DWMWA_CAPTION_COLOR` the lag shows blue on blue and is hard to see.
+  (As built, moves keep up in every recorded frame; resizes still lag a frame in about a third: see
+  [As built](#as-built).)
 - **Thumbnails, Alt+Tab, Task View, minimize/restore/maximize animations and the app's own screenshots show the
   app's real frame** (DWM never sees our windows as part of it): Windows 11's frame in Luna blue with Windows 11
   caption buttons.
@@ -241,6 +243,11 @@ at first (XP drew them with a 21 px caption band and a 13 px close button, measu
 - Recovery: a crash of the helper only removes overlays; NeoShell can restart the task. It must never take NeoShell or
   the shell down with it (separate process).
 
+As built, three of these changed: `schtasks.exe` registers and runs the task (no Task Scheduler COM to declare); a
+registered message to the program's control window, let through UIPI, replaces the named event and the
+`FileSystemWatcher`; and the attributes are split by style rather than all handed to the program (see
+[As built](#as-built)).
+
 ## 6. Drawing
 
 - Drawn in code (the owner's choice), from numbers measured in XP: see [Luna layout](#luna-layout) and its renderer,
@@ -430,12 +437,12 @@ inactive. A pressed button released outside it does nothing and returns to norma
 
 ### The renderer
 
-`LunaFrame.Render(LunaWindow)` draws a window's frame into a premultiplied `0xAARRGGBB` buffer (client area left
-transparent): kind (sizable, dialog, tool), active, maximized, title, an optional 16x16 icon, and the buttons with
-their states. `LunaArt` holds the numbers above as C# string tables, generated from the measurements; the title goes
-through GDI (`CreateFontW`, `DrawTextW` on a DIB section). No image files, no packages; user32 and gdi32 only. It
-lives with the spike for now (`E:\NeoShellWork\luna\src\LunaFrame.cs`, `LunaArt.cs`; the measuring and comparing
-scripts in `E:\NeoShellWork\luna\ana`), to move into the helper project when that's built.
+`LunaFrame` (src/NeoShell.Frames) draws a window's frame into premultiplied `0xAARRGGBB` pixels: `RenderCaption` the
+caption band with its title, icon and buttons, `RenderBorders` the left, right and bottom borders, for a kind
+(sizable, dialog, tool), active, maximized, title, an optional 16x16 icon, and the buttons with their states.
+`LunaArt` holds the numbers above as C# string tables, written out from the measurements; the title goes through GDI
+(`GdiText`: `CreateFontW`, `DrawTextW` on a DIB section). No image files, no packages. The measuring and comparing
+scripts stayed outside the repo with the XP screenshots (`E:\NeoShellWork\luna\ana` on the VM).
 
 Compared with XP pixel by pixel (same window size, title and state; XP's icon and pointer left out; every frame pixel
 we draw counted), 29 cases, 707,000 pixels: 75.9% identical, 89.2% within 2 levels, 99.65% within 8, 0.08% (583
@@ -470,6 +477,117 @@ What still differs, and why:
 - **Hot and pressed shots** count some pixels of XP's pointer shadow as differences (the larger "off > 24" counts).
 - **Maximized top corners** (11x11 px each) are not compared: the emulator page hides them.
 
+## As built
+
+`src/NeoShell.Frames` builds `NeoShell.Frames.exe` (same TFM; copied next to NeoShell.exe, which references the project
+for the style model). Plain Win32 message loops, no WinUI. Every Windows call goes through `NeoShell.Interop`, as
+CLAUDE.md asks of all Windows calls: the spike's own small interop became Interop classes rather than a second set of
+`User32` declarations in the program.
+
+### Parts
+
+| Part | Project | What it does |
+|---|---|---|
+| `Program` | NeoShell.Frames | One instance per session (`Local\NeoShell.Frames.SingleInstance`); `/exit`, `/install`, `/uninstall`; a message-only control window (class `NeoShell.Frames`) taking two registered messages, `NeoShell.Frames.Reload` and `NeoShell.Frames.Exit`, let through UIPI from NeoShell's medium integrity (`ChangeWindowMessageFilterEx`); log `frames-yyyy-MM-dd.log` beside NeoShell's |
+| `FrameHost` | NeoShell.Frames | The main thread: finds the windows to draw over at start, on `EVENT_OBJECT_SHOW` and `UNCLOAKED`, and again on Reload; hands each to the overlay thread of its app thread; puts back what an earlier run left (below) |
+| `HostSettings` | NeoShell.Frames | The part of NeoShell's settings.json the program goes by (`WindowFramesEnabled`, `WindowFrameStyle`, `WindowFrameStyles`, `WindowFrameRules`); a window gets Luna when its style (`FrameRules.StyleFor` and `FramePresets.Find`, the code NeoShell uses) has `Overlay = Luna` |
+| `AppThread` | NeoShell.Frames | One thread per app UI thread with a `MessageLoop` of its own and out-of-context WinEvent hooks filtered to that thread (move/size, minimize, show/hide/destroy, location, name, cloak) plus the foreground; a 500 ms poll for hangs and, while the app is in front, activation; ends with its last window |
+| `LunaTracker` | NeoShell.Frames | One app window: five `OverlayWindow`s owned by it (bottom, right, left, caption, buttons, stacked in that order right above it), Luna's colours on the app's own caption, the buttons' input |
+| `LunaLayout` | NeoShell.Frames | Pure geometry (unit tested): the overlays' rectangles from a `WindowCaption`, and XP's buttons for the window's |
+| `LunaFrame`, `LunaArt` | NeoShell.Frames | The renderer and its numbers (above) |
+| `FrameProgram`, `LogonTask` | NeoShell.Frames | How NeoShell talks to the program; the logon task |
+| `FrameStyle`, `FrameRules`, `FramePresets`, `FrameColors` | NeoShell.Frames | The style model, moved here from NeoShell so both read the settings alike; `FrameStyle.Overlay` and the preset "XP Luna" are new |
+| `OverlayWindow`, `MessageLoop`, `WindowCaption`, `CaptionInput`, `GdiText` | NeoShell.Interop | The layered owned popup; a Win32 loop with posted work and timers; a window's frame geometry and caption button states; the caption's commands posted to the app; GDI text drawn on pixels |
+
+### How NeoShell and the program talk
+
+- **Settings:** NeoShell's Settings window writes settings.json as before and NeoShell posts Reload on every settings
+  change (`FrameProgram.NotifySettingsChanged`); the program reads the file again (a file being replaced is retried
+  250 ms later). Nothing goes the other way: the elevated program sends nothing to NeoShell's windows.
+- **Who sets what:** split by style. NeoShell's `WindowFrames` keeps applying the DWM presets; an overlay style has no
+  DWM values (`FrameColors.ToAttributes` gives none), so NeoShell leaves those windows to the program, which sets
+  Luna's caption, text and border colours itself (active `0054E3`, white, `0831D9`; inactive `7A96DF`, `D8E4F8`,
+  `7480DC`; again on each activation change). The spec's "one owner of every attribute while the helper runs" isn't
+  needed for Luna and would have moved all of `WindowFrames` into the program; elevated windows still refuse NeoShell's
+  DWM presets, as before.
+- **Starting:** the logon task `NeoShell\Window frames` (registered with `schtasks /Create /XML`: logon trigger for the
+  user, `HighestAvailable`, no time limit, priority 4 because a task's default 7 is below normal, not stopped on
+  battery) runs the program elevated at sign-in. NeoShell starts it on demand with `schtasks /Run`: a medium process
+  may run the user's own task (measured: the program came up elevated, no prompt), and `/Query` tells whether it's
+  registered.
+- **Installing and removing:** `NeoShell.Frames.exe /install` and `/uninstall`, started by NeoShell with the `runas`
+  verb (one UAC prompt each): `/install` registers the task and runs it; `/uninstall` stops the program and deletes it.
+- **Stopping:** Stop on the Settings page posts Exit (as does `NeoShell.Frames.exe /exit`); in Task Manager, End task
+  on "NeoShell window frames".
+
+### Putting windows back
+
+- On Exit, and when a window's style or the feature is turned off, the tracker destroys its overlays and resets the
+  caption, text and border colours (`DWMWA_COLOR_DEFAULT`).
+- Every window given Luna's colours carries a window property, `NeoShell.Frames.Luna`. If the program is killed or
+  crashes its overlays go with the process, but the colours stay (a flat Luna-blue caption, not a broken window): its
+  next start resets every window with the property, and NeoShell's `WindowFrames` resets them as it styles windows
+  (at start, as they show, on activation) whenever the program isn't running. NeoShell can't for elevated windows (DWM
+  refuses it, as above); those wait for the program's next start.
+
+### Measured live
+
+On this VM (one 1764x988 monitor at 100%), the program run elevated by its task, NeoShell and the test apps at medium
+integrity: WinForms windows (sizable with a menu, fixed dialog, help-button dialog, an owned dialog over the caption, a
+message box, one with a custom title bar, one that hangs for 8 or 20 s), an elevated WinForms window and the elevated
+Registry Editor.
+
+- **Looks**, compared pixel by pixel with the XP screenshots of [Luna layout](#luna-layout): a Notepad-sized test
+  window (XP Notepad's size, title and states) active 74.0% identical, 99.85% within 8 levels, 7 pixels off by more
+  than 24; inactive 83.3% / 99.92% / 5; each button hot or pressed 73.6-74.1% / 99.62-99.83%; an inactive window's
+  button hot 83.2-83.5% / 99.70-99.93%. A Run-sized dialog: 70.1 / 77.3 / 69.8 / 70.2% identical and 99.58 / 99.89 /
+  99.36 / 99.24% within 8 (active, inactive, help hot, help pressed): the renderer's own figures, so what's on screen
+  is what it draws.
+- **The extra row:** Windows 11's title bar is 31 rows to XP's 30 (29 for dialogs; maximized 23 to XP's 26). The
+  caption gives or takes rows in a run of one colour below the title and buttons (rows 22-25; a maximized caption's
+  rows 6-10), so the title and buttons sit on XP's gradient at XP's positions from the top and only the space below
+  the buttons is a row taller. (Repeating row 11, the first idea, put the text on a gradient a row off.)
+- **Moves:** drags of 40 steps of 5 px every 25 ms and of 15 steps every 16 ms, recorded at 60 fps: the left border
+  met the client area in every composed frame (0 of 29, 27, 9 and 8 position changes off). The first build was a frame
+  behind in 15 of 26: on each location event it asked DWM for the frame bounds and caption buttons, and those calls
+  took 30-40 ms while our layered windows were updating (0.1 ms from a process without them). A move that keeps the
+  size now follows the `GetWindowRect` offset alone, a resize reuses the last DWM answers' insets
+  (`WindowCaption.Read(hwnd, like)`), and DWM is asked again once the move or size ends.
+- **Resizes:** the right border was a frame behind the app's edge in 4-8 of 17-19 composed sizes (the app's own border,
+  set to Luna's `0831D9`, shows in the gap); a redraw takes 3-5 ms (the first 70 ms while the JIT warms up).
+- **Maximize, restore, minimize** through our buttons (posted `WM_SYSCOMMAND`); the maximized caption at the screen's
+  top with XP's maximized art and the restore button. Restoring from minimized, recorded: the app's own frame through
+  the animation, its blue caption for about 10 composed frames, Luna about 180 ms after it settled. Our minimize
+  button paints its release after the app has parked the overlays: the tracker parks them again on
+  `EVENT_SYSTEM_MINIMIZESTART`, without which they stood at their place through the next restore (recorded).
+- **The caption gap** over Windows' own buttons: a drag moved the window by exactly the pointer's offset, a
+  double-click maximized it, a right-click opened the window menu at its corner.
+- **Activation:** active and inactive looks follow the foreground; an inactive window's button shows hot under the
+  pointer, the rest stays inactive; a press released off its button does nothing.
+- **Z-order:** the five overlays right above their window in every check (`EVENT_OBJECT_REORDER` isn't hooked: the
+  foreground event and the poll check the order); an owned dialog over the caption above them with overlays of its
+  own; a topmost window's overlays topmost and in order (the spike's buttons-below case didn't recur).
+- **Hangs:** through an 8 s hang the frame stays and its buttons keep answering. At 20 s with input waiting Windows put
+  its ghost (class `Ghost`, a dwm.exe window, "(Not Responding)") over the window, which on 25H2 stayed visible (not
+  hidden, as the spike saw); the ghost isn't drawn over, and the frame is hidden while `IsHungAppWindow` says so (the
+  poll), so it doesn't stick out around the ghost's smaller frame; back when the app answers. Nothing logged.
+- **Left alone:** the custom-title-bar window (no layout, overlays hidden); NeoShell's own windows, tool windows and
+  ghosts by the rules (unit tested).
+- **Elevated apps** drawn over: Registry Editor (its menu bar left uncovered) and an elevated WinForms window.
+- **Settings:** a rule's style changed to Windows default and back, and the feature turned off and on, from the
+  Settings window: frames gone and back within a second; Stop and Start on the page (medium) stopped and started the
+  elevated program; the page follows a program started elsewhere (a 2 s poll).
+- **Ending:** `/exit` and Stop put every window back (Windows 11's frames and colours); killing it left the flat blue
+  captions, which NeoShell put back on its medium windows and the program's next start on all.
+- **Cost:** idle, 31 ms of CPU in 10 s with five windows (the polls); 51 MB working set, 15 MB private; a thread per
+  app thread.
+
+Not run: the UAC prompt of turning the program on or off from the page (on this VM the prompt is on the secure
+desktop, where no tool here can answer it; the same `/install` and `/uninstall` ran from an elevated shell); other DPI
+scales (the art is 96 DPI and is drawn unscaled, so on a scaled monitor its buttons and title come out small: see the
+open questions); a second monitor; virtual desktops (cloak events); Windows 11's Notepad (it draws its own title bar,
+and a copy started for a test would join the owner's Notepad process).
+
 ## Open questions for the owner
 
 Answered (2026-10-11): the spike is a good starting point; a separate program with an elevated logon task is fine;
@@ -482,5 +600,4 @@ the artwork is drawn in code, no image files (now measured in an XP VM and rende
    simpler drawing (one gradient per row and per column, no mesh) costs about 5-8 levels on the faces.
 3. Other DPI scales: XP at 120 DPI had its own, larger Luna art (not measured: the VM's XP runs at 96 DPI). Scaling
    the 96 DPI numbers is the fallback; a second measuring session at 120 DPI in the VM would settle it.
-4. Where the renderer lives once the helper project exists (`LunaFrame.cs` and `LunaArt.cs` are in the spike folder
-   today, outside the repo).
+4. (Answered: the renderer lives in src/NeoShell.Frames with the program.)

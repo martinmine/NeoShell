@@ -98,6 +98,8 @@ public partial class App : Application
     /// <summary>Starts or stops restyling other apps' frames as the settings say, or restyles them by changed ones.</summary>
     private void UpdateWindowFrames()
     {
+        // XP Luna is drawn by NeoShell.Frames.exe, which reads the same settings once told.
+        FrameProgram.NotifySettingsChanged();
         if (!_settings.Current.WindowFramesEnabled)
         {
             _windowFrames?.Dispose();

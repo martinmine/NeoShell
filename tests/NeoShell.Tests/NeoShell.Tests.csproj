@@ -17,6 +17,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\NeoShell\NeoShell.csproj" />
     <ProjectReference Include="..\..\src\NeoShell.Interop\NeoShell.Interop.csproj" />
+    <ProjectReference Include="..\..\src\NeoShell.Frames\NeoShell.Frames.csproj" />
   </ItemGroup>
 
 </Project>

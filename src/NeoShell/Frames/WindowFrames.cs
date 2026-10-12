@@ -81,6 +81,7 @@ internal sealed class WindowFrames : IDisposable
 
     private void Style(nint hwnd)
     {
+        FrameProgram.PutBackLeftover(hwnd);
         if (_refused.Contains(hwnd))
             return;
         WindowFrame.Target window = WindowFrame.Read(hwnd);

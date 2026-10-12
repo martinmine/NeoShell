@@ -169,7 +169,7 @@ public sealed class WindowFrameTests
     public void Presets_are_as_the_spec_lists_them()
     {
         Assert.Equal(
-            ["Windows default", "Mica", "Mica Alt", "Acrylic", "Dark", "Light", "Accent", "Glass (Vista-like)", "Luna (XP-like)", "Windows 7 Basic"],
+            ["Windows default", "Mica", "Mica Alt", "Acrylic", "Dark", "Light", "Accent", "Glass (Vista-like)", "Luna (XP-like)", "Windows 7 Basic", "XP Luna"],
             FramePresets.All.Select(style => style.Name));
         FrameAttributes luna = FrameColors.ToAttributes(FramePresets.Find("Luna (XP-like)", [])!, Accent);
         Assert.Equal(0xFF0054E3u, luna.CaptionColor);
@@ -178,6 +178,26 @@ public sealed class WindowFrameTests
         FrameAttributes glass = FrameColors.ToAttributes(FramePresets.Find("Glass (Vista-like)", [])!, Accent);
         Assert.Equal(new FrameAttributes { Backdrop = SystemBackdrop.Acrylic, DarkMode = true, BorderColor = Accent }, glass);
         Assert.Equal(FrameParts.BasicFrame, FrameColors.ToAttributes(FramePresets.Find("Windows 7 Basic", [])!, Accent).Parts);
+        Assert.Equal(FrameOverlay.Luna, FramePresets.Find("XP Luna", [])!.Overlay);
+    }
+
+    [Fact]
+    public void An_overlay_style_leaves_the_attributes_to_the_frames_program()
+    {
+        var style = new FrameStyle { Name = "Mine", CaptionColor = "#FF0000", Corners = FrameCorners.Square, Overlay = FrameOverlay.Luna };
+
+        Assert.Equal(FrameParts.None, FrameColors.ToAttributes(style, Accent).Parts);
+    }
+
+    [Fact]
+    public void The_frames_program_draws_over_standard_windows_only()
+    {
+        Assert.True(FrameRules.CanDrawOver(Window(), ownProcessId: 1));
+        // Tool windows (XP's small caption isn't drawn), a hung app's ghost, NeoShell's own preview, and what isn't eligible.
+        Assert.False(FrameRules.CanDrawOver(Window(WS_POPUP | 0x00C0_0000, exStyle: 0x80), 1));
+        Assert.False(FrameRules.CanDrawOver(Window() with { ClassName = "Ghost" }, 1));
+        Assert.False(FrameRules.CanDrawOver(Window() with { ProcessName = "NeoShell.exe" }, 1));
+        Assert.False(FrameRules.CanDrawOver(Window(cloaked: true), 1));
     }
 
     [Fact]

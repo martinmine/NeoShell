@@ -522,6 +522,28 @@ public static unsafe class TopLevelWindows
         return (int)processId;
     }
 
+    /// <summary>The thread that created the window, which gets its messages; 0 if the window is gone.</summary>
+    public static uint GetThreadId(nint hwnd) => User32.GetWindowThreadProcessId(hwnd, out _);
+
+    /// <summary>
+    /// Whether the window's app hasn't taken its messages for a while (5 s): Windows then puts a ghost copy of it,
+    /// "(Not Responding)", over it.
+    /// </summary>
+    public static bool IsHung(nint hwnd) => User32.IsHungAppWindow(hwnd);
+
+    /// <summary>The window right above in the z-order, or 0 for the top one.</summary>
+    public static nint WindowAbove(nint hwnd) => User32.GetWindow(hwnd, User32.GW_HWNDPREV);
+
+    /// <summary>
+    /// Whether the window draws its caption active (<c>WS_ACTIVECAPTION</c>, set by its <c>WM_NCACTIVATE</c>). It can
+    /// lag a foreground change, and stay set on a window that was its thread's active one when another app's took over.
+    /// </summary>
+    public static unsafe bool IsCaptionActive(nint hwnd)
+    {
+        var info = new User32.WINDOWINFO { cbSize = (uint)sizeof(User32.WINDOWINFO) };
+        return User32.GetWindowInfo(hwnd, ref info) && (info.dwWindowStatus & User32.WS_ACTIVECAPTION) != 0;
+    }
+
     /// <summary>
     /// Hides or shows the window on screen through DWM while it stays shown to Windows (and its content keeps being
     /// drawn): a window can draw itself there before it appears.

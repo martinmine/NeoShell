@@ -1,5 +1,4 @@
 using NeoShell.Interop.Windowing;
-using NeoShell.Settings;
 
 namespace NeoShell.Frames;
 
@@ -9,6 +8,7 @@ public static class FrameRules
     private const uint WS_CAPTION = 0x00C0_0000; // WS_BORDER | WS_DLGFRAME
     private const uint WS_CHILD = 0x4000_0000;
     private const uint WS_EX_TRANSPARENT = 0x0000_0020;
+    private const uint WS_EX_TOOLWINDOW = 0x0000_0080;
     private const uint WS_EX_NOACTIVATE = 0x0800_0000;
 
     /// <summary>
@@ -39,4 +39,15 @@ public static class FrameRules
         && (window.Style & WS_CHILD) == 0
         && (window.Style & WS_CAPTION) == WS_CAPTION
         && (window.ExStyle & (WS_EX_NOACTIVATE | WS_EX_TRANSPARENT)) == 0;
+
+    /// <summary>
+    /// Whether NeoShell.Frames.exe may draw a frame over a window (<see cref="FrameOverlay"/>): an eligible one, not a
+    /// tool window (XP's small caption isn't drawn yet), not a hung app's ghost (Windows' "Not responding" copy, which
+    /// can't be owned), and not NeoShell's own (its frame preview shows the style being edited).
+    /// </summary>
+    public static bool CanDrawOver(WindowFrame.Target window, int ownProcessId) =>
+        IsEligible(window, ownProcessId)
+        && (window.ExStyle & WS_EX_TOOLWINDOW) == 0
+        && window.ClassName != "Ghost"
+        && !string.Equals(window.ProcessName, "NeoShell.exe", StringComparison.OrdinalIgnoreCase);
 }

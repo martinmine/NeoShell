@@ -29,6 +29,8 @@ internal sealed partial class WindowFramesPage : SettingsPageView
     private readonly ColorButton _textColor;
     private readonly ColorButton _borderColor;
     private readonly DispatcherQueueTimer _colorCommit;
+    // NeoShell.Frames.exe may be started or ended elsewhere (its task at sign-in, Task Manager).
+    private readonly DispatcherQueueTimer _programPoll;
     private FramePreviewWindow? _preview;
     // The style shown in the editor, by name.
     private string _editing;
@@ -47,11 +49,16 @@ internal sealed partial class WindowFramesPage : SettingsPageView
         _colorCommit.Interval = TimeSpan.FromMilliseconds(300);
         _colorCommit.IsRepeating = false;
         _colorCommit.Tick += (_, _) => CommitEditor();
+        _programPoll = DispatcherQueue.CreateTimer();
+        _programPoll.Interval = TimeSpan.FromSeconds(2);
+        _programPoll.Tick += (_, _) => ShowRunning();
 
+        Loaded += (_, _) => _programPoll.Start();
         // Another page, or the window closing.
         Unloaded += (_, _) =>
         {
             _colorCommit.Stop();
+            _programPoll.Stop();
             _preview?.Close();
         };
     }
@@ -72,6 +79,52 @@ internal sealed partial class WindowFramesPage : SettingsPageView
         Fill(EditStyleBox, names, EditedStyle.Name);
         LoadRules(names);
         LoadEditor();
+        _ = ShowProgramStateAsync();
+    }
+
+    /// <summary>Whether NeoShell.Frames.exe's sign-in task is there and the program runs, on the XP Luna frames card.</summary>
+    private async Task ShowProgramStateAsync()
+    {
+        bool installed = await FrameProgram.IsInstalledAsync();
+        Filling(() => LunaProgramToggle.IsOn = installed);
+        LunaProgramToggle.IsEnabled = true;
+        ShowRunning();
+    }
+
+    private void ShowRunning()
+    {
+        if (!LunaProgramToggle.IsEnabled)
+            return; // turning on or off
+        bool running = FrameProgram.IsRunning;
+        LunaProgramStatus.Text = running ? "Running" : LunaProgramToggle.IsOn ? "Not running" : "Off";
+        LunaProgramRunButton.Content = running ? "Stop" : "Start";
+        LunaProgramRunButton.IsEnabled = LunaProgramToggle.IsOn || running;
+    }
+
+    private async void LunaProgramToggle_Toggled(object sender, RoutedEventArgs e)
+    {
+        if (IsFilling)
+            return;
+        LunaProgramToggle.IsEnabled = false;
+        LunaProgramStatus.Text = LunaProgramToggle.IsOn ? "Turning on…" : "Turning off…";
+        // Asks for administrator rights; a declined prompt leaves things as they were.
+        if (LunaProgramToggle.IsOn)
+            await FrameProgram.InstallAsync();
+        else
+            await FrameProgram.UninstallAsync();
+        await ShowProgramStateAsync();
+    }
+
+    private async void LunaProgramRunButton_Click(object sender, RoutedEventArgs e)
+    {
+        LunaProgramRunButton.IsEnabled = false;
+        if (FrameProgram.IsRunning)
+            FrameProgram.Stop();
+        else
+            await FrameProgram.StartAsync();
+        // The program takes a moment to start, or to put every window back and exit.
+        await Task.Delay(TimeSpan.FromSeconds(1));
+        await ShowProgramStateAsync();
     }
 
     private static void Fill(ComboBox box, IReadOnlyList<string> names, string? selected)
@@ -171,7 +224,7 @@ internal sealed partial class WindowFramesPage : SettingsPageView
         bool preset = FramePresets.IsPreset(style.Name);
         PresetNote.Visibility = preset ? Visibility.Visible : Visibility.Collapsed;
         DeleteButton.IsEnabled = !preset;
-        foreach (Control control in new Control[] { NameBox, BackdropBox, ThemeBox, CaptionColorBox, TextColorBox, BorderColorBox, CornersBox, BasicFrameToggle })
+        foreach (Control control in new Control[] { NameBox, BackdropBox, ThemeBox, CaptionColorBox, TextColorBox, BorderColorBox, CornersBox, BasicFrameToggle, OverlayBox })
             control.IsEnabled = !preset;
         // Labels of their own, which don't grey out with their controls as headers do.
         var label = (Brush)Application.Current.Resources[preset ? "TextFillColorDisabledBrush" : "TextFillColorPrimaryBrush"];
@@ -182,6 +235,7 @@ internal sealed partial class WindowFramesPage : SettingsPageView
         ThemeBox.SelectedIndex = (int)style.Theme;
         CornersBox.SelectedIndex = (int)style.Corners;
         BasicFrameToggle.IsOn = style.BasicFrame;
+        OverlayBox.SelectedIndex = (int)style.Overlay;
         CaptionColorBox.SelectedIndex = style.CaptionColor switch { null => 0, FrameColors.Accent => 1, _ => 2 };
         TextColorBox.SelectedIndex = style.TextColor switch { null => 0, FrameColors.Contrast => 1, FrameColors.Accent => 2, _ => 3 };
         BorderColorBox.SelectedIndex = style.BorderColor switch { null => 0, FrameColors.Accent => 1, FrameColors.None => 2, _ => 3 };
@@ -210,6 +264,7 @@ internal sealed partial class WindowFramesPage : SettingsPageView
         Theme = (FrameTheme)Math.Max(0, ThemeBox.SelectedIndex),
         Corners = (FrameCorners)Math.Max(0, CornersBox.SelectedIndex),
         BasicFrame = BasicFrameToggle.IsOn,
+        Overlay = (FrameOverlay)Math.Max(0, OverlayBox.SelectedIndex),
         CaptionColor = CaptionColorBox.SelectedIndex switch { 1 => FrameColors.Accent, 2 => _captionColor.Text, _ => null },
         TextColor = TextColorBox.SelectedIndex switch { 1 => FrameColors.Contrast, 2 => FrameColors.Accent, 3 => _textColor.Text, _ => null },
         BorderColor = BorderColorBox.SelectedIndex switch { 1 => FrameColors.Accent, 2 => FrameColors.None, 3 => _borderColor.Text, _ => null },

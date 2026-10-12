@@ -95,6 +95,27 @@ public sealed record WindowInfo(
         return classIcon != 0 ? IconBitmap.FromIcon(classIcon) : null;
     }
 
+    /// <summary>
+    /// The small icon the window shows at the left of its title bar, or null. As <see cref="ReadIcon"/>, a hung window
+    /// costs up to the timeout: call it off any thread that must stay responsive.
+    /// </summary>
+    public static IconBitmap? ReadSmallIcon(nint hwnd)
+    {
+        foreach (nint type in (ReadOnlySpan<nint>)[User32.ICON_SMALL2, User32.ICON_SMALL, User32.ICON_BIG])
+        {
+            if (User32.SendMessageTimeout(hwnd, User32.WM_GETICON, type, 0, User32.SMTO_ABORTIFHUNG, 100, out nint icon) != 0
+                && icon != 0)
+            {
+                return IconBitmap.FromIcon(icon);
+            }
+        }
+
+        nint classIcon = User32.GetClassLongPtr(hwnd, User32.GCLP_HICONSM);
+        if (classIcon == 0)
+            classIcon = User32.GetClassLongPtr(hwnd, User32.GCLP_HICON);
+        return classIcon != 0 ? IconBitmap.FromIcon(classIcon) : null;
+    }
+
     private static unsafe string? ReadWindowAppId(nint hwnd)
     {
         Guid iid = typeof(IPropertyStore).GUID;

@@ -133,6 +133,20 @@ public static unsafe class WindowFrame
         return Dwmapi.DwmGetWindowAttribute(hwnd, Dwmapi.DWMWA_USE_IMMERSIVE_DARK_MODE, &dark, sizeof(int)) == 0 ? dark != 0 : null;
     }
 
+    /// <summary>
+    /// Marks the window with a property of its own (any process's window, at or below this one's integrity level), or
+    /// takes the mark away: a later run finds the windows an earlier one changed, e.g. after it crashed.
+    /// </summary>
+    public static void Mark(nint hwnd, string name, bool marked)
+    {
+        if (marked)
+            User32.SetProp(hwnd, name, 1);
+        else
+            User32.RemoveProp(hwnd, name);
+    }
+
+    public static bool IsMarked(nint hwnd, string name) => User32.GetProp(hwnd, name) != 0;
+
     /// <summary>0xAARRGGBB as DWM's <c>COLORREF</c> (0x00BBGGRR); a transparent colour as <c>DWMWA_COLOR_NONE</c>.</summary>
     internal static uint ToColorRef(uint argb) =>
         argb >> 24 == 0 ? Dwmapi.DWMWA_COLOR_NONE : ((argb & 0xFF) << 16) | (argb & 0xFF00) | ((argb >> 16) & 0xFF);

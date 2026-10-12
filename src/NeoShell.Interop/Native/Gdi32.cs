@@ -76,4 +76,27 @@ internal static unsafe partial class Gdi32
     [LibraryImport("gdi32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     public static partial bool DeleteObject(nint gdiObject);
+
+    [LibraryImport("gdi32.dll")]
+    public static partial nint CreateDIBSection(nint hdc, BITMAPINFOHEADER* info, uint usage, out void* bits, nint section, uint offset);
+
+    public const int FW_BOLD = 700;
+    public const uint ANTIALIASED_QUALITY = 4;
+
+    [LibraryImport("gdi32.dll", EntryPoint = "CreateFontW", StringMarshalling = StringMarshalling.Utf16)]
+    public static partial nint CreateFont(int height, int width, int escapement, int orientation, int weight, uint italic,
+        uint underline, uint strikeOut, uint charSet, uint outPrecision, uint clipPrecision, uint quality, uint pitchAndFamily,
+        string faceName);
+
+    public const int TRANSPARENT = 1;
+
+    [LibraryImport("gdi32.dll")]
+    public static partial int SetBkMode(nint hdc, int mode);
+
+    [LibraryImport("gdi32.dll")]
+    public static partial uint SetTextColor(nint hdc, uint color);
+
+    [LibraryImport("gdi32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static partial bool GdiFlush();
 }

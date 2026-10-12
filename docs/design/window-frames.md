@@ -5,7 +5,8 @@ colours, corners and borders, globally and per app, with presets that recall old
 glass) and styles of the user's own. Part of the [NeoShell design](../design.md).
 
 Status: **prototype built** (option A + B, title-bar-prototype branch, 2026-10-09; see
-[The prototype as built](#the-prototype-as-built)). The findings below were measured on this VM (Windows 11 25H2,
+[The prototype as built](#the-prototype-as-built)); XP's Luna drawn by overlay windows (option C) built as
+`NeoShell.Frames.exe` (2026-10-12; [Luna through overlay windows](window-frames-overlay.md#as-built)). The findings below were measured on this VM (Windows 11 25H2,
 build 26200) unless a source is named.
 
 ## What Windows lets another process change
@@ -163,6 +164,7 @@ owner's decision (a native component injected into DWM, run elevated at logon).
   | Glass (Vista-like) | Backdrop Acrylic, Theme Dark, BorderColor Accent, Corners Default | The nearest public look to Aero: blurred and translucent, but grey when inactive, no tint, glow or Vista buttons |
   | Luna (XP-like) | CaptionColor #0054E3, TextColor white, BorderColor #0831D9, Corners SmallRound | XP's blue, flat: no gradient, Trebuchet title, 25 px caption or Luna buttons |
   | Windows 7 Basic | BasicFrame | The uxtheme basic frame and Windows 7 caption buttons; title text glow glitches |
+  | XP Luna | Overlay Luna | XP's blue Luna frame drawn over the window by NeoShell.Frames.exe (option C; [Luna through overlay windows](window-frames-overlay.md)) |
 
   (Luna's colours are from XP's `luna.msstyles` blue scheme; to be checked against a reference screenshot when built.)
 
@@ -215,10 +217,11 @@ Option A + B as specified above; no injection, no new packages, no native code.
   (`DWMSBT_AUTO`, `DWMWA_COLOR_DEFAULT`, corners 0, `DWMNCRP_USEWINDOWSTYLE`, dark mode as read before the first
   apply); both return whether DWM accepted every call. Colours are 0xAARRGGBB; a transparent border colour is
   `DWMWA_COLOR_NONE`. `WindowFrame.Read` gives the facts rules and eligibility need (process, class, styles, cloaked).
-- `NeoShell/Frames/`: `FrameRules` (rule matching, eligibility), `FrameColors` (style to attributes, the colour
-  keywords `Accent`, `None` and `Contrast`, the parts to reset), `FramePresets`, `WindowFrames` (the live part,
-  created by `App` while enabled, in both run modes), `WindowFramesPage` (its page in the Settings window) and
-  `FramePreviewWindow`.
+- `NeoShell/Frames/`: `WindowFrames` (the live part, created by `App` while enabled, in both run modes),
+  `WindowFramesPage` (its page in the Settings window) and `FramePreviewWindow`. The style model moved to
+  `src/NeoShell.Frames` (2026-10-12) so NeoShell.Frames.exe reads the settings with the same code: `FrameStyle` and
+  `FrameRule`, `FrameRules` (rule matching, eligibility), `FrameColors` (style to attributes, the colour keywords
+  `Accent`, `None` and `Contrast`, the parts to reset; nothing for an overlay style) and `FramePresets`.
 - `WindowFrames` styles every top-level window at start, new ones on `Shown`/`Uncloaked`, and the foreground window on
   `Foreground` and once more 250 ms later (see above). It remembers what it gave each window; on a settings change it
   restyles all, first resetting parts the new style leaves unset (a part set either way is overwritten, so an app's
@@ -242,11 +245,17 @@ Option A + B as specified above; no injection, no new packages, no native code.
   and border colours (Windows default / Accent / Black or white / No border / Custom with a colour picker), corners,
   basic frame. Preview opens a NeoShell window with Windows' standard title bar beside the editor, wearing the edited
   style live. Mica backdrop, content drawn into the title bar, follows the app light/dark mode live; AutomationIds on
-  every control (`WindowFramesNavigationItem`, `WindowFramesToggle`, `GlobalStyleBox`, `AddRuleButton`, `AddRuleMenuItem`,
+  every control (`WindowFramesNavigationItem`, `WindowFramesToggle`, `GlobalStyleBox`, `LunaProgramStatus`,
+  `LunaProgramRunButton`, `LunaProgramToggle`, `AddRuleButton`, `AddRuleMenuItem`,
   `FrameRule`, `RuleClassBox`, `RuleStyleBox`, `RemoveRuleButton`, `EditStyleBox`, `PreviewToggle`,
   `DuplicateStyleButton`, `DeleteStyleButton`, `StyleNameBox`, `BackdropBox`, `ThemeBox`, `CaptionColorBox`,
   `CaptionColorButton`, `CaptionColorPicker`, the same for `TextColor` and `BorderColor`, `CornersBox`,
-  `BasicFrameToggle`).
+  `BasicFrameToggle`, `OverlayBox`).
+- Since 2026-10-12 the page also has the **XP Luna frames** card: NeoShell.Frames.exe's state (Running, Not running,
+  Off; polled every 2 s), Start/Stop, and a toggle that installs or removes its elevated sign-in task (a UAC prompt);
+  and the editor's **Drawn frame** box (None, XP Luna) for styles of one's own. The preset "XP Luna" has only
+  `Overlay = Luna`; NeoShell's `WindowFrames` sets nothing on its windows and puts back the caption colours a killed
+  program left on them ([Putting windows back](window-frames-overlay.md#putting-windows-back)).
 
 ### What each preset looks like (measured)
 

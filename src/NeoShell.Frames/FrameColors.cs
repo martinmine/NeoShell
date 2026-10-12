@@ -1,6 +1,5 @@
 using System.Globalization;
 using NeoShell.Interop.Windowing;
-using NeoShell.Settings;
 
 namespace NeoShell.Frames;
 
@@ -17,6 +16,9 @@ public static class FrameColors
     /// <param name="accent">The accent colour, 0xAARRGGBB.</param>
     public static FrameAttributes ToAttributes(FrameStyle style, uint accent)
     {
+        // An overlay style is NeoShell.Frames.exe's to apply, attributes included.
+        if (style.Overlay != FrameOverlay.None)
+            return new FrameAttributes();
         uint? caption = Resolve(style.CaptionColor, accent);
         return new FrameAttributes
         {

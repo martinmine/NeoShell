@@ -23,12 +23,13 @@ public enum WindowEvent
 
 /// <summary>
 /// WinEvents about top-level windows of other processes, which catch what shell hooks miss (windows shown, hidden,
-/// cloaked, retitled). Create it on the UI thread: the events arrive through that thread's message loop.
+/// cloaked, retitled). Create it on a thread with a message loop: the events arrive through it, on that thread.
 /// </summary>
 public sealed unsafe class WindowEvents : IDisposable
 {
-    // The hooks a callback belongs to; only touched on the UI thread.
-    private static readonly Dictionary<nint, WindowEvents> s_byHook = [];
+    // The hooks a callback belongs to, per thread: a hook calls back on the thread that set it.
+    [ThreadStatic]
+    private static Dictionary<nint, WindowEvents>? s_byHook;
 
     private static readonly (WindowEvent First, WindowEvent Last)[] s_ranges =
     [
@@ -47,17 +48,21 @@ public sealed unsafe class WindowEvents : IDisposable
     {
     }
 
-    /// <summary>Only the events from <paramref name="first"/> to <paramref name="last"/>.</summary>
-    public WindowEvents(WindowEvent first, WindowEvent last)
-        : this([(first, last)])
+    /// <summary>
+    /// Only the events from <paramref name="first"/> to <paramref name="last"/>, and only about the windows of the
+    /// thread <paramref name="threadId"/> if one is given.
+    /// </summary>
+    public WindowEvents(WindowEvent first, WindowEvent last, uint threadId = 0)
+        : this([(first, last)], threadId)
     {
     }
 
-    private WindowEvents((WindowEvent First, WindowEvent Last)[] ranges)
+    private WindowEvents((WindowEvent First, WindowEvent Last)[] ranges, uint threadId = 0)
     {
+        s_byHook ??= [];
         foreach ((WindowEvent first, WindowEvent last) in ranges)
         {
-            nint hook = User32.SetWinEventHook((uint)first, (uint)last, 0, &OnEvent, 0, 0,
+            nint hook = User32.SetWinEventHook((uint)first, (uint)last, 0, &OnEvent, 0, threadId,
                 User32.WINEVENT_OUTOFCONTEXT | User32.WINEVENT_SKIPOWNPROCESS);
             if (hook == 0)
             {
@@ -77,7 +82,7 @@ public sealed unsafe class WindowEvents : IDisposable
         foreach (nint hook in _hooks)
         {
             User32.UnhookWinEvent(hook);
-            s_byHook.Remove(hook);
+            s_byHook?.Remove(hook);
         }
         _hooks.Clear();
     }
@@ -92,7 +97,7 @@ public sealed unsafe class WindowEvents : IDisposable
 
         try
         {
-            if (s_byHook.TryGetValue(hook, out WindowEvents? events) && User32.GetAncestor(hwnd, User32.GA_ROOT) == hwnd)
+            if (s_byHook is not null && s_byHook.TryGetValue(hook, out WindowEvents? events) && User32.GetAncestor(hwnd, User32.GA_ROOT) == hwnd)
                 events.Raised?.Invoke((WindowEvent)eventType, hwnd);
         }
         catch (Exception ex)

@@ -670,8 +670,17 @@ Built as the spec's option A + B: NeoShell's own `DwmSetWindowAttribute` calls, 
       tool frames; a renderer drawing it in code from the numbers (spike folder, `LunaFrame`, `LunaArt`), compared
       with XP over 29 windows and states: 99.65% of frame pixels within 8 levels, 76% identical — not measured: DPI
       other than 96, a disabled close button, a pressed button of an inactive window
-- [ ] Build the overlay helper — the owner agreed (separate elevated program, a logon task, art drawn in code); not
-      run live yet: other DPI scales, a second monitor, virtual desktops
+- [x] Build the overlay helper (2026-10-12; design/window-frames-overlay.md, "As built"): `NeoShell.Frames.exe`
+      (src/NeoShell.Frames), one overlay thread per app UI thread, five owned layered windows per app window, Luna's
+      colours on the app's caption, z-order checked, overlays parked through minimize and restore, apps with their own
+      title bar, tool windows and ghosts left alone, hidden while the app hangs; the elevated sign-in task, Start/Stop
+      and on/off from the Settings page, settings.json plus Reload/Exit messages; windows put back on exit and after a
+      crash; the renderer and the style model moved in; unit tests for layout, rendering against XP's numbers,
+      buttons, settings and the task. Live: moves (no frame behind at 60 fps), resizes (a frame behind in about a
+      third), maximize/restore/minimize, activation, dialogs, message box, a hang and its ghost, elevated apps, rules
+      and on/off from Settings, Stop/Start, exit and kill; compared with XP's screenshots (99.85% within 8 levels on
+      Notepad) — not run live: the UAC prompt from the page (secure desktop on the VM; `/install` and `/uninstall` run
+      elevated), other DPI scales (96 DPI art drawn unscaled), a second monitor, virtual desktops, tool windows
 
 ## Settings window
 

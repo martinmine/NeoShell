@@ -1,3 +1,4 @@
+using NeoShell.Frames;
 using NeoShell.Settings;
 
 namespace NeoShell.Tests;

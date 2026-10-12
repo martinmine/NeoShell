@@ -33,7 +33,7 @@ shell-mode testing): a killed Explorer stays down, so start `explorer.exe` again
 - Nullable reference types and implicit usings are on. Treat warnings as errors.
 - Comments explain *why*, not *what*. Match the surrounding code's style and comment density.
 
-## The two projects
+## The projects
 
 - **`src/NeoShell`** — the WinUI app: windows, controls, view models, app logic. It never declares a P/Invoke.
 - **`src/NeoShell.Interop`** — every call into Windows that isn't the BCL or WinUI: Win32 (`[LibraryImport]`),
@@ -43,6 +43,11 @@ shell-mode testing): a killed Explorer stays down, so start `explorer.exe` again
     using `nint` for window handles.
   - Hand-written interop only — no CsWin32.
   - `InternalsVisibleTo` the test project so parsing logic can be tested.
+- **`src/NeoShell.Frames`** — `NeoShell.Frames.exe`, a program of its own (copied next to NeoShell.exe) that draws XP's
+  Luna frame over other apps' windows with owned layered windows: plain Win32 message loops (one thread per app UI
+  thread), no WinUI, run elevated by its sign-in task. Its Windows calls go through `NeoShell.Interop` like the app's;
+  it never declares a P/Invoke either. It also holds the frame style model (`FrameStyle`, rules, presets) NeoShell's
+  settings use, which is why NeoShell references it. Spec: docs/design/window-frames-overlay.md.
 
 Callbacks from COM/Win32 that arrive on other threads (Core Audio, WinRT events) are marshalled to the UI thread
 by the app with `DispatcherQueue.TryEnqueue`. Message-only windows are created on the UI thread so their messages
@@ -81,17 +86,24 @@ src/NeoShell/                 WinUI app
   Widgets/                    Widget sidebar, floating widgets, and the widgets (profile, resources, pictures, media,
                               weather, notes, wireless devices, about Windows)
   Frames/                     Window frames (prototype): other apps' title bars restyled through DWM attributes, by
-                              style and app rule; its page in the Settings window and the preview window
+                              style and app rule; its page in the Settings window (also NeoShell.Frames.exe's card)
+                              and the preview window
   Settings/                   Settings record + JSON load/save (%LOCALAPPDATA%\NeoShell\settings.json); the Settings
                               window (Start's NeoShell settings button, "Taskbar settings"), its pages and cards
+src/NeoShell.Frames/          NeoShell.Frames.exe: FrameHost (which windows), AppThread (an overlay thread per app
+                              thread), LunaTracker (one window's overlays), LunaLayout, LunaFrame + LunaArt (the
+                              renderer and XP's numbers), FrameProgram + LogonTask (talking to NeoShell, the task);
+                              the frame style model (FrameStyle, FrameRules, FramePresets, FrameColors)
 src/NeoShell.Interop/
   Native/                     LibraryImport: User32, Shell32, Dwmapi, Kernel32, Advapi32, PowrProf, Comctl32, Pdh, Hid,
                               Wintrust, Combase, Rasapi32, BluetoothApis
   Com/                        Core Audio, IShellItem/IShellItemImageFactory, IPropertyStore, ITaskbarList, ISearchQueryHelper,
                               IQuietHoursSettings, IHWEventHandler
   Windowing/                  MessageWindow, WindowSubclass, AppBar, ShellHook, DwmThumbnail, KeyboardHook, WindowInfo,
-                              WindowFrame (DWM attributes on other apps' frames)
-  Imaging/                    IconBitmap (BGRA pixels), ScreenCapture (screen pixels, clipboard, PNG), Pictures (decode)
+                              WindowFrame (DWM attributes on other apps' frames), OverlayWindow (owned layered popups),
+                              MessageLoop (a Win32 loop with posted work and timers), WindowCaption, CaptionInput
+  Imaging/                    IconBitmap (BGRA pixels), ScreenCapture (screen pixels, clipboard, PNG), Pictures (decode),
+                              GdiText (GDI text on pixels)
   Tray/                       TrayHost (owns Shell_TrayWnd), NOTIFYICONDATA parsing (32/64-bit)
   Audio/                      AudioEndpoint (volume/mute + events), mixer, outputs
   Network/                    NetworkStatus (WinRT NetworkInformation), WifiNetworks (WinRT WiFiAdapter), VpnConnections
@@ -208,13 +220,19 @@ the desktop and back. Full spec in docs/design/widgets.md.
   freeform masks, Snipping Tool's settings and editor link, the Print Screen key), what a focus session changes in
   Explorer's settings, the taskbar flashing setting, toast texts naming app resources, how many entries a jump list's parts show,
   toast content (images, inputs, buttons and their invoke IDs, layout and timing), window frames (rule priority,
-  eligibility, style to DWM attributes, colours, the parts reset, presets, their settings), the Settings window's
-  pages, version and run mode texts.
+  eligibility, style to DWM attributes, colours, the parts reset, presets, their settings), XP Luna (the renderer's
+  caption rows, corners, buttons, faces, borders, titles and icons against XP's numbers; the overlays' layout and
+  buttons; which windows the frames program draws over; the settings it reads; its sign-in task), the Settings
+  window's pages, version and run mode texts.
 - The Settings window's controls all have AutomationIds (`<Page>NavigationItem`, `SettingsPageTitle`, `SearchModeBox`,
   `TaskbarAlignmentBox`, `AutoHideCheckBox`, `WidgetSidebarWidthSlider`…; list in docs/design/settings-window.md). Open
   it by invoking `StartButton` then `NeoShellSettingsButton`; select pages through the items' SelectionItem pattern.
 - When testing the UI live, drive it through UI Automation (set `AutomationProperties.AutomationId` on interactive
   controls). Never use global keystrokes like SendKeys: they go to whichever window has focus.
+- NeoShell.Frames.exe runs elevated from the task `NeoShell\Window frames` (`schtasks /Run` starts it from any
+  integrity; `NeoShell.Frames.exe /install` and `/uninstall` from an elevated shell add and remove the task). Stop it
+  with `NeoShell.Frames.exe /exit` (or Stop on the Window frames page) before building: it locks its DLLs in NeoShell's
+  output folder. Its log is `frames-yyyy-MM-dd.log` beside NeoShell's.
 - Always stop a running NeoShell with `/exit` (or its taskbar menu), never by killing the process. A kill leaves the
   AppBar space reserved and, in shell mode, the user without a shell.
 

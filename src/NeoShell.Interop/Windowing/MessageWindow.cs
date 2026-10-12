@@ -22,10 +22,10 @@ public sealed unsafe class MessageWindow : IDisposable
     /// A hidden window under <paramref name="parent"/>: 0 makes a top-level window, which <c>FindWindow</c> finds and
     /// system broadcasts reach, unlike a message-only one.
     /// </summary>
-    internal MessageWindow(string className, MessageHandler handler, nint parent, uint style, uint exStyle)
+    internal MessageWindow(string className, MessageHandler handler, nint parent, uint style, uint exStyle, uint classStyle = 0)
     {
         _handler = handler;
-        RegisterClass(className);
+        RegisterClass(className, classStyle);
 
         _self = GCHandle.Alloc(this);
         Handle = User32.CreateWindowEx(
@@ -44,6 +44,13 @@ public sealed unsafe class MessageWindow : IDisposable
     /// <summary>Finds a message-only window by class name, e.g. one owned by another process. Returns 0 if none.</summary>
     public static nint Find(string className) => User32.FindWindowEx(User32.HWND_MESSAGE, 0, className, null);
 
+    /// <summary>
+    /// Lets <paramref name="message"/> through from processes of lower integrity (UIPI drops their messages to an
+    /// elevated process's windows otherwise).
+    /// </summary>
+    public void AllowFromLowerIntegrity(uint message) =>
+        User32.ChangeWindowMessageFilterEx(Handle, message, User32.MSGFLT_ALLOW, null);
+
     public void Dispose()
     {
         if (Handle == 0)
@@ -54,13 +61,14 @@ public sealed unsafe class MessageWindow : IDisposable
         _self.Free();
     }
 
-    private static void RegisterClass(string className)
+    private static void RegisterClass(string className, uint classStyle)
     {
         fixed (char* name = className)
         {
             var windowClass = new User32.WNDCLASSEXW
             {
                 cbSize = (uint)sizeof(User32.WNDCLASSEXW),
+                style = classStyle,
                 lpfnWndProc = &WindowProc,
                 hInstance = Kernel32.GetModuleHandle(null),
                 lpszClassName = name,
