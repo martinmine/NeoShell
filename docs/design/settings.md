@@ -10,6 +10,7 @@ The user changes them in the [Settings window](settings-window.md) (and by dragg
 edge).
 
 ```
+Theme                Windows11 (the taskbar's and Start's look, see Themes)
 TaskbarAlignment     Center | Left
 CombineButtons       Always | WhenFull | Never
 AutoHide             bool

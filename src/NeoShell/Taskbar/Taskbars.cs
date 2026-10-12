@@ -12,7 +12,7 @@ using NeoShell.Interop.Tray;
 using NeoShell.Settings;
 using NeoShell.Snap;
 using NeoShell.Tray;
-using NeoShell.StartMenu;
+using NeoShell.Themes;
 using Windows.Graphics;
 using Windows.UI;
 
@@ -27,7 +27,7 @@ internal sealed class Taskbars : IDisposable
     private readonly Action _exit;
     private readonly Action _switchToExplorer;
     private readonly ShowDesktop _showDesktop = new();
-    private readonly List<TaskbarWindow> _windows = [];
+    private readonly List<ITaskbarView> _windows = [];
     // Explorer follows its clock settings as Settings writes them, with no message.
     private readonly RegistryWatcher _clockSettingsWatcher = new(ClockSettings.ExplorerAdvancedKey);
     private readonly RegistryWatcher _additionalClocksWatcher = new(ClockSettings.AdditionalClocksKey, subtree: true);
@@ -35,11 +35,11 @@ internal sealed class Taskbars : IDisposable
     private ElementTheme _theme = SystemTheme.Read();
     private Color? _accent = SystemTheme.ReadAccent();
     private ShellSettings _windowSettings;
-    private StartMenuWindow? _startMenu;
+    private IStartMenuView? _startMenu;
     private FocusSession? _focus;
     private ClockFlyout? _clockFlyout;
     // The taskbar the notification center and calendar last opened on: its clock keeps its plate while they're open.
-    private TaskbarWindow? _clockFlyoutTaskbar;
+    private ITaskbarView? _clockFlyoutTaskbar;
     private ToastPopups? _toasts;
     // Other apps' app bars, served with the tray.
     private AppBars? _appBars;
@@ -145,7 +145,7 @@ internal sealed class Taskbars : IDisposable
             _appBars = new AppBars(Tray, () => PrimaryWindow?.ScreenBounds, () => _windowSettings.AutoHide);
         }
         // Created up front, so it opens instantly and its app catalog is already loaded.
-        _startMenu = new StartMenuWindow(this);
+        _startMenu = ThemeViews.CreateStartMenu(Settings.Current.Theme, this);
         Notifications = new NotificationCenter();
         _focus = new FocusSession(Notifications, asShell: RunMode == RunMode.Shell);
         _clockFlyout = new ClockFlyout(Notifications, _focus, Settings, RunMode);
@@ -190,7 +190,7 @@ internal sealed class Taskbars : IDisposable
     }
 
     /// <summary>Opens Start above <paramref name="taskbar"/>, or closes it if it's open.</summary>
-    public void ToggleStartMenu(TaskbarWindow taskbar)
+    public void ToggleStartMenu(ITaskbarView taskbar)
     {
         if (_startMenu is null)
             return;
@@ -202,7 +202,7 @@ internal sealed class Taskbars : IDisposable
         else if (!_startMenu.WasJustDeactivated)
         {
             taskbar.Reveal();
-            _startMenu.Show(taskbar.Monitor, taskbar.ScreenBounds, taskbar.Handle, Settings.Current.TaskbarAlignment == TaskbarAlignment.Center, _theme, _accent);
+            _startMenu.Show(taskbar);
         }
     }
 
@@ -263,7 +263,7 @@ internal sealed class Taskbars : IDisposable
     public void ToggleQuickLinks() => PrimaryWindow?.ToggleQuickLinks();
 
     /// <summary>Opens the notification center and calendar at the right of <paramref name="taskbar"/>, or closes them.</summary>
-    public void ToggleClockFlyout(TaskbarWindow taskbar)
+    public void ToggleClockFlyout(ITaskbarView taskbar)
     {
         if (_clockFlyout is null)
             return;
@@ -282,7 +282,7 @@ internal sealed class Taskbars : IDisposable
 
     private void ShowClockOpen()
     {
-        foreach (TaskbarWindow window in _windows)
+        foreach (ITaskbarView window in _windows)
             window.ShowClockOpen(_clockFlyout?.IsOpen == true && window == _clockFlyoutTaskbar);
     }
 
@@ -342,7 +342,7 @@ internal sealed class Taskbars : IDisposable
     /// <summary>The primary taskbar's window, for what needs a window of NeoShell's (the clipboard); 0 when none.</summary>
     public nint PrimaryHandle => PrimaryWindow?.Handle ?? 0;
 
-    private TaskbarWindow? PrimaryWindow => _windows.FirstOrDefault(window => window.Monitor.IsPrimary) ?? _windows.FirstOrDefault();
+    private ITaskbarView? PrimaryWindow => _windows.FirstOrDefault(window => window.Monitor.IsPrimary) ?? _windows.FirstOrDefault();
 
     public void SwitchToExplorer() => _switchToExplorer();
 
@@ -428,9 +428,11 @@ internal sealed class Taskbars : IDisposable
 
     private void OnSettingsChanged()
     {
-        // Where the taskbars go and how they're laid out needs new windows; the backdrop and buttons change in place.
+        // Where the taskbars go and how they're laid out needs new windows, as does another theme; the backdrop and
+        // buttons change in place.
         ShellSettings current = Settings.Current;
-        if (current.TaskbarAlignment != _windowSettings.TaskbarAlignment
+        if (current.Theme != _windowSettings.Theme
+            || current.TaskbarAlignment != _windowSettings.TaskbarAlignment
             || current.ShowOnAllDisplays != _windowSettings.ShowOnAllDisplays
             || current.AutoHide != _windowSettings.AutoHide)
         {
@@ -438,7 +440,7 @@ internal sealed class Taskbars : IDisposable
         }
         else
         {
-            foreach (TaskbarWindow window in _windows)
+            foreach (ITaskbarView window in _windows)
                 window.SetBackdrop(current.TaskbarBackdrop);
             RefreshTasks();
         }
@@ -446,7 +448,7 @@ internal sealed class Taskbars : IDisposable
 
     private void RefreshTasks()
     {
-        foreach (TaskbarWindow window in _windows)
+        foreach (ITaskbarView window in _windows)
         {
             window.RefreshTasks();
             window.RefreshTray();
@@ -470,7 +472,7 @@ internal sealed class Taskbars : IDisposable
         nint monitor = candidate ? TopLevelWindows.MonitorOf(foreground) : 0;
         RectInt32 bounds = candidate ? TopLevelWindows.GetBounds(foreground) : default;
 
-        foreach (TaskbarWindow window in _windows)
+        foreach (ITaskbarView window in _windows)
         {
             bool fullScreen = candidate && window.Monitor.Handle == monitor
                 && (Tracker.IsMarkedFullScreen(foreground) || TaskbarLayout.IsFullScreen(bounds, window.Monitor.Bounds));
@@ -488,7 +490,7 @@ internal sealed class Taskbars : IDisposable
     private void UpdateClocks()
     {
         ClockSettings = ClockSettings.Read();
-        foreach (TaskbarWindow window in _windows)
+        foreach (ITaskbarView window in _windows)
             window.UpdateClock();
     }
 
@@ -500,7 +502,7 @@ internal sealed class Taskbars : IDisposable
             return;
 
         SearchMode = mode;
-        foreach (TaskbarWindow window in _windows)
+        foreach (ITaskbarView window in _windows)
             window.SetSearchMode(mode);
     }
 
@@ -539,7 +541,7 @@ internal sealed class Taskbars : IDisposable
             }
             else
             {
-                foreach (TaskbarWindow window in _windows)
+                foreach (ITaskbarView window in _windows)
                 {
                     window.SetTheme(_theme, _accent);
                     window.UpdateClock();
@@ -558,14 +560,16 @@ internal sealed class Taskbars : IDisposable
         CloseWindows();
 
         bool autoHideChanged = Settings.Current.AutoHide != _windowSettings.AutoHide;
+        if (Settings.Current.Theme != _windowSettings.Theme)
+            RecreateStartMenu();
         _windowSettings = Settings.Current;
         IReadOnlyList<DisplayMonitor> monitors =
             TaskbarLayout.MonitorsWithTaskbar(DisplayMonitor.GetAll(), _windowSettings.ShowOnAllDisplays);
         foreach (DisplayMonitor monitor in monitors)
         {
-            var window = new TaskbarWindow(this, monitor, _windowSettings, _theme, _accent);
+            ITaskbarView window = ThemeViews.CreateTaskbar(_windowSettings.Theme, this, monitor, _windowSettings);
             window.RefreshTasks();
-            window.AppWindow.Show(activateWindow: false);
+            window.Show();
             _windows.Add(window);
             if (monitor.IsPrimary)
                 Tray?.SetTaskbarBounds(window.ScreenBounds);
@@ -579,9 +583,17 @@ internal sealed class Taskbars : IDisposable
             _appBars?.NotifyStateChange();
     }
 
+    // Start is made once per theme (it loads the app catalog up front, to open at once).
+    private void RecreateStartMenu()
+    {
+        _startMenu?.Hide();
+        _startMenu?.Close();
+        _startMenu = ThemeViews.CreateStartMenu(Settings.Current.Theme, this);
+    }
+
     private void CloseWindows()
     {
-        foreach (TaskbarWindow window in _windows)
+        foreach (ITaskbarView window in _windows)
             window.Shut();
         _windows.Clear();
     }

@@ -4,6 +4,7 @@ using Microsoft.UI.Xaml.Controls;
 using NeoShell.Interop.Shell;
 using NeoShell.Logging;
 using NeoShell.Settings;
+using NeoShell.Themes;
 
 namespace NeoShell.Taskbar;
 
@@ -14,7 +15,7 @@ namespace NeoShell.Taskbar;
 internal static class QuickLinkMenu
 {
     /// <param name="taskbar">The taskbar the menu belongs to; the Run dialog opens above its left end.</param>
-    public static MenuFlyout Create(Taskbars owner, TaskbarWindow taskbar)
+    public static MenuFlyout Create(Taskbars owner, ITaskbarView taskbar)
     {
         RunMode mode = owner.RunMode;
         // Windows names the item after Terminal when it's installed (its alias is on the path), else PowerShell.

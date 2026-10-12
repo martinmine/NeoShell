@@ -14,6 +14,7 @@ Windows 11 surface they copy has.
 | Automatically hide (`AutoHide`) | taskbar menu | Taskbar > Taskbar behaviors | NeoShell's |
 | Show on all displays (`ShowOnAllDisplays`) | taskbar menu | Taskbar > Taskbar behaviors | NeoShell's |
 | Combine buttons (`CombineButtons`) | taskbar menu | Taskbar > Taskbar behaviors | NeoShell's |
+| Theme (`Theme`) | — (new, [Themes](themes.md)) | Taskbar > NeoShell | NeoShell's own |
 | Taskbar backdrop (`TaskbarBackdrop`) | taskbar menu | Taskbar > NeoShell | NeoShell's own (no Explorer counterpart) |
 | Search (`SearchboxTaskbarMode`) | taskbar menu | Taskbar > Taskbar items | Windows' (Explorer follows the same value) |
 | Widgets (`ShowWidgetSidebar`) | taskbar menu | Taskbar > Taskbar items, and Widgets | NeoShell's |
@@ -100,7 +101,8 @@ Window: `SettingsNavigation`, `<Page>NavigationItem` (`TaskbarNavigationItem`, `
 `DesktopNavigationItem`, `WidgetsNavigationItem`, `WindowFramesNavigationItem`, `AboutNavigationItem`),
 `SettingsPageTitle`, `SettingsPageScroller`. Taskbar: `TaskbarItemsExpander`, `SearchModeBox`, `ShowWidgetsToggle`,
 `OtherTrayIconsExpander`, `HiddenIconMenuToggle`, `TaskbarBehaviorsExpander`, `TaskbarAlignmentBox`,
-`AutoHideCheckBox`, `AllDisplaysCheckBox`, `CombineButtonsBox`, `TaskbarBackdropBox`, `WindowsTaskbarSettingsLink`.
+`AutoHideCheckBox`, `AllDisplaysCheckBox`, `CombineButtonsBox`, `ThemeBox`, `TaskbarBackdropBox`,
+`WindowsTaskbarSettingsLink`.
 Start: `ResetStartSizeButton`, `WindowsStartSettingsLink`, `StartFoldersLink`. Desktop: `BackgroundSettingsLink`,
 `DesktopIconSettingsLink`. Widgets: `WidgetSidebarToggle`, `WidgetPanelToggle`, `WidgetSidebarWidthSlider`. Window
 frames: as listed in [Window frames](window-frames.md). About: `NeoShellVersionText`, `RunModeText`,

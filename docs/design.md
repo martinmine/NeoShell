@@ -20,6 +20,7 @@ The architecture, and every part of Windows NeoShell uses, is in [architecture.m
   is the shell.
 - Start's Quick Link menu (right-click Start, Win+X) and, while NeoShell is the shell, Alt+Tab, Explorer's other
   Win+ shortcuts, Snap layouts (Win+Z) and screenshots (Win+PrtScn, Win+Shift+S).
+- Themes: the taskbar and Start as Windows 11's (the default) or, next, Windows XP's.
 - A widget sidebar, as Windows Vista's: profile and clock, resource usage, pictures, now playing, weather, notes and
   wireless devices' batteries, docked along the right of the screen or dragged out to float on the desktop.
 
@@ -74,6 +75,9 @@ Each area has its own file in [design/](design/):
   `IDesktopWallpaper` and Windows spotlight.
 - [Desktop icons](design/desktop-icons.md) — The desktop icons: contents, order and places, view settings, drag and
   drop, menus, undo and rename.
+- [Themes](design/themes.md) — What a theme replaces (the taskbar's and Start's views) and what stays shared, the
+  setting and switching live, the seams (`ITaskbarView`, `IStartMenuView`, `TaskbarDock`), adding a theme, and what
+  the XP theme needs.
 - [Taskbar](design/taskbar.md) — The taskbar window (placement, display changes, flyouts and menus, the Quick Link
   menu), its layout, window tracking and task buttons.
 - [Taskbar: pinned apps, jump lists and thumbnails](design/taskbar-apps.md) — Pinned apps, jump lists, thumbnails,

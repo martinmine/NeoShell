@@ -17,6 +17,7 @@ using NeoShell.Interop.Windowing;
 using NeoShell.Logging;
 using NeoShell.Settings;
 using NeoShell.Taskbar;
+using NeoShell.Themes;
 using System.Numerics;
 using Windows.Foundation;
 using Windows.Graphics;
@@ -45,10 +46,10 @@ internal sealed class StartGroup(string key, IEnumerable<StartItem> items) : Lis
 /// <summary>
 /// The Start menu: pinned apps and folders of them, All apps (by category, or by name as a grid or a list), search over
 /// apps and the Windows Search index,
-/// the user, Switch to Explorer, the folders chosen for Start and the power button. Created once and shown above
-/// whichever taskbar opened it.
+/// the user, Switch to Explorer, the folders chosen for Start and the power button: Windows 11's Start (see
+/// <see cref="IStartMenuView"/>). Created once per theme and shown above whichever taskbar opened it.
 /// </summary>
-internal sealed partial class StartMenuWindow : Window
+internal sealed partial class StartMenuWindow : Window, IStartMenuView
 {
     private const int MaxAppResults = 8;
     private const int MaxFileResults = 20;
@@ -259,10 +260,14 @@ internal sealed partial class StartMenuWindow : Window
 
     /// <summary>
     /// Opens above <paramref name="taskbar"/>: centred on the monitor, or at its left like the taskbar items. It flies
-    /// out from behind <paramref name="taskbarWindow"/>.
+    /// out from behind the taskbar, in its theme and accent colour.
     /// </summary>
+    public void Show(ITaskbarView taskbar) => Show(
+        taskbar.Monitor, taskbar.ScreenBounds, taskbar.Handle, _owner.Settings.Current.TaskbarAlignment == TaskbarAlignment.Center,
+        _owner.Theme, _owner.Accent);
+
     /// <param name="accent">Start's colour when Windows shows the accent colour on Start and taskbar.</param>
-    public void Show(DisplayMonitor monitor, RectInt32 taskbar, nint taskbarWindow, bool centered, ElementTheme theme, Color? accent)
+    private void Show(DisplayMonitor monitor, RectInt32 taskbar, nint taskbarWindow, bool centered, ElementTheme theme, Color? accent)
     {
         // Opened again while still flying in: from where it is, as it was.
         bool closing = _closing;

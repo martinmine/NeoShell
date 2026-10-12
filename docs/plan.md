@@ -695,3 +695,19 @@ NeoShell's own settings in one window in the style of Windows 11's Settings app 
       moved to the Taskbar page. Sidebar menu: Add widget and Widget settings; the panel background moved to Widgets
 - [x] Unit tests (pages, version text, run mode texts, the settings round trip); live in both run modes — not run
       live: About's Switch to Explorer (Start's code), Windows' Settings links as the shell
+
+## Themes
+
+NeoShell's taskbar and Start in the look of other Windows versions, over the same behaviour (design/themes.md).
+
+- [x] Refactor for themes (2026-10-12): `ShellSettings.Theme` (Windows 11 by default) chosen in Settings > Taskbar,
+      switched live (the taskbars and Start are made again); the seams `ITaskbarView` and `IStartMenuView` with
+      `ThemeViews` picking each theme's views; what every theme's taskbar shares moved out of `TaskbarWindow` into
+      `TaskbarDock` (placement, app bar / work area, auto-hide, full screen, broadcasts), `TaskButtonList` (buttons
+      kept in step, clicks, Win+1…9) and `TrayIconInput` (forwarding to tray icons); unit tests for the theme choice,
+      names, the setting and a theme's taskbar height. Live: the Windows 11 taskbar, Start, Quick Settings,
+      notification center and calendar, taskbar menu, jump list, thumbnail and hidden icons pixel-identical to the
+      build before, alongside Explorer and as the shell; tray clicks, task buttons, Win+7, Win+T, auto-hide, full
+      screen; switching back and forth with a temporary second theme
+- [ ] Windows XP theme: Luna taskbar (green Start button, Quick Launch, labelled and grouped task buttons, the
+      notification area with its chevron, the clock) and XP's two-column Start menu with All Programs

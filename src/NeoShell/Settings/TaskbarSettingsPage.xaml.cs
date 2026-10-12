@@ -1,12 +1,13 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using NeoShell.Taskbar;
+using NeoShell.Themes;
 
 namespace NeoShell.Settings;
 
 /// <summary>
 /// The taskbar's settings, which its context menu held until this window: NeoShell's own (alignment, auto-hide, all
-/// displays, combining, the backdrop, widgets) and Windows' that NeoShell keeps where Explorer does (search, the hidden
+/// displays, combining, the theme, the backdrop, widgets) and Windows' that NeoShell keeps where Explorer does (search, the hidden
 /// icon menu).
 /// </summary>
 internal sealed partial class TaskbarSettingsPage : SettingsPageView
@@ -19,6 +20,8 @@ internal sealed partial class TaskbarSettingsPage : SettingsPageView
         : base(taskbars)
     {
         InitializeComponent();
+        foreach (ShellTheme theme in ShellThemes.All)
+            ThemeBox.Items.Add(ShellThemes.Name(theme));
     }
 
     protected override void Load()
@@ -31,6 +34,7 @@ internal sealed partial class TaskbarSettingsPage : SettingsPageView
         AutoHideCheckBox.IsChecked = Current.AutoHide;
         AllDisplaysCheckBox.IsChecked = Current.ShowOnAllDisplays;
         CombineBox.SelectedIndex = (int)Current.CombineButtons;
+        ThemeBox.SelectedIndex = ShellThemes.All.ToList().IndexOf(Current.Theme);
         BackdropBox.SelectedIndex = (int)Current.TaskbarBackdrop;
     }
 
@@ -68,6 +72,13 @@ internal sealed partial class TaskbarSettingsPage : SettingsPageView
     {
         if (!IsFilling && CombineBox.SelectedIndex >= 0)
             Save(Current with { CombineButtons = (CombineButtons)CombineBox.SelectedIndex });
+    }
+
+    // The taskbars and Start are made again in the new theme.
+    private void ThemeBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (!IsFilling && ThemeBox.SelectedIndex >= 0)
+            Save(Current with { Theme = ShellThemes.All[ThemeBox.SelectedIndex] });
     }
 
     private void BackdropBox_SelectionChanged(object sender, SelectionChangedEventArgs e)

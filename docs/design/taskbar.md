@@ -9,6 +9,8 @@ and task buttons. Part of the [NeoShell design](../design.md).
 
 - One `TaskbarWindow` per monitor (setting: show on all displays), bottom edge, 48 effective pixels high, kept in
   place and topmost by `PinnedWindow`, frameless (`FramelessWindow`), `WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE`.
+  `TaskbarWindow` is Windows 11's view; the window plumbing below (placement, screen space, auto-hide, full screen,
+  broadcasts) is `TaskbarDock`, which every theme's taskbar uses ([Themes](themes.md)).
 - Screen space:
   - Alongside Explorer: registered as an AppBar with `SHAppBarMessage` (`ABM_NEW`, `ABM_QUERYPOS`, `ABM_SETPOS`,
     `ABM_REMOVE`); Explorer places it above its own taskbar and sends `ABN_POSCHANGED` when it must move.
@@ -60,7 +62,7 @@ and task buttons. Part of the [NeoShell design](../design.md).
     idle meanwhile; not explained.
 - Rect calculation (unit tested) from monitor bounds and DPI.
 - Recreated on `WM_DISPLAYCHANGE`, on `WM_DPICHANGED` to a DPI other than the monitor's, and on settings changes.
-  An old taskbar window closes as widget windows do (`TaskbarWindow.Shut`, see [Widgets](widgets.md#widgets-widgets)): its open menus and
+  An old taskbar window closes as widget windows do (`TaskbarWindow.Shut` and `TaskbarDock.Shut`, see [Widgets](widgets.md#widgets-widgets)): its open menus and
   flyouts are closed at once first and forgotten (`TaskbarFlyouts.CloseAll`: a slide would go on moving a closed
   window's popup, and the flyouts were kept, with each old taskbar, for good), then its subclasses go and moves no
   longer reach WinUI (`WindowClosing.IgnoreMoves`), its preview window likewise. T1 saw an access violation in

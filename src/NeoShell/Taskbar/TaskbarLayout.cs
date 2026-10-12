@@ -9,13 +9,14 @@ public static class TaskbarLayout
     /// <summary>Height in effective pixels, as the Windows 11 taskbar.</summary>
     public const int Height = 48;
 
-    public static int PhysicalHeight(uint dpi) => (int)Math.Round(Height * dpi / 96.0);
+    /// <param name="height">The theme's taskbar height in effective pixels.</param>
+    public static int PhysicalHeight(uint dpi, int height = Height) => (int)Math.Round(height * dpi / 96.0);
 
-    /// <summary>The strip along the bottom of the monitor.</summary>
-    public static RectInt32 Bounds(RectInt32 monitor, uint dpi)
+    /// <summary>The strip along the bottom of the monitor, <paramref name="height"/> effective pixels high.</summary>
+    public static RectInt32 Bounds(RectInt32 monitor, uint dpi, int height = Height)
     {
-        int height = PhysicalHeight(dpi);
-        return new RectInt32(monitor.X, monitor.Y + monitor.Height - height, monitor.Width, height);
+        int pixels = PhysicalHeight(dpi, height);
+        return new RectInt32(monitor.X, monitor.Y + monitor.Height - pixels, monitor.Width, pixels);
     }
 
     /// <summary>Pixels of an auto-hidden taskbar left on screen, for the pointer to find.</summary>

@@ -26,6 +26,14 @@ public sealed class TaskbarLayoutTests
     }
 
     [Fact]
+    public void A_theme_gives_its_taskbar_its_own_height()
+    {
+        // XP's taskbar is 30 effective pixels high.
+        Assert.Equal(new RectInt32(0, 1050, 1920, 30), TaskbarLayout.Bounds(new RectInt32(0, 0, 1920, 1080), 96, 30));
+        Assert.Equal(45, TaskbarLayout.PhysicalHeight(144, 30));
+    }
+
+    [Fact]
     public void Taskbar_on_a_secondary_monitor_uses_its_coordinates_and_dpi()
     {
         // A 4K monitor at 150% to the left of and above the primary one.

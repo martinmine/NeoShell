@@ -236,7 +236,7 @@ internal static class TaskbarFlyouts
 
     // Explorer's flyouts and menus take the foreground, and close when they lose it: a click on another app, even the
     // one in front. The taskbar doesn't take the foreground when clicked, so it takes it for them; it closes them and
-    // goes back to not taking it when it loses it (TaskbarWindow's Activated handler). After a click on the taskbar,
+    // goes back to not taking it when it loses it (TaskbarDock's Activated handler). After a click on the taskbar,
     // Windows lets it; after a hotkey (Win+A) the keys went to the app in front, and it takes it as Alt+Tab does.
     private static void TakeForeground(XamlRoot root)
     {

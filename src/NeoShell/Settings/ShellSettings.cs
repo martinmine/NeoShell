@@ -15,6 +15,9 @@ public enum DesktopSortOrder { Name, Size, ItemType, DateModified }
 
 public enum WidgetKind { Profile, Resources, Pictures, Media, Weather, Notes, Wireless, Windows }
 
+/// <summary>Which Windows the taskbar and Start look like (see <see cref="Themes.ShellThemes"/>).</summary>
+public enum ShellTheme { Windows11 }
+
 /// <summary>
 /// One widget: in the sidebar, in the order of <see cref="ShellSettings.Widgets"/>, or floating on the desktop. Its
 /// options are those of its kind; null ones take the widget's default.
@@ -80,6 +83,8 @@ public sealed record StartFolder(string Id, string Name, IReadOnlyList<PinnedApp
 /// </remarks>
 public sealed record ShellSettings
 {
+    /// <summary>The look of the taskbar and Start; what they do stays the same in every theme.</summary>
+    public ShellTheme Theme { get; set; } = ShellTheme.Windows11;
     public TaskbarAlignment TaskbarAlignment { get; set; } = TaskbarAlignment.Center;
     public CombineButtons CombineButtons { get; set; } = CombineButtons.Always;
     public bool AutoHide { get; set; }

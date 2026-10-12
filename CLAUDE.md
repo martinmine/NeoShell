@@ -71,13 +71,18 @@ src/NeoShell/                 WinUI app
   Logging/                    Small file logger
   Desktop/                    WallpaperWindow (one per monitor), slideshow, IDesktopWallpaper server, desktop icons and
                               their menus (every monitor)
-  Taskbar/                    TaskbarWindow, task list + grouping, pinned apps, thumbnail popup, clock
-  Tray/                       Tray area, overflow flyout, network/volume/battery/mic/input indicators, input switcher
+  Themes/                     The theme seam: ITaskbarView, IStartMenuView, ThemeViews (each theme's views),
+                              ShellThemes; other themes' views go in Themes/<Name>/
+  Taskbar/                    Taskbars, TaskbarWindow (Windows 11's view), TaskbarDock (what every theme's taskbar
+                              shares: placement, auto-hide, full screen), TaskButtonList, task list + grouping, pinned
+                              apps, thumbnail popup, clock
+  Tray/                       Tray area, TrayIconInput, overflow flyout, network/volume/battery/mic/input indicators,
+                              input switcher
   Notifications/              Notification center + calendar (two panel windows), toasts (shell mode), focus sessions
   QuickSettings/              Quick Settings: tiles, Windows' quick actions (night light, nearby sharing, hotspot, VPN,
                               rotation lock, brightness), Wi-Fi, Bluetooth, Accessibility, VPN, Nearby sharing, Cast,
                               Project and Sound output pages
-  StartMenu/                  StartMenuWindow, app list, search results, power menu
+  StartMenu/                  StartMenuWindow (Windows 11's view), app list, search results, power menu
   Switcher/                   Alt+Tab window switcher (shell mode)
   Snap/                       Snap (shell mode): layouts flyout (maximize button hover, Win+Z), Snap bar, dragging and
                               Win+arrows, Snap Assist, snap groups, the Multitasking settings
@@ -223,7 +228,7 @@ the desktop and back. Full spec in docs/design/widgets.md.
   eligibility, style to DWM attributes, colours, the parts reset, presets, their settings), XP Luna (the renderer's
   caption rows, corners, buttons, faces, borders, titles and icons against XP's numbers; the overlays' layout and
   buttons; which windows the frames program draws over; the settings it reads; its sign-in task), the Settings
-  window's pages, version and run mode texts.
+  window's pages, version and run mode texts, themes (the choice, names, the setting) and a theme's taskbar height.
 - The Settings window's controls all have AutomationIds (`<Page>NavigationItem`, `SettingsPageTitle`, `SearchModeBox`,
   `TaskbarAlignmentBox`, `AutoHideCheckBox`, `WidgetSidebarWidthSlider`…; list in docs/design/settings-window.md). Open
   it by invoking `StartButton` then `NeoShellSettingsButton`; select pages through the items' SelectionItem pattern.

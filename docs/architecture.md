@@ -40,8 +40,8 @@ flowchart TB
         Program["Program<br/>single instance, run mode, /exit, watchdog"]
         App["App<br/>creates and wires the long-lived parts"]
         subgraph SURFACES["Shell surfaces (both modes)"]
-            Taskbars["Taskbars<br/>task buttons, pinned apps, jump lists,<br/>thumbnails, clock, search"]
-            Start["Start menu<br/>apps, search, account and power menus"]
+            Taskbars["Taskbars<br/>task buttons, pinned apps, jump lists,<br/>thumbnails, clock, search;<br/>views by theme"]
+            Start["Start menu<br/>apps, search, account and power menus;<br/>view by theme"]
             TrayUI["Tray and indicators<br/>notify icons, app bars, network, volume,<br/>battery, privacy, input"]
             QS["Quick Settings<br/>tiles and pages"]
             Notif["Notification center, calendar,<br/>toasts, Do not disturb, focus"]
@@ -105,7 +105,8 @@ Walkthrough:
   (`NeoShell.exe /watch <pid>`), which starts `explorer.exe` if NeoShell ends any way but cleanly.
 - **`App`** builds the long-lived parts by hand (no DI): settings, `Wallpaper` (wallpaper windows, slideshow, desktop
   icons, the `IDesktopWallpaper` service; shell mode only), `Taskbars` (a taskbar per monitor with the tray host,
-  indicators, Start, Quick Settings, the notification center, toasts and focus sessions), the widget `Sidebar`, and in
+  indicators, Start, Quick Settings, the notification center, toasts and focus sessions; the taskbar's and Start's
+  views are the chosen theme's, over the same state, see [Themes](design/themes.md)), the widget `Sidebar`, and in
   shell mode `ShellSession` (hotkeys and the keyboard hook, Alt+Tab, Snap, snips, AutoPlay, shell service objects,
   the undo server, startup apps and session end).
 - **`NeoShell.Frames.exe`** (src/NeoShell.Frames) draws XP's Luna frame over other apps' windows with layered

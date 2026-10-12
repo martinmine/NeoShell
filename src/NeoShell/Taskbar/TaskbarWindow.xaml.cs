@@ -1,8 +1,5 @@
-using System.Collections.ObjectModel;
 using System.Diagnostics;
-using Microsoft.UI;
 using Microsoft.UI.Dispatching;
-using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
@@ -21,18 +18,18 @@ using NeoShell.Interop.Tray;
 using NeoShell.Logging;
 using NeoShell.QuickSettings;
 using NeoShell.Settings;
+using NeoShell.Themes;
 using NeoShell.Tray;
 using Windows.ApplicationModel.DataTransfer;
 using Windows.Foundation;
 using Windows.Graphics;
 using Windows.Storage;
 using Windows.UI;
-using AppBar = NeoShell.Interop.Windowing.AppBar;
 
 namespace NeoShell.Taskbar;
 
-/// <summary>The taskbar on one monitor.</summary>
-internal sealed partial class TaskbarWindow : Window
+/// <summary>Windows 11's taskbar on one monitor (see <see cref="ITaskbarView"/>, <see cref="TaskbarDock"/>).</summary>
+internal sealed partial class TaskbarWindow : Window, ITaskbarView
 {
     // Effective pixels, measured on Explorer's: left-aligned, the Start button's slot 11 in from the screen's edge, and
     // the task buttons going up to 12 short of the right-hand panel; centred, a slot a pixel wider (Start's own pixel to
@@ -45,13 +42,9 @@ internal sealed partial class TaskbarWindow : Window
 
     private readonly Taskbars _owner;
     private readonly DisplayMonitor _monitor;
-    private readonly nint _hwnd;
+    private readonly TaskbarDock _dock;
     private ShellBackdrop _backdrop;
-    private readonly FramelessWindow _frameless;
-    private readonly WindowSubclass _messages;
-    private readonly PinnedWindow _placement;
-    private readonly AppBar? _appBar;
-    private readonly ObservableCollection<TaskButton> _tasks = [];
+    private readonly TaskButtonList _tasks;
     private readonly ThumbnailPopup _thumbnails;
     private readonly MenuFlyout _quickLinks;
     private readonly DispatcherQueueTimer _hoverTimer;
@@ -91,30 +84,15 @@ internal sealed partial class TaskbarWindow : Window
     // Whether the switcher is Win+Space's, which switches when the Windows key is let go of.
     private bool _inputSwitcherCompact;
     private InputMethod? _inputMethodToSwitch;
-    private readonly DispatcherQueueTimer _trayHoverTimer;
-    private TrayIcon? _trayHovered;
-    private bool _trayPopupOpen;
-    private (TrayIcon Icon, long Time)? _lastTrayLeftDown;
+    private readonly TrayIconInput? _trayInput;
     private TrayPress? _trayPress;
     // As Explorer's tray: how far a press moves to become a drag, the dragged icon left in its place, and how fast a
     // dropped one grows in (5 frames).
     private const double TrayDragThreshold = 4;
     private const double TrayDragPlaceholderOpacity = 0.3;
     private static readonly TimeSpan TrayDropGrowDuration = TimeSpan.FromMilliseconds(83);
-    private nint _fullScreenWindow;
-    private readonly bool _autoHide;
-    private readonly DispatcherQueueTimer? _autoHideTimer;
-    private readonly DispatcherQueueTimer? _unhideTimer;
-    private readonly DispatcherQueueTimer _slideTimer;
-    private RectInt32 _shownBounds;
-    private RectInt32 _slideFrom;
-    private RectInt32 _slideTo;
-    private int _slideStep;
-    private bool _hidden;
-    private bool _isActive;
     private ElementTheme _theme;
     private Color? _accent;
-    private int _pointerAwayTicks;
     // Explorer's search setting, and the look shown, which gives way to the icon when the taskbar is full.
     private TaskbarSearchMode _searchMode;
     private TaskbarSearchMode _searchShown;
@@ -140,62 +118,12 @@ internal sealed partial class TaskbarWindow : Window
         ExitSeparator.Visibility = ExitItem.Visibility =
             owner.RunMode == RunMode.AlongsideExplorer ? Visibility.Visible : Visibility.Collapsed;
 
-        var presenter = OverlappedPresenter.Create();
-        presenter.SetBorderAndTitleBar(false, false);
-        presenter.IsResizable = false;
-        presenter.IsMaximizable = false;
-        presenter.IsMinimizable = false;
-        AppWindow.SetPresenter(presenter);
-
-        nint hwnd = _hwnd = Win32Interop.GetWindowFromWindowId(AppWindow.Id);
-        // Out of Alt+Tab, and clicking it leaves the focus in the app the user is working in.
-        WindowStyles.AddExtended(hwnd, ExtendedWindowStyles.ToolWindow | ExtendedWindowStyles.NoActivate);
-        // Win+T and the flyouts make the taskbar activatable for a while (see FocusTaskList, TaskbarFlyouts); once it's
-        // left, clicks go back to leaving the focus alone, and its flyouts close, as Explorer's do.
-        Activated += (_, e) =>
-        {
-            _isActive = e.WindowActivationState != WindowActivationState.Deactivated;
-            if (_isActive)
-                return;
-            WindowStyles.AddExtended(hwnd, ExtendedWindowStyles.NoActivate);
-            if (Root.XamlRoot is { } root)
-                TaskbarFlyouts.HideAll(root);
-        };
-        // Alt+F4 while it has the keyboard (Win+T) would close it; Explorer's taskbar asks to shut down instead.
-        AppWindow.Closing += (_, e) =>
-        {
-            e.Cancel = true;
-            owner.ShowShutDownDialog();
-        };
-        _frameless = new FramelessWindow(hwnd);
-        Peek.Exclude(hwnd);
+        _dock = new TaskbarDock(this, owner, monitor, settings, TaskbarLayout.Height,
+            busy: () => _thumbnails!.Button is not null, hiding: () => _thumbnails!.Hide());
         SystemBackdrop = _backdrop;
-        WindowTransparency.SetSeeThrough(hwnd, _backdrop.Kind is Backdrop.Translucent or Backdrop.Transparent);
-        _messages = new WindowSubclass(hwnd, OnMessage);
+        WindowTransparency.SetSeeThrough(Handle, _backdrop.Kind is Backdrop.Translucent or Backdrop.Transparent);
 
-        _autoHide = settings.AutoHide;
-        RectInt32 bounds = TaskbarLayout.Bounds(monitor.Bounds, monitor.Dpi);
-        if (_autoHide)
-        {
-            // Nothing is reserved: windows get the whole screen and the taskbar slides over them. Alongside, it sits
-            // above Explorer's taskbar, at the bottom of the work area.
-            RectInt32 area = owner.RunMode == RunMode.AlongsideExplorer ? monitor.WorkArea : monitor.Bounds;
-            bounds = TaskbarLayout.Bounds(area, monitor.Dpi);
-        }
-        else if (owner.RunMode == RunMode.AlongsideExplorer)
-        {
-            // Explorer manages the screen space and puts this bar above its own taskbar.
-            _appBar = new AppBar(hwnd);
-            bounds = _appBar.DockBottom(monitor.Bounds, bounds.Height);
-            _appBar.PositionChanged += () => _placement!.Bounds = _shownBounds = _appBar.DockBottom(monitor.Bounds, bounds.Height);
-        }
-        else
-        {
-            ShellWorkArea.ReserveBottom(monitor.Bounds, monitor.Bounds.Y + monitor.Bounds.Height - bounds.Y);
-        }
-        _shownBounds = bounds;
-        _placement = new PinnedWindow(hwnd, bounds, PinnedLayer.Topmost);
-
+        _tasks = new TaskButtonList(owner.Tracker);
         TaskList.ItemsSource = _tasks;
         foreach (FrameworkElement element in (FrameworkElement[])[StartButton, SearchButton, SearchBox, OverflowButton, EnergySaverIndicator, ShowDesktopButton])
             TaskbarToolTips.Set(element, (string)ToolTipService.GetToolTip(element));
@@ -219,7 +147,7 @@ internal sealed partial class TaskbarWindow : Window
         Root.SizeChanged += (_, _) => RefreshTasks();
         RightPanel.SizeChanged += (_, _) => RefreshTasks();
 
-        _thumbnails = new ThumbnailPopup(owner.Tracker, hwnd);
+        _thumbnails = new ThumbnailPopup(owner.Tracker, Handle);
         _thumbnails.Root.PointerEntered += (_, _) => _hideTimer!.Stop();
         _thumbnails.Root.PointerExited += (_, _) => _hideTimer!.Start();
         DispatcherQueue dispatcher = DispatcherQueue.GetForCurrentThread();
@@ -238,30 +166,9 @@ internal sealed partial class TaskbarWindow : Window
         Root.DragLeave += (_, _) => EndDragOver();
         Root.Drop += Root_Drop;
 
-        _slideTimer = CreateTimer(dispatcher, TimeSpan.FromMilliseconds(16), SlideStep);
-        _slideTimer.IsRepeating = true;
-        if (_autoHide)
-        {
-            _autoHideTimer = CreateTimer(dispatcher, TimeSpan.FromMilliseconds(250), CheckAutoHide);
-            _autoHideTimer.IsRepeating = true;
-            _autoHideTimer.Start();
-            // The pointer at the sliver left on screen brings it back, whatever window is over the sliver (a topmost
-            // one, or a maximized window's invisible border): Explorer's taskbar checks where the pointer is, every
-            // 50 ms while hidden (Taskbar.dll's unhide timer), rather than waiting for it to enter its window.
-            _unhideTimer = CreateTimer(dispatcher, TimeSpan.FromMilliseconds(50), CheckUnhide);
-            _unhideTimer.IsRepeating = true;
-        }
-
         // The tray lives on the primary taskbar only, as in Windows 11.
         _tray = monitor.IsPrimary ? owner.Tray : null;
-        _trayHoverTimer = CreateTimer(dispatcher, TimeSpan.FromMilliseconds(400), () =>
-        {
-            if (_trayHovered is { } icon)
-            {
-                _trayPopupOpen = true;
-                _tray?.Send(icon, TrayMouseEvent.HoverStart);
-            }
-        });
+        _trayInput = _tray is null ? null : new TrayIconInput(_tray);
         _indicators = monitor.IsPrimary ? owner.Indicators : null;
         if (_indicators is not null)
         {
@@ -317,112 +224,37 @@ internal sealed partial class TaskbarWindow : Window
                 _indicators.Changed -= RefreshIndicators;
                 QuickSettings.Detach();
             }
-            _autoHideTimer?.Stop();
-            _unhideTimer?.Stop();
-            _slideTimer.Stop();
-            _trayHoverTimer.Stop();
+            _trayInput?.Stop();
             _hoverTimer.Stop();
             _hideTimer.Stop();
             _dragHoverTimer.Stop();
             _thumbnails.Shut();
-            // Give the space back first, so windows can use it straight away.
-            if (_appBar is not null)
-                _appBar.Dispose();
-            else if (!_autoHide)
-                ShellWorkArea.ReserveBottom(monitor.Bounds, 0);
         };
     }
 
     /// <summary>
     /// Closes the window, its open menus and flyouts first (see <see cref="TaskbarFlyouts.CloseAll"/>), as widget
-    /// windows close: let go of and kept from WinUI's moves while closing (see <see cref="WindowClosing.IgnoreMoves"/>).
+    /// windows close: let go of and kept from WinUI's moves while closing (see <see cref="TaskbarDock.Shut"/>).
     /// </summary>
     public void Shut()
     {
         if (Root.XamlRoot is { } root)
             TaskbarFlyouts.CloseAll(root);
-        _placement.Dispose();
-        _messages.Dispose();
-        _frameless.Dispose();
-        WindowClosing.IgnoreMoves(_hwnd);
+        _dock.Shut();
         Close();
     }
 
+    public void Show() => AppWindow.Show(activateWindow: false);
+
     public DisplayMonitor Monitor => _monitor;
 
-    public nint Handle => _hwnd;
+    public nint Handle => _dock.Handle;
 
     /// <summary>Where the taskbar is on screen when shown (an auto-hidden one may be slid away), in pixels.</summary>
-    public RectInt32 ScreenBounds => _shownBounds;
+    public RectInt32 ScreenBounds => _dock.ScreenBounds;
 
     /// <summary>Slides an auto-hidden taskbar back into view.</summary>
-    public void Reveal()
-    {
-        _pointerAwayTicks = 0;
-        if (!_hidden)
-            return;
-
-        _hidden = false;
-        _unhideTimer?.Stop();
-        SlideTo(_shownBounds);
-    }
-
-    // As Explorer's: not over a full-screen app, which the taskbar makes way for, nor over a topmost window that fills
-    // the monitor (a maximized one, with nothing reserved), though over any other window.
-    private void CheckUnhide()
-    {
-        if (TaskbarLayout.RevealsAt(Cursor.Position(), _shownBounds) && _fullScreenWindow == 0
-            && !TopLevelWindows.IsTopmostWindowCovering(_monitor.Bounds))
-        {
-            Reveal();
-        }
-    }
-
-    // Auto-hide: slide away once the pointer has been off the taskbar for a moment and nothing of it is in use.
-    private void CheckAutoHide()
-    {
-        // No XamlRoot until the content's first layout, which may come after the first tick when the shell is starting:
-        // asking WinUI for the popups of none throws, and an exception in a timer's tick ends NeoShell.
-        if (_hidden || Root.XamlRoot is not { } xamlRoot)
-            return;
-
-        RectInt32 shown = _shownBounds;
-        PointInt32 pointer = Cursor.Position();
-        bool pointerOver = pointer.X >= shown.X && pointer.X < shown.X + shown.Width
-            && pointer.Y >= shown.Y && pointer.Y < shown.Y + shown.Height;
-        bool inUse = pointerOver
-            || _isActive // Win+T
-            || VisualTreeHelper.GetOpenPopupsForXamlRoot(xamlRoot).Count > 0 // menus and flyouts
-            || _thumbnails.Button is not null
-            || _owner.IsStartMenuOpen
-            || _owner.IsClockFlyoutOpen;
-        _pointerAwayTicks = inUse ? 0 : _pointerAwayTicks + 1;
-        if (_pointerAwayTicks >= 3)
-        {
-            _hidden = true;
-            _thumbnails.Hide();
-            SlideTo(TaskbarLayout.HiddenBounds(shown));
-            _unhideTimer?.Start();
-        }
-    }
-
-    private void SlideTo(RectInt32 target)
-    {
-        _slideFrom = _placement.Bounds;
-        _slideTo = target;
-        _slideStep = 0;
-        _slideTimer.Start();
-    }
-
-    private void SlideStep()
-    {
-        const int Steps = 8;
-        _slideStep++;
-        double progress = (double)_slideStep / Steps;
-        _placement.Bounds = _slideTo with { Y = (int)Math.Round(_slideFrom.Y + (_slideTo.Y - _slideFrom.Y) * progress) };
-        if (_slideStep >= Steps)
-            _slideTimer.Stop();
-    }
+    public void Reveal() => _dock.Reveal();
 
     /// <summary>
     /// Win+1…9: launches the Nth button's app, or acts like a click on it; with several windows, each press brings the
@@ -430,22 +262,21 @@ internal sealed partial class TaskbarWindow : Window
     /// </summary>
     public void ActivateTask(int index)
     {
-        if (index >= _tasks.Count)
+        if (_tasks.At(index) is not { } button)
             return;
 
         Reveal();
-        TaskButton button = _tasks[index];
         if (button.Windows.Count <= 1)
             ActivateButton(button);
         else
-            TopLevelWindows.Activate(TaskActivation.NextWindow([.. button.Windows.Select(w => w.Handle)], _owner.Tracker.Foreground));
+            _tasks.ActivateNext(button);
     }
 
     /// <summary>Win+Shift+1…9 starts another instance of the Nth button's app; Win+Ctrl+Shift+1…9 as administrator.</summary>
     public void LaunchTask(int index, bool elevated)
     {
-        if (index < _tasks.Count)
-            Launcher.Launch(_tasks[index].App, elevated);
+        if (_tasks.At(index) is { } button)
+            Launcher.Launch(button.App, elevated);
     }
 
     /// <summary>
@@ -454,18 +285,12 @@ internal sealed partial class TaskbarWindow : Window
     /// </summary>
     public void ActivateLastWindow(int index)
     {
-        if (index >= _tasks.Count)
+        if (_tasks.At(index) is not { } button)
             return;
 
-        TaskButton button = _tasks[index];
-        if (button.Windows.Count == 0)
-        {
-            Launcher.Launch(button.App);
-            return;
-        }
-        Reveal();
-        TopLevelWindows.Activate(TaskActivation.LastActiveWindow(
-            [.. button.Windows.Select(w => w.Handle)], TopLevelWindows.GetAll(), _owner.Tracker.Foreground));
+        if (button.Windows.Count > 0)
+            Reveal();
+        _tasks.ActivateLastWindow(button);
     }
 
     /// <summary>Win+Alt+1…9: the Nth button's menu (its jump list), with the keyboard in it.</summary>
@@ -515,7 +340,7 @@ internal sealed partial class TaskbarWindow : Window
             return;
 
         SystemBackdrop = _backdrop = new ShellBackdrop(kind);
-        WindowTransparency.SetSeeThrough(_hwnd, kind is Backdrop.Translucent or Backdrop.Transparent);
+        WindowTransparency.SetSeeThrough(Handle, kind is Backdrop.Translucent or Backdrop.Transparent);
         SetTheme(_theme, _accent);
     }
 
@@ -560,18 +385,7 @@ internal sealed partial class TaskbarWindow : Window
     /// Makes way for a full-screen window on this monitor (the taskbar goes just below it), or with 0 returns to the
     /// topmost band.
     /// </summary>
-    public void SetFullScreenWindow(nint window)
-    {
-        if (window == _fullScreenWindow)
-            return;
-
-        _fullScreenWindow = window;
-        if (window == 0)
-            _placement.SetLayer(PinnedLayer.Topmost);
-        else
-            _placement.SetLayer(PinnedLayer.Normal, above: window);
-        Log.Info(window == 0 ? "Full-screen app left; taskbar back on top" : $"Full-screen app 0x{window:X}; taskbar makes way");
-    }
+    public void SetFullScreenWindow(nint window) => _dock.SetFullScreenWindow(window);
 
     /// <summary>
     /// Activates the taskbar and focuses its first task button (Win+T) or its last (Win+Shift+T), or Start when
@@ -601,13 +415,7 @@ internal sealed partial class TaskbarWindow : Window
             QuickSettingsButton.Focus(FocusState.Keyboard);
     }
 
-    // A no-activate window can't become active, and only the active window gets the keyboard; once it's left, the
-    // taskbar is no-activate again (see the Activated handler).
-    private void TakeKeyboard()
-    {
-        WindowStyles.RemoveExtended(_hwnd, ExtendedWindowStyles.NoActivate);
-        TopLevelWindows.Activate(_hwnd);
-    }
+    private void TakeKeyboard() => _dock.TakeKeyboard();
 
     /// <summary>
     /// Win+X: opens the Quick Link menu above Start, with the keyboard in it for the arrow keys and Enter; closes it
@@ -668,21 +476,14 @@ internal sealed partial class TaskbarWindow : Window
     /// <summary>The button of a window on screen, or null when it has none on this taskbar.</summary>
     public RectInt32? TaskButtonBounds(nint hwnd)
     {
-        TaskButton? button = _tasks.FirstOrDefault(b => b.Windows.Any(w => w.Handle == hwnd));
+        TaskButton? button = _tasks.Of(hwnd);
         if (button is null || TaskList.ContainerFromItem(button) is not FrameworkElement { ActualWidth: > 0 } element)
             return null;
         return BoundsOnScreen(element);
     }
 
     /// <summary>An element's place on screen, in pixels.</summary>
-    private RectInt32 BoundsOnScreen(FrameworkElement element)
-    {
-        double scale = Root.XamlRoot.RasterizationScale;
-        Rect rect = element.TransformToVisual(Root).TransformBounds(new Rect(0, 0, element.ActualWidth, element.ActualHeight));
-        RectInt32 taskbar = _placement.Bounds;
-        return new RectInt32(
-            taskbar.X + (int)(rect.X * scale), taskbar.Y + (int)(rect.Y * scale), (int)(rect.Width * scale), (int)(rect.Height * scale));
-    }
+    private RectInt32 BoundsOnScreen(FrameworkElement element) => _dock.BoundsOnScreen(element);
 
     private void RefreshIndicators()
     {
@@ -846,7 +647,7 @@ internal sealed partial class TaskbarWindow : Window
         double scale = Root.XamlRoot.RasterizationScale;
         Point topLeft = ImeModeButton.TransformToVisual(Root).TransformPoint(default);
         var bounds = new RectInt32(
-            _shownBounds.X + (int)Math.Round(topLeft.X * scale), _shownBounds.Y + (int)Math.Round(topLeft.Y * scale),
+            ScreenBounds.X + (int)Math.Round(topLeft.X * scale), ScreenBounds.Y + (int)Math.Round(topLeft.Y * scale),
             (int)Math.Round(ImeModeButton.ActualWidth * scale), (int)Math.Round(ImeModeButton.ActualHeight * scale));
         _indicators?.ClickImeMode(Cursor.Position(), bounds);
     }
@@ -971,31 +772,11 @@ internal sealed partial class TaskbarWindow : Window
             return;
 
         PointerPointProperties button = e.GetCurrentPoint(element).Properties;
-        TrayMouseEvent mouseEvent;
-        if (button.IsLeftButtonPressed)
-        {
-            // Windows turns a second press within the double-click time into a double-click; so does the tray.
-            long now = Environment.TickCount64;
-            bool doubleClick = _lastTrayLeftDown is { } last && last.Icon == icon && now - last.Time <= NotifyIconInput.DoubleClickTime;
-            mouseEvent = doubleClick ? TrayMouseEvent.LeftDoubleClick : TrayMouseEvent.LeftDown;
-            _lastTrayLeftDown = doubleClick ? null : (icon, now);
-        }
-        else if (button.IsRightButtonPressed)
-        {
-            mouseEvent = TrayMouseEvent.RightDown;
-        }
-        else if (button.IsMiddleButtonPressed)
-        {
-            mouseEvent = TrayMouseEvent.MiddleDown;
-        }
-        else
-        {
+        if (_trayInput!.PressEvent(icon, button) is not { } mouseEvent)
             return;
-        }
 
         element.CapturePointer(e.Pointer);
-        EndTrayHover();
-        _tray.Send(icon, mouseEvent);
+        _trayInput.Press(icon, mouseEvent);
         _trayPress = button.IsLeftButtonPressed ? new TrayPress(icon, element, Cursor.Position(), _tray.OverflowIcons.Contains(icon)) : null;
         e.Handled = true;
     }
@@ -1016,17 +797,10 @@ internal sealed partial class TaskbarWindow : Window
             e.Handled = true;
             return;
         }
-        TrayMouseEvent? mouseEvent = e.GetCurrentPoint(element).Properties.PointerUpdateKind switch
-        {
-            PointerUpdateKind.LeftButtonReleased => TrayMouseEvent.LeftUp,
-            PointerUpdateKind.RightButtonReleased => TrayMouseEvent.RightUp,
-            PointerUpdateKind.MiddleButtonReleased => TrayMouseEvent.MiddleUp,
-            _ => null,
-        };
-        if (mouseEvent is not { } released)
+        if (TrayIconInput.ReleaseEvent(e.GetCurrentPoint(element).Properties.PointerUpdateKind) is not { } released)
             return;
 
-        _tray.Send(icon, released);
+        _trayInput!.Release(icon, released);
         // Out of the way of the menu or window the app opens.
         if (released is TrayMouseEvent.LeftUp or TrayMouseEvent.RightUp)
             OverflowFlyout.Hide();
@@ -1054,7 +828,7 @@ internal sealed partial class TaskbarWindow : Window
         // A captured pointer keeps reporting after leaving the icon; the app only cares about moves over it.
         Point point = e.GetCurrentPoint(element).Position;
         if (point.X >= 0 && point.Y >= 0 && point.X < element.ActualWidth && point.Y < element.ActualHeight)
-            _tray?.Send(icon, TrayMouseEvent.Move);
+            _trayInput?.Move(icon);
     }
 
     // An icon whose app gives no tip (or hides it, drawing its own) shows none.
@@ -1075,24 +849,14 @@ internal sealed partial class TaskbarWindow : Window
             return;
 
         element.Children[0].Opacity = 1; // hover background
-        _trayHovered = icon;
-        _trayHoverTimer.Start();
+        _trayInput?.Enter(icon);
     }
 
     private void TrayIcon_PointerExited(object sender, PointerRoutedEventArgs e)
     {
         if (sender is Grid element)
             element.Children[0].Opacity = 0;
-        EndTrayHover();
-    }
-
-    private void EndTrayHover()
-    {
-        _trayHoverTimer.Stop();
-        if (_trayPopupOpen && _trayHovered is { } icon)
-            _tray?.Send(icon, TrayMouseEvent.HoverEnd);
-        _trayPopupOpen = false;
-        _trayHovered = null;
+        _trayInput?.EndHover();
     }
 
     // A right-click on an icon is the app's; the taskbar's own menu must not open too.
@@ -1117,7 +881,7 @@ internal sealed partial class TaskbarWindow : Window
     private void StartTrayDrag(TrayPress press)
     {
         press.Dragging = true;
-        EndTrayHover();
+        _trayInput?.EndHover();
         if (press.Element is Grid { Children: [UIElement hover, UIElement image, ..] })
         {
             hover.Opacity = 0;
@@ -1222,12 +986,7 @@ internal sealed partial class TaskbarWindow : Window
     }
 
     /// <summary>A point on screen in the taskbar window's effective pixels.</summary>
-    private Point ToRoot(PointInt32 point)
-    {
-        double scale = Root.XamlRoot.RasterizationScale;
-        RectInt32 taskbar = _placement.Bounds;
-        return new Point((point.X - taskbar.X) / scale, (point.Y - taskbar.Y) / scale);
-    }
+    private Point ToRoot(PointInt32 point) => _dock.FromScreen(point);
 
     private sealed class TrayPress(TrayIcon icon, FrameworkElement element, PointInt32 start, bool fromOverflow)
     {
@@ -1274,29 +1033,9 @@ internal sealed partial class TaskbarWindow : Window
         bool animate = TaskList.IsLoaded;
         Dictionary<TaskButton, double> before = animate ? ButtonPositions() : [];
 
-        // Update in place, so buttons keep their state and the list doesn't flicker.
-        var keys = models.Select(model => model.Key).ToHashSet();
-        for (int i = _tasks.Count - 1; i >= 0; i--)
-        {
-            if (!keys.Contains(_tasks[i].Key))
-                _tasks.RemoveAt(i);
-        }
-        var added = new List<TaskButton>();
-        for (int i = 0; i < models.Count; i++)
-        {
-            int existing = IndexOf(models[i].Key, i);
-            if (existing < 0)
-            {
-                _tasks.Insert(i, new TaskButton(models[i].Key));
-                added.Add(_tasks[i]);
-            }
-            else if (existing != i)
-            {
-                _tasks.Move(existing, i);
-            }
-            _tasks[i].Update(models[i], _owner.Tracker, combine);
+        List<TaskButton> added = _tasks.Update(models, combine);
+        for (int i = 0; i < _tasks.Count; i++)
             _tasks[i].Width = widths[i];
-        }
         if (animate)
             AnimateLayoutChange(before, added);
 
@@ -1428,27 +1167,6 @@ internal sealed partial class TaskbarWindow : Window
         AppsPanel.Margin = new Thickness(Math.Max(0, Math.Min((Root.ActualWidth - width) / 2, end - width)), 0, 0, 0);
     }
 
-    private int IndexOf(string key, int start)
-    {
-        for (int i = start; i < _tasks.Count; i++)
-        {
-            if (_tasks[i].Key == key)
-                return i;
-        }
-        return -1;
-    }
-
-    private nint? OnMessage(uint message, nint wParam, nint lParam)
-    {
-        // WinUI resizes the window for the new DPI; the taskbar needs a new height, so it's recreated. A window
-        // moved onto its monitor right after creation gets this too, with the DPI it was created for.
-        if (message == WindowMessages.DpiChanged && (uint)(wParam & 0xFFFF) != _monitor.Dpi)
-            _owner.QueueRecreate();
-        else
-            _owner.OnBroadcast(message);
-        return null;
-    }
-
     private void StartButton_Click(object sender, RoutedEventArgs e) => _owner.ToggleStartMenu(this);
 
     private void Root_PointerPressed(object sender, PointerRoutedEventArgs e)
@@ -1534,21 +1252,13 @@ internal sealed partial class TaskbarWindow : Window
             ActivateButton(button);
     }
 
+    // Several windows show their thumbnails.
     private void ActivateButton(TaskButton button)
     {
-        if (KeyboardState.IsShiftDown() || button.Windows.Count == 0)
+        if (TaskButtonList.ClickActs(button))
         {
             _thumbnails.Hide();
-            Launcher.Launch(button.App);
-        }
-        else if (button.Windows.Count == 1)
-        {
-            _thumbnails.Hide();
-            nint hwnd = button.Windows[0].Handle;
-            if (hwnd == _owner.Tracker.Foreground && !TopLevelWindows.IsMinimized(hwnd))
-                TopLevelWindows.MinimizeAndActivateNext(hwnd);
-            else
-                TopLevelWindows.Activate(hwnd);
+            _tasks.Click(button);
         }
         else if (_thumbnails.Button == button)
         {
@@ -1718,7 +1428,7 @@ internal sealed partial class TaskbarWindow : Window
 
         var headerStyle = (Style)Root.Resources["JumpListHeaderStyle"];
         int iconSize = (int)Math.Round(16 * Root.XamlRoot.RasterizationScale);
-        var entries = new JumpListMenu(appId, _hwnd, opening: () => { }, changed);
+        var entries = new JumpListMenu(appId, Handle, opening: () => { }, changed);
         foreach (JumpListCategory category in categories)
         {
             var header = new MenuFlyoutItem { Text = category.Title, Style = headerStyle };

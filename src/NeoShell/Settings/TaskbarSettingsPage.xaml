@@ -8,7 +8,7 @@
         <ResourceDictionary Source="ms-appx:///Settings/SettingsStyles.xaml" />
     </local:SettingsPageView.Resources>
 
-    <!-- Settings' Personalization > Taskbar, in its order, with what NeoShell adds (the backdrop). -->
+    <!-- Settings' Personalization > Taskbar, in its order, with what NeoShell adds (the theme and the backdrop). -->
     <StackPanel Spacing="4">
         <Expander Style="{StaticResource SettingsExpanderStyle}" IsExpanded="True" AutomationProperties.AutomationId="TaskbarItemsExpander">
             <Expander.Header>
@@ -155,6 +155,14 @@
         </Expander>
 
         <TextBlock Style="{StaticResource SettingsSectionStyle}" Text="NeoShell" />
+        <local:SettingsCard Glyph="&#xE771;" Header="Theme" Description="Which Windows the taskbar and Start look like">
+            <ComboBox
+                x:Name="ThemeBox"
+                MinWidth="200"
+                AutomationProperties.AutomationId="ThemeBox"
+                AutomationProperties.Name="Theme"
+                SelectionChanged="ThemeBox_SelectionChanged" />
+        </local:SettingsCard>
         <local:SettingsCard Glyph="&#xE790;" Header="Taskbar backdrop" Description="The material behind the taskbar and the widgets">
             <ComboBox
                 x:Name="BackdropBox"

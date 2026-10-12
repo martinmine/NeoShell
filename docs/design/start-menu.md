@@ -5,7 +5,8 @@ The Start menu: Pinned and folders of pins, All, app menus, the app catalog, sea
 
 ## Start menu (`StartMenu/`)
 
-- One topmost popup window (`StartMenuWindow`), created at startup and shown above the taskbar that opened it:
+- One topmost popup window (`StartMenuWindow`, Windows 11's view of Start, see [Themes](themes.md)), created at
+  startup (and again when the theme changes) and shown above the taskbar that opened it:
   centred on the monitor, or at its left when taskbar items are left-aligned. Acrylic, rounded corners, activatable
   (unlike the taskbar) for the search box; hides on deactivation, Esc, a click elsewhere on the taskbar, or Win.
 - Activation: `Window.Activate` alone doesn't take the foreground from the app the user was in, so Start calls
