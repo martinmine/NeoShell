@@ -76,6 +76,9 @@ internal sealed class WindowTracker : IDisposable
     /// <summary>A window's thumbnail toolbar changed (a player's play button became pause), by its handle.</summary>
     public event Action<nint>? ThumbBarChanged;
 
+    /// <summary>A window was minimized (true) or restored (false), however it happened; its button animates.</summary>
+    public event Action<nint, bool>? Minimized;
+
     /// <summary>
     /// The foreground window changed, moved, resized, or was marked full screen: whether a full-screen app is in front
     /// may have changed. Separate from <see cref="Changed"/>, as dragging a window raises it many times a second.
@@ -334,6 +337,8 @@ internal sealed class WindowTracker : IDisposable
                 break;
             case WindowEvent.MinimizeStart:
             case WindowEvent.MinimizeEnd:
+                if (IsTracked(hwnd))
+                    Minimized?.Invoke(hwnd, kind == WindowEvent.MinimizeStart);
                 QueueChanged();
                 QueueForegroundChanged();
                 break;

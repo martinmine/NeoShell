@@ -471,7 +471,11 @@
                             <!-- Plates as in Explorer: 40x40 behind the active app, lighter while hovered; with several
                                  windows, the edge of a second card shows on the right (its gap in its own margin, so a single
                                  window's plate keeps all 40). -->
-                            <Grid Margin="2,4" Visibility="{x:Bind ActiveVisibility, Mode=OneWay}">
+                            <!-- Fades in 83 ms, as Explorer's plate (a brush transition) does when its window is restored. -->
+                            <Grid Margin="2,4" Opacity="{x:Bind ActiveOpacity, Mode=OneWay}">
+                                <Grid.OpacityTransition>
+                                    <ScalarTransition Duration="0:0:0.083" />
+                                </Grid.OpacityTransition>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition />
                                     <ColumnDefinition Width="Auto" />
@@ -551,10 +555,11 @@
                                 ShowPaused="{x:Bind IsProgressPaused, Mode=OneWay}"
                                 Visibility="{x:Bind ProgressVisibility, Mode=OneWay}"
                                 AutomationProperties.AutomationId="TaskProgress" />
-                            <!-- Running: short grey pill; active: long accent pill. Under the icon, as Explorer's. -->
+                            <!-- Running: short grey pill; active: long accent pill. Under the icon, as Explorer's. The one taking
+                                 over is scaled from the other's length (TaskButtonMotion.MorphPill). -->
                             <Grid Width="44" HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="0,0,0,5">
-                                <Rectangle Width="6" Height="3" RadiusX="1.5" RadiusY="1.5" Fill="{ThemeResource TextFillColorTertiaryBrush}" Visibility="{x:Bind RunningVisibility, Mode=OneWay}" />
-                                <Rectangle Width="16" Height="3" RadiusX="1.5" RadiusY="1.5" Fill="{ThemeResource AccentFillColorDefaultBrush}" Visibility="{x:Bind ActiveVisibility, Mode=OneWay}" />
+                                <Rectangle x:Name="RunningPill" Width="6" Height="3" RadiusX="1.5" RadiusY="1.5" Fill="{ThemeResource TextFillColorTertiaryBrush}" Visibility="{x:Bind RunningVisibility, Mode=OneWay}" />
+                                <Rectangle x:Name="ActivePill" Width="16" Height="3" RadiusX="1.5" RadiusY="1.5" Fill="{ThemeResource AccentFillColorDefaultBrush}" Visibility="{x:Bind ActiveVisibility, Mode=OneWay}" />
                             </Grid>
                         </Grid>
                     </DataTemplate>

@@ -71,7 +71,8 @@ internal sealed partial class TaskbarWindow : Window, ITaskbarView
     private static readonly TimeSpan s_previewSwitchDelay = TimeSpan.FromMilliseconds(200);
     private bool _suppressClick;
     // A right-clicked button shows no previews until the pointer has left it, and none show while its menu is open:
-    // a hover that began before the click would otherwise open them over the menu.
+    // a hover that began before the click would otherwise open them over the menu. A click that minimizes or restores
+    // a button's one window does the same, as in Explorer.
     private TaskButton? _noPreviews;
     private bool _taskMenuOpen;
     // The taskbar around the Start button acts as the button (TaskbarLayout.IsStartZone): hovered, or pressed by
@@ -171,6 +172,7 @@ internal sealed partial class TaskbarWindow : Window, ITaskbarView
         Root.DragOver += (_, e) => DragOverTaskbar(e);
         Root.DragLeave += (_, _) => EndDragOver();
         Root.Drop += Root_Drop;
+        owner.Tracker.Minimized += OnWindowMinimized;
 
         // The tray lives on the primary taskbar only, as in Windows 11.
         _tray = monitor.IsPrimary ? owner.Tray : null;
@@ -228,6 +230,7 @@ internal sealed partial class TaskbarWindow : Window, ITaskbarView
                 _indicators.Changed -= RefreshIndicators;
                 _quickSettings?.Detach();
             }
+            owner.Tracker.Minimized -= OnWindowMinimized;
             _trayInput?.Stop();
             _hoverTimer.Stop();
             _hideTimer.Stop();
@@ -1078,16 +1081,44 @@ internal sealed partial class TaskbarWindow : Window, ITaskbarView
         // Where each button is now, to slide it from there to its new place.
         bool animate = TaskList.IsLoaded;
         Dictionary<TaskButton, double> before = animate ? ButtonPositions() : [];
+        // Which buttons had which pill, to morph the one that takes over.
+        Dictionary<TaskButton, bool> wasActive = _tasks.Where(HasPill).ToDictionary(button => button, button => button.IsActive);
 
         List<TaskButton> added = _tasks.Update(models, combine);
         for (int i = 0; i < _tasks.Count; i++)
             _tasks[i].Width = widths[i];
         if (animate)
+        {
             AnimateLayoutChange(before, added);
+            foreach (TaskButton button in _tasks)
+            {
+                if (HasPill(button) && wasActive.TryGetValue(button, out bool active) && active != button.IsActive)
+                    MorphPill(button);
+            }
+        }
 
         // The previews show windows that may have closed or opened.
         if (_thumbnails.Button is { } shown && !_tasks.Contains(shown))
             _thumbnails.Hide();
+    }
+
+    private static bool HasPill(TaskButton button) => button.Windows.Count > 0 && !button.IsDragged;
+
+    // Explorer gives the indicator its new length at once and scales it from the old one (StartRunningIndicatorSizeChangeAnimation).
+    private void MorphPill(TaskButton button)
+    {
+        (string name, double from, double to) = button.IsActive
+            ? ("ActivePill", TaskButtonMotion.RunningPillWidth, TaskButtonMotion.ActivePillWidth)
+            : ("RunningPill", TaskButtonMotion.ActivePillWidth, TaskButtonMotion.RunningPillWidth);
+        if (TemplatePart(button, name) is { } pill)
+            TaskButtonMotion.MorphPill(pill, from, to);
+    }
+
+    // A window minimized or restored: its button's icon dips or rises, as in Explorer (StartItemMinimizeAnimation).
+    private void OnWindowMinimized(nint hwnd, bool minimized)
+    {
+        if (_drag is null && _tasks.Of(hwnd) is { } button && TaskIcon(button) is { } icon)
+            TaskButtonMotion.BounceIcon(icon, minimized);
     }
 
     // The list's own item transitions show a moved button as removed and added again: it vanishes and reappears.
@@ -1295,7 +1326,18 @@ internal sealed partial class TaskbarWindow : Window, ITaskbarView
     private void TaskList_ItemClick(object sender, ItemClickEventArgs e)
     {
         if (e.ClickedItem is TaskButton button && !_suppressClick)
+        {
+            // Explorer's button loses its hover plate when a click minimizes or restores its window, and gets it
+            // back only when the pointer comes onto it again (recorded: no plate even after the pointer moved on it).
+            // Its previews don't open either (the hover had started their timer).
+            if (button.Windows.Count == 1)
+            {
+                button.IsHovered = false;
+                _noPreviews = button;
+                _hoverTimer.Stop();
+            }
             ActivateButton(button);
+        }
     }
 
     // Several windows show their thumbnails.
@@ -1505,7 +1547,7 @@ internal sealed partial class TaskbarWindow : Window, ITaskbarView
                 else
                     _rightPressed = button;
                 if (TaskIcon(button) is { } icon)
-                    IconPress.Press(icon);
+                    TaskButtonMotion.Press(icon);
                 return;
             }
         }
@@ -1538,7 +1580,7 @@ internal sealed partial class TaskbarWindow : Window, ITaskbarView
     {
         ReleaseRightPress();
         if (_pressed is { } pressed && TaskIcon(pressed.Button) is { } icon)
-            IconPress.Release(icon);
+            TaskButtonMotion.Release(icon);
         _pressed = null;
         if (_drag is null)
             return;
@@ -1553,7 +1595,7 @@ internal sealed partial class TaskbarWindow : Window, ITaskbarView
     private void ReleaseRightPress()
     {
         if (_rightPressed is { } button && TaskIcon(button) is { } icon)
-            IconPress.Release(icon);
+            TaskButtonMotion.Release(icon);
         _rightPressed = null;
     }
 
@@ -1561,7 +1603,7 @@ internal sealed partial class TaskbarWindow : Window, ITaskbarView
     {
         ReleaseRightPress();
         if (_pressed is { } pressed && TaskIcon(pressed.Button) is { } icon)
-            IconPress.Release(icon);
+            TaskButtonMotion.Release(icon);
         _pressed = null;
         if (_drag is not null)
             EndDrag(drop: false);
@@ -1627,12 +1669,14 @@ internal sealed partial class TaskbarWindow : Window, ITaskbarView
     private void ScaleIcon(TaskButton button, float scale)
     {
         if (TaskIcon(button) is { } icon)
-            IconPress.Scale(icon, scale);
+            TaskButtonMotion.Scale(icon, scale);
     }
 
-    private UIElement? TaskIcon(TaskButton button) =>
+    private UIElement? TaskIcon(TaskButton button) => TemplatePart(button, "TaskIcon");
+
+    private UIElement? TemplatePart(TaskButton button, string name) =>
         TaskList.ContainerFromItem(button) is ContentControl { ContentTemplateRoot: FrameworkElement root }
-            ? root.FindName("TaskIcon") as UIElement
+            ? root.FindName(name) as UIElement
             : null;
 
     private sealed class TaskDrag(List<UIElement> containers, List<(double Left, double Width)> slots, int index)

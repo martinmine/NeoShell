@@ -272,6 +272,11 @@ Tick items off as they land. The feature details are in [design.md](design.md) a
       `WidgetView.Ready` are gone
 - [x] No heading on Resource usage, Wireless devices and Notes; their buttons show only near the top right corner,
       so they don't cover the first value or the note's text
+- [x] Fix: the task button's animations when its window is minimized or restored differed from Explorer's (owner's
+      report): the pill now morphs (333 ms), the icon dips or rises (83 ms delay, 667 ms), the plate fades (83 ms),
+      a press shows the shrink and the release overshoots, and a click drops the hover plate and the previews, as
+      read in Taskbar.View.dll and compared frame by frame with Explorer (both as the shell; click, caption button,
+      the app itself) — not run live: Win+Down/Win+M (keys), a combined button with several windows
 
 ## 19. Explorer parity (2)
 

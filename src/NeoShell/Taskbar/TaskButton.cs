@@ -46,7 +46,10 @@ internal sealed class TaskButton(string key) : INotifyPropertyChanged
         private set
         {
             if (Set(ref _isActive, value))
+            {
                 Raise(nameof(ActiveVisibility));
+                Raise(nameof(ActiveOpacity));
+            }
         }
     }
 
@@ -80,6 +83,7 @@ internal sealed class TaskButton(string key) : INotifyPropertyChanged
             if (Set(ref _isDragged, value))
             {
                 Raise(nameof(ActiveVisibility));
+                Raise(nameof(ActiveOpacity));
                 Raise(nameof(RunningVisibility));
                 Raise(nameof(StackVisibility));
             }
@@ -114,6 +118,9 @@ internal sealed class TaskButton(string key) : INotifyPropertyChanged
     public Visibility LabelVisibility => ShowLabel ? Visibility.Visible : Visibility.Collapsed;
 
     public Visibility ActiveVisibility => IsActive && !IsDragged ? Visibility.Visible : Visibility.Collapsed;
+
+    /// <summary>The active plate fades in and out (an opacity transition), as Explorer's brush transition does.</summary>
+    public double ActiveOpacity => ActiveVisibility == Visibility.Visible ? 1 : 0;
 
     public Visibility RunningVisibility => !IsActive && !IsDragged && Windows.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
 

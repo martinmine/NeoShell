@@ -206,6 +206,9 @@ and task buttons. Part of the [NeoShell design](../design.md).
   rectangle back as four 16-bit values, which Explorer's `CTaskBand::_HandleGetMinRect` writes (not the RECT the
   documentation has). Without an answer windows minimize and restore with no animation; as the shell NeoShell
   answers with the window's taskbar button (`ShellHook.MinimizeRect`, `TaskbarWindow.TaskButtonBounds`).
+  Re-recorded against Explorer (October 2026): the window flies to and from its 44×48 button in both shells, for a
+  click, the caption button and the app's own `ShowWindow`, with the same timing (the VM has "Animate windows when
+  minimizing and maximizing" off, and DWM animates anyway). The button's own animations are under [Task buttons](#task-buttons).
 
 ### Layout (left → right, or centred like Windows 11 by setting)
 
@@ -275,6 +278,33 @@ and task buttons. Part of the [NeoShell design](../design.md).
   24 px icon is scaled from a bigger image and comes out a pixel off.
 - Indicators: running (short grey pill), active (long accent pill and plate), several windows (the plate shows a
   second card's edge behind it), flashing (amber background until activated).
+- **Minimize and restore, as Explorer animates the button** (`TaskButtonMotion`, unit tested; read in Taskbar.View.dll's
+  `SharedAnimations::Initialize` and its callers with cdb, and recorded at Explorer's composition rate with DXGI
+  desktop duplication, both shells as the shell: by a click on the button, the caption's minimize button and the app
+  itself). Explorer's curves: `D` = cubic-bezier(0,0,0,1), `B` = (0.85,0,0.75,1), `C` = (0.35,0,0,1).
+  - **Pill** (`TaskListButton::GetRunningIndicatorExtent`, `UpdateRunningIndicatorSize`, the indicator's SizeChanged
+    handler, `StartRunningIndicatorSizeChangeAnimation`): 3 px high, radius 1.5, 2/3 of the 24 px icon long when
+    active (16) and 1/4 (6) when running. A change takes the new length and colour at once (no colour fade) and the
+    visual's Scale.X runs from old/new to 1 about the new pill's centre: 333 ms, `D`, no delay. Recorded widths on
+    minimize 16 → 9.7 → 9.0 → 8.0 → 7.3 → 6.8 → 6.1 → 5.8 over ~330 ms, restore the reverse; NeoShell's within a
+    pixel per frame. NeoShell keeps one rectangle per state and scales the one taking over (`MorphPill`).
+  - **Icon** (`TaskListButton::StartMinimizeAnimation` → `StartItemMinimizeAnimation`, and the restore twin): a
+    Translation key-frame animation, delay 83 ms, 667 ms; minimized: +3 px (icon size/8) at 0.25 (`D`), −1 px
+    (size/24) at 0.5 (`B`), 0 at 1 (`C`); restored: the same mirrored (up 3, down 1). It runs however the window was
+    minimized or restored: NeoShell starts it from `EVENT_SYSTEM_MINIMIZESTART/END` (`WindowTracker.Minimized`).
+  - **Plate**: fades in and out with the active state (a brush transition in Explorer; measured ~83 ms, linear);
+    NeoShell gives the active plate an 83 ms opacity transition.
+  - **Press** (`StartItemPressedScaleAnimation`/`Released…`): the icon shrinks to 0.8 in 167 ms (`D`); released, it
+    grows to 1.02 at 0.33 (`B`) and to 1 (`C`) over 500 ms, starting only once the shrink has finished (a 40 ms click
+    still shows it shrunk until ~170 ms). Dragging scales it to 1.2 in 333 ms (`D`). NeoShell's task icons use these
+    (`TaskButtonMotion`); Start, search and the chevron keep `IconPress`.
+  - **Hover after a click**: when a click minimizes or restores a button's one window, Explorer drops the hover plate
+    (no plate even when the pointer moves on the button) and opens no previews until the pointer comes back onto it;
+    NeoShell does the same.
+  - Order, recorded on a click: the press shrink (~0-170 ms), the window gone at ~150 ms (DWM's own animation to the
+    button's rectangle, both shells), the pill change ~100-150 ms after that, the icon's dip 83 ms after the minimize.
+    Differs: the grey pill is NeoShell's `TextFillColorTertiaryBrush` (135,159,193 on the VM's accent taskbar)
+    where Explorer's `RunningIndicatorBrush` is (139,162,195).
 - Left click: one window → activate it, or minimize if it's already foreground; several windows → show thumbnails.
   Pinned, not running → launch.
 - No tooltip: hovering shows the thumbnails instead.
@@ -304,7 +334,8 @@ and task buttons. Part of the [NeoShell design](../design.md).
   processes keep running; an elevated app (Task Manager) ends too, from a medium-integrity caller, since CSRSS ends
   it (no UAC prompt).
 - Pressed, the icon shrinks to 0.8 (only the icon, as in Explorer); dragged, it grows to 1.2 and loses its plate and
-  pill (`IconPress`, a `ScaleTransition` on the icon). The Start and search icons shrink too (not the box's).
+  pill (`TaskButtonMotion`, Explorer's curves above). The Start and search icons shrink too (not the box's;
+  `IconPress`, a `ScaleTransition` on the icon).
 - Drag to reorder (by hand, `TaskReorder`: the button slides along the row and its neighbours make way). The order
   is persisted for pinned apps and kept for the session for the others (`TaskOrder`, unit tested): buttons keep the
   order last shown, a new window goes next to its app's others and a newly started app at the end. Shared by the
