@@ -26,7 +26,7 @@ public sealed record XpTaskbarScene(
 /// <summary>Draws XP's taskbar from its measured art (see <see cref="XpArt"/>).</summary>
 public static class XpTaskbarPainter
 {
-    public static void Paint(XpCanvas canvas, XpTaskbarScene scene)
+    public static void Paint(ThemeCanvas canvas, XpTaskbarScene scene)
     {
         for (int row = 0; row < Height; row++)
             canvas.Fill(0, row, scene.Width, 1, XpArt.TaskbarRows[row]);
@@ -52,7 +52,7 @@ public static class XpTaskbarPainter
             PaintTray(canvas, tray, scene.Width);
     }
 
-    private static void PaintStart(XpCanvas canvas, XpButtonState state)
+    private static void PaintStart(ThemeCanvas canvas, XpButtonState state)
     {
         uint[][] mesh = state switch
         {
@@ -76,14 +76,14 @@ public static class XpTaskbarPainter
         canvas.ShadowedText("start", 35, 3, 60, 27, XpArt.StartFont, XpArt.White, 0x304010, 0.9);
     }
 
-    private static void PaintToolbarButton(XpCanvas canvas, int x, int width, XpButtonState state)
+    private static void PaintToolbarButton(ThemeCanvas canvas, int x, int width, XpButtonState state)
     {
         if (state == XpButtonState.Normal)
             return;
-        canvas.Band(state == XpButtonState.Hot ? XpArt.ToolbarHot : XpArt.ToolbarPressed, x, ButtonTop, width);
+        (state == XpButtonState.Hot ? XpArt.ToolbarHot : XpArt.ToolbarPressed).Draw(canvas, x, ButtonTop, width);
     }
 
-    private static void PaintTask(XpCanvas canvas, XpTaskSlot task)
+    private static void PaintTask(ThemeCanvas canvas, XpTaskSlot task)
     {
         XpBand art = task.State switch
         {
@@ -94,7 +94,7 @@ public static class XpTaskbarPainter
         };
         if (task.Flashing && task.State is XpButtonState.Normal or XpButtonState.Hot)
             art = XpArt.TaskButtonFlashing;
-        canvas.Band(art, task.X, ButtonTop, task.Width);
+        art.Draw(canvas, task.X, ButtonTop, task.Width);
 
         int shift = task.State is XpButtonState.Pressed or XpButtonState.PressedHot ? 1 : 0;
         int top = ButtonTop + LabelTop + shift;
@@ -117,15 +117,15 @@ public static class XpTaskbarPainter
     }
 
     // A small white triangle pointing down: 5, 3 and 1 pixels.
-    private static void PaintGroupArrow(XpCanvas canvas, int x, int y)
+    private static void PaintGroupArrow(ThemeCanvas canvas, int x, int y)
     {
         for (int row = 0; row < 3; row++)
             canvas.Fill(x + row, y + row, 5 - 2 * row, 1, XpArt.White);
     }
 
-    private static void PaintTray(XpCanvas canvas, XpTraySlot tray, int width)
+    private static void PaintTray(ThemeCanvas canvas, XpTraySlot tray, int width)
     {
-        canvas.Band(XpArt.Tray, tray.X, 0, width - tray.X);
+        XpArt.Tray.Draw(canvas, tray.X, 0, width - tray.X);
         if (tray.ChevronExpanded is { } expanded)
         {
             uint[][] chevron = (expanded, tray.ChevronHot) switch

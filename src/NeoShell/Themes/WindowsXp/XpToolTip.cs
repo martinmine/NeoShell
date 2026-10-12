@@ -17,7 +17,7 @@ internal sealed class XpToolTip
     private static readonly TimeSpan s_reshowDelay = TimeSpan.FromMilliseconds(100);
     private static readonly TimeSpan s_showTime = TimeSpan.FromSeconds(5);
 
-    private readonly XpPopup _popup = new(activates: false);
+    private readonly ThemePopup _popup = new(activates: false);
     private readonly DispatcherQueueTimer _showTimer;
     private readonly DispatcherQueueTimer _hideTimer;
     private (string Text, Func<(PointInt32 Anchor, bool Above, DisplayMonitor Monitor)> Place)? _pending;
@@ -72,7 +72,7 @@ internal sealed class XpToolTip
 
         (PointInt32 anchor, bool above, DisplayMonitor monitor) = pending.Place();
         double scale = monitor.Dpi / 96.0;
-        XpCanvas canvas = Paint(pending.Text);
+        ThemeCanvas canvas = Paint(pending.Text);
         _popup.Draw(canvas);
         // The shadow's pixels are see-through margin; the tip itself is what's placed.
         int width = (int)Math.Round((canvas.Width - Shadow) * scale), height = (int)Math.Round((canvas.Height - Shadow) * scale);
@@ -88,12 +88,12 @@ internal sealed class XpToolTip
     private static int Shadow => XpArt.DropShadow.Length;
 
     /// <summary>The tip with its shadow: lines (wrapped at 400 pixels) 13 apart, 3 in from the border's left, 2 from its top.</summary>
-    public static XpCanvas Paint(string text)
+    public static ThemeCanvas Paint(string text)
     {
         IReadOnlyList<string> lines = Wrap(text, MaxTextWidth);
         int textWidth = lines.Max(line => GdiText.Measure(line, XpArt.Tahoma));
         int width = textWidth + 6, height = lines.Count * 13 + 4;
-        var canvas = new XpCanvas(width + Shadow, height + Shadow);
+        var canvas = new ThemeCanvas(width + Shadow, height + Shadow);
         XpPainting.DropShadow(canvas, 0, 0, width, height);
         canvas.Fill(0, 0, width, height, 0x000000);
         canvas.Fill(1, 1, width - 2, height - 2, XpArt.ToolTipBackground);

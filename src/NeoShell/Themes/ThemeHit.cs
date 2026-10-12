@@ -3,13 +3,13 @@ using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Markup;
 
-namespace NeoShell.Themes.WindowsXp;
+namespace NeoShell.Themes;
 
 /// <summary>
-/// The XP theme draws its surfaces as pictures; each thing that can be clicked gets an invisible button over its place,
+/// The older Windows' themes draw their surfaces as pictures; each thing that can be clicked gets an invisible button over its place,
 /// which takes the pointer, the keyboard and UI Automation (invoke, name, AutomationId) as a real control would.
 /// </summary>
-internal static class XpHit
+internal static class ThemeHit
 {
     private static ControlTemplate? s_template;
 

@@ -14,6 +14,7 @@ public static class ShellThemes
     public static string Name(ShellTheme theme) => theme switch
     {
         ShellTheme.WindowsXP => "Windows XP",
+        ShellTheme.Windows98 => "Windows 98",
         _ => "Windows 11",
     };
 }
@@ -27,12 +28,14 @@ internal static class ThemeViews
     public static ITaskbarView CreateTaskbar(ShellTheme theme, Taskbars owner, DisplayMonitor monitor, ShellSettings settings) => theme switch
     {
         ShellTheme.WindowsXP => new WindowsXp.XpTaskbarWindow(owner, monitor, settings),
+        ShellTheme.Windows98 => new Windows98.Win98TaskbarWindow(owner, monitor, settings),
         _ => new TaskbarWindow(owner, monitor, settings, owner.Theme, owner.Accent),
     };
 
     public static IStartMenuView CreateStartMenu(ShellTheme theme, Taskbars owner) => theme switch
     {
         ShellTheme.WindowsXP => new WindowsXp.XpStartMenuWindow(owner),
+        ShellTheme.Windows98 => new Windows98.Win98StartMenuWindow(owner),
         _ => new StartMenuWindow(owner),
     };
 }

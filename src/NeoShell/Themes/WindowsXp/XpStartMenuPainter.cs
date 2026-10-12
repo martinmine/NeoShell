@@ -85,14 +85,14 @@ public static class XpStartMenuPainter
     }
 
     /// <param name="hot">The item under the pointer (its key, "allprograms", "logoff" or "turnoff"), or null.</param>
-    public static XpCanvas Paint(XpStartLayout layout, string userName, string? hot)
+    public static ThemeCanvas Paint(XpStartLayout layout, string userName, string? hot)
     {
         int height = layout.Height;
-        var canvas = new XpCanvas(Width + Shadow, height + Shadow);
+        var canvas = new ThemeCanvas(Width + Shadow, height + Shadow);
         XpPainting.DropShadow(canvas, 0, 0, Width, height);
 
         // Header, its top corners rounded.
-        canvas.Band(XpArt.StartHeader, 0, 0, Width);
+        XpArt.StartHeader.Draw(canvas, 0, 0, Width);
         for (int row = 0; row < XpArt.StartCorner.Length; row++)
         {
             canvas.Clear(0, row, XpArt.StartCorner[row], 1);
@@ -132,7 +132,7 @@ public static class XpStartMenuPainter
         canvas.Patch(allHot ? XpArt.AllProgramsArrowHot : XpArt.AllProgramsArrow, 129, layout.AllProgramsTop + 1);
 
         // The bottom bar.
-        canvas.Band(XpArt.StartBottom, 0, layout.BottomTop, Width);
+        XpArt.StartBottom.Draw(canvas, 0, layout.BottomTop, Width);
         canvas.Patch(XpArt.LogOffIcon, 176, layout.BottomTop + 8);
         canvas.Patch(XpArt.TurnOffIcon, 251, layout.BottomTop + 8);
         canvas.Text("Log Off", 204, layout.BottomTop + 13, 45, 13, XpArt.Tahoma, XpArt.White);
@@ -140,7 +140,7 @@ public static class XpStartMenuPainter
         return canvas;
     }
 
-    private static void PaintItem(XpCanvas canvas, XpStartItem item, bool hot)
+    private static void PaintItem(ThemeCanvas canvas, XpStartItem item, bool hot)
     {
         bool left = item.Column == XpStartColumn.Left;
         if (hot)

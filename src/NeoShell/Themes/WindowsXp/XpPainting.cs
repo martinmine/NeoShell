@@ -11,7 +11,7 @@ public static class XpPainting
     /// XP's drop shadow to the right of and below a rectangle (the rectangle is drawn over it afterwards): black,
     /// <see cref="XpArt.DropShadow"/> from each edge outwards, fading in from the corners.
     /// </summary>
-    public static void DropShadow(XpCanvas canvas, int x, int y, int width, int height)
+    public static void DropShadow(ThemeCanvas canvas, int x, int y, int width, int height)
     {
         double[] profile = XpArt.DropShadow;
         int reach = profile.Length;
@@ -41,7 +41,7 @@ public static class XpPainting
     /// The separator of Start and its menus: a line that fades in over 70 pixels from the background to its colour
     /// (<c>D3D3C8</c> on white, <c>81B6FF</c> in Start's blue column) and out again, with a lighter line under it.
     /// </summary>
-    public static void FadingLine(XpCanvas canvas, int x0, int x1, int y, uint background = 0xFEFEFE, uint line = 0xD3D3C8, uint under = 0xFEFEFE)
+    public static void FadingLine(ThemeCanvas canvas, int x0, int x1, int y, uint background = 0xFEFEFE, uint line = 0xD3D3C8, uint under = 0xFEFEFE)
     {
         const double Ramp = 70;
         for (int x = x0; x < x1; x++)
@@ -51,13 +51,6 @@ public static class XpPainting
             canvas.Set(x, y, Mix(background, line, strength));
             canvas.Set(x, y + 1, Mix(background, under, strength));
         }
-    }
-
-    /// <summary>A submenu's arrow: a triangle pointing right, 4 wide and 7 tall.</summary>
-    public static void SubmenuArrow(XpCanvas canvas, int x, int y, uint rgb)
-    {
-        for (int row = 0; row < 7; row++)
-            canvas.Fill(x, y + row, 4 - Math.Abs(3 - row), 1, rgb);
     }
 
     public static uint Mix(uint a, uint b, double t)

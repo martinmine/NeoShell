@@ -46,7 +46,7 @@ internal sealed class XpStartMenuWindow : IStartMenuView
     ];
 
     private readonly Taskbars _owner;
-    private readonly XpPopup _popup = new(activates: true);
+    private readonly ThemePopup _popup = new(activates: true);
     private readonly XpToolTip _toolTip = new();
     private readonly DispatcherQueueTimer _menuTimer;
     private readonly Dictionary<string, Button> _hits = [];
@@ -185,7 +185,7 @@ internal sealed class XpStartMenuWindow : IStartMenuView
                 : $"{item.Key[6..]}PlaceButton";
             AddHit(item.Key, automationId, item.Text, left ? LeftHighlightX : RightHighlightX, item.Top,
                 left ? LeftHighlightWidth : RightHighlightWidth, item.Height);
-            Task<ImageSource?>? icon = left ? XpIcons.Of(AppOf(item.Key)!, 32) : PlaceIcon(item.Key);
+            Task<ImageSource?>? icon = left ? ThemeIcons.Of(AppOf(item.Key)!, 32) : PlaceIcon(item.Key);
             if (icon is not null)
                 _ = AddIcon(icon, left ? LeftIconX : RightIconX, left ? item.Top + 2 : item.Top + 1, left ? 32 : 24);
         }
@@ -197,7 +197,7 @@ internal sealed class XpStartMenuWindow : IStartMenuView
     private Task<ImageSource?>? PlaceIcon(string key)
     {
         var place = s_places.SelectMany(group => group).First(place => $"place:{place.Key}" == key);
-        return place.Icon.Contains(',') ? XpIcons.FromResource(place.Icon, 24) : XpIcons.Of(place.Icon, 24);
+        return place.Icon.Contains(',') ? ThemeIcons.FromResource(place.Icon, 24) : ThemeIcons.Of(place.Icon, 24);
     }
 
     private async Task AddIcon(Task<ImageSource?> icon, int x, int y, int size)
@@ -205,7 +205,7 @@ internal sealed class XpStartMenuWindow : IStartMenuView
         if (await icon is not { } source)
             return;
         var image = new Image { Source = source, IsHitTestVisible = false };
-        XpHit.Place(image, x, y, size, size);
+        ThemeHit.Place(image, x, y, size, size);
         _popup.Overlay.Children.Insert(0, image);
     }
 
@@ -214,14 +214,14 @@ internal sealed class XpStartMenuWindow : IStartMenuView
         if (await UserAccount.LoadPictureOrDefaultAsync(48) is not { } picture)
             return;
         var image = new Image { Source = picture, Stretch = Stretch.UniformToFill, IsHitTestVisible = false };
-        XpHit.Place(image, 9, 9, 48, 48);
+        ThemeHit.Place(image, 9, 9, 48, 48);
         _popup.Overlay.Children.Insert(0, image);
     }
 
     private void AddHit(string key, string automationId, string name, int x, int y, int width, int height)
     {
-        Button hit = XpHit.Create(automationId, name);
-        XpHit.Place(hit, x, y, width, height);
+        Button hit = ThemeHit.Create(automationId, name);
+        ThemeHit.Place(hit, x, y, width, height);
         hit.PointerEntered += (_, _) => Enter(key);
         hit.PointerExited += (_, _) => _toolTip.Cancel();
         hit.Click += (_, _) => Choose(key);
@@ -346,13 +346,13 @@ internal sealed class XpStartMenuWindow : IStartMenuView
         {
             Text = entry.Name,
             Submenu = () => [.. entry.Children.Select(Item)],
-            Icon = () => XpIcons.Of(@"C:\Windows", 16),
+            Icon = () => ThemeIcons.Of(@"C:\Windows", 16),
             AutomationId = "AllProgramsFolder",
         }
         : new XpMenuItem
         {
             Text = entry.Name,
-            Icon = () => XpIcons.Of(entry.Path!, 16),
+            Icon = () => ThemeIcons.Of(entry.Path!, 16),
             Invoke = () =>
             {
                 Hide(restoreForeground: false);

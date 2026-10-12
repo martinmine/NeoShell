@@ -80,7 +80,7 @@ internal sealed class XpMenu
     private const uint GroupBody = 0x2157D5;
     private const uint GroupHighlight = 0x4F96FF;
 
-    private readonly XpPopup _popup = new(activates: false);
+    private readonly ThemePopup _popup = new(activates: false);
     private readonly IReadOnlyList<XpMenuItem> _items;
     private readonly XpMenuStyle _style;
     private readonly XpMenu? _parent;
@@ -288,8 +288,8 @@ internal sealed class XpMenu
             (int left, int top, int width, int height) = _rects[i];
             if (item.Icon is not null)
                 _ = ShowIcon(item, IconPlace(left, top, height));
-            Button hit = XpHit.Create(item.AutomationId ?? "XpMenuItem", item.Text);
-            XpHit.Place(hit, left, top, width, height);
+            Button hit = ThemeHit.Create(item.AutomationId ?? "XpMenuItem", item.Text);
+            ThemeHit.Place(hit, left, top, width, height);
             int index = i;
             hit.PointerEntered += (_, _) => Hover(index);
             hit.Click += (_, _) => Choose(index, keyboard: false);
@@ -313,7 +313,7 @@ internal sealed class XpMenu
             return;
 
         var image = new Image { Source = source, IsHitTestVisible = false };
-        XpHit.Place(image, place.X, place.Y, 16, 16);
+        ThemeHit.Place(image, place.X, place.Y, 16, 16);
         _popup.Overlay.Children.Insert(0, image);
     }
 
@@ -391,7 +391,7 @@ internal sealed class XpMenu
 
     private void Paint()
     {
-        var canvas = new XpCanvas(_width + Shadow, _height + Shadow);
+        var canvas = new ThemeCanvas(_width + Shadow, _height + Shadow);
         XpPainting.DropShadow(canvas, 0, 0, _width, _height);
         switch (_style)
         {
@@ -430,7 +430,7 @@ internal sealed class XpMenu
         _popup.Draw(canvas);
     }
 
-    private void PaintItem(XpCanvas canvas, XpMenuItem item, (int Left, int Top, int Width, int Height) rect, bool hot, bool glyphs, int shortcutX)
+    private void PaintItem(ThemeCanvas canvas, XpMenuItem item, (int Left, int Top, int Width, int Height) rect, bool hot, bool glyphs, int shortcutX)
     {
         (int left, int top, int width, int height) = rect;
         switch (_style)
@@ -461,7 +461,7 @@ internal sealed class XpMenu
                 if (glyph is not null)
                     canvas.Text(glyph, left + 4, item.Glyph != SystemMenuGlyph.None ? top + 4 : textTop, 16, 16, Marlett, color);
                 if (item.Submenu is not null)
-                    XpPainting.SubmenuArrow(canvas, left + width - 12, top + 5, hot ? 0xFFFFFFu : 0x000000u);
+                    canvas.SubmenuArrow(left + width - 12, top + 5, hot ? 0xFFFFFFu : 0x000000u);
                 break;
             }
             case XpMenuStyle.Programs:
@@ -476,7 +476,7 @@ internal sealed class XpMenu
                 uint color = !item.IsEnabled ? ClassicBorder : hot ? 0xFFFFFFu : 0x000000u;
                 canvas.Text(item.Text, left + 36, top + 5, width - 58, 13, XpArt.Tahoma, color);
                 if (item.Submenu is not null)
-                    XpPainting.SubmenuArrow(canvas, left + width - 9, top + 7, hot ? 0xFFFFFFu : 0x000000u);
+                    canvas.SubmenuArrow(left + width - 9, top + 7, hot ? 0xFFFFFFu : 0x000000u);
                 break;
             }
             default:

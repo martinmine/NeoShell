@@ -8,7 +8,8 @@ and how to add one. Part of the [NeoShell design](../design.md).
 A theme is which Windows the **taskbar and Start** look like and how their own parts behave (layout, sizes, button
 shapes, menus, flyouts). Windows 11 is the default; Windows XP (Luna taskbar with the green Start button, Quick
 Launch, the notification area and clock, the two-column Start menu) is the second, see [Theme: Windows XP](theme-xp.md);
-Windows 98, Vista or 7 may follow.
+Windows 98 (grey 3D taskbar, the Start menu with its "Windows98" banner) is the third, its groundwork laid, see
+[Theme: Windows 98](theme-98.md); Windows 7 may follow.
 
 A theme replaces whole views, not styles: XP's taskbar is not a restyled Windows 11 taskbar (30 px high, labelled
 buttons that group when full, a Start button with text, a Quick Launch bar, a tray whose chevron expands in place),
@@ -129,3 +130,12 @@ been making (`EnsureSystemDispatcherQueue`; without it NeoShell failed to start 
 
 How XP's views draw (one picture per surface, drawn in code from measured numbers, with icons and invisible buttons
 over it) is the pattern for an older Windows' look; Windows 11's views stay XAML.
+
+## The Windows 98 theme
+
+`Themes/Windows98/`, measured and specified in [Theme: Windows 98](theme-98.md): so far the taskbar (Start button,
+Quick Launch, task buttons, notification area and clock) and Start with its banner and top-level items; the
+submenus, menus, tooltips and dialogs are listed there as what remains. The pieces two themes draw with moved out of
+`WindowsXp/` into `Themes/`: `ThemeCanvas` (the pixels, GDI text, now with underlined mnemonics), `ThemeHit` (the
+invisible buttons), `ThemeIcons` (icons off the UI thread) and `ThemePopup` (the frameless topmost window for Start,
+menus and tooltips).

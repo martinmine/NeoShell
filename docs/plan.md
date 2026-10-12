@@ -719,3 +719,17 @@ NeoShell's taskbar and Start in the look of other Windows versions, over the sam
       `start` text (76% within 8), a flashing button looks hot (not caught in XP), the dialogs are approximations
       without the greyed screen, no Toolbars submenu, 96 DPI art only. Not run live: Log Off and the power choices,
       a second monitor, other DPIs, auto-hide
+- [ ] Windows 98 theme (design/theme-98.md) — groundwork done (2026-10-12): 98 measured in the v86 emulator (taskbar,
+      Start and its slide, submenus, menus, tooltips, window frames active and inactive, dialogs) and written down;
+      "Windows 98" registered; the taskbar (Start button normal and pushed, opening Start on the press, Quick Launch,
+      task buttons with the active one checkered and bold, the notification area and clock) and Start (banner, the
+      top-level items with icons and mnemonics, selection, arrows; Windows Update, Help, Run, Log Off and Shut Down
+      act) drawn in code; shared drawing pieces moved out of the XP theme (`ThemeCanvas`, `ThemeHit`, `ThemeIcons`,
+      `ThemePopup`); unit tests for the layout and pixels; rendered taskbar 99.98% and Start 99.79% identical to 98's
+      captures. Remaining:
+  - [ ] Start's submenus (Programs from the Start Menu folders, Favorites, Documents, Settings, Find), the slide, the
+        keyboard, 98's Log Off and Shut Down Windows dialogs with the dimmed screen
+  - [ ] Tooltips, the taskbar's and task buttons' menus in 98's grey menus, full taskbar (narrower buttons, scrolling),
+        flashing, Quick Launch beyond four, the volume icon, task buttons' small icons
+  - [ ] The 98 window frame in the frames program (specified in design/theme-98.md)
+  - [ ] Live: shell mode, auto-hide, a second monitor, other DPIs

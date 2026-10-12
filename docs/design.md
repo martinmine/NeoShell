@@ -20,7 +20,7 @@ The architecture, and every part of Windows NeoShell uses, is in [architecture.m
   is the shell.
 - Start's Quick Link menu (right-click Start, Win+X) and, while NeoShell is the shell, Alt+Tab, Explorer's other
   Win+ shortcuts, Snap layouts (Win+Z) and screenshots (Win+PrtScn, Win+Shift+S).
-- Themes: the taskbar and Start as Windows 11's (the default) or Windows XP's (blue Luna).
+- Themes: the taskbar and Start as Windows 11's (the default), Windows XP's (blue Luna) or Windows 98's (groundwork).
 - A widget sidebar, as Windows Vista's: profile and clock, resource usage, pictures, now playing, weather, notes and
   wireless devices' batteries, docked along the right of the screen or dragged out to float on the desktop.
 
@@ -79,6 +79,8 @@ Each area has its own file in [design/](design/):
   setting and switching live, the seams (`ITaskbarView`, `IStartMenuView`, `TaskbarDock`), adding a theme.
 - [Theme: Windows XP](design/theme-xp.md) — XP's Luna taskbar, menus and Start measured in XP (sizes, colours, fonts,
   grouping, menus, tooltips), how the XP views draw them in code, and how close they come.
+- [Theme: Windows 98](design/theme-98.md) — 98's taskbar, Start, menus, tooltips, window frame and dialogs measured in
+  98 (sizes, edges, colours, fonts, the banner), what the groundwork builds and what remains.
 - [Taskbar](design/taskbar.md) — The taskbar window (placement, display changes, flyouts and menus, the Quick Link
   menu), its layout, window tracking and task buttons.
 - [Taskbar: pinned apps, jump lists and thumbnails](design/taskbar-apps.md) — Pinned apps, jump lists, thumbnails,

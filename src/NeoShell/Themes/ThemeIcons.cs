@@ -4,13 +4,13 @@ using NeoShell.Interop.Shell;
 using NeoShell.Logging;
 using NeoShell.Settings;
 
-namespace NeoShell.Themes.WindowsXp;
+namespace NeoShell.Themes;
 
 /// <summary>
-/// Icons at XP's sizes (16 on the taskbar and in menus, 24 and 32 in Start), read off the UI thread and kept: the
-/// shell's for files, folders and apps, and icons from resources.
+/// Icons at the older themes' sizes (16 on the taskbar and in menus, 24 and 32 in Start), read off the UI thread and
+/// kept: the shell's for files, folders and apps, and icons from resources.
 /// </summary>
-internal static class XpIcons
+internal static class ThemeIcons
 {
     private static readonly Dictionary<string, Task<ImageSource?>> s_cache = new(StringComparer.OrdinalIgnoreCase);
 

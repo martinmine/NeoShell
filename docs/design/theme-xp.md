@@ -82,12 +82,12 @@ Cancel at (244, 169). XP greyed the screen behind it, fading over a few seconds.
 
 ## As built (`Themes/WindowsXp/`)
 
-- **Drawing.** Each surface is one picture drawn in code into an `XpCanvas` (premultiplied BGRA for a
+- **Drawing.** Each surface is one picture drawn in code into a `ThemeCanvas` (premultiplied BGRA for a
   `WriteableBitmap`) from `XpArt`'s measured numbers: rows, `XpBand`s (left columns, middle colour per row, right
   columns), the Start button's mesh, patches for small pieces (flag, chevrons, All Programs' arrow, Log Off and Turn
   Off's icons, the picture frame). Text is GDI's (`GdiText`, grayscale antialiasing as XP's "Standard" smoothing);
   shadows under text are the text's coverage blurred. Icons are `Image`s over the picture; each clickable thing has an
-  invisible `Button` over it (`XpHit`) for the pointer, the keyboard and UI Automation.
+  invisible `Button` over it (`ThemeHit`) for the pointer, the keyboard and UI Automation.
 - **Taskbar** (`XpTaskbarWindow`, `XpTaskbarLayout`, `XpTaskbarPainter`): `TaskbarDock` (height 30), `TaskButtonList`
   for the buttons and their clicks, `XpTaskbarLayout.Group` for XP's grouping (Settings' "Combine taskbar buttons":
   Never turns grouping off, otherwise XP's when-full), Quick Launch from `PinnedTaskbarApps`, the tray from
@@ -96,7 +96,7 @@ Cancel at (244, 169). XP greyed the screen behind it, fading over a few seconds.
   double-click the mixer; the network icon opens Network Connections. The clock's double-click opens Date and Time.
   Task buttons show the window's small icon. Start opens on the Start button's click (XP's opened on the press), the
   Windows key and Ctrl+Esc; a press elsewhere on the taskbar closes it.
-- **Menus and tooltips** (`XpMenu`, `XpToolTip`, `XpPopup`): no-activate topmost popups, see-through for the shadows;
+- **Menus and tooltips** (`XpMenu`, `XpToolTip`, `ThemePopup`): no-activate topmost popups, see-through for the shadows;
   a `ClickCatcher` below a menu closes it on a click elsewhere; arrows, Enter and Esc reach the menu from the window
   with the keyboard. The taskbar's menu has XP's items but not Toolbars (Quick Launch is the pinned apps); Properties
   and Customize Notifications open NeoShell's taskbar settings; alongside Explorer it ends with Exit NeoShell.

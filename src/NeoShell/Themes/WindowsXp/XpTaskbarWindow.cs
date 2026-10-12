@@ -332,12 +332,12 @@ internal sealed class XpTaskbarWindow : Window, ITaskbarView
             keys.Add(key);
             if (!_hits.TryGetValue(key, out Button? hit))
             {
-                _hits[key] = hit = XpHit.Create(automationId, name);
+                _hits[key] = hit = ThemeHit.Create(automationId, name);
                 Wire(hit, key);
                 _overlay.Children.Add(hit);
             }
             Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(hit, name);
-            XpHit.Place(hit, x, y, width, height);
+            ThemeHit.Place(hit, x, y, width, height);
             return hit;
         }
         var iconKeys = new HashSet<string>();
@@ -350,7 +350,7 @@ internal sealed class XpTaskbarWindow : Window, ITaskbarView
                 _overlay.Children.Insert(0, image);
             }
             image.Source = source;
-            XpHit.Place(image, x, y, 16, 16);
+            ThemeHit.Place(image, x, y, 16, 16);
         }
 
         Hit("start", "StartButton", "start", 0, 0, StartWidth, Height).IsTabStop = true;
@@ -358,7 +358,7 @@ internal sealed class XpTaskbarWindow : Window, ITaskbarView
         {
             (PinnedApp app, int x) = _quickLaunch[i];
             Hit($"ql:{i}", "QuickLaunchButton", app.DisplayName, x, ButtonTop, QuickLaunchButton, ButtonHeight);
-            Icon($"ql:{i}", Pending($"ql:{i}", XpIcons.Of(app, 16)), x + 3 + Shift($"ql:{i}"), 8 + Shift($"ql:{i}"));
+            Icon($"ql:{i}", Pending($"ql:{i}", ThemeIcons.Of(app, 16)), x + 3 + Shift($"ql:{i}"), 8 + Shift($"ql:{i}"));
         }
         if (_quickLaunchChevron is { } chevronX)
             Hit("qlchevron", "QuickLaunchChevron", "More Quick Launch items", chevronX, ButtonTop, QuickLaunchButton, ButtonHeight);
@@ -424,7 +424,7 @@ internal sealed class XpTaskbarWindow : Window, ITaskbarView
 
     private async Task LoadSmallIcon(nint hwnd, ImageSource? from)
     {
-        ImageSource? icon = await XpIcons.OfWindow(hwnd);
+        ImageSource? icon = await ThemeIcons.OfWindow(hwnd);
         if (_windowIcons.TryGetValue(hwnd, out (ImageSource? Source, ImageSource? From) known) && known.From == from && icon is not null)
         {
             _windowIcons[hwnd] = (icon, from);
@@ -442,8 +442,8 @@ internal sealed class XpTaskbarWindow : Window, ITaskbarView
     private ImageSource? TrayIconSource(string key) => key switch
     {
         // XP's own pictures, still in Windows: the grey speaker, and the two screens (a warning when there's no internet).
-        "indicator:volume" => Pending(key, XpIcons.FromResource(@"%SystemRoot%\System32\SndVolSSO.dll,0", 16)),
-        "indicator:network" => Pending(key, XpIcons.FromResource(
+        "indicator:volume" => Pending(key, ThemeIcons.FromResource(@"%SystemRoot%\System32\SndVolSSO.dll,0", 16)),
+        "indicator:network" => Pending(key, ThemeIcons.FromResource(
             _indicators?.Network.HasInternet == true ? @"%SystemRoot%\System32\netshell.dll,1" : @"%SystemRoot%\System32\netshell.dll,4", 16)),
         _ => TrayIconOf(key)?.Icon,
     };
@@ -456,7 +456,7 @@ internal sealed class XpTaskbarWindow : Window, ITaskbarView
         if (_width <= 0)
             return;
 
-        var canvas = new XpCanvas(_width, Height);
+        var canvas = new ThemeCanvas(_width, Height);
         XpButtonState State(string key, bool pressedAlready = false)
         {
             bool pressed = pressedAlready || _pressed == key;
@@ -613,7 +613,7 @@ internal sealed class XpTaskbarWindow : Window, ITaskbarView
             ShowMenu(key, [.. _owner.Settings.Current.PinnedTaskbarApps.Skip(QuickLaunchVisible).Select(app => new XpMenuItem
             {
                 Text = app.DisplayName,
-                Icon = () => XpIcons.Of(app, 16),
+                Icon = () => ThemeIcons.Of(app, 16),
                 Invoke = () => Launcher.Launch(app),
                 AutomationId = "QuickLaunchMenuItem",
             })], XpMenuStyle.Classic, ToScreen(_quickLaunchChevron!.Value + 4, ButtonTop, 17, 0), XpMenuPlacement.Above);
@@ -652,7 +652,7 @@ internal sealed class XpTaskbarWindow : Window, ITaskbarView
         ShowMenu(key, [.. button.Windows.Select(window => new XpMenuItem
         {
             Text = GroupItemTitle(window.Title, button.App.DisplayName),
-            Icon = () => XpIcons.OfWindow(window.Handle),
+            Icon = () => ThemeIcons.OfWindow(window.Handle),
             Invoke = () => TopLevelWindows.Activate(window.Handle),
             AutomationId = "GroupMenuItem",
         })], XpMenuStyle.Group, ToScreen(x, 0, width, 0), XpMenuPlacement.Above, width + 9);

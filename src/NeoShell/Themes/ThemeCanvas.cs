@@ -1,13 +1,14 @@
 using NeoShell.Interop.Imaging;
 using Windows.Graphics;
 
-namespace NeoShell.Themes.WindowsXp;
+namespace NeoShell.Themes;
 
 /// <summary>
-/// Pixels the XP theme draws into: premultiplied 0xAARRGGBB, as a WriteableBitmap takes them. Text goes through GDI
-/// with grayscale antialiasing, as XP drew it ("Standard" font smoothing), onto what's already drawn.
+/// Pixels an older Windows' theme (XP, 98) draws into: premultiplied 0xAARRGGBB, as a WriteableBitmap takes them. Text
+/// goes through GDI onto what's already drawn: grayscale antialiasing for TrueType faces, as XP drew them ("Standard"
+/// font smoothing); bitmap faces such as 98's MS Sans Serif come out as their own pixels.
 /// </summary>
-public sealed class XpCanvas(int width, int height)
+public sealed class ThemeCanvas(int width, int height)
 {
     public int Width { get; } = width;
 
@@ -50,16 +51,6 @@ public sealed class XpCanvas(int width, int height)
             Fill(x, y + row, width, 1, rows[row]);
     }
 
-    /// <summary>A stretching piece of art, <paramref name="width"/> wide.</summary>
-    public void Band(XpBand band, int x, int y, int width)
-    {
-        for (int row = 0; row < band.Rows; row++)
-        {
-            for (int column = 0; column < width; column++)
-                Set(x + column, y + row, band.Pixel(column, row, width));
-        }
-    }
-
     /// <summary>Measured pixels (RRGGBB rows), opaque.</summary>
     public void Patch(uint[][] rows, int x, int y)
     {
@@ -97,15 +88,23 @@ public sealed class XpCanvas(int width, int height)
         Pixels[y * Width + x] = (alpha << 24) | (Channel(16) << 16) | (Channel(8) << 8) | Channel(0);
     }
 
+    /// <summary>A submenu's arrow, as XP's and 98's menus draw it: a triangle pointing right, 4 wide and 7 tall.</summary>
+    public void SubmenuArrow(int x, int y, uint rgb)
+    {
+        for (int row = 0; row < 7; row++)
+            Fill(x, y + row, 4 - Math.Abs(3 - row), 1, rgb);
+    }
+
     /// <summary>
     /// One line of text whose box starts at (<paramref name="x"/>, <paramref name="y"/>), cut off with an ellipsis at
-    /// <paramref name="width"/>. The box must be opaque: GDI draws onto it.
+    /// <paramref name="width"/>. The box must be opaque: GDI draws onto it. With <paramref name="prefix"/>, an ampersand
+    /// underlines the letter after it.
     /// </summary>
-    public void Text(string text, int x, int y, int width, int height, GdiFont font, uint rgb)
+    public void Text(string text, int x, int y, int width, int height, GdiFont font, uint rgb, bool prefix = false)
     {
         RectInt32 area = Clip(x, y, width, height);
         if (area.Width > 0 && area.Height > 0)
-            GdiText.Draw(Pixels, Width, area with { }, text, font, rgb);
+            GdiText.Draw(Pixels, Width, area with { }, text, font, rgb, prefix: prefix);
     }
 
     /// <summary>
@@ -127,7 +126,7 @@ public sealed class XpCanvas(int width, int height)
     // How much of each pixel the text covers: white text drawn on black.
     private static float[] Coverage(string text, int width, int height, GdiFont font)
     {
-        var mask = new XpCanvas(width, height);
+        var mask = new ThemeCanvas(width, height);
         mask.Fill(0, 0, width, height, 0);
         mask.Text(text, 0, 0, width, height, font, 0xFFFFFF);
         return [.. mask.Pixels.Select(pixel => ((pixel >> 8) & 255) / 255f)];

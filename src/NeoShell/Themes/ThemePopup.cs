@@ -10,14 +10,14 @@ using NeoShell.Interop.Windowing;
 using NeoShell.Settings;
 using Windows.Graphics;
 
-namespace NeoShell.Themes.WindowsXp;
+namespace NeoShell.Themes;
 
 /// <summary>
-/// A frameless topmost window showing an XP surface drawn in code (<see cref="XpCanvas"/>), with icons and hit areas over
-/// it: the menus, tooltips, Start and the power dialogs. See-through where the canvas is, for XP's drop shadows and
-/// rounded corners. The art is XP's 96 DPI pixels, scaled to the monitor.
+/// A frameless topmost window showing a surface drawn in code (<see cref="ThemeCanvas"/>), with icons and hit areas over
+/// it: an older theme's menus, tooltips, Start and power dialogs. See-through where the canvas is, for XP's drop shadows
+/// and rounded corners. The art is 96 DPI pixels, scaled to the monitor.
 /// </summary>
-internal sealed class XpPopup : Window
+internal sealed class ThemePopup : Window
 {
     private readonly FramelessWindow _frameless;
     private readonly PinnedWindow _placement;
@@ -26,7 +26,7 @@ internal sealed class XpPopup : Window
     private bool _shut;
 
     /// <param name="activates">Whether it takes the keyboard when shown (Start, the dialogs); menus and tooltips don't.</param>
-    public XpPopup(bool activates)
+    public ThemePopup(bool activates)
     {
         Root = new Grid();
         Root.Children.Add(_surface);
@@ -65,7 +65,7 @@ internal sealed class XpPopup : Window
     public RectInt32 ScreenBounds => _placement.Bounds;
 
     /// <summary>Shows what's drawn, the window's size following the canvas.</summary>
-    public void Draw(XpCanvas canvas)
+    public void Draw(ThemeCanvas canvas)
     {
         if (_bitmap is null || _bitmap.PixelWidth != canvas.Width || _bitmap.PixelHeight != canvas.Height)
         {

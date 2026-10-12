@@ -29,6 +29,16 @@ public sealed class XpBand
         return x < _left[row].Length ? _left[row][x] : _middle[row];
     }
 
+    /// <summary>Draws the piece <paramref name="width"/> wide with its top left at (<paramref name="x"/>, <paramref name="y"/>).</summary>
+    public void Draw(ThemeCanvas canvas, int x, int y, int width)
+    {
+        for (int row = 0; row < Rows; row++)
+        {
+            for (int column = 0; column < width; column++)
+                canvas.Set(x + column, y + row, Pixel(column, row, width));
+        }
+    }
+
     /// <summary>The middle's colour on a row, for what's drawn over it.</summary>
     public uint Middle(int row) => _middle[row];
 }

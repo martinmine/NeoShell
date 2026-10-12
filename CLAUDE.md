@@ -72,11 +72,16 @@ src/NeoShell/                 WinUI app
   Desktop/                    WallpaperWindow (one per monitor), slideshow, IDesktopWallpaper server, desktop icons and
                               their menus (every monitor)
   Themes/                     The theme seam: ITaskbarView, IStartMenuView, ThemeViews (each theme's views),
-                              ShellThemes; other themes' views go in Themes/<Name>/
+                              ShellThemes; what the drawn themes share: ThemeCanvas (pixels + GDI text), ThemePopup
+                              windows with invisible ThemeHit buttons over them, ThemeIcons; other themes' views go in
+                              Themes/<Name>/
     WindowsXp/                XP's Luna taskbar, menus, tooltips, Start and power dialogs, drawn in code from measured
-                              art (XpArt*, XpCanvas, XpBand); XpPopup windows with invisible XpHit buttons over them;
-                              XP's AutomationIds: StartButton, TaskButton, QuickLaunchButton, TrayIcon, TrayChevron,
-                              ClockButton, AllProgramsButton, <place>PlaceButton, LogOffButton, TurnOffButton
+                              art (XpArt*, XpBand); XP's AutomationIds: StartButton, TaskButton, QuickLaunchButton,
+                              TrayIcon, TrayChevron, ClockButton, AllProgramsButton, <place>PlaceButton, LogOffButton,
+                              TurnOffButton
+    Windows98/                98's taskbar and Start (groundwork: banner and top-level items), drawn in code from
+                              measured numbers (Win98Art, Win98Painting's 3D edges); AutomationIds: StartButton,
+                              QuickLaunchButton, TaskButton, TrayIcon, ClockButton, <Item>MenuItem (ProgramsMenuItem…)
   Taskbar/                    Taskbars, TaskbarWindow (Windows 11's view), TaskbarDock (what every theme's taskbar
                               shares: placement, auto-hide, full screen), TaskButtonList, task list + grouping, pinned
                               apps, thumbnail popup, clock
@@ -235,7 +240,8 @@ the desktop and back. Full spec in docs/design/widgets.md.
   buttons; which windows the frames program draws over; the settings it reads; its sign-in task), the Settings
   window's pages, version and run mode texts, themes (the choice, names, the setting) and a theme's taskbar height,
   the XP theme (button widths, grouping, tray and Quick Launch widths, group menu titles, system menu states, the Start
-  Menu folders, Start's layout).
+  Menu folders, Start's layout), the 98 theme (button widths, bands and tray, Start's layout, the taskbar's and Start's
+  pixels).
 - The Settings window's controls all have AutomationIds (`<Page>NavigationItem`, `SettingsPageTitle`, `SearchModeBox`,
   `TaskbarAlignmentBox`, `AutoHideCheckBox`, `WidgetSidebarWidthSlider`…; list in docs/design/settings-window.md). Open
   it by invoking `StartButton` then `NeoShellSettingsButton`; select pages through the items' SelectionItem pattern.

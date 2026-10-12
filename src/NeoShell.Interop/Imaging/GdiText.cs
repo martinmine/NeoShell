@@ -15,9 +15,10 @@ public static unsafe class GdiText
     /// <summary>
     /// Draws <paramref name="text"/> in <paramref name="area"/> of <paramref name="pixels"/> (0xAARRGGBB rows
     /// <paramref name="width"/> long; the area comes out opaque), first in <paramref name="shadow"/> one pixel down and
-    /// right if given. GDI blends each over what's below, which a white text mask composited later can't match.
+    /// right if given. GDI blends each over what's below, which a white text mask composited later can't match. With
+    /// <paramref name="prefix"/>, an ampersand underlines the next letter (a menu's mnemonic), as in a menu item's text.
     /// </summary>
-    public static void Draw(Span<uint> pixels, int width, RectInt32 area, string text, GdiFont font, uint color, uint? shadow = null)
+    public static void Draw(Span<uint> pixels, int width, RectInt32 area, string text, GdiFont font, uint color, uint? shadow = null, bool prefix = false)
     {
         if (area.Width <= 0 || area.Height <= 0 || text.Length == 0)
             return;
@@ -48,16 +49,16 @@ public static unsafe class GdiText
         nint gdiFont = Create(font);
         nint oldFont = Gdi32.SelectObject(dc, gdiFont);
         Gdi32.SetBkMode(dc, Gdi32.TRANSPARENT);
-        const uint Format = User32.DT_SINGLELINE | User32.DT_NOPREFIX | User32.DT_END_ELLIPSIS;
+        uint format = User32.DT_SINGLELINE | User32.DT_END_ELLIPSIS | (prefix ? 0 : User32.DT_NOPREFIX);
         if (shadow is { } shadowColor)
         {
             Gdi32.SetTextColor(dc, ToColorRef(shadowColor));
             var shadowRect = new User32.RECT { left = 1, top = 1, right = area.Width, bottom = area.Height };
-            User32.DrawText(dc, text, -1, ref shadowRect, Format);
+            User32.DrawText(dc, text, -1, ref shadowRect, format);
         }
         Gdi32.SetTextColor(dc, ToColorRef(color));
         var rect = new User32.RECT { right = area.Width - 1, bottom = area.Height };
-        User32.DrawText(dc, text, -1, ref rect, Format);
+        User32.DrawText(dc, text, -1, ref rect, format);
         Gdi32.GdiFlush();
 
         // GDI leaves alpha alone (zero where it drew): the result is opaque.

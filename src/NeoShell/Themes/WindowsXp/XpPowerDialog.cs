@@ -22,7 +22,7 @@ internal sealed class XpPowerDialog
 
     private static XpPowerDialog? s_open;
 
-    private readonly XpPopup _popup = new(activates: true);
+    private readonly ThemePopup _popup = new(activates: true);
     private readonly string _title;
     private readonly (string Key, string Text, PowerChoice Choice, uint Color, string Glyph)[] _choices;
     private readonly XpToolTip _toolTip = new();
@@ -47,8 +47,8 @@ internal sealed class XpPowerDialog
         for (int i = 0; i < count; i++)
         {
             (string key, string text, PowerChoice choice, _, _) = _choices[i];
-            Button hit = XpHit.Create(key == "turnoff" ? "TurnOffDialogButton" : $"{choice}DialogButton", text);
-            XpHit.Place(hit, ChoiceX(i) - 20, 78, 72, 56);
+            Button hit = ThemeHit.Create(key == "turnoff" ? "TurnOffDialogButton" : $"{choice}DialogButton", text);
+            ThemeHit.Place(hit, ChoiceX(i) - 20, 78, 72, 56);
             hit.PointerEntered += (_, _) =>
             {
                 _hot = key;
@@ -70,8 +70,8 @@ internal sealed class XpPowerDialog
             };
             _popup.Overlay.Children.Add(hit);
         }
-        Button cancel = XpHit.Create("CancelDialogButton", "Cancel");
-        XpHit.Place(cancel, 244, 169, 58, 19);
+        Button cancel = ThemeHit.Create("CancelDialogButton", "Cancel");
+        ThemeHit.Place(cancel, 244, 169, 58, 19);
         cancel.Click += (_, _) => Close();
         _popup.Overlay.Children.Add(cancel);
         _popup.Root.KeyDown += (_, e) =>
@@ -116,7 +116,7 @@ internal sealed class XpPowerDialog
 
     private void Paint()
     {
-        var canvas = new XpCanvas(Width, Height);
+        var canvas = new ThemeCanvas(Width, Height);
         canvas.Fill(0, 0, Width, Height, Blue);
         // The middle band: lightest in the middle (96B5F5), darker towards the ends (5A7EDE), as measured on XP.
         for (int x = 1; x < Width - 1; x++)
@@ -145,7 +145,7 @@ internal sealed class XpPowerDialog
     }
 
     // A choice's button: a 32-pixel square with rounded corners, a light rim, a top-lit face in its colour and a white glyph.
-    private static void PaintChoice(XpCanvas canvas, int x, int y, uint color, string glyph, bool hot)
+    private static void PaintChoice(ThemeCanvas canvas, int x, int y, uint color, string glyph, bool hot)
     {
         const int Size = 32;
         for (int row = 0; row < Size; row++)
