@@ -277,6 +277,16 @@ Tick items off as they land. The feature details are in [design.md](design.md) a
       a press shows the shrink and the release overshoots, and a click drops the hover plate and the previews, as
       read in Taskbar.View.dll and compared frame by frame with Explorer (both as the shell; click, caption button,
       the app itself) — not run live: Win+Down/Win+M (keys), a combined button with several windows
+- [x] Fix: task button progress and flashing differed from Explorer's (owner's report): the bar now takes the pill's
+      place under the icon, 24 px wide (it was 28 px, 4 px higher, with the pill still under it), a pill coming back
+      morphs from the bar's width, normal progress at 0 shows the pill; a flashing button gets Explorer's red plate
+      and 32 px red pill and blinks (1.5 s blinks while the flash messages come, then stays lit or ends as Explorer
+      does) where it showed a steady amber tint; the running pill takes Explorer's brush — read in Taskbar.View.dll
+      (its XAML and `StartRequestingAttentionAnimation`) and compared frame by frame with Explorer (both as the shell:
+      states, value jumps and sweeps, indeterminate, several windows, overlay, counted/timed/stopped flashes, activation,
+      a shell copy) — not run live: NeoShell with labelled buttons (Explorer's bar was measured under the icon there
+      too), pinned buttons, the light taskbar; differs: the plate's first ~50 ms fade-in (Explorer's brush transition
+      passes through a whitish tint)
 
 ## 19. Explorer parity (2)
 

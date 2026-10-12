@@ -14,7 +14,14 @@ using Windows.Graphics;
 namespace NeoShell.Taskbar;
 
 /// <param name="Value">0 to 1.</param>
-public sealed record TaskProgress(TaskbarProgressState State, double Value);
+public sealed record TaskProgress(TaskbarProgressState State, double Value)
+{
+    /// <summary>
+    /// Whether a task button shows the bar: as in Explorer, normal progress at 0 shows the pill instead; error and
+    /// paused show their empty track.
+    /// </summary>
+    public bool ShowsBar => State != TaskbarProgressState.Normal || Value > 0;
+}
 
 /// <summary>
 /// The windows that have taskbar buttons, in the order they appeared, plus which one is active, which are flashing,
@@ -31,6 +38,8 @@ internal sealed class WindowTracker : IDisposable
     private readonly bool _announceButtons;
     private readonly List<WindowInfo> _windows = [];
     private readonly HashSet<nint> _flashing = [];
+    // Flash messages (on and off) per window that has flashed, which keep its button blinking (FlashMessages).
+    private readonly Dictionary<nint, int> _flashMessages = [];
     private readonly Dictionary<nint, ImageSource?> _windowIcons = [];
     private readonly Dictionary<string, string> _appNames = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<nint, TaskProgress> _progress = [];
@@ -134,7 +143,14 @@ internal sealed class WindowTracker : IDisposable
         _shellHook?.Dispose();
     }
 
+    /// <summary>
+    /// Whether the window's last flash left it lit: user32 flashes a window on (<c>HSHELL_FLASH</c>) and off
+    /// (<c>HSHELL_REDRAW</c>) in turns and ends a counted flash on; activating it ends the flash.
+    /// </summary>
     public bool IsFlashing(nint hwnd) => _flashing.Contains(hwnd);
+
+    /// <summary>How many flash messages (on or off) the window has had; a blinking button blinks on while they come.</summary>
+    public int FlashMessages(nint hwnd) => _flashMessages.GetValueOrDefault(hwnd);
 
     /// <summary>The progress the window's app reports through ITaskbarList3, or null for none.</summary>
     public TaskProgress? Progress(nint hwnd) => _progress.GetValueOrDefault(hwnd);
@@ -298,12 +314,22 @@ internal sealed class WindowTracker : IDisposable
                 SetForeground(hwnd);
                 break;
             case ShellHookEvent.Flash:
-                if (_showFlashing && hwnd != Foreground && IsTracked(hwnd) && _flashing.Add(hwnd))
+                // Explorer shows a window in front flashing too.
+                if (_showFlashing && IsTracked(hwnd))
+                {
+                    _flashing.Add(hwnd);
+                    _flashMessages[hwnd] = FlashMessages(hwnd) + 1;
                     QueueChanged();
+                }
                 break;
             case ShellHookEvent.Redraw:
-                // Title or icon changed.
+                // Title or icon changed, or a flash turned off.
                 _windowIcons.Remove(hwnd);
+                if (_flashMessages.ContainsKey(hwnd))
+                {
+                    _flashing.Remove(hwnd);
+                    _flashMessages[hwnd]++;
+                }
                 Update(hwnd);
                 break;
             case ShellHookEvent.WindowDestroyed:
@@ -391,6 +417,7 @@ internal sealed class WindowTracker : IDisposable
 
         _windows.RemoveAt(index);
         _flashing.Remove(hwnd);
+        _flashMessages.Remove(hwnd);
         _windowIcons.Remove(hwnd);
         _progress.Remove(hwnd);
         _overlays.Remove(hwnd);

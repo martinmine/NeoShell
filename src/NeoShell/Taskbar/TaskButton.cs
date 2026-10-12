@@ -16,6 +16,7 @@ internal sealed class TaskButton(string key) : INotifyPropertyChanged
     private ImageSource? _icon;
     private bool _isActive;
     private bool _isFlashing;
+    private bool _showsAttention;
     private bool _isHovered;
     private bool _isDragged;
     private bool _showLabel;
@@ -46,20 +47,30 @@ internal sealed class TaskButton(string key) : INotifyPropertyChanged
         private set
         {
             if (Set(ref _isActive, value))
-            {
-                Raise(nameof(ActiveVisibility));
-                Raise(nameof(ActiveOpacity));
-            }
+                RaisePills();
         }
     }
 
-    public bool IsFlashing
+    /// <summary>Whether one of the button's windows is flashing on (see <see cref="WindowTracker.IsFlashing"/>).</summary>
+    public bool IsFlashing { get => _isFlashing; private set => Set(ref _isFlashing, value); }
+
+    /// <summary>The flash messages the button's windows have had: a blinking button keeps blinking while they come.</summary>
+    public int FlashMessages { get; private set; }
+
+    /// <summary>
+    /// Set by Windows 11's taskbar while the button shows that its window wants attention (the red plate and long
+    /// pill), which it keeps for a while after the flash (<see cref="AttentionBlink"/>).
+    /// </summary>
+    public bool ShowsAttention
     {
-        get => _isFlashing;
-        private set
+        get => _showsAttention;
+        set
         {
-            if (Set(ref _isFlashing, value))
-                Raise(nameof(FlashVisibility));
+            if (Set(ref _showsAttention, value))
+            {
+                Raise(nameof(HoverVisibility));
+                RaisePills();
+            }
         }
     }
 
@@ -70,7 +81,10 @@ internal sealed class TaskButton(string key) : INotifyPropertyChanged
         set
         {
             if (Set(ref _isHovered, value))
+            {
                 Raise(nameof(HoverVisibility));
+                Raise(nameof(AttentionHoverVisibility));
+            }
         }
     }
 
@@ -82,9 +96,7 @@ internal sealed class TaskButton(string key) : INotifyPropertyChanged
         {
             if (Set(ref _isDragged, value))
             {
-                Raise(nameof(ActiveVisibility));
-                Raise(nameof(ActiveOpacity));
-                Raise(nameof(RunningVisibility));
+                RaisePills();
                 Raise(nameof(StackVisibility));
             }
         }
@@ -117,19 +129,39 @@ internal sealed class TaskButton(string key) : INotifyPropertyChanged
 
     public Visibility LabelVisibility => ShowLabel ? Visibility.Visible : Visibility.Collapsed;
 
-    public Visibility ActiveVisibility => IsActive && !IsDragged ? Visibility.Visible : Visibility.Collapsed;
+    /// <summary>
+    /// The indicator under the icon: none while dragged, the progress bar in its place while the app reports progress,
+    /// else the attention, active or running pill.
+    /// </summary>
+    public TaskPill Pill =>
+        Windows.Count == 0 || IsDragged ? TaskPill.None
+        : ShowsProgress ? TaskPill.Progress
+        : ShowsAttention ? TaskPill.Attention
+        : IsActive ? TaskPill.Active
+        : TaskPill.Running;
 
-    /// <summary>The active plate fades in and out (an opacity transition), as Explorer's brush transition does.</summary>
-    public double ActiveOpacity => ActiveVisibility == Visibility.Visible ? 1 : 0;
+    /// <summary>
+    /// The active plate fades in and out (an opacity transition), as Explorer's brush transition does; the attention
+    /// plate takes its place.
+    /// </summary>
+    public double ActiveOpacity => IsActive && !IsDragged && !ShowsAttention ? 1 : 0;
 
-    public Visibility RunningVisibility => !IsActive && !IsDragged && Windows.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+    /// <summary>The attention plate fades in and out the same way.</summary>
+    public double AttentionOpacity => ShowsAttention && !IsDragged ? 1 : 0;
+
+    public Visibility RunningVisibility => Pill == TaskPill.Running ? Visibility.Visible : Visibility.Collapsed;
+
+    public Visibility ActiveVisibility => Pill == TaskPill.Active ? Visibility.Visible : Visibility.Collapsed;
+
+    public Visibility AttentionVisibility => Pill == TaskPill.Attention ? Visibility.Visible : Visibility.Collapsed;
 
     /// <summary>Several windows: the plate shows the edge of a second card behind it, as in Windows 11.</summary>
     public Visibility StackVisibility => Windows.Count > 1 && !IsDragged ? Visibility.Visible : Visibility.Collapsed;
 
-    public Visibility HoverVisibility => IsHovered ? Visibility.Visible : Visibility.Collapsed;
+    /// <summary>The hover plate; a flashing button's plate turns its hover colour instead.</summary>
+    public Visibility HoverVisibility => IsHovered && !ShowsAttention ? Visibility.Visible : Visibility.Collapsed;
 
-    public Visibility FlashVisibility => IsFlashing ? Visibility.Visible : Visibility.Collapsed;
+    public Visibility AttentionHoverVisibility => IsHovered ? Visibility.Visible : Visibility.Collapsed;
 
     /// <summary>The app's progress (ITaskbarList3), shown as a bar along the bottom of the button.</summary>
     public TaskProgress? Progress
@@ -139,7 +171,7 @@ internal sealed class TaskButton(string key) : INotifyPropertyChanged
         {
             if (Set(ref _progress, value))
             {
-                Raise(nameof(ProgressVisibility));
+                RaisePills();
                 Raise(nameof(ProgressPercent));
                 Raise(nameof(IsProgressIndeterminate));
                 Raise(nameof(IsProgressError));
@@ -148,11 +180,13 @@ internal sealed class TaskButton(string key) : INotifyPropertyChanged
         }
     }
 
-    public Visibility ProgressVisibility => Progress is null ? Visibility.Collapsed : Visibility.Visible;
+    public bool ShowsProgress => Progress?.ShowsBar == true;
 
-    public double ProgressPercent => (Progress?.Value ?? 0) * 100;
+    public double ProgressOpacity => Pill == TaskPill.Progress ? 1 : 0;
 
-    public bool IsProgressIndeterminate => Progress?.State == TaskbarProgressState.Indeterminate;
+    public double ProgressPercent => Pill == TaskPill.Progress ? Progress!.Value * 100 : 0;
+
+    public bool IsProgressIndeterminate => Pill == TaskPill.Progress && Progress!.State == TaskbarProgressState.Indeterminate;
 
     public bool IsProgressError => Progress?.State == TaskbarProgressState.Error;
 
@@ -201,11 +235,12 @@ internal sealed class TaskButton(string key) : INotifyPropertyChanged
         ShowLabel = single is not null;
         IsActive = model.Windows.Any(w => w.Handle == tracker.Foreground);
         IsFlashing = model.Windows.Any(w => tracker.IsFlashing(w.Handle));
+        FlashMessages = model.Windows.Sum(w => tracker.FlashMessages(w.Handle));
         // A combined button shows the first of its windows that reports anything.
         Progress = model.Windows.Select(w => tracker.Progress(w.Handle)).FirstOrDefault(p => p is not null);
         Overlay = model.Windows.Select(w => tracker.Overlay(w.Handle)).FirstOrDefault(o => o is not null);
         Badge = tracker.Badge(App);
-        Raise(nameof(RunningVisibility));
+        RaisePills();
         Raise(nameof(StackVisibility));
     }
 
@@ -223,6 +258,19 @@ internal sealed class TaskButton(string key) : INotifyPropertyChanged
         field = value;
         Raise(name);
         return true;
+    }
+
+    private void RaisePills()
+    {
+        Raise(nameof(Pill));
+        Raise(nameof(RunningVisibility));
+        Raise(nameof(ActiveVisibility));
+        Raise(nameof(AttentionVisibility));
+        Raise(nameof(ProgressOpacity));
+        Raise(nameof(ProgressPercent));
+        Raise(nameof(IsProgressIndeterminate));
+        Raise(nameof(ActiveOpacity));
+        Raise(nameof(AttentionOpacity));
     }
 
     private void Raise(string name) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));

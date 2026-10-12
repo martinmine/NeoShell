@@ -33,6 +33,24 @@ public sealed class TaskButtonMotionTests
     }
 
     [Fact]
+    public void Each_indicator_has_Explorers_length()
+    {
+        // GetRunningIndicatorExtent: 32 for a flashing button with a 24 px icon; the progress bar is the icon's width.
+        Assert.Equal(6, TaskButtonMotion.PillWidth(TaskPill.Running), 6);
+        Assert.Equal(16, TaskButtonMotion.PillWidth(TaskPill.Active), 6);
+        Assert.Equal(32, TaskButtonMotion.PillWidth(TaskPill.Attention), 6);
+        Assert.Equal(24, TaskButtonMotion.PillWidth(TaskPill.Progress), 6);
+    }
+
+    [Fact]
+    public void A_blink_fades_the_plate_out_in_a_third_holds_and_brings_it_back_by_two_thirds()
+    {
+        // StartRequestingAttentionAnimation's key frames: 0.33, 0.56, 0.67 and 1 (linear), from where the plate is.
+        Assert.Equal([(0.33f, 0f), (0.56f, 0f), (0.67f, 1f), (1f, 1f)], TaskButtonMotion.BlinkFrames(active: false));
+        Assert.Equal([(0.33f, 0.5f), (0.56f, 0.5f), (0.67f, 1f), (1f, 1f)], TaskButtonMotion.BlinkFrames(active: true));
+    }
+
+    [Fact]
     public void The_timings_are_Explorers()
     {
         // SharedAnimations::Initialize, in 100 ns ticks: 3,330,000; 830,000 and 6,670,000; 1,670,000 and 5,000,000.
@@ -41,5 +59,8 @@ public sealed class TaskButtonMotionTests
         Assert.Equal(TimeSpan.FromMilliseconds(667), TaskButtonMotion.BounceDuration);
         Assert.Equal(TimeSpan.FromMilliseconds(167), TaskButtonMotion.PressDuration);
         Assert.Equal(TimeSpan.FromMilliseconds(500), TaskButtonMotion.ReleaseDuration);
+        // 15,000,000 ticks a blink; recorded: one every ~1.68 s.
+        Assert.Equal(TimeSpan.FromMilliseconds(1500), TaskButtonMotion.BlinkDuration);
+        Assert.Equal(TimeSpan.FromMilliseconds(180), TaskButtonMotion.BlinkGap);
     }
 }

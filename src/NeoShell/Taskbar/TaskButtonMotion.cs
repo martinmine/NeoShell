@@ -7,10 +7,13 @@ using Microsoft.UI.Xaml.Media;
 
 namespace NeoShell.Taskbar;
 
+/// <summary>The indicator under a task button's icon.</summary>
+public enum TaskPill { None, Running, Active, Attention, Progress }
+
 /// <summary>
 /// A task button's own animations, as Explorer's (Taskbar.View.dll, <c>SharedAnimations</c>; numbers in
 /// docs/design/taskbar.md): the pill changing length, the icon dipping when its window is minimized and rising when
-/// it's restored, and the icon shrinking while pressed.
+/// it's restored, the icon shrinking while pressed, and a flashing button's plate blinking.
 /// </summary>
 public static class TaskButtonMotion
 {
@@ -18,6 +21,14 @@ public static class TaskButtonMotion
 
     /// <summary>The active pill is two thirds of the icon long, a running one a quarter (GetRunningIndicatorExtent).</summary>
     public const double ActivePillWidth = IconSize * 2 / 3, RunningPillWidth = IconSize / 4;
+
+    /// <summary>A flashing button's long pill, as wide as the plate less 4 each side (GetRunningIndicatorExtent).</summary>
+    public const double AttentionPillWidth = 32;
+
+    public static readonly TimeSpan BlinkDuration = TimeSpan.FromMilliseconds(1500);
+
+    /// <summary>Between one blink's end and the next one's start (recorded: a blink every ~1.68 s).</summary>
+    public static readonly TimeSpan BlinkGap = TimeSpan.FromMilliseconds(180);
 
     public static readonly TimeSpan PillDuration = TimeSpan.FromMilliseconds(333);
     public static readonly TimeSpan BounceDelay = TimeSpan.FromMilliseconds(83);
@@ -31,6 +42,42 @@ public static class TaskButtonMotion
     // When each icon was pressed, and its release waiting for the shrink to finish; kept for as long as the icon lives.
     private static readonly ConditionalWeakTable<UIElement, StrongBox<long>> s_pressedAt = [];
     private static readonly ConditionalWeakTable<UIElement, DispatcherQueueTimer> s_pendingReleases = [];
+
+    /// <summary>
+    /// The indicator's length: a quarter of the icon while running, two thirds while active, the plate's while
+    /// flashing, and the icon's for progress (the bar takes the pill's place; a pill coming back starts from there).
+    /// </summary>
+    public static double PillWidth(TaskPill pill) => pill switch
+    {
+        TaskPill.Running => RunningPillWidth,
+        TaskPill.Active => ActivePillWidth,
+        TaskPill.Attention => AttentionPillWidth,
+        TaskPill.Progress => IconSize,
+        _ => 0,
+    };
+
+    /// <summary>
+    /// A blink of a flashing button's plate, as its opacity at each key frame (linear between them, from wherever it
+    /// is): out to nothing (half while its window is active) in the first third, back at two thirds, held to the end
+    /// (<c>StartRequestingAttentionAnimation</c>, <c>GetNeedyBackgroundAnimationStartingValue</c>).
+    /// </summary>
+    public static (float Progress, float Opacity)[] BlinkFrames(bool active)
+    {
+        float low = active ? 0.5f : 0;
+        return [(0.33f, low), (0.56f, low), (0.67f, 1), (1, 1)];
+    }
+
+    /// <summary>One blink of a flashing button's plate (<see cref="BlinkFrames"/>).</summary>
+    public static void Blink(UIElement plate, bool active)
+    {
+        Compositor compositor = CurrentCompositor();
+        ScalarKeyFrameAnimation blink = compositor.CreateScalarKeyFrameAnimation();
+        foreach ((float progress, float opacity) in BlinkFrames(active))
+            blink.InsertKeyFrame(progress, opacity, compositor.CreateLinearEasingFunction());
+        blink.Duration = BlinkDuration;
+        blink.Target = nameof(UIElement.Opacity);
+        plate.StartAnimation(blink);
+    }
 
     /// <summary>
     /// The pill takes its new length at once and is scaled from the old one about its centre: the scale it starts at.

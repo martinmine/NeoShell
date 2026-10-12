@@ -56,6 +56,8 @@ internal sealed partial class TaskbarWindow : Window, ITaskbarView
     private TaskButton? _rightPressed;
     private TaskDrag? _drag;
     private readonly List<(UIElement Container, string Property, long Started)> _layoutAnimations = [];
+    // Flashing buttons' blinks, while they show the attention look or blink.
+    private readonly Dictionary<TaskButton, Blinker> _blinkers = [];
     // A drag from another app or the desktop (TaskbarDrop): the button it hovers, the app it would pin and the gap
     // opened for it.
     private readonly DispatcherQueueTimer _dragHoverTimer;
@@ -1082,19 +1084,17 @@ internal sealed partial class TaskbarWindow : Window, ITaskbarView
         bool animate = TaskList.IsLoaded;
         Dictionary<TaskButton, double> before = animate ? ButtonPositions() : [];
         // Which buttons had which pill, to morph the one that takes over.
-        Dictionary<TaskButton, bool> wasActive = _tasks.Where(HasPill).ToDictionary(button => button, button => button.IsActive);
+        Dictionary<TaskButton, TaskPill> pills = _tasks.ToDictionary(button => button, button => button.Pill);
 
         List<TaskButton> added = _tasks.Update(models, combine);
         for (int i = 0; i < _tasks.Count; i++)
             _tasks[i].Width = widths[i];
+        UpdateBlinks();
         if (animate)
         {
             AnimateLayoutChange(before, added);
             foreach (TaskButton button in _tasks)
-            {
-                if (HasPill(button) && wasActive.TryGetValue(button, out bool active) && active != button.IsActive)
-                    MorphPill(button);
-            }
+                MorphPill(button, pills.GetValueOrDefault(button));
         }
 
         // The previews show windows that may have closed or opened.
@@ -1102,16 +1102,85 @@ internal sealed partial class TaskbarWindow : Window, ITaskbarView
             _thumbnails.Hide();
     }
 
-    private static bool HasPill(TaskButton button) => button.Windows.Count > 0 && !button.IsDragged;
-
-    // Explorer gives the indicator its new length at once and scales it from the old one (StartRunningIndicatorSizeChangeAnimation).
-    private void MorphPill(TaskButton button)
+    // Explorer gives the indicator its new length at once and scales it from the old one
+    // (StartRunningIndicatorSizeChangeAnimation): a pill coming back after progress starts at the bar's width; one
+    // giving way to progress just goes, as do pills appearing or going with a window or a drag.
+    private void MorphPill(TaskButton button, TaskPill from)
     {
-        (string name, double from, double to) = button.IsActive
-            ? ("ActivePill", TaskButtonMotion.RunningPillWidth, TaskButtonMotion.ActivePillWidth)
-            : ("RunningPill", TaskButtonMotion.ActivePillWidth, TaskButtonMotion.RunningPillWidth);
-        if (TemplatePart(button, name) is { } pill)
-            TaskButtonMotion.MorphPill(pill, from, to);
+        TaskPill to = button.Pill;
+        if (from == to || from == TaskPill.None || to is TaskPill.None or TaskPill.Progress)
+            return;
+        if (TemplatePart(button, to + "Pill") is { } pill)
+            TaskButtonMotion.MorphPill(pill, TaskButtonMotion.PillWidth(from), TaskButtonMotion.PillWidth(to));
+    }
+
+    // Flashing buttons blink as Explorer's (AttentionBlink): each blink plays out on a timer, then the next one or the
+    // end of the attention look.
+    private void UpdateBlinks()
+    {
+        foreach (TaskButton gone in _blinkers.Keys.Where(button => !_tasks.Contains(button)).ToList())
+        {
+            _blinkers[gone].Timer.Stop();
+            _blinkers.Remove(gone);
+        }
+        foreach (TaskButton button in _tasks)
+        {
+            if (!_blinkers.TryGetValue(button, out Blinker? blinker))
+            {
+                if (!button.IsFlashing)
+                    continue;
+                DispatcherQueueTimer timer = DispatcherQueue.CreateTimer();
+                timer.IsRepeating = false;
+                blinker = new Blinker(new AttentionBlink(button.IsActive), timer);
+                timer.Tick += (_, _) => OnBlinkTimer(button, blinker);
+                _blinkers[button] = blinker;
+            }
+            bool start = blinker.Blink.Update(button.IsFlashing, button.FlashMessages, button.IsActive);
+            button.ShowsAttention = blinker.Blink.Shows;
+            if (start)
+                StartBlink(button, blinker, blinker.Blink.WasActive);
+            else if (!blinker.Blink.Shows && !blinker.Blink.Blinking)
+                _blinkers.Remove(button);
+        }
+    }
+
+    private void StartBlink(TaskButton button, Blinker blinker, bool active)
+    {
+        if (TemplatePart(button, "AttentionPlate") is { } plate)
+            TaskButtonMotion.Blink(plate, active);
+        blinker.InGap = false;
+        blinker.Timer.Interval = TaskButtonMotion.BlinkDuration;
+        blinker.Timer.Start();
+    }
+
+    private void OnBlinkTimer(TaskButton button, Blinker blinker)
+    {
+        if (blinker.InGap)
+        {
+            StartBlink(button, blinker, button.IsActive);
+        }
+        else if (blinker.Blink.BlinkEnded())
+        {
+            blinker.InGap = true;
+            blinker.Timer.Interval = TaskButtonMotion.BlinkGap;
+            blinker.Timer.Start();
+        }
+        else
+        {
+            TaskPill from = button.Pill;
+            button.ShowsAttention = blinker.Blink.Shows;
+            MorphPill(button, from);
+            if (!blinker.Blink.Shows)
+                _blinkers.Remove(button);
+        }
+    }
+
+    private sealed class Blinker(AttentionBlink blink, DispatcherQueueTimer timer)
+    {
+        public AttentionBlink Blink { get; } = blink;
+        public DispatcherQueueTimer Timer { get; } = timer;
+        // Between two blinks.
+        public bool InGap { get; set; }
     }
 
     // A window minimized or restored: its button's icon dips or rises, as in Explorer (StartItemMinimizeAnimation).

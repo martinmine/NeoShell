@@ -237,7 +237,7 @@ the desktop and back. Full spec in docs/design/widgets.md.
   Alt+Tab items, finding a maximize button, Start's pin folders and folder buttons, Start's All categories, order, New/System and tile store, All's folders, hidden apps and arrow-key navigation, the folder panel's colour, the taskbar search setting and its collapse, labelled task buttons narrowing as the taskbar fills, thumbnail toolbar data and image lists, pinning by drag, clock settings and notification bell, widget placement and order, MET forecast parsing, wireless device protocols, Windows product name,
   AutoPlay content, events, choice lists and saving, autorun.inf parsing, optical drive names, toast sounds,
   Quick Settings' rotation lock tile and VPN phonebook entries, the Bluetooth page's rows (status, battery, choosing),
-  input indicator labels and Win+Space keys, the Copilot key and its choice, task button badges, task button animations (pill morph, minimize/restore bounce), Start account menu order and "…",
+  input indicator labels and Win+Space keys, the Copilot key and its choice, task button badges, flashing buttons' blinks and when progress shows, task button animations (pill morph, minimize/restore bounce), Start account menu order and "…",
   Alt+Tab's keys (Ctrl+Alt+Tab) and most-recently-used order, the title bar shake setting, snips (window targets,
   freeform masks, Snipping Tool's settings and editor link, the Print Screen key), what a focus session changes in
   Explorer's settings, the taskbar flashing setting, toast texts naming app resources, how many entries a jump list's parts show,

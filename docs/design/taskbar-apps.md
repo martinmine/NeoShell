@@ -174,9 +174,30 @@ that property; alongside Explorer these calls go to Explorer. Messages (`Taskbar
 
 Apps only start once told their button exists: the `TaskbarButtonCreated` registered message, sent with
 `SendNotifyMessage` when a window is added to the task list (shell mode). The task button shows the first window's
-progress (bar along the bottom; indeterminate, error and paused states) and overlay icon. The overlay sits where the
+progress (of a combined button's windows, the first that reports any) and overlay icon. The overlay sits where the
 badge goes (below): 16 px over the icon's top-right corner, 6 px right of the icon and 7 above it (Explorer's
 `OverlayIcon`, measured through UI Automation), and is hidden while the app has a badge.
+
+**Progress bar**, as Explorer's (Taskbar.View's `ProgressIndicator`, a WinUI `ProgressBar` with its own
+`TaskbarProgressIndicatorStyle`, a copy of WinUI's template, read from Client.Core's resources.pri; recorded at 60 fps
+with desktop duplication, both shells as the shell, with a test app calling `ITaskbarList3` and a shell copy):
+- **Place**: it takes the pill's place (`TaskListButtonIndicatorMargin`, 3 px high, 5 px from the bottom) and is as
+  wide as the icon, 24 px, under it (also on labelled buttons); the pill is hidden while it shows. 3 px high, rounded
+  ends; the track behind it is 1 px (margin 0,1) of `ControlStrongStrokeColorDefaultBrush` (#8BFFFFFF on dark:
+  (146,168,199) over the active plate, (139,162,195) over the taskbar). Colours: `AccentFillColorDefaultBrush`
+  (here #40BDFF), error `SystemFillColorCritical` (#FF99A4 dark), paused `SystemFillColorCaution` (#FCE100 dark).
+  The same whether the window is active, inactive or minimized.
+- **When**: `TBPF_NOPROGRESS` hides it (the value goes back to 0); normal progress at 0 shows the pill instead
+  (`TaskProgress.ShowsBar`); error and paused at 0 show the empty track.
+- **Animation** (WinUI's template in both): a new value slides the indicator from its old length
+  (`RepositionThemeAnimation` from `IndicatorLengthDelta`: growing ends ease out over ~300 ms, a shorter bar slides
+  in from the right), so the bar grows in from 0 when it appears; error is instant, paused and back to normal
+  cross-fade the colour over 167 ms; indeterminate runs two segments (~9 and ~13 px) along the track every 2 s with
+  no track. When the bar goes, the pill comes back at 24 px and morphs to its length (333 ms). NeoShell keeps the bar
+  in the tree at 0 opacity and value 0 while hidden: WinUI animates a value change only on a bar that's shown.
+- Compared frame by frame: place and colours to the pixel, value jumps, sweeps, states and the indeterminate loop
+  within a frame (NeoShell ~20-40 ms later: the message goes through the tracker). Before this, NeoShell's bar was
+  28 px wide, 4 px above the pill (both showing), and appeared at its value without growing in.
 
 **Badges** (an app's count or glyph from `BadgeUpdateManager`; `AppBadges`, `TaskBadge`, `BadgeLook`, unit tested).
 Only apps with package identity can set one: for an unpackaged app with an AppUserModelID from a Start menu shortcut,

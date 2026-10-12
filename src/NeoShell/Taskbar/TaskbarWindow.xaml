@@ -17,7 +17,8 @@
                 <!-- The search entry point's colours, measured on Explorer's taskbar (its dark brushes for the box are
                      stronger than WinUI's; on an accent-coloured taskbar it uses the dark ones). The borders are one
                      pixel round a 32 px high pill, whose top row (in light the bottom row of the box) differs.
-                     The battery's fill colours are SystemTray's (OmniAccentGreen/Yellow/RedOverlayForeground). -->
+                     The battery's fill colours are SystemTray's (OmniAccentGreen/Yellow/RedOverlayForeground); a flashing
+                     task button's are Taskbar.View's (RequestingAttention(Hover)Brush, RunningIndicatorRequestingAttentionBrush). -->
                 <ResourceDictionary.ThemeDictionaries>
                     <ResourceDictionary x:Key="Default">
                         <LinearGradientBrush x:Key="SearchIconRingBrush" StartPoint="0,0" EndPoint="1,1">
@@ -46,6 +47,9 @@
                         <SolidColorBrush x:Key="BatteryFillAdequateBrush" Color="#9FD89F" />
                         <SolidColorBrush x:Key="BatteryFillWarningBrush" Color="#EAA300" />
                         <SolidColorBrush x:Key="BatteryFillCriticalBrush" Color="#D92C2C" />
+                        <SolidColorBrush x:Key="TaskAttentionBrush" Color="#7F434A" />
+                        <SolidColorBrush x:Key="TaskAttentionHoverBrush" Color="#8A5259" />
+                        <SolidColorBrush x:Key="TaskAttentionPillBrush" Color="#FF99A4" />
                     </ResourceDictionary>
                     <ResourceDictionary x:Key="Light">
                         <LinearGradientBrush x:Key="SearchIconRingBrush" StartPoint="0,0" EndPoint="1,1">
@@ -74,6 +78,9 @@
                         <SolidColorBrush x:Key="BatteryFillAdequateBrush" Color="#107C10" />
                         <SolidColorBrush x:Key="BatteryFillWarningBrush" Color="#EAA300" />
                         <SolidColorBrush x:Key="BatteryFillCriticalBrush" Color="#C50F1F" />
+                        <SolidColorBrush x:Key="TaskAttentionBrush" Color="#E9AFAA" />
+                        <SolidColorBrush x:Key="TaskAttentionHoverBrush" Color="#F8E7E5" />
+                        <SolidColorBrush x:Key="TaskAttentionPillBrush" Color="#C42B1C" />
                     </ResourceDictionary>
                 </ResourceDictionary.ThemeDictionaries>
 
@@ -507,13 +514,28 @@
                                     Background="{ThemeResource SubtleFillColorSecondaryBrush}"
                                     Visibility="{x:Bind StackVisibility, Mode=OneWay}" />
                             </Grid>
-                            <!-- The window asks for attention. -->
-                            <Border
-                                Margin="2,4"
-                                CornerRadius="4"
-                                Background="{ThemeResource SystemFillColorCautionBrush}"
-                                Opacity="0.4"
-                                Visibility="{x:Bind FlashVisibility, Mode=OneWay}" />
+                            <!-- The window wants attention: a red plate (its hover colour while hovered) that blinks
+                                 (AttentionBlink), fading in and out as the active one. -->
+                            <Grid Margin="2,4" Opacity="{x:Bind AttentionOpacity, Mode=OneWay}">
+                                <Grid.OpacityTransition>
+                                    <ScalarTransition Duration="0:0:0.083" />
+                                </Grid.OpacityTransition>
+                                <Grid x:Name="AttentionPlate">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <Border CornerRadius="4" Background="{ThemeResource TaskAttentionBrush}" />
+                                    <Border CornerRadius="4" Background="{ThemeResource TaskAttentionHoverBrush}" Visibility="{x:Bind AttentionHoverVisibility, Mode=OneWay}" />
+                                    <Border
+                                        Grid.Column="1"
+                                        Width="3"
+                                        Margin="2,1,0,1"
+                                        CornerRadius="0,4,4,0"
+                                        Background="{ThemeResource TaskAttentionBrush}"
+                                        Visibility="{x:Bind StackVisibility, Mode=OneWay}" />
+                                </Grid>
+                            </Grid>
                             <!-- The icon 10 px in (centred on a button without a label), the label 8 px after it, as Explorer's. -->
                             <StackPanel Orientation="Horizontal" Spacing="8" Padding="10,0,0,0" HorizontalAlignment="Left" VerticalAlignment="Center">
                                 <!-- Shrinks while pressed and grows while dragged (IconPress). -->
@@ -542,24 +564,27 @@
                                     Text="{x:Bind Title, Mode=OneWay}"
                                     Visibility="{x:Bind LabelVisibility, Mode=OneWay}" />
                             </StackPanel>
-                            <!-- The app's progress, along the bottom of the button. -->
-                            <ProgressBar
-                                Margin="8,0,8,9"
-                                VerticalAlignment="Bottom"
-                                MinHeight="3"
-                                Height="3"
-                                Maximum="100"
-                                Value="{x:Bind ProgressPercent, Mode=OneWay}"
-                                IsIndeterminate="{x:Bind IsProgressIndeterminate, Mode=OneWay}"
-                                ShowError="{x:Bind IsProgressError, Mode=OneWay}"
-                                ShowPaused="{x:Bind IsProgressPaused, Mode=OneWay}"
-                                Visibility="{x:Bind ProgressVisibility, Mode=OneWay}"
-                                AutomationProperties.AutomationId="TaskProgress" />
-                            <!-- Running: short grey pill; active: long accent pill. Under the icon, as Explorer's. The one taking
-                                 over is scaled from the other's length (TaskButtonMotion.MorphPill). -->
+                            <!-- Running: short grey pill; active: long accent pill; wanting attention: a red one as long as
+                                 the plate. Under the icon, as Explorer's. The one taking over is scaled from the other's length
+                                 (TaskButtonMotion.MorphPill). The app's progress takes the pill's place, as wide as the icon:
+                                 Explorer's is a ProgressBar too, with WinUI's template and brushes. Hidden, it stays in the
+                                 tree at 0, so that the bar grows in from there when it shows (WinUI animates a value change
+                                 only on a bar that's shown). -->
                             <Grid Width="44" HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="0,0,0,5">
-                                <Rectangle x:Name="RunningPill" Width="6" Height="3" RadiusX="1.5" RadiusY="1.5" Fill="{ThemeResource TextFillColorTertiaryBrush}" Visibility="{x:Bind RunningVisibility, Mode=OneWay}" />
+                                <Rectangle x:Name="RunningPill" Width="6" Height="3" RadiusX="1.5" RadiusY="1.5" Fill="{ThemeResource ControlStrongStrokeColorDefaultBrush}" Visibility="{x:Bind RunningVisibility, Mode=OneWay}" />
                                 <Rectangle x:Name="ActivePill" Width="16" Height="3" RadiusX="1.5" RadiusY="1.5" Fill="{ThemeResource AccentFillColorDefaultBrush}" Visibility="{x:Bind ActiveVisibility, Mode=OneWay}" />
+                                <Rectangle x:Name="AttentionPill" Width="32" Height="3" RadiusX="1.5" RadiusY="1.5" Fill="{ThemeResource TaskAttentionPillBrush}" Visibility="{x:Bind AttentionVisibility, Mode=OneWay}" />
+                                <ProgressBar
+                                    Width="24"
+                                    MinHeight="3"
+                                    Height="3"
+                                    Maximum="100"
+                                    Value="{x:Bind ProgressPercent, Mode=OneWay}"
+                                    IsIndeterminate="{x:Bind IsProgressIndeterminate, Mode=OneWay}"
+                                    ShowError="{x:Bind IsProgressError, Mode=OneWay}"
+                                    ShowPaused="{x:Bind IsProgressPaused, Mode=OneWay}"
+                                    Opacity="{x:Bind ProgressOpacity, Mode=OneWay}"
+                                    AutomationProperties.AutomationId="TaskProgress" />
                             </Grid>
                         </Grid>
                     </DataTemplate>

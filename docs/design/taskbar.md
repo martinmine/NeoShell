@@ -277,7 +277,36 @@ and task buttons. Part of the [NeoShell design](../design.md).
 - Packaged apps' icons come from their package's `targetsize-24_altform-unplated` image, as in Explorer; the shell's
   24 px icon is scaled from a bigger image and comes out a pixel off.
 - Indicators: running (short grey pill), active (long accent pill and plate), several windows (the plate shows a
-  second card's edge behind it), flashing (amber background until activated).
+  second card's edge behind it), flashing (red plate and long red pill, blinking; below), progress (a bar in the
+  pill's place; [taskbar-apps.md](taskbar-apps.md#progress-overlay-badges-thumbnail-toolbars)).
+- **Flashing, as Explorer's** (`AttentionBlink`, `TaskButtonMotion.Blink`, unit tested; Taskbar.View.dll's
+  `TaskListButtonPlayRequestingAttentionAnimation`, `SharedAnimations::StartRequestingAttentionAnimation` and its
+  `RequestingAttention*` visual states, read with cdb and from its XAML in Client.Core's resources.pri; recorded at 60
+  fps with desktop duplication, both shells as the shell, with a test app calling `FlashWindowEx`).
+  - **What user32 sends**: a flash turns the window on (`HSHELL_FLASH`) and off (`HSHELL_REDRAW`) in turns at the
+    caret blink rate (~530 ms); a counted `FLASHW_TRAY` ends on (count 1: on, off, on), a window in front is flashed
+    off first and ends off, `FLASHW_STOP` and activation send a last off. `WindowTracker.IsFlashing` is the last of
+    these (activation clears it); `FlashMessages` counts them. Explorer shows a window in front flashing too.
+  - **Look**: the plate (the active plate's element, 40×40, radius 4) turns `RequestingAttentionBrush` (dark #7F434A,
+    light #E9AFAA; hovered #8A5259 / #F8E7E5) over an 83 ms brush transition, the second card's edge too; the pill
+    turns `RunningIndicatorRequestingAttentionBrush` (#FF99A4 / #C42B1C) at once and grows to 32 px (the plate less
+    4 each side; `GetRunningIndicatorExtent`) with the usual 333 ms morph; it shrinks back to 16 or 6 at the end.
+  - **Blink**: a 1.5 s scalar animation of the plate's opacity, linear, with no first key frame (from where it is):
+    0.33 → 0 (0.5 if the window is active: `GetNeedyBackgroundAnimationStartingValue`), 0.56 → same, 0.67 → 1,
+    1 → 1. A scoped batch's completion starts the next one; recorded, one every ~1.68 s (NeoShell: 1.5 s + 180 ms).
+  - **When**: a flash that turns on starts a blink; at a blink's end another follows if any flash message came during
+    it, else the blinking stops and the button stays lit if the window's flash ended on, or goes back to normal.
+    So `FLASHW_TRAY` 1 blinks twice and 3 three times and stays lit, 10 keeps blinking for ~11 s; a stopped or
+    activated flash plays out its blink (plus one when messages came in it) and ends. Activating the window of a lit
+    button plays one more blink (to 0, the state read before the activation) and ends it; `FLASHW_STOP` on a lit
+    button leaves it lit until then (Explorer only looks at the end of a blink); closing the flashing window ends it.
+  - Compared frame by frame (count 1, 3, 10, timer, timer + click, in front, stopped, `TIMERNOFG` + click): the same
+    blinks within a frame or two, the same end; differs: the first ~50 ms of the fade-in (Explorer's brush transition
+    passes through a whitish tint, NeoShell fades the red plate's opacity). Before this, NeoShell showed a steady
+    amber tint at 40% until activation, ignored windows in front, and kept the short pill.
+  - The running pill is `RunningIndicatorBrush` = `ControlStrongStrokeColorDefaultBrush` (#8BFFFFFF on dark), as
+    Explorer's (it was `TextFillColorTertiaryBrush`).
+  - The XP and 98 themes keep their own look (`TaskButton.IsFlashing`, which now follows the on/off messages).
 - **Minimize and restore, as Explorer animates the button** (`TaskButtonMotion`, unit tested; read in Taskbar.View.dll's
   `SharedAnimations::Initialize` and its callers with cdb, and recorded at Explorer's composition rate with DXGI
   desktop duplication, both shells as the shell: by a click on the button, the caption's minimize button and the app
@@ -303,8 +332,7 @@ and task buttons. Part of the [NeoShell design](../design.md).
     NeoShell does the same.
   - Order, recorded on a click: the press shrink (~0-170 ms), the window gone at ~150 ms (DWM's own animation to the
     button's rectangle, both shells), the pill change ~100-150 ms after that, the icon's dip 83 ms after the minimize.
-    Differs: the grey pill is NeoShell's `TextFillColorTertiaryBrush` (135,159,193 on the VM's accent taskbar)
-    where Explorer's `RunningIndicatorBrush` is (139,162,195).
+    The grey pill is Explorer's `RunningIndicatorBrush` (139,162,195 on the VM's accent taskbar).
 - Left click: one window → activate it, or minimize if it's already foreground; several windows → show thumbnails.
   Pinned, not running → launch.
 - No tooltip: hovering shows the thumbnails instead.
