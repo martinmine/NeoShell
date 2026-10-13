@@ -549,7 +549,11 @@ Each item is done when it looks and behaves as Explorer's (layout, behaviour, an
 Found while working on milestone 19, not done yet.
 
 - [ ] T37 Screen capture as the shell: `Windows.Graphics.Capture` of a monitor fails for every app without Explorer
-      (screen sharing, OBS, Snipping Tool's overlay and recorder; see design/hotkeys.md "Hotkeys", T30)
+      (screen sharing, OBS, Snipping Tool's overlay and recorder; see design/hotkeys.md "Hotkeys", T30) — looked into
+      (T41 pass, 2026-10-13), left open as not feasible for now: the capture provider gets its monitors from
+      `CLSID_ImmersiveShell`, a class with no server of its own that only Explorer's twinui registers, through its
+      undocumented immersive monitor and application view services; NeoShell would have to register that class and
+      serve those interfaces, which every other immersive-shell client would then find too (design/hotkeys.md)
 - [x] T38 The session's change-notification server (`SHChangeNotify`): without Explorer no process serves it, so folder
       windows may not hear of changes made by other processes (T5) — confirmed and fixed: as the shell NeoShell starts
       windows.storage's server as Explorer's desktop does (`SCNInitializeDesktop`, read with cdb); a listener in one
