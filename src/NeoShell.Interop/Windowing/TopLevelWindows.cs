@@ -6,6 +6,8 @@ namespace NeoShell.Interop.Windowing;
 
 public static unsafe class TopLevelWindows
 {
+    private const int ERROR_ACCESS_DENIED = 5;
+
     // NeoShell's integrity level, read once.
     private static uint? s_ownIntegrity;
 
@@ -269,16 +271,16 @@ public static unsafe class TopLevelWindows
             SetBounds(hwnd, bounds);
     }
 
-    private static bool Apply(nint hwnd, RectInt32 bounds, uint dpi, int state, uint modifiers)
+    private static bool Apply(nint hwnd, RectInt32 bounds, uint dpi, int? state, uint modifiers)
     {
         const uint WAM_DPI = 0x0200;
         var action = new User32.WINDOW_ACTION
         {
-            kinds = User32.WAK_POSITION | User32.WAK_SIZE | User32.WAK_PLACEMENT_STATE,
+            kinds = User32.WAK_POSITION | User32.WAK_SIZE | (state is null ? 0 : User32.WAK_PLACEMENT_STATE),
             modifiers = modifiers | WAM_DPI,
             position = new User32.POINT { x = bounds.X, y = bounds.Y },
             size = new User32.SIZE { cx = bounds.Width, cy = bounds.Height },
-            placementState = state,
+            placementState = state ?? 0,
             dpi = dpi,
         };
         RectInt32 before = GetBounds(hwnd);
@@ -306,7 +308,8 @@ public static unsafe class TopLevelWindows
     /// <summary>
     /// <see cref="Arrange"/> for a window that isn't to come to the front (Snap Assist keeps the keyboard while it fills
     /// the next zone): a minimized or maximized one is restored without activating it. A window of an app running as
-    /// administrator refuses (UIPI) and is left as it is.
+    /// administrator refuses that (UIPI): with the window manager's access it's arranged straight from where it is,
+    /// otherwise it's left as it is.
     /// </summary>
     public static void ArrangeInBackground(nint hwnd, RectInt32 bounds, uint dpi)
     {
@@ -318,7 +321,13 @@ public static unsafe class TopLevelWindows
             placement.flags &= ~User32.WPF_RESTORETOMAXIMIZED;
             placement.showCmd = User32.SW_SHOWNOACTIVATE;
             if (!User32.SetWindowPlacement(hwnd, &placement))
+            {
+                // Arranged from minimized, its invisible borders are guessed and the frame lands a little off: again,
+                // now that Windows knows them.
+                if (Apply(hwnd, bounds, dpi, User32.WPS_ARRANGED, User32.WAM_FRAME_BOUNDS) && GetVisibleBounds(hwnd) != bounds)
+                    Apply(hwnd, bounds, dpi, User32.WPS_ARRANGED, User32.WAM_FRAME_BOUNDS);
                 return;
+            }
         }
         Arrange(hwnd, bounds, dpi);
     }
@@ -330,12 +339,33 @@ public static unsafe class TopLevelWindows
     public static int ResizeBorder(uint dpi) =>
         User32.GetSystemMetricsForDpi(User32.SM_CXSIZEFRAME, dpi) + User32.GetSystemMetricsForDpi(User32.SM_CXPADDEDBORDER, dpi);
 
-    /// <summary>Moves and sizes the window, invisible borders included (as <see cref="GetBounds"/> measures it).</summary>
-    public static void SetBounds(nint hwnd, RectInt32 bounds) =>
-        User32.SetWindowPos(hwnd, 0, bounds.X, bounds.Y, bounds.Width, bounds.Height, User32.SWP_NOZORDER | User32.SWP_NOACTIVATE);
+    /// <summary>
+    /// Moves and sizes the window, invisible borders included (as <see cref="GetBounds"/> measures it). An app running
+    /// as administrator refuses that (UIPI) but for a thread with the window manager's access, as Snap's.
+    /// </summary>
+    public static void SetBounds(nint hwnd, RectInt32 bounds)
+    {
+        if (!User32.SetWindowPos(hwnd, 0, bounds.X, bounds.Y, bounds.Width, bounds.Height, User32.SWP_NOZORDER | User32.SWP_NOACTIVATE)
+            && Marshal.GetLastPInvokeError() == ERROR_ACCESS_DENIED)
+        {
+            nint monitor = DisplayMonitor.HandleFromRect(bounds, nearest: true);
+            if (Shcore.GetDpiForMonitor(monitor, Shcore.MDT_EFFECTIVE_DPI, out uint dpi, out _) == 0)
+                Apply(hwnd, bounds, dpi, state: null, modifiers: 0);
+        }
+    }
 
-    /// <summary>Maximizes the window, before returning.</summary>
-    public static void Maximize(nint hwnd) => Show(hwnd, User32.SW_MAXIMIZE, User32.SC_MAXIMIZE, wait: true);
+    /// <summary>
+    /// Maximizes the window, before returning. An app running as administrator refuses it (UIPI) but for a thread with
+    /// the window manager's access, which puts the window in that state as Explorer's Snap does.
+    /// </summary>
+    public static void Maximize(nint hwnd)
+    {
+        if (User32.ShowWindow(hwnd, User32.SW_MAXIMIZE) || Marshal.GetLastPInvokeError() != ERROR_ACCESS_DENIED)
+            return;
+        var action = new User32.WINDOW_ACTION { kinds = User32.WAK_PLACEMENT_STATE, placementState = User32.WPS_MAXIMIZED };
+        if (!User32.ApplyWindowAction(hwnd, &action))
+            User32.PostMessage(hwnd, User32.WM_SYSCOMMAND, User32.SC_MAXIMIZE, 0);
+    }
 
     /// <summary>Restores a maximized or minimized window, before returning.</summary>
     public static void RestoreNow(nint hwnd) => Show(hwnd, User32.SW_RESTORE, User32.SC_RESTORE, wait: true);
@@ -488,7 +518,6 @@ public static unsafe class TopLevelWindows
     /// <param name="wait">Done before returning, not queued for the window's thread (the command is queued either way).</param>
     private static void Show(nint hwnd, int show, nint systemCommand, bool wait = false)
     {
-        const int ERROR_ACCESS_DENIED = 5;
         bool done = wait ? User32.ShowWindow(hwnd, show) : User32.ShowWindowAsync(hwnd, show);
         if (!done && Marshal.GetLastPInvokeError() == ERROR_ACCESS_DENIED)
             User32.PostMessage(hwnd, User32.WM_SYSCOMMAND, systemCommand, 0);

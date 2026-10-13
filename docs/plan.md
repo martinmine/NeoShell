@@ -665,8 +665,10 @@ Found while working on milestone 19, not done yet.
   - [ ] Snap: moves between two zones of the same size jump (DWM doesn't animate them; not compared with Explorer);
     [x] a revealed auto-hide taskbar went above a topmost window over its edge, Explorer's stays below it — fixed:
     sliding doesn't raise it, checked as the shell (design/taskbar.md)
-  - Snap leaves elevated windows out, though `ApplyWindowAction` with the shell's window-manager access would now
-    reach them as Explorer's does (T39d; design/windows.md)
+  - [x] Snap leaves elevated windows out, though `ApplyWindowAction` with the shell's window-manager access would now
+    reach them as Explorer's does (T39d; design/windows.md) — done: Task Manager offered by Snap Assist and snapped
+    from normal and minimized as the shell; not possible: its own drags and Win+arrows (UIPI), the layouts flyout on
+    its maximize button (no hit test from NeoShell); not run live: `Maximize` of an elevated window
 - [x] T42 Jump lists: pinned entries, Pin to / Remove from this list (in scope at the owner's request, 2026-10-09):
       Pinned first, the hover pin button and the entries' own menus (Open, Open file location, Pin to / Unpin from,
       Remove from this list, Properties) on the taskbar and in Start, through the shell's own automatic destination

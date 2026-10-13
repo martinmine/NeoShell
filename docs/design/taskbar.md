@@ -393,8 +393,8 @@ and task buttons. Part of the [NeoShell design](../design.md).
   broker (`NtUserShellSetWindowPos` checks `IAMThreadAccessGranted`), so not to NeoShell (see [UWP (CoreWindow) apps
   as the shell](lifecycle.md#uwp-corewindow-apps-as-the-shell-not-possible-t36) for the immersive broker). T39d found that the shell window's process can take that access itself
   when no Explorer holds it (see Snap's "Window motion" in [Window snapping](windows.md#window-snapping-windowsnapping-shell-mode)), which NeoShell now does as the shell for Snap's animation;
-  with it `ApplyWindowAction` skips the integrity check, so elevated windows could be snapped too — not done yet:
-  Snap still leaves them out.
+  with it `ApplyWindowAction` skips the integrity check, so elevated windows are snapped and maximized through it
+  (T41, see Snap's "Elevated windows"); the rest of this paragraph holds without that access.
   (`NtUserMinMaximize` in win32u does no UIPI check at all, but an undocumented system call that sidesteps UIPI isn't
   something to build on.) So NeoShell can't maximize, size or move an elevated window: Snap leaves such windows out
   (`TopLevelWindows.IsOfHigherIntegrity` compares the process's mandatory label with NeoShell's) — no snap preview,
