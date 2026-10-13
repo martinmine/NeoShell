@@ -110,7 +110,7 @@ internal sealed class TaskbarDock
             ShellWorkArea.ReserveBottom(monitor.Bounds, monitor.Bounds.Y + monitor.Bounds.Height - bounds.Y);
         }
         _shownBounds = bounds;
-        _placement = new PinnedWindow(hwnd, bounds, PinnedLayer.Topmost);
+        _placement = new PinnedWindow(hwnd, bounds, PinnedLayer.Topmost) { MovesInPlace = true };
 
         DispatcherQueue dispatcher = DispatcherQueue.GetForCurrentThread();
         _slideTimer = CreateTimer(dispatcher, TimeSpan.FromMilliseconds(16), SlideStep);

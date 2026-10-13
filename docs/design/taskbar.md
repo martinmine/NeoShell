@@ -83,7 +83,8 @@ and task buttons. Part of the [NeoShell design](../design.md).
   where the pointer is, not by its own window getting the mouse (Taskbar.dll's `TrayUI::SetUnhideTimer` takes the
   pointer's position and starts a 50 ms unhide timer), so it comes back under a topmost window over the bottom edge
   too (measured: a topmost 900x400 window reaching past the bottom; the window stays above the revealed taskbar
-  there, NeoShell's taskbar goes above it), but not under a topmost window covering the whole monitor (a full-screen
+  there, and so it does above NeoShell's since T41: sliding moves the taskbar without raising it to the top of the
+  topmost band, `PinnedWindow.MovesInPlace`; checked as the shell with a topmost test window over the edge), but not under a topmost window covering the whole monitor (a full-screen
   one, or with auto-hide a topmost maximized one), nor for a full-screen app. NeoShell polls the pointer every 50 ms
   while hidden (`TaskbarLayout.RevealsAt`, tested; `TopLevelWindows.IsTopmostWindowCovering`). With the widget
   sidebar shown a maximized window doesn't cover the monitor, so the taskbar comes back over it. It hides again after ~0.75 s with the pointer off it,

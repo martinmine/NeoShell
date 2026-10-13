@@ -83,6 +83,12 @@ public sealed unsafe class PinnedWindow : IDisposable
     public PinnedLayer Layer => _layer;
 
     /// <summary>
+    /// Whether a topmost window keeps its place in the z-order when only moved, rather than going back to the top of
+    /// the topmost band: an auto-hide taskbar sliding in stays below a topmost window over its edge, as Explorer's does.
+    /// </summary>
+    public bool MovesInPlace { get; init; }
+
+    /// <summary>
     /// Moves the window to another layer, just below <paramref name="above"/> when given, so that window covers it
     /// (<see cref="PinnedLayer.Topmost"/> and <see cref="PinnedLayer.Normal"/>).
     /// </summary>
@@ -165,7 +171,8 @@ public sealed unsafe class PinnedWindow : IDisposable
     /// </param>
     private void Apply(bool moving = false)
     {
-        bool keepZOrder = _layer == PinnedLayer.Normal || (moving && _layer == PinnedLayer.Desktop);
+        bool keepZOrder = _layer == PinnedLayer.Normal
+            || (moving && (_layer == PinnedLayer.Desktop || (MovesInPlace && _layer == PinnedLayer.Topmost && _above == 0)));
         uint flags = User32.SWP_NOACTIVATE | (keepZOrder ? User32.SWP_NOZORDER : 0);
         User32.SetWindowPos(_hwnd, InsertAfter, _bounds.X, _bounds.Y, _bounds.Width, _bounds.Height, flags);
     }

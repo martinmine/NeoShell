@@ -662,8 +662,9 @@ Found while working on milestone 19, not done yet.
     Explorer's alongside it (design/taskbar.md)
   - [ ] A full taskbar cuts its row off; Explorer shrinks the icons and then overflows into a menu, and combines group by
     group with "combine when full" (T39a) — not done
-  - Snap: moves between two zones of the same size jump (DWM doesn't animate them); a revealed auto-hide taskbar goes
-    above a topmost window over its edge, Explorer's stays below it (T39d)
+  - [ ] Snap: moves between two zones of the same size jump (DWM doesn't animate them; not compared with Explorer);
+    [x] a revealed auto-hide taskbar went above a topmost window over its edge, Explorer's stays below it — fixed:
+    sliding doesn't raise it, checked as the shell (design/taskbar.md)
   - Snap leaves elevated windows out, though `ApplyWindowAction` with the shell's window-manager access would now
     reach them as Explorer's does (T39d; design/windows.md)
 - [x] T42 Jump lists: pinned entries, Pin to / Remove from this list (in scope at the owner's request, 2026-10-09):
