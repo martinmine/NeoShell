@@ -38,11 +38,8 @@ public static class NexusIntents
 /// <summary>The 2088 concept's clock faces: its date, the weekday in Japanese, the uptime readout.</summary>
 public static class Clock2088
 {
-    /// <summary>
-    /// Today's month and day in the year 2088. Explorer's date is the real one; this is a picture of the future, so its
-    /// year is the story's (the real date is in the clock's tooltip).
-    /// </summary>
-    public static string Date(DateTime now) => $"2088.{now:MM.dd}";
+    /// <summary>Today's date as a readout, year first with dots: <c>2026.10.13</c>. The real year: a clock is read.</summary>
+    public static string Date(DateTime now) => now.ToString("yyyy.MM.dd", System.Globalization.CultureInfo.InvariantCulture);
 
     /// <summary>The weekday as Japanese calendars print it: 日 月 火 水 木 金 土.</summary>
     public static string Weekday(DateTime now) => "日月火水木金土"[(int)now.DayOfWeek].ToString();

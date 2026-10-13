@@ -69,7 +69,7 @@ and the date is printed with the weekday's kanji.
 3. Scan lines (a dark line every 3 px).
 4. Faint crosses on a 120-px grid, above the bar.
 5. At the top middle (the icons keep to the left, the widget sidebar to the right): `ネオシェル NEOSHELL OS · FIELD`,
-   the time in 128-px light type with the seconds in red, the date (`2088.10.13 · 火曜日`), the place, and a table of
+   the time in 128-px light type with the seconds in red, the date (`2026.10.13 · 火曜日`), the place, and a table of
    the operator, the PC's name, the uptime and processor and memory meters. Other monitors show their number and
    size only.
 
@@ -94,7 +94,7 @@ block along its top. Left to right:
 | Ask field (`SearchBox`) | `› ASK NEXUS` with a blinking red caret and `意図 WIN+S`. Opens Start with its ask line focused. Follows Explorer's taskbar search setting: hidden there, it's not shown (Nexus keeps its ask line); as an icon or a box, it shows |
 | Chips (`TaskButton`) | One per window (never combined: a window is a thread) after the pinned apps without windows (icon only, 44 wide). A window's chip: its Win+N number, icon and title in capitals, 188 wide, narrowing together down to the number and icon when the row is full. In front: raised, red outline, red markers, a red bar along the bottom. Running: grey bar. Wanting attention: deep red plate. Progress: a white bar growing along the bottom (red on error, grey paused). Right-click: launch another, pin or unpin, close |
 | Sensors | The tray icons (the hidden ones folded into a red `+N` that unfolds them in place), then readouts with their captions: `NET 網` (`ETH·OK`, Wi-Fi bars `▮▮▮▯▯`, `LOCAL` or `NO LINK` in red; opens the network settings), `VOL 音` (the volume in %, `MUTE` in red; a click mutes, the wheel sets it 2% a notch), `PWR 電力` (with a battery: the charge, `+` charging, red at 15% and below) |
-| Clock (`ClockButton`) | `20:22` with the seconds in red, `2088.10.13 火` under it; the real long date in its tooltip. Opens the notification center and calendar (Windows 11's), a red line under it while they're open |
+| Clock (`ClockButton`) | `20:22` with the seconds in red, `2026.10.13 火` under it; the long date in its tooltip. Opens the notification center and calendar (Windows 11's), a red line under it while they're open |
 | Show desktop | A 12-px strip with a mark that turns red on hover |
 
 What it shares with every theme: placement, auto-hide and full screen (`TaskbarDock`), the buttons kept in step and

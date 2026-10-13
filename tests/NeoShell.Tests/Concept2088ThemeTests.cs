@@ -54,11 +54,11 @@ public sealed class Concept2088ThemeTests
     }
 
     [Fact]
-    public void The_date_is_today_in_2088_with_its_weekday_in_japanese()
+    public void The_date_is_today_with_its_weekday_in_japanese()
     {
         var tuesday = new DateTime(2026, 10, 13, 20, 21, 0);
 
-        Assert.Equal("2088.10.13", Clock2088.Date(tuesday));
+        Assert.Equal("2026.10.13", Clock2088.Date(tuesday));
         Assert.Equal("火", Clock2088.Weekday(tuesday));
         Assert.Equal("日", Clock2088.Weekday(new DateTime(2026, 10, 18)));
     }

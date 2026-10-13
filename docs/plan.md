@@ -788,8 +788,8 @@ NeoShell's taskbar and Start in the look of other Windows versions, over the sam
       wallpaper (shade, red glow, scan lines, a grid of faint crosses, the time and the machine's vitals; shell mode;
       the perspective floor, the sweep, the REC caption, the corner marks, the "2088" and the status line taken out on
       review), the Spine (Nexus block, ask field hidden with Explorer's search setting, numbered chips per window, tray
-      with readouts for the network, volume and battery, clock in 2088) and Nexus (ask line resolving apps and commands,
-      pinned
+      with readouts for the network, volume and battery, clock with the weekday in kanji) and Nexus (ask line resolving
+      apps and commands, pinned
       modules, all apps, telemetry, recent apps, power row); unit tests for the commands and the date. Live alongside
       Explorer and as the shell. Not run live: a second monitor, other DPIs, auto-hide, a battery, chip progress and
       attention, the power buttons
