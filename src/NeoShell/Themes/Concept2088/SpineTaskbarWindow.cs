@@ -62,6 +62,7 @@ internal sealed class SpineTaskbarWindow : Window, ITaskbarView
     private readonly TextBlock _date = Hud.Label("", 9, Hud.Dim, Hud.Mono, spacing: 60);
     private readonly Rectangle _clockMark = new() { Height = 2, Fill = Hud.Solid(Hud.Red), VerticalAlignment = VerticalAlignment.Bottom, Opacity = 0 };
     private readonly Button _clockButton;
+    private readonly Button _askField;
     private bool _startOpen;
     private bool _startHot;
 
@@ -84,7 +85,9 @@ internal sealed class SpineTaskbarWindow : Window, ITaskbarView
         foreach (GridLength width in new[] { GridLength.Auto, GridLength.Auto, new GridLength(1, GridUnitType.Star), GridLength.Auto, GridLength.Auto, GridLength.Auto })
             columns.ColumnDefinitions.Add(new ColumnDefinition { Width = width });
         Add(columns, StartButton(), 0);
-        Add(columns, AskField(), 1);
+        _askField = AskField();
+        SetSearchMode(owner.SearchMode);
+        Add(columns, _askField, 1);
         _taskArea.Children.Add(_taskPanel);
         _taskArea.SizeChanged += (_, _) => LayoutChips();
         _taskArea.Clip = new RectangleGeometry();
@@ -179,9 +182,12 @@ internal sealed class SpineTaskbarWindow : Window, ITaskbarView
 
     public void ShowClockOpen(bool open) => _clockMark.Opacity = open ? 1 : 0;
 
-    // The ask field is always there; Quick Settings, the input switcher and the Quick Link menu are Windows 11's.
-    public void SetSearchMode(TaskbarSearchMode mode) { }
+    // Explorer's search setting: hidden takes the ask field away (Nexus still opens with its ask line); an icon or a
+    // box both show it, it has one size.
+    public void SetSearchMode(TaskbarSearchMode mode) =>
+        _askField.Visibility = mode == TaskbarSearchMode.Hidden ? Visibility.Collapsed : Visibility.Visible;
 
+    // Quick Settings, the input switcher and the Quick Link menu are Windows 11's.
     public void ShowQuickSettings(QuickSettingsPage page) { }
 
     public void PrepareQuickSettings() { }
