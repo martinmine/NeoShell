@@ -233,8 +233,11 @@ The Start menu: Pinned and folders of pins, All, app menus, the app catalog, sea
       (#1E4277), #DEF1F6 on a light accent one (#B5E2EC). NeoShell's in-app `AcrylicBrush` can't see the window's
       backdrop, so `StartMenuLayout.FolderPanelColor` works the colour out from Start's tint (unit tested): the base
       colour at luminance 43 / 243, the accent at 47 two fifths of the way to grey; measured #2D2D2D, #F1F1F1 and
-      #17355F. On a light accent Start NeoShell's Start itself stays dark accent (Explorer 25H2's turns light accent),
-      so its panel does too. It grows out of the tile — from 38/450 of its size at the tile's centre to full size in 333 ms,
+      #17355F. On a light accent Start (the light theme with the accent shown, T41) NeoShell's Start is
+      Explorer 25H2's: the palette's lightest shade a quarter of the way to white, solid, with the footer in the shade
+      itself (`StartMenuLayout.LightAccentBody`, tested; #B5F0FF and #9CEBFF for #9CEBFF, the same pixels as
+      Explorer's, left-aligned over the same wallpaper as the shell), and its panel works from that colour (not
+      measured). It grows out of the tile — from 38/450 of its size at the tile's centre to full size in 333 ms,
       `cubic-bezier(0,0,0,1)`, which fits Explorer's 0.48/0.65/0.84/0.92/0.99 at 33/67/133/200/267 ms — and
       shrinks back into it in 150 ms, accelerating. The tile is hidden while the panel stands for it; Start isn't
       dimmed. A click beside the panel, or Esc, closes it (Esc again closes Start). The name is a centred 20 px

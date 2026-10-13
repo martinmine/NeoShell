@@ -648,7 +648,9 @@ Found while working on milestone 19, not done yet.
     open tooltip destroyed during XAML's shutdown (`~ToolTip` unhooking from its island); the taskbar now closes its
     tooltips as tooltips before its window closes, and the keyboard-focus tooltip no longer opens: 10 exits in 10
     clean (design/quick-settings.md); not done: other windows' open tooltips at exit (Start, widgets, Settings)
-  - With the light theme and accent colour Start stays dark accent; Explorer 25H2's turns light accent (T39c)
+  - [x] With the light theme and accent colour Start stays dark accent; Explorer 25H2's turns light accent (T39c) —
+    fixed: the lightest shade a quarter of the way to white, solid, the footer the shade itself; the same pixels as
+    Explorer's, compared as the shell (design/start-menu.md); not measured: the folder panel on it
   - Quick Settings cuts between pages where Windows crossfades over 2-5 frames; nearby sharing's arrow animation and
     night light's moon swap timing (T39b); the Accessibility page is 8 px shorter than Windows'
   - The pin folder panel opens in 333 ms and closes in 150 ms to 0.084 of its size; Explorer's 343 ms, 167 ms, 0.044

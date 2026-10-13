@@ -36,7 +36,15 @@ internal sealed partial class ShellBackdrop(Backdrop kind) : SystemBackdrop
     }
 
     /// <summary>How much of <see cref="Tint"/> and of its luminosity covers what's behind (0.75 and 0.9 unless set).</summary>
-    public (float Tint, float Luminosity) TintOpacities { get; init; } = (0.75f, 0.9f);
+    public (float Tint, float Luminosity) TintOpacities
+    {
+        get;
+        set
+        {
+            field = value;
+            ApplyTint();
+        }
+    } = (0.75f, 0.9f);
 
     /// <summary>A colour in place of the theme's grey: the accent colour, when Windows shows it on Start and taskbar.</summary>
     public Color? Tint

@@ -706,6 +706,8 @@
             Background="{ThemeResource LayerFillColorDefaultBrush}"
             BorderBrush="{ThemeResource DividerStrokeColorDefaultBrush}"
             BorderThickness="0,1,0,0">
+            <!-- On a light accent Start the footer is the accent's lightest shade, a little darker than the rest. -->
+            <Border x:Name="FooterAccent" Margin="-52,-12,-53,-12" Visibility="Collapsed" />
             <!--
                 The user opens Explorer's account card above it: the account, Sign out, and "…" for the PC's other
                 accounts. Filled as it opens (AccountFlyout_Opening); see docs/design/account-and-power-menus.md,

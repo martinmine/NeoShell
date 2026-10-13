@@ -274,14 +274,21 @@ internal sealed partial class StartMenuWindow : Window, IStartMenuView
         _closing = false;
         if (closing)
             ResetContent();
-        Root.RequestedTheme = accent is { } color ? SystemTheme.ThemeOn(color) : theme;
+        // In the light theme Explorer 25H2's Start takes a light shade of the accent, as Quick Settings' panel does, and
+        // solid; the taskbar stays dark.
+        Color? lightAccent = accent is not null && theme == ElementTheme.Light ? SystemTheme.ReadAccent(SystemTheme.Light3) : null;
+        Color? tint = lightAccent is { } lightest ? StartMenuLayout.LightAccentBody(lightest) : accent;
+        Root.RequestedTheme = tint is { } color ? SystemTheme.ThemeOn(color) : theme;
         _backdrop.Theme = Root.RequestedTheme;
-        _backdrop.Tint = accent;
+        _backdrop.TintOpacities = lightAccent is null ? (0.75f, 0.9f) : (1f, 1f);
+        _backdrop.Tint = tint;
+        FooterAccent.Background = lightAccent is { } shade ? new SolidColorBrush(shade) : null;
+        FooterAccent.Visibility = lightAccent is null ? Visibility.Collapsed : Visibility.Visible;
         // The account card and its "…" are windows of their own, in Windows' grey acrylic even on an accent-coloured Start.
         _accountBackdrop.Theme = Root.RequestedTheme;
         AccountCard.RequestedTheme = Root.RequestedTheme;
         MoreOptionsPanel.RequestedTheme = Root.RequestedTheme;
-        FolderPanel.Background = FolderPanelBrush(accent, Root.RequestedTheme);
+        FolderPanel.Background = FolderPanelBrush(tint, Root.RequestedTheme);
         ShowPinned();
         ShowAllApps();
         ShowPlaces();

@@ -51,4 +51,11 @@ public sealed class StartMenuLayoutTests
         Assert.Equal(Windows.UI.Color.FromArgb(255, 0xF3, 0xF3, 0xF3), StartMenuLayout.FolderPanelColor(null, light: true));
         Assert.Equal(Windows.UI.Color.FromArgb(255, 0x14, 0x33, 0x5E), StartMenuLayout.FolderPanelColor(Windows.UI.Color.FromArgb(255, 0x00, 0x33, 0x7C), light: false));
     }
+
+    [Fact]
+    public void Light_accent_Start_is_the_lightest_shade_a_quarter_of_the_way_to_white()
+    {
+        // Explorer 25H2's Start measured 2026-10-13 with the palette's lightest shade #9CEBFF: #B5F0FF.
+        Assert.Equal(Windows.UI.Color.FromArgb(255, 0xB5, 0xF0, 0xFF), StartMenuLayout.LightAccentBody(Windows.UI.Color.FromArgb(255, 0x9C, 0xEB, 0xFF)));
+    }
 }
