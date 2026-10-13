@@ -40,6 +40,9 @@ internal sealed partial class SidebarWindow : Window
     private List<RectInt32>? _region;
     // The card showing a widget dragged over the sidebar where it would go (ShowDropSlot), while it's among the cards.
     private WidgetFrame? _slot;
+    // The 2088 concept's left edge and title (SetConcept).
+    private FrameworkElement? _conceptEdge;
+    private FrameworkElement? _conceptTitle;
 
     /// <param name="panelShown">The sidebar's own backdrop behind the widgets; otherwise only the widgets show.</param>
     public SidebarWindow(Sidebar owner, RunMode runMode, DisplayMonitor monitor, double width, bool panelShown, Backdrop backdrop, ElementTheme theme, Color? accent)
@@ -118,6 +121,35 @@ internal sealed partial class SidebarWindow : Window
         _backdrop.Theme = Root.RequestedTheme;
         _backdrop.Tint = accent;
         _addMenuBackdrop.Theme = _sidebarMenuBackdrop.Theme = Root.RequestedTheme;
+    }
+
+    /// <summary>
+    /// The 2088 concept's strip (see docs/design/theme-2088.md): a dark plate the Field shows through (the window's
+    /// backdrop is see-through then), a red rule with a ruler's ticks down its left edge and its name at the top. Each
+    /// card's look is its frame's (<see cref="WidgetFrame.SetConcept"/>).
+    /// </summary>
+    public void SetConcept(bool on)
+    {
+        if (on == (_conceptEdge is not null))
+            return;
+
+        if (on)
+        {
+            Root.Background = Themes.Concept2088.Hud.Solid(Themes.Concept2088.Hud.Void, 0.72);
+            _conceptEdge = Themes.Concept2088.HudWidgets.Edge();
+            Grid.SetRowSpan(_conceptEdge, 2);
+            Root.Children.Insert(0, _conceptEdge);
+            _conceptTitle = Themes.Concept2088.HudWidgets.Title();
+            Header.Children.Insert(0, _conceptTitle);
+        }
+        else
+        {
+            // Transparent, not null: right-clicks between the widgets open the sidebar's menu.
+            Root.Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(Colors.Transparent);
+            Root.Children.Remove(_conceptEdge);
+            Header.Children.Remove(_conceptTitle);
+            _conceptEdge = _conceptTitle = null;
+        }
     }
 
     /// <summary>

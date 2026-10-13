@@ -137,10 +137,32 @@ A command is offered from two letters of one of its words. It comes **before** t
 whole; otherwise after them. Found live: with commands always first, "re" put REBOOT SYSTEM at the top, and Enter on a
 half-typed "Registry Editor" would have restarted the PC.
 
+## Widgets: the Side rail
+
+The widget sidebar and floating widgets in the concept (`Themes/Concept2088/HudWidgets`, applied by `Sidebar` live
+when the theme changes: `SidebarWindow.SetConcept`, `WidgetFrame.SetConcept`, `WidgetView.SetConcept`):
+
+- **Windows**: dark and see-through (the backdrop is Transparent and the theme dark whatever the taskbar's backdrop,
+  Windows' mode and accent colour are), so the Field shows through.
+- **The strip**: a Void plate at 72%, a red rule down its left edge with a ruler's ticks (every 8 px, long and red
+  every 64), `SIDE RAIL 側面` at the top beside the add button.
+- **Cards**: each a cut-corner `HudFrame` (14-px cuts, red markers) with a heading: a red tick, the widget's name in
+  capitals and its Japanese (`PROFILE // 操作者`, `RESOURCE USAGE // 資源監視`, `PICTURES // 映像`, `NOW PLAYING // 再生`,
+  `WEATHER // 気象`, `NOTES // 記録`, `WIRELESS DEVICES // 無線機器`, `ABOUT WINDOWS // 系統情報`). The outline turns red
+  while the pointer is anywhere over the card. A floating widget's window is its card, cut corners and all.
+- **Inside**: the widgets keep their layout; their ThemeResources resolve to the concept's palette over the card
+  (`HudWidgets.Palette`: text, fills, the accent as signal red, Bahnschrift), and the resource graphs' default colours
+  become red, hot red, white and grey (colours chosen in the widget's settings stay).
+
+Text set in a fixed text style (captions, the profile's date) keeps Segoe UI: those styles are resolved when the
+widget is made. Checked live as the shell: the sidebar over the Field, hover, a floating Notes widget, and switching
+to Windows 11 and back with the widgets open. Not run live: dragging a widget between the sidebar and the desktop in
+the concept, the sidebar's panel hidden (only the cards).
+
 ## What stays Windows 11's
 
 The notification center and calendar, toasts, Quick Settings, menus' look (they follow the dark theme), Alt+Tab,
-Snap, the widget sidebar, desktop icons' selection colours and NeoShell's Settings window. Other apps' window frames
+Snap, the widgets' settings flyouts, desktop icons' selection colours and NeoShell's Settings window. Other apps' window frames
 are styled separately ([Window frames](window-frames.md)); a 2088 frame style would be the next step there.
 
 ## Beyond the prototype

@@ -38,7 +38,8 @@ Small widgets about the computer and its user, as Windows Vista's sidebar gadget
   while peeking at the desktop (Win+Comma), are left alone by Show desktop and Win+M, and are out of Alt+Tab. They
   take the focus when clicked: notes are typed into.
 - Backdrop, theme and accent colour are the taskbar's (`TaskbarBackdrop`, `Taskbars.Updated`), on the sidebar and on
-  each floating widget.
+  each floating widget; in the 2088 concept they are its own, and so are the cards (see
+  [Theme: 2088](theme-2088.md#widgets-the-side-rail)).
 - Closing a widget window (`Shut`): its subclasses are removed and moves and resizes no longer reach WinUI
   (`WindowClosing.IgnoreMoves`). While closing, WinUI destroys the window's content and then re-applies the window's
   styles; when that moves the client area, WinUI's move handler repositions the destroyed content (an access violation

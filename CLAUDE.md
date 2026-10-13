@@ -134,7 +134,7 @@ src/NeoShell/                 WinUI app
                               QuickLaunchButton, TaskButton, TrayIcon, ClockButton, <Item>MenuItem (ProgramsMenuItem…)
     Concept2088/              The 2088 concept, XAML built in code: Hud (palette, HudFrame, SegmentBar), the Spine
                               (taskbar), Nexus (Start, NexusIntents for its ask line), the Field (a layer over the
-                              wallpaper); AutomationIds: StartButton, SearchBox, TaskButton, TrayIcon, ClockButton,
+                              wallpaper), HudWidgets (the widgets' cards and palette, through SetConcept); AutomationIds: StartButton, SearchBox, TaskButton, TrayIcon, ClockButton,
                               StartSearchBox, PinnedApp, SearchResult, AllAppsButton, <Power>Button
   Taskbar/                    Taskbars, TaskbarWindow (Windows 11's view), TaskbarDock (what every theme's taskbar
                               shares: placement, auto-hide, full screen), TaskButtonList, task list + grouping, pinned

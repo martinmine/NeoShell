@@ -27,6 +27,8 @@ internal sealed class Sidebar : IDisposable
     private readonly Dictionary<string, FloatingWidgetWindow> _floating = [];
     private SidebarWindow? _window;
     private Backdrop _backdrop;
+    // The 2088 concept themes the widgets too: see-through and dark, its own cards (WidgetFrame.SetConcept).
+    private bool _concept;
     // A docked widget dragged off the sidebar: its window on the desktop, shown while the pointer is off the sidebar.
     private FloatingWidgetWindow? _dragOut;
     private Point _grab;
@@ -40,7 +42,15 @@ internal sealed class Sidebar : IDisposable
         _settings = settings;
         _taskbars = taskbars;
         _backdrop = settings.Current.TaskbarBackdrop;
+        _concept = settings.Current.Theme == ShellTheme.Concept2088;
     }
+
+    // What the windows are drawn with: the taskbar's backdrop, theme and accent, or the concept's.
+    private Backdrop Backdrop => _concept ? Backdrop.Transparent : _backdrop;
+
+    private ElementTheme Theme => _concept ? ElementTheme.Dark : _taskbars.Theme;
+
+    private Windows.UI.Color? Accent => _concept ? null : _taskbars.Accent;
 
     private IReadOnlyList<WidgetSettings> Widgets => _settings.Current.Widgets;
 
@@ -114,21 +124,31 @@ internal sealed class Sidebar : IDisposable
                 CloseWindow();
         }
 
-        if (current.TaskbarBackdrop != _backdrop)
+        bool concept = current.Theme == ShellTheme.Concept2088;
+        if (current.TaskbarBackdrop != _backdrop || concept != _concept)
         {
             _backdrop = current.TaskbarBackdrop;
-            _window?.SetBackdrop(_backdrop);
+            _concept = concept;
+            _window?.SetBackdrop(Backdrop);
+            _window?.SetTheme(Theme, Accent);
+            _window?.SetConcept(_concept);
+            foreach (WidgetFrame frame in _window?.Frames ?? [])
+                frame.SetConcept(_concept);
             foreach (FloatingWidgetWindow window in _floating.Values)
-                window.SetBackdrop(_backdrop);
+            {
+                window.SetBackdrop(Backdrop);
+                window.SetTheme(Theme, Accent);
+                window.Frame.SetConcept(_concept);
+            }
         }
     }
 
     // Theme, accent colour, displays, or the taskbars' own space changed.
     private void OnTaskbarsUpdated()
     {
-        _window?.SetTheme(_taskbars.Theme, _taskbars.Accent);
+        _window?.SetTheme(Theme, Accent);
         foreach (FloatingWidgetWindow window in _floating.Values)
-            window.SetTheme(_taskbars.Theme, _taskbars.Accent);
+            window.SetTheme(Theme, Accent);
 
         if (_window is not null)
         {
@@ -166,7 +186,8 @@ internal sealed class Sidebar : IDisposable
             return;
         }
 
-        _window = new SidebarWindow(this, _runMode, monitor, _settings.Current.WidgetSidebarWidth, _settings.Current.ShowWidgetPanel, _backdrop, _taskbars.Theme, _taskbars.Accent);
+        _window = new SidebarWindow(this, _runMode, monitor, _settings.Current.WidgetSidebarWidth, _settings.Current.ShowWidgetPanel, Backdrop, Theme, Accent);
+        _window.SetConcept(_concept);
         foreach (WidgetSettings widget in Widgets.Where(w => !w.IsFloating))
         {
             WidgetView view = views?.FirstOrDefault(v => v.Settings.Id == widget.Id) ?? CreateView(widget);
@@ -237,6 +258,7 @@ internal sealed class Sidebar : IDisposable
     private WidgetFrame CreateFrame(WidgetView view, bool floating)
     {
         var frame = new WidgetFrame(view, floating);
+        frame.SetConcept(_concept);
         frame.CloseRequested += Remove;
         frame.DragStarted += (_, grab) => _grab = grab;
         if (floating)
@@ -265,9 +287,9 @@ internal sealed class Sidebar : IDisposable
             CreateFrame(view, floating: true),
             widget.FloatingWidth ?? SidebarLayout.FloatingWidth,
             topLeft,
-            _backdrop,
-            _taskbars.Theme,
-            _taskbars.Accent);
+            Backdrop,
+            Theme,
+            Accent);
         window.Resized += (width, contentHeight) =>
         {
             if (Widgets.FirstOrDefault(w => w.Id == widget.Id) is { } stored)

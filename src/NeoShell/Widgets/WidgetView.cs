@@ -68,6 +68,14 @@ internal partial class WidgetView : UserControl
     /// </summary>
     public virtual bool ContentUnderButtons => false;
 
+    /// <summary>
+    /// The 2088 concept took over the card, or gave it back (<see cref="WidgetFrame.SetConcept"/>): for colours the
+    /// widget picks itself rather than from the theme's resources.
+    /// </summary>
+    public virtual void SetConcept(bool on)
+    {
+    }
+
     /// <summary>The controls of the settings flyout, built each time it opens.</summary>
     public virtual FrameworkElement CreateSettings() => new StackPanel();
 

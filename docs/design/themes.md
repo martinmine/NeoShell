@@ -31,8 +31,8 @@ theme's views show and do underneath is shared, so a theme only draws it its own
 | Start's data: the app catalog, pins, search, launch history, account, places, power | `StartCatalog`, `StartPins`, `AppSearch` + `IndexSearch`, `UserAssist`, `UserAccount`, `StartPlaces`, `PowerItems`, `ShutDownDialog` |
 
 Not themed (yet), and Windows 11's in every theme: the notification center and calendar, Quick Settings, toasts,
-Alt+Tab, Snap, screenshots, AutoPlay, the desktop (but for the 2088 concept's layer over it, see below), the widget
-sidebar and NeoShell's Settings window. A theme's
+Alt+Tab, Snap, screenshots, AutoPlay, the desktop and the widget sidebar (but for the 2088 concept's, see below) and
+NeoShell's Settings window. A theme's
 taskbar decides whether it opens them (XP's clock opens no flyout; its volume icon would open a small slider of its
 own). Other apps' window frames are styled separately ([Window frames](window-frames.md)); XP Luna frames are
 there already, and the XP theme doesn't turn them on by itself.
@@ -150,4 +150,5 @@ isn't drawn as pixels: its views are XAML built in code from a few shared pieces
 plain buttons; `HudFrame`, the cut-corner plate with edge markers; `SegmentBar`). Start is a `ThemePopup` holding
 XAML rather than a drawn surface (`ThemePopup.ShowIn` places it over a rectangle). It is the one theme that changes
 the desktop: `Wallpaper` asks each `WallpaperWindow` to lay the `FieldDesktop` over its picture and under the icons
-(`ShowField`) while the theme is chosen, and to take it away when it isn't, live.
+(`ShowField`) while the theme is chosen, and to take it away when it isn't, live. The widgets too: `Sidebar` gives
+their windows a see-through backdrop and the dark theme, and their cards the concept's (`SetConcept`).
