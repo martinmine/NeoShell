@@ -15,8 +15,56 @@ Claude is free to install tools, change system settings, create test accounts an
 without asking. The Safety rules below still describe how NeoShell must behave on real machines.
 The owner manages git (branches and commits); don't commit unless asked.
 
+When the owner asks for commits: one commit per feature with a message saying what was compared with Explorer and what
+wasn't run live, pushed right away, on a feature branch (pushing to `master` starts the release workflow).
+
 The VM has `HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon\AutoRestartShell = 0` (set 2026-10-03 for
 shell-mode testing): a killed Explorer stays down, so start `explorer.exe` again yourself after a shell-mode test.
+
+### Tools on the VM (installed 2026-10)
+
+- **Debugging and reverse engineering.** `cdb.exe` ships inside the WinDbg app (`C:\Program Files\WindowsApps\
+  Microsoft.WinDbg_*_x64__8wekyb3d8bbwe\amd64\cdb.exe`; GUI: `WinDbgX`). Microsoft symbols come through the user
+  variable `_NT_SYMBOL_PATH=srv*C:\Symbols*https://msdl.microsoft.com/download/symbols` (`C:\Symbols` is a junction to
+  `E:\Symbols`). Ghidra 12.1.4 with its JDK (Temurin 21) is `E:\Ghidra\ghidra_12.1.4_PUBLIC` (the copy in `C:\Tools`
+  is incomplete). Read code from the file on disk (`cdb -z <dll>`) rather than attaching to a live Explorer; if you
+  must attach, leave with `qd` — `q` ends Explorer, and a failed command in a non-invasive attach once left all of
+  Explorer's threads suspended.
+- **Measuring.** Sysinternals Suite (procmon64, procexp, winobj…), ffmpeg 9 (`-f gdigrab -framerate 60` or `ddagrab`
+  for animations, stepped frame by frame), Python 3.13 (pixel diffs; PowerShell mangles `python -c` quoting, so write
+  scripts to files), Spy++ (`…\Visual Studio\18\Community\Common7\Tools\spyxx_amd64.exe`), dumpbin, and Inspect /
+  AccEvent in Windows Kits 10.0.26100.0. New shells need PATH refreshed from the registry to see winget's aliases.
+- **Disk.** C: is small: put recordings, dumps, Ghidra projects and test builds under `E:\NeoShellWork\<task>` and
+  delete them when done. The NuGet cache stays on C: (language servers keep its files open; moving it half-works).
+- **Reference systems.** A v86 emulator page in Microsoft Edge ("V86 OS Launcher") runs Windows XP (1280x720, shown
+  1:1) and offers 98, 2000, NT 4 and older, but not Vista or 7: click its screen once to give it mouse and keyboard,
+  Esc to release. Typing inside the emulated OS is fine; don't change Edge's tabs or settings, and switching the
+  page's OS ends the running one. The XP and 98 themes and the Luna frames were measured there.
+- **A second monitor** without drivers: `"C:\Program Files\VMware\VMware Tools\VMwareResolutionSet.exe" 0 2 , 0 0 1764
+  988 , 1764 0 1280 800` adds one, `... 0 1 , 0 0 1764 988` removes it. Toggling quickly blue-screened the VM once
+  (bugcheck 0x119): wait 10 s after every display change, keep cycles few, set the second monitor back to 100% before
+  removing it, and leave one monitor at 100%.
+
+### Testing on the VM
+
+- **Integrity level.** Claude's tools may run elevated (high integrity) or not — check with `whoami /groups`. Explorer
+  and NeoShell normally run at medium, and an elevated NeoShell proves nothing about UIPI, drag and drop or elevated
+  windows: start NeoShell, Explorer and test apps with `tools/start-medium.ps1`. Elevated tools see a sandboxed copy
+  of `%LOCALAPPDATA%\NeoShell` and of HKCU writes (reads see the real HKCU): read the real log and settings.json, and
+  make test registry changes and their undo, through a medium-integrity PowerShell started with the same script.
+- **settings.json** may hold widget kinds this code doesn't know, and NeoShell then moves it to `.bak` on start: back
+  it up before a test and put it back after.
+- **The owner's windows.** Never click, drag, type into, close or end anything you didn't start: the Claude app, the
+  owner's elevated Terminal and Notepad, Task Manager. Minimize them by handle (`WM_SYSCOMMAND SC_MINIMIZE`) before real
+  mouse input, check `WindowFromPoint` at every press and drop, and look buttons up by name before every click (stale
+  positions have minimized the Claude window and closed the owner's Task Manager). A drop on an .exe launches it.
+- **Keystrokes** (Win chords, Alt+Tab family, arrows, Esc, Enter) only with NeoShell or a test window of your own in
+  front, checked before each press; no text keys into other apps.
+- **Leftover Explorer processes.** A bare `explorer.exe` started while NeoShell or another Explorer is the shell
+  becomes a second shell or lingers, holding Win+E/R/… hotkeys and stalling every later Explorer (hung taskbar). Start
+  folder windows through `shell:AppsFolder\Microsoft.Windows.Explorer` instead, and close every test process you start.
+- Leave the VM as found after a test: NeoShell stopped with `/exit`, Explorer running as the shell at medium
+  integrity, test apps and scheduled tasks removed, settings.json and changed settings restored.
 
 ## Code principles
 
@@ -142,7 +190,8 @@ src/NeoShell.Interop/
                               StartPlaces, DesktopWallpaperServer (IDesktopWallpaper), DesktopBackground, SystemSetting
                               (Windows' Settings handlers: ISettingItem)
 tests/NeoShell.Tests/         xunit tests for logic that runs without UI
-tools/                        start-shell.ps1 (this session), set-shell.ps1, restore-explorer.ps1
+tools/                        start-shell.ps1 (this session), set-shell.ps1, restore-explorer.ps1, start-medium.ps1
+                              (start a program at medium integrity from an elevated shell)
 docs/                         design.md (overview and index), design/ (one file per area), plan.md
 ```
 
