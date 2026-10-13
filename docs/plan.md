@@ -655,8 +655,11 @@ Found while working on milestone 19, not done yet.
     night light's moon swap timing (T39b) — not done (the old page would hold the window's new size back);
     [x] the Accessibility page is Windows' height now, every row on Windows' to the pixel (it was 8 px short)
   - The pin folder panel opens in 333 ms and closes in 150 ms to 0.084 of its size; Explorer's 343 ms, 167 ms, 0.044
-  - Taskbar tooltips are WinUI's, Explorer's are acrylic; Quick Settings opened through UI Automation shows its first
-    control's tooltip; hovering an open taskbar button doesn't brighten it further, as Explorer's does (T39a)
+  - [ ] Taskbar tooltips are WinUI's, Explorer's are acrylic (not done: in-app acrylic can't see the wallpaper behind
+    a popup); [x] Quick Settings opened through UI Automation (and Win+A as the shell) showed its first control's
+    tooltip — fixed, the focus rectangle stays as Windows'; [x] hovering an open taskbar button didn't brighten it as
+    Explorer's — it brightened twice as much; now the plate's fill turns the secondary fill, the same pixels as
+    Explorer's alongside it (design/taskbar.md)
   - [ ] A full taskbar cuts its row off; Explorer shrinks the icons and then overflows into a menu, and combines group by
     group with "combine when full" (T39a) — not done
   - Snap: moves between two zones of the same size jump (DWM doesn't animate them); a revealed auto-hide taskbar goes

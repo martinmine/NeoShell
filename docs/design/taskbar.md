@@ -256,7 +256,10 @@ and task buttons. Part of the [NeoShell design](../design.md).
   (stopping one would leave a half-faded button).
 - Sized as Explorer's: 44×48 buttons with a 40×40 plate behind the 24 px icon, shown when hovered or active (with
   several windows a 35 px plate, 2 px, then the 3 px edge of a second card; the edge's gap is its own margin, as a
-  grid's column spacing took 2 px off a single window's plate, which drew the centred group a pixel left).
+  grid's column spacing took 2 px off a single window's plate, which drew the centred group a pixel left). Hovered,
+  the active plate's fill turns `ControlFillColorSecondaryBrush` instead of `ControlFillColorDefaultBrush` (its
+  stroke stays) rather than the hover plate going over it, which brightened it twice as much as Explorer's (T41;
+  measured alongside on the accent taskbar: #0F3F84, hovered #154487, the same pixels as Explorer's).
 - **Labelled buttons** (never combined, or combined when full and there's room), measured on Explorer with UI
   Automation and screenshots (T39a): the icon 10 px in, the label 8 px after it and 10 px short of the button's
   right, so a button is 52 px wider than its label (`TaskbarFit`, unit tested), up to 180; the pills under the icon,

@@ -84,6 +84,8 @@ internal sealed class TaskButton(string key) : INotifyPropertyChanged
             {
                 Raise(nameof(HoverVisibility));
                 Raise(nameof(AttentionHoverVisibility));
+                Raise(nameof(ActiveRestVisibility));
+                Raise(nameof(ActiveHoverVisibility));
             }
         }
     }
@@ -158,8 +160,15 @@ internal sealed class TaskButton(string key) : INotifyPropertyChanged
     /// <summary>Several windows: the plate shows the edge of a second card behind it, as in Windows 11.</summary>
     public Visibility StackVisibility => Windows.Count > 1 && !IsDragged ? Visibility.Visible : Visibility.Collapsed;
 
-    /// <summary>The hover plate; a flashing button's plate turns its hover colour instead.</summary>
-    public Visibility HoverVisibility => IsHovered && !ShowsAttention ? Visibility.Visible : Visibility.Collapsed;
+    /// <summary>
+    /// The hover plate; a flashing button's plate turns its hover colour instead, and so does the active one's (a shade
+    /// lighter, as Explorer's: its fill becomes the secondary control fill rather than both showing).
+    /// </summary>
+    public Visibility HoverVisibility => IsHovered && !ShowsAttention && ActiveOpacity == 0 ? Visibility.Visible : Visibility.Collapsed;
+
+    public Visibility ActiveRestVisibility => IsHovered ? Visibility.Collapsed : Visibility.Visible;
+
+    public Visibility ActiveHoverVisibility => IsHovered ? Visibility.Visible : Visibility.Collapsed;
 
     public Visibility AttentionHoverVisibility => IsHovered ? Visibility.Visible : Visibility.Collapsed;
 
@@ -271,6 +280,7 @@ internal sealed class TaskButton(string key) : INotifyPropertyChanged
         Raise(nameof(IsProgressIndeterminate));
         Raise(nameof(ActiveOpacity));
         Raise(nameof(AttentionOpacity));
+        Raise(nameof(HoverVisibility));
     }
 
     private void Raise(string name) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));

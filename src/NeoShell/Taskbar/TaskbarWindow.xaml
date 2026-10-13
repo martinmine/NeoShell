@@ -490,15 +490,26 @@
                                 <Border
                                     CornerRadius="4"
                                     Background="{ThemeResource ControlFillColorDefaultBrush}"
+                                    Visibility="{x:Bind ActiveRestVisibility, Mode=OneWay}" />
+                                <!-- Hovered, Explorer's active plate is a shade lighter. -->
+                                <Border
+                                    CornerRadius="4"
+                                    Background="{ThemeResource ControlFillColorSecondaryBrush}"
+                                    Visibility="{x:Bind ActiveHoverVisibility, Mode=OneWay}" />
+                                <Border
+                                    CornerRadius="4"
                                     BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}"
                                     BorderThickness="1" />
-                                <Border
-                                    Grid.Column="1"
-                                    Width="3"
-                                    Margin="2,1,0,1"
-                                    CornerRadius="0,4,4,0"
-                                    Background="{ThemeResource ControlFillColorDefaultBrush}"
-                                    Visibility="{x:Bind StackVisibility, Mode=OneWay}" />
+                                <Grid Grid.Column="1" Width="3" Margin="2,1,0,1" Visibility="{x:Bind StackVisibility, Mode=OneWay}">
+                                    <Border
+                                        CornerRadius="0,4,4,0"
+                                        Background="{ThemeResource ControlFillColorDefaultBrush}"
+                                        Visibility="{x:Bind ActiveRestVisibility, Mode=OneWay}" />
+                                    <Border
+                                        CornerRadius="0,4,4,0"
+                                        Background="{ThemeResource ControlFillColorSecondaryBrush}"
+                                        Visibility="{x:Bind ActiveHoverVisibility, Mode=OneWay}" />
+                                </Grid>
                             </Grid>
                             <Grid Margin="2,4" Visibility="{x:Bind HoverVisibility, Mode=OneWay}">
                                 <Grid.ColumnDefinitions>
