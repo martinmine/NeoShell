@@ -57,10 +57,10 @@ internal sealed partial class StartMenuWindow : Window, IStartMenuView
     private static readonly TimeSpan s_catalogLifetime = TimeSpan.FromMinutes(2);
     private static readonly TimeSpan s_openDuration = TimeSpan.FromMilliseconds(250);
     private static readonly TimeSpan s_closeDuration = TimeSpan.FromMilliseconds(150);
-    // Explorer's folder panel grows out of the folder's tile over a third of a second, sharply decelerating, and
-    // shrinks back into it in 150 ms; an app held over another shrinks into the folder plate in 150 ms.
-    private static readonly TimeSpan s_folderOpenDuration = TimeSpan.FromMilliseconds(333);
-    private static readonly TimeSpan s_folderCloseDuration = TimeSpan.FromMilliseconds(150);
+    // Explorer's folder panel grows out of the folder's tile over about a third of a second, sharply decelerating, and
+    // shrinks back into it in 167 ms; an app held over another shrinks into the folder plate in 150 ms.
+    private static readonly TimeSpan s_folderOpenDuration = TimeSpan.FromMilliseconds(343);
+    private static readonly TimeSpan s_folderCloseDuration = TimeSpan.FromMilliseconds(167);
     private static readonly TimeSpan s_groupPreviewDuration = TimeSpan.FromMilliseconds(150);
     // Explorer's All zooms out to its letters in a sixth of a second: the page shrinks towards its middle (to about 0.55)
     // and fades as the letters come in from 1.3 times their size; back in, the letters grow and fade over a quarter of a
@@ -1906,7 +1906,8 @@ internal sealed partial class StartMenuWindow : Window, IStartMenuView
             fromX = centre.X - Root.ActualWidth / 2;
             fromY = centre.Y - Root.ActualHeight / 2;
         }
-        double small = (card ? _categoryCard!.ActualWidth : 38) / FolderPanel.Width;
+        // A pin folder's panel grows from the tile's 38 px but shrinks past it, to 20 px, before it goes (Explorer's).
+        double small = (card ? _categoryCard!.ActualWidth : opening ? 38 : 20) / FolderPanel.Width;
         // Each key frame needs a curve of its own.
         KeySpline Curve() => opening
             ? new KeySpline { ControlPoint1 = new Point(0, 0), ControlPoint2 = new Point(0, 1) }

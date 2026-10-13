@@ -654,7 +654,8 @@ Found while working on milestone 19, not done yet.
   - [ ] Quick Settings cuts between pages where Windows crossfades over 2-5 frames; nearby sharing's arrow animation and
     night light's moon swap timing (T39b) — not done (the old page would hold the window's new size back);
     [x] the Accessibility page is Windows' height now, every row on Windows' to the pixel (it was 8 px short)
-  - The pin folder panel opens in 333 ms and closes in 150 ms to 0.084 of its size; Explorer's 343 ms, 167 ms, 0.044
+  - [x] The pin folder panel opens in 333 ms and closes in 150 ms to 0.084 of its size; Explorer's 343 ms, 167 ms, 0.044
+    — set to Explorer's numbers; not recorded again
   - [ ] Taskbar tooltips are WinUI's, Explorer's are acrylic (not done: in-app acrylic can't see the wallpaper behind
     a popup); [x] Quick Settings opened through UI Automation (and Win+A as the shell) showed its first control's
     tooltip — fixed, the focus rectangle stays as Windows'; [x] hovering an open taskbar button didn't brighten it as
