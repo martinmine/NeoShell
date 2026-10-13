@@ -785,9 +785,10 @@ NeoShell's taskbar and Start in the look of other Windows versions, over the sam
   - [ ] Live: shell mode, auto-hide, a second monitor, other DPIs
 - [x] 2088 concept theme (2026-10-13, design/theme-2088.md): the desktop, taskbar and Start as they might be in 2088,
       dark with white text, signal red and Japanese signage, cut-corner panels with edge markers. The Field over the
-      wallpaper (shade, red glow, perspective floor, scan lines and sweep, registration marks, the time and the
-      machine's vitals; shell mode), the Spine (Nexus block, ask field, numbered chips per window, tray with readouts
-      for the network, volume and battery, clock in 2088) and Nexus (ask line resolving apps and commands, pinned
+      wallpaper (shade, red glow, scan lines, a grid of faint crosses, the time and the machine's vitals; shell mode;
+      the perspective floor, the sweep, the REC caption, the corner marks, the "2088" and the status line taken out on
+      review), the Spine (Nexus block, ask field, numbered chips per window, tray with readouts for the network, volume
+      and battery, clock in 2088) and Nexus (ask line resolving apps and commands, pinned
       modules, all apps, telemetry, recent apps, power row); unit tests for the commands and the date. Live alongside
       Explorer and as the shell. Not run live: a second monitor, other DPIs, auto-hide, a battery, chip progress and
       attention, the power buttons

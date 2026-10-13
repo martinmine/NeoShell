@@ -66,18 +66,19 @@ and the date is printed with the weekday's kanji.
 
 1. The user's wallpaper, kept, under an 84% shade of Void: it shows through faintly (a red wallpaper glows).
 2. A red glow rising from the bottom left.
-3. The floor: a perspective grid in red, 29 lines running to a vanishing point at the middle of a horizon at 64% of the
-   height above the bar, crossed by 12 lines that close up towards the horizon.
-4. "2088" in 420-px type at 3.5% opacity, standing on the horizon.
-5. Scan lines (a dark line every 3 px) and the sweep: a red band with a bright lower edge passing down the screen
-   every 9 seconds (a composition animation, no work per frame).
-6. The sky's crosses on a 120-px grid, registration marks (34-px L brackets) in the four corners above the bar, and
-   corner captions (`FIELD 1764×988`, `REC ● 新東京`, `NS-2088 // ΔK7`).
-7. At the top middle (the icons keep to the left, the widget sidebar to the right): `ネオシェル NEOSHELL OS · FIELD`,
+3. Scan lines (a dark line every 3 px).
+4. Faint crosses on a 120-px grid, above the bar.
+5. At the top middle (the icons keep to the left, the widget sidebar to the right): `ネオシェル NEOSHELL OS · FIELD`,
    the time in 128-px light type with the seconds in red, the date (`2088.10.13 · 火曜日`), the place, and a table of
    the operator, the PC's name, the uptime and processor and memory meters. Other monitors show their number and
    size only.
-8. `● SYSTEM NOMINAL 正常稼働` above the bar.
+
+Taken out on the owner's review (2026-10-13): a red perspective floor running to a horizon (it read as a 3D space
+on a flat desktop), a red sweep moving down the screen every 9 seconds (movement on an idle desktop), and a
+`REC ● 新東京` caption at the bottom left (it looked as if the screen were being recorded). Then the white registration
+marks in the corners with their captions (`FIELD 1764×988`, `NS-2088 // ΔK7`: a camera's viewfinder), the faint
+"2088" in 420-px type near the bottom (only part of it showed between the icons and the sidebar) and the
+`● SYSTEM NOMINAL 正常稼働` line above the bar. Nothing on the Field moves now but the clock.
 
 Nothing in the Field takes the pointer: clicks, drags and right-clicks reach the desktop icons and the desktop as
 before. Switching the theme lays the Field on or takes it away live (`Wallpaper` follows the settings).
@@ -185,7 +186,7 @@ What the 2088 premise asks for that this build only hints at, in the order it wo
 - **Threads, not windows**: chips grouped by task rather than app (a browser tab, a document and a chat as one
   thread), restored together.
 - **The Field as a live surface**: the desktop's grid showing the windows' places as a map, notifications arriving
-  as lines on the horizon, the sweep slowing when the machine is busy.
+  as lines along the bottom.
 - **2088 window frames** in the frames program: cut caption corners, the title in capitals, red markers on the active
   window.
 - **A 2088 Quick Settings and notification center**, to finish the set.
