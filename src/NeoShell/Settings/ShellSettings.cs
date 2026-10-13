@@ -16,7 +16,7 @@ public enum DesktopSortOrder { Name, Size, ItemType, DateModified }
 public enum WidgetKind { Profile, Resources, Pictures, Media, Weather, Notes, Wireless, Windows }
 
 /// <summary>Which Windows the taskbar and Start look like (see <see cref="Themes.ShellThemes"/>).</summary>
-public enum ShellTheme { Windows11, WindowsXP, Windows98 }
+public enum ShellTheme { Windows11, WindowsXP, Windows98, Concept2088 }
 
 /// <summary>
 /// One widget: in the sidebar, in the order of <see cref="ShellSettings.Widgets"/>, or floating on the desktop. Its

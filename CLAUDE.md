@@ -132,6 +132,10 @@ src/NeoShell/                 WinUI app
     Windows98/                98's taskbar and Start (groundwork: banner and top-level items), drawn in code from
                               measured numbers (Win98Art, Win98Painting's 3D edges); AutomationIds: StartButton,
                               QuickLaunchButton, TaskButton, TrayIcon, ClockButton, <Item>MenuItem (ProgramsMenuItem…)
+    Concept2088/              The 2088 concept, XAML built in code: Hud (palette, HudFrame, SegmentBar), the Spine
+                              (taskbar), Nexus (Start, NexusIntents for its ask line), the Field (a layer over the
+                              wallpaper); AutomationIds: StartButton, SearchBox, TaskButton, TrayIcon, ClockButton,
+                              StartSearchBox, PinnedApp, SearchResult, AllAppsButton, <Power>Button
   Taskbar/                    Taskbars, TaskbarWindow (Windows 11's view), TaskbarDock (what every theme's taskbar
                               shares: placement, auto-hide, full screen), TaskButtonList, task list + grouping, pinned
                               apps, thumbnail popup, clock
@@ -299,7 +303,7 @@ the desktop and back. Full spec in docs/design/widgets.md.
   window's pages, version and run mode texts, themes (the choice, names, the setting) and a theme's taskbar height,
   the XP theme (button widths, grouping, tray and Quick Launch widths, group menu titles, system menu states, the Start
   Menu folders, Start's layout), the 98 theme (button widths, bands and tray, Start's layout, the taskbar's and Start's
-  pixels).
+  pixels), the 2088 concept (the ask line's commands, its date).
 - The Settings window's controls all have AutomationIds (`<Page>NavigationItem`, `SettingsPageTitle`, `SearchModeBox`,
   `TaskbarAlignmentBox`, `AutoHideCheckBox`, `WidgetSidebarWidthSlider`…; list in docs/design/settings-window.md). Open
   it by invoking `StartButton` then `NeoShellSettingsButton`; select pages through the items' SelectionItem pattern.

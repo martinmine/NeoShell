@@ -9,7 +9,9 @@ A theme is which Windows the **taskbar and Start** look like and how their own p
 shapes, menus, flyouts). Windows 11 is the default; Windows XP (Luna taskbar with the green Start button, Quick
 Launch, the notification area and clock, the two-column Start menu) is the second, see [Theme: Windows XP](theme-xp.md);
 Windows 98 (grey 3D taskbar, the Start menu with its "Windows98" banner) is the third, its groundwork laid, see
-[Theme: Windows 98](theme-98.md); Windows 7 may follow.
+[Theme: Windows 98](theme-98.md); and "2088 (concept)", a picture of the desktop in 2088 (dark, red, bilingual
+signage, an ask line for Start, readouts for the tray, a HUD for the desktop), see [Theme: 2088](theme-2088.md).
+Windows 7 may follow.
 
 A theme replaces whole views, not styles: XP's taskbar is not a restyled Windows 11 taskbar (30 px high, labelled
 buttons that group when full, a Start button with text, a Quick Launch bar, a tray whose chevron expands in place),
@@ -29,7 +31,8 @@ theme's views show and do underneath is shared, so a theme only draws it its own
 | Start's data: the app catalog, pins, search, launch history, account, places, power | `StartCatalog`, `StartPins`, `AppSearch` + `IndexSearch`, `UserAssist`, `UserAccount`, `StartPlaces`, `PowerItems`, `ShutDownDialog` |
 
 Not themed (yet), and Windows 11's in every theme: the notification center and calendar, Quick Settings, toasts,
-Alt+Tab, Snap, screenshots, AutoPlay, the desktop, the widget sidebar and NeoShell's Settings window. A theme's
+Alt+Tab, Snap, screenshots, AutoPlay, the desktop (but for the 2088 concept's layer over it, see below), the widget
+sidebar and NeoShell's Settings window. A theme's
 taskbar decides whether it opens them (XP's clock opens no flyout; its volume icon would open a small slider of its
 own). Other apps' window frames are styled separately ([Window frames](window-frames.md)); XP Luna frames are
 there already, and the XP theme doesn't turn them on by itself.
@@ -139,3 +142,12 @@ submenus, menus, tooltips and dialogs are listed there as what remains. The piec
 `WindowsXp/` into `Themes/`: `ThemeCanvas` (the pixels, GDI text, now with underlined mnemonics), `ThemeHit` (the
 invisible buttons), `ThemeIcons` (icons off the UI thread) and `ThemePopup` (the frameless topmost window for Start,
 menus and tooltips).
+
+## The 2088 concept
+
+`Themes/Concept2088/`, described in [Theme: 2088](theme-2088.md). Unlike the older Windows it isn't measured and
+isn't drawn as pixels: its views are XAML built in code from a few shared pieces (`Hud`: the palette, fonts and
+plain buttons; `HudFrame`, the cut-corner plate with edge markers; `SegmentBar`). Start is a `ThemePopup` holding
+XAML rather than a drawn surface (`ThemePopup.ShowIn` places it over a rectangle). It is the one theme that changes
+the desktop: `Wallpaper` asks each `WallpaperWindow` to lay the `FieldDesktop` over its picture and under the icons
+(`ShowField`) while the theme is chosen, and to take it away when it isn't, live.
