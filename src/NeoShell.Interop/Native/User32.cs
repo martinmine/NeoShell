@@ -256,6 +256,10 @@ internal static unsafe partial class User32
     [LibraryImport("user32.dll")]
     public static partial nint GetShellWindow();
 
+    // Undocumented: the window of the session's change notification server (see WindowsStorage.SCNInitializeDesktop).
+    [LibraryImport("user32.dll")]
+    public static partial nint GetShellChangeNotifyWindow();
+
     [LibraryImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     public static partial bool SetShellWindow(nint hwnd);

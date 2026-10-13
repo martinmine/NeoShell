@@ -550,8 +550,11 @@ Found while working on milestone 19, not done yet.
 
 - [ ] T37 Screen capture as the shell: `Windows.Graphics.Capture` of a monitor fails for every app without Explorer
       (screen sharing, OBS, Snipping Tool's overlay and recorder; see design/hotkeys.md "Hotkeys", T30)
-- [ ] T38 The session's change-notification server (`SHChangeNotify`): without Explorer no process serves it, so folder
-      windows may not hear of changes made by other processes (T5; not confirmed live)
+- [x] T38 The session's change-notification server (`SHChangeNotify`): without Explorer no process serves it, so folder
+      windows may not hear of changes made by other processes (T5) — confirmed and fixed: as the shell NeoShell starts
+      windows.storage's server as Explorer's desktop does (`SCNInitializeDesktop`, read with cdb); a listener in one
+      process got another's `SHCNE_UPDATEDIR` only with it, as under Explorer (design/lifecycle.md, Shell mode); not
+      run live: a File Explorer window refreshing from a notification-only change
 - [x] T39 Explorer parity polish, existing differences noticed by the agents:
   - Flyouts don't close when another app is clicked; the Quick Settings button isn't highlighted while it's open; the
     Quick Settings footer's shading is reversed (T8) — flyouts and highlight fixed (T39a): every taskbar flyout and

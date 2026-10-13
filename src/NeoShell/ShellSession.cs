@@ -63,6 +63,13 @@ internal sealed class ShellSession : IDisposable
         // processes' operations go to it, and the desktop's menu can tell what Undo would undo.
         _undoServer = ShellUndoServer.Start();
 
+        // So do change notifications: without a server, folder windows and file dialogs don't hear of changes other
+        // processes report (new drives, renames, the Recycle Bin, file associations).
+        if (ShellRegistration.StartChangeNotifyServer())
+            Log.Info("Serving the session's change notifications");
+        else
+            Log.Warn("Change notification server not started (another process serves it?)");
+
         // Without Explorer, Windows snaps no windows: dragged against an edge or with Win+arrows, Snap layouts, Snap
         // Assist and snap groups (which the taskbar and Alt+Tab show). Explorer's window management access lets Snap
         // put windows in Windows' arranged state, which DWM animates as it does Explorer's snaps.

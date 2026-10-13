@@ -40,6 +40,17 @@ can't be the shell. Part of the [NeoShell design](../design.md).
    minimized windows are drawn as small title bars along the bottom of the screen.
 4. Start the shell service objects (below), then run startup apps (below), queued at low priority after the tray
    exists.
+   Before them, serve the session's change notifications (`ShellRegistration.StartChangeNotifyServer`, T38).
+   `SHChangeNotify` and `SHChangeNotifyRegister` find the server through user32's `GetShellChangeNotifyWindow`;
+   Explorer's desktop starts it through shell32 with windows.storage's `SCNInitializeDesktop` (ordinal 1002), which
+   runs `CChangeNotify` on a thread of its own and registers its window with `SetShellChangeNotifyWindow` (win32k
+   takes it only from the process owning `GetShellWindow`, and replaces any earlier one). Without it, windows.storage
+   (`SCNGetWindow`) finds no live server: a registering process serves only itself and other processes'
+   notifications are lost. Checked as the shell: before, the registered window was dead Explorer's and a listener in
+   one process (`SHChangeNotifyRegister`, shell level, on a folder) got nothing from `SHCNE_UPDATEDIR` sent by
+   another; with NeoShell serving it got the event, as under Explorer, and Explorer started after `/exit` took the
+   role back. NeoShell itself registers for nothing. Not run live: a File Explorer window refreshing from a
+   notification-only change (the same path as the listener).
 5. Register hotkeys and the low-level keyboard hook (see [Hotkeys](hotkeys.md#hotkeys-shell-mode-only)).
 6. Handle `WM_QUERYENDSESSION` (always allow) / `WM_ENDSESSION` on the shell window: shut down cleanly before Windows
    ends the process. Settings are already saved on every change.

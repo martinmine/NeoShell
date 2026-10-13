@@ -161,7 +161,7 @@ src/NeoShell.Frames/          NeoShell.Frames.exe: FrameHost (which windows), Ap
                               the frame style model (FrameStyle, FrameRules, FramePresets, FrameColors)
 src/NeoShell.Interop/
   Native/                     LibraryImport: User32, Shell32, Dwmapi, Kernel32, Advapi32, PowrProf, Comctl32, Pdh, Hid,
-                              Wintrust, Combase, Rasapi32, BluetoothApis
+                              Wintrust, Combase, Rasapi32, BluetoothApis, WindowsStorage
   Com/                        Core Audio, IShellItem/IShellItemImageFactory, IPropertyStore, ITaskbarList, ISearchQueryHelper,
                               IQuietHoursSettings, IHWEventHandler
   Windowing/                  MessageWindow, WindowSubclass, AppBar, ShellHook, DwmThumbnail, KeyboardHook, WindowInfo,
