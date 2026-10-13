@@ -76,6 +76,22 @@ public sealed class ShellRegistration : IDisposable
     /// <returns>Whether the thread has it.</returns>
     public static bool TakeWindowManagerAccess() => User32.AcquireIAMKey(out ulong key) && User32.EnableIAMAccess(key, true);
 
+    /// <summary>
+    /// Serves the session's change notifications (<c>SHChangeNotify</c>) from this process, as Explorer's desktop
+    /// does: windows.storage runs the server on a thread of its own and registers its window with user32, where every
+    /// process's <c>SHChangeNotify</c> and <c>SHChangeNotifyRegister</c> look for it. Without one, a process that
+    /// registers serves only itself, so folder windows and file dialogs miss other processes' notifications. The
+    /// process ending ends the server; the next shell starts its own.
+    /// </summary>
+    /// <returns>Whether this process's server is the session's.</returns>
+    public static bool StartChangeNotifyServer()
+    {
+        WindowsStorage.SCNInitializeDesktop();
+        nint server = User32.GetShellChangeNotifyWindow();
+        User32.GetWindowThreadProcessId(server, out uint processId);
+        return User32.IsWindow(server) && processId == (uint)Environment.ProcessId;
+    }
+
     public void Dispose() => _window.Dispose();
 
     private nint? OnMessage(uint message, nint wParam, nint lParam)

@@ -180,7 +180,22 @@ dropping the popup offset that had put it over the sidebar. `PopupWindows.KeepRi
 edge against WinUI's moves while the flyout is open, and `TaskbarFlyouts` tells WinUI by the popup's offset again
 after each size change, so UI Automation and tooltips agree. The page's slow state (assistive apps' processes,
 Settings handlers) is read only after its first frame, which had left the flyout empty for 2-3 frames at its new size.
-Still differs: NeoShell cuts between old and new content rather than crossfading.
+Still differs: NeoShell cuts between old and new content rather than crossfading (not done in T41: the old page would
+have to stay in the layout for those frames, and its size would hold the window's new size back).
+
+The Accessibility page is Windows' height (T41: it was 8 px short): measured against Windows' page opened from its
+own Quick Settings, its scrolling part is 308 high with 10 above the first section, sections 5 above their titles
+and rows 7 below their text; every section title and row then sits on Windows' to the pixel (Vision 1 px low), and
+the footer's rule and the panel's edges too.
+
+Opened from the keyboard (Win+A as the shell, or UI Automation), WinUI gives the flyout's first tile keyboard focus,
+and with it its tooltip; Windows' panel shows the focus rectangle without one. The panel cancels that first focus
+and gives it again from code (`FocusState.Programmatic`), which keeps the rectangle but opens no tooltip (T41). A
+tooltip open when NeoShell exits took WinUI down: an access violation in `~ToolTip` (unhooking from its island) during
+XAML's shutdown, caught with cdb, 6 exits in 6 as the shell with a tile's tooltip showing and 2 in 6 after Win+A;
+the taskbar now closes its open tooltips as tooltips (`ToolTip.IsOpen`, not just their popups) before its window
+closes (`TaskbarFlyouts.CloseAll`), and 10 exits in 10 since were clean. Other windows' tooltips (Start, widgets,
+Settings) aren't closed that way; none was open in these exits.
 
 - **Wi-Fi**: a switch for the radio, a refresh button, and the networks in range (`WifiNetworks`, WinRT
   `WiFiAdapter`): one entry per name at its strongest, the connected one first, then by signal (unit tested), each

@@ -105,7 +105,7 @@ The Start menu: Pinned and folders of pins, All, app menus, the app catalog, sea
       automation names ("Other category with 15 Items, Claude, Visual Studio Code, Microsoft News, and 12 others"). An
       open category is the folder panel (450 × 378, centred, its own acrylic) with the name as a 20 semibold title
       instead of the name box, the apps as 96 × 84 tiles four to a row; it grows out of the card, from the card's size,
-      in 333 ms and shrinks back in 150 ms, as a folder (recorded at 60 fps: the same curves as the pin folders').
+      in 343 ms and shrinks back in 167 ms, as a folder (recorded at 60 fps: the same curves as the pin folders').
       The card isn't hidden behind it. A click beside it or Esc closes it.
     - **Categories**: Start's `AppCategory` values 0-31 (0 Other, 1 Accessibility, 2 Communication, 3 Games, 4 Travel,
       5 Security, 6 Personalization, 7 Photo & Video, 8 Social, 9 Utilities & Tools, 10 Kids & Family, 11 Medical,
@@ -233,14 +233,17 @@ The Start menu: Pinned and folders of pins, All, app menus, the app catalog, sea
       (#1E4277), #DEF1F6 on a light accent one (#B5E2EC). NeoShell's in-app `AcrylicBrush` can't see the window's
       backdrop, so `StartMenuLayout.FolderPanelColor` works the colour out from Start's tint (unit tested): the base
       colour at luminance 43 / 243, the accent at 47 two fifths of the way to grey; measured #2D2D2D, #F1F1F1 and
-      #17355F. On a light accent Start NeoShell's Start itself stays dark accent (Explorer 25H2's turns light accent),
-      so its panel does too. It grows out of the tile — from 38/450 of its size at the tile's centre to full size in 333 ms,
+      #17355F. On a light accent Start (the light theme with the accent shown, T41) NeoShell's Start is
+      Explorer 25H2's: the palette's lightest shade a quarter of the way to white, solid, with the footer in the shade
+      itself (`StartMenuLayout.LightAccentBody`, tested; #B5F0FF and #9CEBFF for #9CEBFF, the same pixels as
+      Explorer's, left-aligned over the same wallpaper as the shell), and its panel works from that colour (not
+      measured). It grows out of the tile — from 38/450 of its size at the tile's centre to full size in 343 ms,
       `cubic-bezier(0,0,0,1)`, which fits Explorer's 0.48/0.65/0.84/0.92/0.99 at 33/67/133/200/267 ms — and
-      shrinks back into it in 150 ms, accelerating. The tile is hidden while the panel stands for it; Start isn't
-      dimmed. A click beside the panel, or Esc, closes it (Esc again closes Start). The name is a centred 20 px
-      semibold `TextBox`, 320 × 40, 33 px from the top, flat until hovered or focused; Enter, leaving it or closing
-      the folder renames the folder, and Esc in it puts the name back. The apps are 96 px cells, four to a row, from
-      33, 94 (scrolling after three rows).
+      shrinks back in 167 ms, accelerating, past the tile's size to 20/450 (0.044, Explorer's; T41). The tile is
+      hidden while the panel stands for it; Start isn't dimmed. A click beside the panel, or Esc, closes it (Esc
+      again closes Start). The name is a centred 20 px semibold `TextBox`, 320 × 40, 33 px from the top, flat until
+      hovered or focused; Enter, leaving it or closing the folder renames the folder, and Esc in it puts the name back.
+      The apps are 96 px cells, four to a row, from 33, 94 (scrolling after three rows).
     - Apps are dragged within the panel to reorder them, or out of it onto Start behind it (the panel stays open)
       to take them out; they land before or after the cell under the pointer. A folder stays while it has an app
       (Explorer 25H2 keeps one-app folders, also after Start reopens); taking the last one out removes it and closes

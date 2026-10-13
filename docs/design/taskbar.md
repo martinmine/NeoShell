@@ -83,7 +83,8 @@ and task buttons. Part of the [NeoShell design](../design.md).
   where the pointer is, not by its own window getting the mouse (Taskbar.dll's `TrayUI::SetUnhideTimer` takes the
   pointer's position and starts a 50 ms unhide timer), so it comes back under a topmost window over the bottom edge
   too (measured: a topmost 900x400 window reaching past the bottom; the window stays above the revealed taskbar
-  there, NeoShell's taskbar goes above it), but not under a topmost window covering the whole monitor (a full-screen
+  there, and so it does above NeoShell's since T41: sliding moves the taskbar without raising it to the top of the
+  topmost band, `PinnedWindow.MovesInPlace`; checked as the shell with a topmost test window over the edge), but not under a topmost window covering the whole monitor (a full-screen
   one, or with auto-hide a topmost maximized one), nor for a full-screen app. NeoShell polls the pointer every 50 ms
   while hidden (`TaskbarLayout.RevealsAt`, tested; `TopLevelWindows.IsTopmostWindowCovering`). With the widget
   sidebar shown a maximized window doesn't cover the monitor, so the taskbar comes back over it. It hides again after ~0.75 s with the pointer off it,
@@ -256,7 +257,10 @@ and task buttons. Part of the [NeoShell design](../design.md).
   (stopping one would leave a half-faded button).
 - Sized as Explorer's: 44×48 buttons with a 40×40 plate behind the 24 px icon, shown when hovered or active (with
   several windows a 35 px plate, 2 px, then the 3 px edge of a second card; the edge's gap is its own margin, as a
-  grid's column spacing took 2 px off a single window's plate, which drew the centred group a pixel left).
+  grid's column spacing took 2 px off a single window's plate, which drew the centred group a pixel left). Hovered,
+  the active plate's fill turns `ControlFillColorSecondaryBrush` instead of `ControlFillColorDefaultBrush` (its
+  stroke stays) rather than the hover plate going over it, which brightened it twice as much as Explorer's (T41;
+  measured alongside on the accent taskbar: #0F3F84, hovered #154487, the same pixels as Explorer's).
 - **Labelled buttons** (never combined, or combined when full and there's room), measured on Explorer with UI
   Automation and screenshots (T39a): the icon 10 px in, the label 8 px after it and 10 px short of the button's
   right, so a button is 52 px wider than its label (`TaskbarFit`, unit tested), up to 180; the pills under the icon,
@@ -389,8 +393,8 @@ and task buttons. Part of the [NeoShell design](../design.md).
   broker (`NtUserShellSetWindowPos` checks `IAMThreadAccessGranted`), so not to NeoShell (see [UWP (CoreWindow) apps
   as the shell](lifecycle.md#uwp-corewindow-apps-as-the-shell-not-possible-t36) for the immersive broker). T39d found that the shell window's process can take that access itself
   when no Explorer holds it (see Snap's "Window motion" in [Window snapping](windows.md#window-snapping-windowsnapping-shell-mode)), which NeoShell now does as the shell for Snap's animation;
-  with it `ApplyWindowAction` skips the integrity check, so elevated windows could be snapped too — not done yet:
-  Snap still leaves them out.
+  with it `ApplyWindowAction` skips the integrity check, so elevated windows are snapped and maximized through it
+  (T41, see Snap's "Elevated windows"); the rest of this paragraph holds without that access.
   (`NtUserMinMaximize` in win32u does no UIPI check at all, but an undocumented system call that sidesteps UIPI isn't
   something to build on.) So NeoShell can't maximize, size or move an elevated window: Snap leaves such windows out
   (`TopLevelWindows.IsOfHigherIntegrity` compares the process's mandatory label with NeoShell's) — no snap preview,

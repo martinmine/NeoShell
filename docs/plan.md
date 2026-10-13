@@ -549,9 +549,16 @@ Each item is done when it looks and behaves as Explorer's (layout, behaviour, an
 Found while working on milestone 19, not done yet.
 
 - [ ] T37 Screen capture as the shell: `Windows.Graphics.Capture` of a monitor fails for every app without Explorer
-      (screen sharing, OBS, Snipping Tool's overlay and recorder; see design/hotkeys.md "Hotkeys", T30)
-- [ ] T38 The session's change-notification server (`SHChangeNotify`): without Explorer no process serves it, so folder
-      windows may not hear of changes made by other processes (T5; not confirmed live)
+      (screen sharing, OBS, Snipping Tool's overlay and recorder; see design/hotkeys.md "Hotkeys", T30) — looked into
+      (T41 pass, 2026-10-13), left open as not feasible for now: the capture provider gets its monitors from
+      `CLSID_ImmersiveShell`, a class with no server of its own that only Explorer's twinui registers, through its
+      undocumented immersive monitor and application view services; NeoShell would have to register that class and
+      serve those interfaces, which every other immersive-shell client would then find too (design/hotkeys.md)
+- [x] T38 The session's change-notification server (`SHChangeNotify`): without Explorer no process serves it, so folder
+      windows may not hear of changes made by other processes (T5) — confirmed and fixed: as the shell NeoShell starts
+      windows.storage's server as Explorer's desktop does (`SCNInitializeDesktop`, read with cdb); a listener in one
+      process got another's `SHCNE_UPDATEDIR` only with it, as under Explorer (design/lifecycle.md, Shell mode); not
+      run live: a File Explorer window refreshing from a notification-only change
 - [x] T39 Explorer parity polish, existing differences noticed by the agents:
   - Flyouts don't close when another app is clicked; the Quick Settings button isn't highlighted while it's open; the
     Quick Settings footer's shading is reversed (T8) — flyouts and highlight fixed (T39a): every taskbar flyout and
@@ -635,21 +642,34 @@ Found while working on milestone 19, not done yet.
     the foreground below the lowest window of the thread in front, which with NeoShell in front is its wallpaper; such
     windows are now put above the others as under Explorer. Snap read Windows' work area, the whole monitor after a
     display change until NeoShell sets it again; it now uses NeoShell's own reservations
-- [ ] T41 Remaining differences and loose ends from T39 and T40:
-  - A possible WinUI access violation on exit with Quick Settings open from Win+A and a tile's tooltip showing (seen
-    once with an intermediate T39a build; the cause wasn't found)
-  - With the light theme and accent colour Start stays dark accent; Explorer 25H2's turns light accent (T39c)
-  - Quick Settings cuts between pages where Windows crossfades over 2-5 frames; nearby sharing's arrow animation and
-    night light's moon swap timing (T39b); the Accessibility page is 8 px shorter than Windows'
-  - The pin folder panel opens in 333 ms and closes in 150 ms to 0.084 of its size; Explorer's 343 ms, 167 ms, 0.044
-  - Taskbar tooltips are WinUI's, Explorer's are acrylic; Quick Settings opened through UI Automation shows its first
-    control's tooltip; hovering an open taskbar button doesn't brighten it further, as Explorer's does (T39a)
-  - A full taskbar cuts its row off; Explorer shrinks the icons and then overflows into a menu, and combines group by
-    group with "combine when full" (T39a)
-  - Snap: moves between two zones of the same size jump (DWM doesn't animate them); a revealed auto-hide taskbar goes
-    above a topmost window over its edge, Explorer's stays below it (T39d)
-  - Snap leaves elevated windows out, though `ApplyWindowAction` with the shell's window-manager access would now
-    reach them as Explorer's does (T39d; design/windows.md)
+- [ ] T41 Remaining differences and loose ends from T39 and T40 (worked through 2026-10-13; open items below):
+  - [x] A possible WinUI access violation on exit with Quick Settings open from Win+A and a tile's tooltip showing —
+    reproduced as the shell (6 exits in 6 with a hovered tile's tooltip, 2 in 6 after Win+A) and caught with cdb: an
+    open tooltip destroyed during XAML's shutdown (`~ToolTip` unhooking from its island); the taskbar now closes its
+    tooltips as tooltips before its window closes, and the keyboard-focus tooltip no longer opens: 10 exits in 10
+    clean (design/quick-settings.md); not done: other windows' open tooltips at exit (Start, widgets, Settings)
+  - [x] With the light theme and accent colour Start stays dark accent; Explorer 25H2's turns light accent (T39c) —
+    fixed: the lightest shade a quarter of the way to white, solid, the footer the shade itself; the same pixels as
+    Explorer's, compared as the shell (design/start-menu.md); not measured: the folder panel on it
+  - [ ] Quick Settings cuts between pages where Windows crossfades over 2-5 frames; nearby sharing's arrow animation and
+    night light's moon swap timing (T39b) — not done (the old page would hold the window's new size back);
+    [x] the Accessibility page is Windows' height now, every row on Windows' to the pixel (it was 8 px short)
+  - [x] The pin folder panel opens in 333 ms and closes in 150 ms to 0.084 of its size; Explorer's 343 ms, 167 ms, 0.044
+    — set to Explorer's numbers; not recorded again
+  - [ ] Taskbar tooltips are WinUI's, Explorer's are acrylic (not done: in-app acrylic can't see the wallpaper behind
+    a popup); [x] Quick Settings opened through UI Automation (and Win+A as the shell) showed its first control's
+    tooltip — fixed, the focus rectangle stays as Windows'; [x] hovering an open taskbar button didn't brighten it as
+    Explorer's — it brightened twice as much; now the plate's fill turns the secondary fill, the same pixels as
+    Explorer's alongside it (design/taskbar.md)
+  - [ ] A full taskbar cuts its row off; Explorer shrinks the icons and then overflows into a menu, and combines group by
+    group with "combine when full" (T39a) — not done
+  - [ ] Snap: moves between two zones of the same size jump (DWM doesn't animate them; not compared with Explorer);
+    [x] a revealed auto-hide taskbar went above a topmost window over its edge, Explorer's stays below it — fixed:
+    sliding doesn't raise it, checked as the shell (design/taskbar.md)
+  - [x] Snap leaves elevated windows out, though `ApplyWindowAction` with the shell's window-manager access would now
+    reach them as Explorer's does (T39d; design/windows.md) — done: Task Manager offered by Snap Assist and snapped
+    from normal and minimized as the shell; not possible: its own drags and Win+arrows (UIPI), the layouts flyout on
+    its maximize button (no hit test from NeoShell); not run live: `Maximize` of an elevated window
 - [x] T42 Jump lists: pinned entries, Pin to / Remove from this list (in scope at the owner's request, 2026-10-09):
       Pinned first, the hover pin button and the entries' own menus (Open, Open file location, Pin to / Unpin from,
       Remove from this list, Properties) on the taskbar and in Start, through the shell's own automatic destination

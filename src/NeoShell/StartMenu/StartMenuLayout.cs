@@ -58,6 +58,12 @@ public static class StartMenuLayout
         return WithLuminance(light ? Color.FromArgb(255, 0xF3, 0xF3, 0xF3) : Color.FromArgb(255, 0x20, 0x20, 0x20), light ? 243 : 43);
     }
 
+    /// <summary>
+    /// Start's colour in the light theme with the accent colour shown (Explorer 25H2's): its palette's lightest shade a
+    /// quarter of the way to white, solid; the footer is the shade itself (measured: #B5F0FF and #9CEBFF for #9CEBFF).
+    /// </summary>
+    public static Color LightAccentBody(Color lightestShade) => Scale(lightestShade, c => c + (255 - c) * 0.25);
+
     // The colour with its hue kept: darker by scaling, lighter by mixing with white.
     private static Color WithLuminance(Color color, double luminance)
     {

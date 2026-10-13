@@ -121,8 +121,17 @@ nothing (they stay registered as hotkeys, so the keyboard hook takes them: `Snap
   monitor for a while after the displays change (as right after signing in) until NeoShell hears of it and the
   reservations go out again (see the [taskbar's](taskbar.md#window) "Display changes"); T27 once saw windows snapped under the taskbar
   then. Tested in T40 by setting Windows' work area to the whole monitor: Win+Left still snapped to 722x940.
-- **Elevated windows aren't snapped**: NeoShell can't move, size or maximize them (see the [taskbar's](taskbar.md#task-buttons) "What gets
-  through to an elevated window").
+- **Elevated windows** (apps running as administrator) are snapped through the window manager's access, as Explorer
+  snaps them (T41): `ApplyWindowAction` skips UIPI's integrity check for a thread that has it, so `Arrange`,
+  `Unarrange`, `SetBounds` (its fallback) and `Maximize` (`WPS_MAXIMIZED`, after `ShowWindow` is refused) reach them,
+  and `ArrangeInBackground` arranges a minimized or maximized one straight from where it is (`SetWindowPlacement` is
+  refused; from minimized the first action guesses its invisible borders and lands 7 px short, so it's applied again).
+  Without the access (log: "refused") they're left out as before (see the [taskbar's](taskbar.md#task-buttons) "What
+  gets through to an elevated window"). Checked as the shell with Task Manager: offered by Snap Assist after a test
+  window was dropped at the left edge, picked from normal and from minimized, it filled the right half exactly,
+  arranged. Still not possible: its own drags and Win+arrows (injected input and the keyboard hook don't reach an
+  elevated window, UIPI) and the layouts flyout on its maximize button (it doesn't answer `WM_NCHITTEST` from
+  NeoShell; a standard caption's button is found from DWM, but wasn't tried with an elevated one).
 - **The Snap bar** (`SnapBar`, with "Show snap layouts when I drag a window to the top"): once the window moves, a bar
   of the layouts in a row (one suggestion and the four or six layouts; 562x88 at 100% with 12 around the layouts)
   slides in to peek 10 epx down from the top centre of the monitor (70 ms; Explorer's starts about 100 ms after the

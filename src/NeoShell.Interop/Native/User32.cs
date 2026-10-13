@@ -256,6 +256,10 @@ internal static unsafe partial class User32
     [LibraryImport("user32.dll")]
     public static partial nint GetShellWindow();
 
+    // Undocumented: the window of the session's change notification server (see WindowsStorage.SCNInitializeDesktop).
+    [LibraryImport("user32.dll")]
+    public static partial nint GetShellChangeNotifyWindow();
+
     [LibraryImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     public static partial bool SetShellWindow(nint hwnd);
@@ -278,6 +282,7 @@ internal static unsafe partial class User32
     public const uint WAK_PLACEMENT_STATE = 0x0020;
     public const uint WAM_FRAME_BOUNDS = 0x0001;
     public const int WPS_NORMAL = 0;
+    public const int WPS_MAXIMIZED = 1;
     public const int WPS_ARRANGED = 3;
 
     [StructLayout(LayoutKind.Sequential)]

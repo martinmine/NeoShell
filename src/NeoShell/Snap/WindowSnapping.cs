@@ -23,6 +23,7 @@ internal sealed class WindowSnapping : IDisposable
     private readonly WindowTracker _tracker;
     private readonly Func<ElementTheme> _theme;
     private readonly Func<nint, WallpaperWindow?> _wallpaperOn;
+    private readonly bool _windowManager;
     private readonly WindowEvents _events = new(WindowEvent.MoveSizeStart, WindowEvent.MoveSizeEnd);
     private readonly DispatcherQueueTimer _timer;
     private readonly MaximizeButtonHover _hover;
@@ -33,11 +34,16 @@ internal sealed class WindowSnapping : IDisposable
     private Drag? _drag;
 
     /// <param name="wallpaperOn">The wallpaper's window on a monitor, for Snap Assist and the groups' previews.</param>
-    public WindowSnapping(WindowTracker tracker, Func<ElementTheme> theme, Func<nint, WallpaperWindow?> wallpaperOn)
+    /// <param name="windowManager">
+    /// Whether the UI thread has the immersive window manager's access, with which apps running as administrator can be
+    /// snapped too.
+    /// </param>
+    public WindowSnapping(WindowTracker tracker, Func<ElementTheme> theme, Func<nint, WallpaperWindow?> wallpaperOn, bool windowManager)
     {
         _tracker = tracker;
         _theme = theme;
         _wallpaperOn = wallpaperOn;
+        _windowManager = windowManager;
         _events.Raised += OnWindowEvent;
         // The move loop is the app's own: the pointer is followed by polling, often enough for the preview to keep up.
         _timer = DispatcherQueue.GetForCurrentThread().CreateTimer();
@@ -205,12 +211,15 @@ internal sealed class WindowSnapping : IDisposable
         SnapLayoutsWindow.Showing?.CloseOnce();
     }
 
-    // An app running as administrator refuses being moved, sized or maximized by NeoShell (UIPI), so it isn't offered
-    // a snap that wouldn't happen; Windows itself still maximizes one dragged to the very top of the screen.
-    private static bool CanSnap(nint hwnd) =>
+    private bool CanSnap(nint hwnd) =>
         hwnd != 0 && TopLevelWindows.Exists(hwnd) && !TopLevelWindows.IsDesktop(hwnd)
         && TopLevelWindows.GetProcessId(hwnd) != Environment.ProcessId && TopLevelWindows.CanResize(hwnd)
-        && !TopLevelWindows.IsOfHigherIntegrity(hwnd);
+        && Reaches(hwnd);
+
+    // An app running as administrator refuses being moved, sized or maximized by NeoShell (UIPI) unless the window
+    // manager's access lets NeoShell arrange it as Explorer does; without it, it isn't offered a snap that wouldn't
+    // happen (Windows itself still maximizes one dragged to the very top of the screen).
+    private bool Reaches(nint hwnd) => _windowManager || !TopLevelWindows.IsOfHigherIntegrity(hwnd);
 
     private void ShowLayouts(nint hwnd, RectInt32 button, bool keyboard)
     {
@@ -240,7 +249,7 @@ internal sealed class WindowSnapping : IDisposable
         int ownProcess = Environment.ProcessId;
         Dictionary<nint, WindowInfo> windows = _tracker.Windows
             .Where(w => w.ProcessId != ownProcess && !exclude.Contains(w.Handle) && TopLevelWindows.CanResize(w.Handle)
-                && !TopLevelWindows.IsOfHigherIntegrity(w.Handle))
+                && Reaches(w.Handle))
             .ToDictionary(w => w.Handle);
         return [.. AltTabLayout.Order([.. windows.Keys], _tracker.RecentlyActive, TopLevelWindows.GetAll(), TopLevelWindows.GetForeground()).Select(h => windows[h])];
     }

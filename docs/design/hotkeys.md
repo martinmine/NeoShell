@@ -102,7 +102,14 @@ Win+arrows and Ctrl+Shift+Esc; the rest were Explorer's.
     `IGraphicsCaptureItemInterop::CreateForMonitor` returned E_INVALIDARG with NeoShell as the shell and an item
     ("Display 1 1764x988") with Explorer. Snips and recordings of the screen by Snipping Tool (Win+Shift+S too, see
     Screenshots) therefore can't work as the shell; Win+Shift+R is left unregistered rather than start a Snipping
-    Tool that idles.
+    Tool that idles. Looked at again for T37 (symbols of the provider): `CaptureDesktopItemProviderImpl::
+    EnsureImmersiveShell` creates `CLSID_ImmersiveShell` {C2F03A33-…}, registered with an AppID only (no
+    `LocalServer32`): it exists only while Explorer's twinui has registered its class object. The provider then asks
+    its `IServiceProvider` for the immersive monitor service (`IImmersiveMonitor` per monitor, monitor change
+    notifications) and the application view collection (`EnsureAppViewManager`, for windows). Serving these from
+    NeoShell would mean registering that class and implementing those undocumented interfaces, and every component
+    that looks for Explorer's immersive shell (virtual desktops, UWP windows, Start's and Settings' hosts) would then
+    find NeoShell's and call services it doesn't have; not attempted.
 
 ## Search on the taskbar (`TaskbarSearch`, unit tested)
 
