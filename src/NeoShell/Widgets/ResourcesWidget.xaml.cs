@@ -224,15 +224,20 @@ internal sealed partial class ResourcesWidget : WidgetView
     // A swatch for each colour of the palette; the chosen one carries a check mark.
     private StackPanel ColorRow(string label, string chosen, Func<string, WidgetSettings> choose)
     {
-        var swatches = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 2 };
+        // Nine to a row: the flyout is 280 wide (the concept's colours make twelve).
+        var swatches = new VariableSizedWrapGrid { Orientation = Orientation.Horizontal, ItemWidth = 30, ItemHeight = 30, MaximumRowsOrColumns = 9 };
         var checks = new List<FontIcon>();
-        foreach (string color in WidgetFormat.Palette)
+        // The 2088 concept's colours come first there, its defaults among them.
+        IEnumerable<string> palette = _concept ? [.. s_conceptDefaults.Values.Distinct(), .. WidgetFormat.Palette] : WidgetFormat.Palette;
+        foreach (string color in palette)
         {
+            Windows.UI.Color fill = WidgetFormat.ParseColor(color, color);
             var check = new FontIcon
             {
                 Glyph = "\uE73E",
                 FontSize = 12,
-                Foreground = new SolidColorBrush(Microsoft.UI.Colors.White),
+                // Dark on a light swatch (the concept's white), so it shows.
+                Foreground = new SolidColorBrush(fill.R + fill.G + fill.B > 600 ? Microsoft.UI.Colors.Black : Microsoft.UI.Colors.White),
                 Visibility = string.Equals(color, chosen, StringComparison.OrdinalIgnoreCase) ? Visibility.Visible : Visibility.Collapsed,
             };
             checks.Add(check);
@@ -246,7 +251,7 @@ internal sealed partial class ResourcesWidget : WidgetView
                 {
                     Children =
                     {
-                        new Microsoft.UI.Xaml.Shapes.Ellipse { Width = 20, Height = 20, Fill = new SolidColorBrush(WidgetFormat.ParseColor(color, color)) },
+                        new Microsoft.UI.Xaml.Shapes.Ellipse { Width = 20, Height = 20, Fill = new SolidColorBrush(fill) },
                         check,
                     },
                 },

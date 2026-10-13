@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
@@ -67,8 +68,107 @@ internal static class HudWidgets
             ["AccentTextFillColorPrimaryBrush"] = Hud.Solid(Hud.Red),
             ["SystemAccentColor"] = Hud.Red,
             ["ContentControlThemeFontFamily"] = Hud.Display,
+            // The settings' controls: their accent parts red, their corners square.
+            ["ToggleSwitchFillOn"] = Hud.Solid(Hud.Red),
+            ["ToggleSwitchFillOnPointerOver"] = Hud.Solid(Hud.RedHot),
+            ["ToggleSwitchFillOnPressed"] = Hud.Solid(Hud.RedHot),
+            ["ToggleSwitchStrokeOn"] = Hud.Solid(Hud.Red),
+            ["ToggleSwitchKnobFillOn"] = Hud.Solid(Hud.Void),
+            ["ToggleSwitchKnobFillOnPointerOver"] = Hud.Solid(Hud.Void),
+            ["ToggleSwitchKnobFillOnPressed"] = Hud.Solid(Hud.Void),
+            ["TextControlElevationBorderFocusedBrush"] = Hud.Solid(Hud.Red),
+            ["TextControlBackground"] = Hud.Solid(Hud.Void),
+            ["TextControlBackgroundPointerOver"] = Hud.Solid(Hud.Raised),
+            ["TextControlBackgroundFocused"] = Hud.Solid(Hud.Void),
+            ["TextControlBorderBrush"] = Hud.Solid(Hud.LineBright),
+            ["ComboBoxBackground"] = Hud.Solid(Hud.Void),
+            ["ComboBoxBackgroundPointerOver"] = Hud.Solid(Hud.Raised),
+            ["ComboBoxBorderBrush"] = Hud.Solid(Hud.LineBright),
+            ["ComboBoxBorderBrushPointerOver"] = Hud.Solid(Hud.Red),
+            ["ComboBoxItemPillFillBrush"] = Hud.Solid(Hud.Red),
+            ["ButtonBackground"] = Hud.Solid(Hud.Void),
+            ["ButtonBackgroundPointerOver"] = Hud.Solid(Hud.Raised),
+            ["ButtonBorderBrush"] = Hud.Solid(Hud.LineBright),
+            ["ButtonBorderBrushPointerOver"] = Hud.Solid(Hud.Red),
+            ["ControlCornerRadius"] = new CornerRadius(0),
+            ["OverlayCornerRadius"] = new CornerRadius(0),
         };
         return palette;
+    }
+
+    /// <summary>The settings flyout's plate: Panel, a red outline, square.</summary>
+    public static Style FlyoutStyle() => new(typeof(FlyoutPresenter))
+    {
+        Setters =
+        {
+            new Setter(Control.BackgroundProperty, Hud.Solid(Hud.Panel)),
+            new Setter(Control.BorderBrushProperty, Hud.Solid(Hud.Red)),
+            new Setter(Control.BorderThicknessProperty, new Thickness(1)),
+            new Setter(Control.CornerRadiusProperty, new CornerRadius(0)),
+            new Setter(Control.PaddingProperty, new Thickness(16, 14, 16, 16)),
+        },
+    };
+
+    /// <summary>The settings flyout's heading: the widget's name, then what the flyout is.</summary>
+    public static StackPanel SettingsHeading(WidgetKind kind)
+    {
+        StackPanel heading = Heading(kind);
+        heading.Margin = new Thickness(0);
+        heading.Children.Add(Hud.Label("· SETTINGS 設定", 10, Hud.Dim, Hud.Japanese, spacing: 100));
+        return heading;
+    }
+
+    /// <summary>
+    /// Sets the concept's type on the text under <paramref name="root"/> that has the theme's (Segoe UI): a text
+    /// style sets its font itself, so the text doesn't take the card's. What it changes goes in
+    /// <paramref name="changed"/> with the font it had, for <see cref="RestoreFont"/>; icon fonts are left alone.
+    /// </summary>
+    public static void ApplyFont(DependencyObject root, ConditionalWeakTable<DependencyObject, FontFamily> changed)
+    {
+        foreach (DependencyObject element in Descendants(root))
+        {
+            switch (element)
+            {
+                case TextBlock text when IsThemeFont(text.FontFamily):
+                    changed.AddOrUpdate(text, text.FontFamily);
+                    text.FontFamily = Hud.Display;
+                    break;
+                case TextBox box when IsThemeFont(box.FontFamily):
+                    changed.AddOrUpdate(box, box.FontFamily);
+                    box.FontFamily = Hud.Display;
+                    break;
+            }
+        }
+    }
+
+    /// <summary>Gives the text <see cref="ApplyFont"/> changed its font back.</summary>
+    public static void RestoreFont(ConditionalWeakTable<DependencyObject, FontFamily> changed)
+    {
+        foreach ((DependencyObject element, FontFamily font) in changed)
+        {
+            if (element is TextBlock text)
+                text.FontFamily = font;
+            else if (element is Control control)
+                control.FontFamily = font;
+        }
+        changed.Clear();
+    }
+
+    private static bool IsThemeFont(FontFamily? font) =>
+        font?.Source is "XamlAutoFontFamily" or "Segoe UI" or "Segoe UI Variable" or "Segoe UI Variable Text"
+            or "Segoe UI Variable Display" or "Segoe UI Variable Small";
+
+    private static IEnumerable<DependencyObject> Descendants(DependencyObject root)
+    {
+        var pending = new Stack<DependencyObject>();
+        pending.Push(root);
+        while (pending.Count > 0)
+        {
+            DependencyObject element = pending.Pop();
+            yield return element;
+            for (int i = VisualTreeHelper.GetChildrenCount(element) - 1; i >= 0; i--)
+                pending.Push(VisualTreeHelper.GetChild(element, i));
+        }
     }
 
     /// <summary>The sidebar's left edge: a red rule with a ruler's ticks down it.</summary>

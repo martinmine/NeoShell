@@ -1,3 +1,5 @@
+using System.Runtime.CompilerServices;
+using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
@@ -21,6 +23,10 @@ internal sealed partial class WidgetFrame : UserControl
     private HudFrame? _hud;
     private FrameworkElement? _heading;
     private ResourceDictionary? _palette;
+    // The widget's text set in the concept's type, with the font it had; set again shortly after its layout changes
+    // (a widget adds text as it loads and updates).
+    private readonly ConditionalWeakTable<DependencyObject, Microsoft.UI.Xaml.Media.FontFamily> _fonted = new();
+    private DispatcherQueueTimer? _fontTimer;
     private (PointInt32 Start, Point Grab)? _press;
     private bool _dragging;
     private bool _pointerOver;
@@ -71,6 +77,19 @@ internal sealed partial class WidgetFrame : UserControl
             Resources.MergedDictionaries.Add(_palette = HudWidgets.Palette());
             FontFamily = Hud.Display;
             Foreground = Hud.Solid(Hud.Text);
+            if (_fontTimer is null)
+            {
+                _fontTimer = DispatcherQueue.GetForCurrentThread().CreateTimer();
+                _fontTimer.Interval = TimeSpan.FromMilliseconds(300);
+                _fontTimer.IsRepeating = false;
+                _fontTimer.Tick += (_, _) =>
+                {
+                    if (_hud is not null)
+                        HudWidgets.ApplyFont(Card, _fonted);
+                };
+            }
+            LayoutUpdated += OnLayoutUpdated;
+            HudWidgets.ApplyFont(Card, _fonted);
         }
         else
         {
@@ -82,6 +101,9 @@ internal sealed partial class WidgetFrame : UserControl
             _palette = null;
             ClearValue(FontFamilyProperty);
             ClearValue(ForegroundProperty);
+            LayoutUpdated -= OnLayoutUpdated;
+            _fontTimer?.Stop();
+            HudWidgets.RestoreFont(_fonted);
         }
         Widget.SetConcept(on);
         // The plate is drawn behind the card (the palette clears the card's own fill and outline), the widget under
@@ -126,6 +148,13 @@ internal sealed partial class WidgetFrame : UserControl
     /// <summary>Puts the view back after <see cref="Release"/>, from wherever it went since (it must have left there).</summary>
     public void Return() => Card.Child = Widget;
 
+    // Once the layout settles, not on every pass: a drag lays the widget out each frame.
+    private void OnLayoutUpdated(object? sender, object e)
+    {
+        if (_fontTimer is { IsRunning: false })
+            _fontTimer.Start();
+    }
+
     private void Root_PointerEntered(object sender, PointerRoutedEventArgs e)
     {
         _pointerInside = true;
@@ -167,12 +196,24 @@ internal sealed partial class WidgetFrame : UserControl
     private void SettingsFlyout_Opening(object sender, object e)
     {
         var panel = new StackPanel { Width = 280, Spacing = 12 };
-        panel.Children.Add(new TextBlock
+        if (_hud is not null)
         {
-            Text = WidgetView.Title(Widget.Settings.Kind),
-            Style = (Style)Application.Current.Resources["BodyStrongTextBlockStyle"],
-        });
+            // Before the controls go in, so they take the concept's colours as they're made.
+            panel.Resources.MergedDictionaries.Add(HudWidgets.Palette());
+            panel.RequestedTheme = ElementTheme.Dark;
+            panel.Children.Add(HudWidgets.SettingsHeading(Widget.Settings.Kind));
+            panel.Loaded += (_, _) => HudWidgets.ApplyFont(panel, new());
+        }
+        else
+        {
+            panel.Children.Add(new TextBlock
+            {
+                Text = WidgetView.Title(Widget.Settings.Kind),
+                Style = (Style)Application.Current.Resources["BodyStrongTextBlockStyle"],
+            });
+        }
         panel.Children.Add(Widget.CreateSettings());
+        SettingsFlyout.FlyoutPresenterStyle = _hud is null ? null : HudWidgets.FlyoutStyle();
         SettingsFlyout.Content = panel;
         ShowButtons();
     }

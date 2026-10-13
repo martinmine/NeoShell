@@ -154,16 +154,25 @@ when the theme changes: `SidebarWindow.SetConcept`, `WidgetFrame.SetConcept`, `W
   (`HudWidgets.Palette`: text, fills, the accent as signal red, Bahnschrift), and the resource graphs' default colours
   become red, hot red, white and grey (colours chosen in the widget's settings stay).
 
-Text set in a fixed text style (captions, the profile's date) keeps Segoe UI: those styles are resolved when the
-widget is made. Checked live as the shell: the sidebar over the Field, hover, a floating Notes widget, and switching
-to Windows 11 and back with the widgets open. Not run live: dragging a widget between the sidebar and the desktop in
-the concept, the sidebar's panel hidden (only the cards).
+- **Type**: a text style sets its own font, so styled text (captions, the profile's date) doesn't take the card's.
+  The frame sets Bahnschrift on the widget's text in Segoe UI (`HudWidgets.ApplyFont`, icon fonts left alone) when
+  the concept comes and 300 ms after the widget's layout changes (widgets add text as they load), and gives the fonts
+  back when it goes (`RestoreFont`).
+- **Settings flyouts**: a Panel plate with a red outline and square corners, a heading
+  (`RESOURCE USAGE // 資源監視 · SETTINGS 設定`), the concept's type, and its palette for the controls: toggle switches,
+  the focus line of number and text boxes, combo boxes and buttons in its reds and lines, corners square. Resource
+  usage's colour swatches offer the concept's four colours first (nine to a row; the check mark dark on the white).
+
+Checked live as the shell: the sidebar over the Field, hover, a floating Notes widget, the fonts, Resource usage's
+settings flyout, and switching to Windows 11 and back with the widgets open (Segoe UI and Windows 11's flyout come
+back). Not run live: dragging a widget between the sidebar and the desktop in the concept, the sidebar's panel
+hidden (only the cards).
 
 ## What stays Windows 11's
 
 The notification center and calendar, toasts, Quick Settings, menus' look (they follow the dark theme), Alt+Tab,
-Snap, the widgets' settings flyouts, desktop icons' selection colours and NeoShell's Settings window. Other apps' window frames
-are styled separately ([Window frames](window-frames.md)); a 2088 frame style would be the next step there.
+Snap, desktop icons' selection colours and NeoShell's Settings window. Other apps' window frames are styled
+separately ([Window frames](window-frames.md)); a 2088 frame style would be the next step there.
 
 ## Beyond the prototype
 
