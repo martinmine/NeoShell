@@ -38,6 +38,11 @@
                 <Setter Property="Margin" Value="4,8,0,8" />
             </Style>
 
+            <!-- The Accessibility page's sections and rows sit as Windows' (measured against its page, T41). -->
+            <Style x:Key="AssistiveSectionTitleStyle" TargetType="TextBlock" BasedOn="{StaticResource SectionTitleStyle}">
+                <Setter Property="Margin" Value="4,5,0,8" />
+            </Style>
+
             <!-- A page's header and content lie on a lighter layer, as the tiles do; its footer doesn't. -->
             <Style x:Key="PageLayerStyle" TargetType="Border">
                 <Setter Property="Grid.RowSpan" Value="2" />
@@ -73,7 +78,7 @@
 
             <!-- An accessibility feature: glyph, name and description, and its switch with its state in words. -->
             <DataTemplate x:Key="AssistiveRowTemplate" x:DataType="local:AssistiveFeature">
-                <Grid Padding="4,8" ColumnSpacing="12" AutomationProperties.Name="{x:Bind Name}">
+                <Grid Padding="4,8,4,7" ColumnSpacing="12" AutomationProperties.Name="{x:Bind Name}">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition />
@@ -713,13 +718,13 @@
                 </Button>
                 <TextBlock Style="{StaticResource PageTitleStyle}" Text="Accessibility" />
             </StackPanel>
-            <ScrollViewer Grid.Row="1" Height="300" Padding="12,0,12,8" VerticalScrollBarVisibility="Auto">
+            <ScrollViewer Grid.Row="1" Height="308" Padding="12,10,12,8" VerticalScrollBarVisibility="Auto">
                 <StackPanel>
-                    <TextBlock Style="{StaticResource SectionTitleStyle}" Text="Vision" />
+                    <TextBlock Style="{StaticResource AssistiveSectionTitleStyle}" Text="Vision" />
                     <ItemsControl x:Name="VisionFeatures" IsTabStop="False" ItemTemplate="{StaticResource AssistiveRowTemplate}" />
-                    <TextBlock Style="{StaticResource SectionTitleStyle}" Text="Hearing" />
+                    <TextBlock Style="{StaticResource AssistiveSectionTitleStyle}" Text="Hearing" />
                     <ItemsControl x:Name="HearingFeatures" IsTabStop="False" ItemTemplate="{StaticResource AssistiveRowTemplate}" />
-                    <TextBlock Style="{StaticResource SectionTitleStyle}" Text="Motor and Mobility" />
+                    <TextBlock Style="{StaticResource AssistiveSectionTitleStyle}" Text="Motor and Mobility" />
                     <ItemsControl x:Name="MobilityFeatures" IsTabStop="False" ItemTemplate="{StaticResource AssistiveRowTemplate}" />
                 </StackPanel>
             </ScrollViewer>

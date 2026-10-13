@@ -651,8 +651,9 @@ Found while working on milestone 19, not done yet.
   - [x] With the light theme and accent colour Start stays dark accent; Explorer 25H2's turns light accent (T39c) —
     fixed: the lightest shade a quarter of the way to white, solid, the footer the shade itself; the same pixels as
     Explorer's, compared as the shell (design/start-menu.md); not measured: the folder panel on it
-  - Quick Settings cuts between pages where Windows crossfades over 2-5 frames; nearby sharing's arrow animation and
-    night light's moon swap timing (T39b); the Accessibility page is 8 px shorter than Windows'
+  - [ ] Quick Settings cuts between pages where Windows crossfades over 2-5 frames; nearby sharing's arrow animation and
+    night light's moon swap timing (T39b) — not done (the old page would hold the window's new size back);
+    [x] the Accessibility page is Windows' height now, every row on Windows' to the pixel (it was 8 px short)
   - The pin folder panel opens in 333 ms and closes in 150 ms to 0.084 of its size; Explorer's 343 ms, 167 ms, 0.044
   - Taskbar tooltips are WinUI's, Explorer's are acrylic; Quick Settings opened through UI Automation shows its first
     control's tooltip; hovering an open taskbar button doesn't brighten it further, as Explorer's does (T39a)
