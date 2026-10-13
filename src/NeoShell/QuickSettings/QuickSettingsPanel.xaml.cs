@@ -43,6 +43,8 @@ internal sealed partial class QuickSettingsPanel : UserControl
     private AppIcons? _icons;
     private RunMode _runMode;
     private FrameworkElement _page;
+    // Whether the next focus is the flyout's first, as it opens.
+    private bool _firstFocus;
     private int _tilePage;
     private bool _isOpen;
     private bool _updatingVolumeSlider;
@@ -63,6 +65,7 @@ internal sealed partial class QuickSettingsPanel : UserControl
         TileGrid.ItemsSource = _pageTiles;
         MixerList.ItemsSource = _mixerApps;
         WifiList.ItemsSource = _wifiNetworks;
+        GettingFocus += Panel_GettingFocus;
         // Handled events too: the slider handles the pointer itself.
         VolumeSlider.AddHandler(PointerPressedEvent, new PointerEventHandler(VolumeSlider_PointerPressed), handledEventsToo: true);
         VolumeSlider.AddHandler(PointerReleasedEvent, new PointerEventHandler(VolumeSlider_PointerReleased), handledEventsToo: true);
@@ -143,10 +146,24 @@ internal sealed partial class QuickSettingsPanel : UserControl
     public void Opening(QuickSettingsPage page)
     {
         _isOpen = true;
+        _firstFocus = true;
         ShowPage(PageFor(page), animate: false);
         // Adapters come and go, and so do VPNs; the tiles follow when they're found.
         _ = _indicators?.RefreshRadiosAsync();
         _indicators?.QuickActions.Refresh();
+    }
+
+    // Opened from the keyboard (Win+A, or UI Automation), the flyout gives its first control keyboard focus, which opens
+    // that control's tooltip; Windows' panel shows the focus rectangle without one. Focus given in code doesn't open
+    // tooltips, and a tooltip open as the flyout shuts down took WinUI down with it (an access violation in ~ToolTip
+    // during XAML's shutdown, caught with cdb in 2 of 6 exits as the shell, T41).
+    private void Panel_GettingFocus(UIElement sender, GettingFocusEventArgs args)
+    {
+        if (!_firstFocus)
+            return;
+        _firstFocus = false;
+        if (args.FocusState == FocusState.Keyboard && args.NewFocusedElement is Control control && args.TryCancel())
+            DispatcherQueue.TryEnqueue(() => control.Focus(FocusState.Programmatic));
     }
 
     /// <summary>Goes to a page while open, as a shortcut for another page does.</summary>

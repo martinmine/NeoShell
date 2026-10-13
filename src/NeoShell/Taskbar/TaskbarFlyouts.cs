@@ -92,8 +92,16 @@ internal static class TaskbarFlyouts
             s_windows.Remove(flyout);
             s_slidOut.Remove(flyout);
         }
+        // A tooltip is closed as itself, not just its popup: one left open was destroyed during XAML's shutdown, still
+        // hooked to its island, and took WinUI down (an access violation in ~ToolTip on every exit with a Quick Settings
+        // tile's tooltip showing, T41).
         foreach (Popup popup in VisualTreeHelper.GetOpenPopupsForXamlRoot(root))
-            popup.IsOpen = false;
+        {
+            if (popup.Child is ToolTip tip)
+                tip.IsOpen = false;
+            else
+                popup.IsOpen = false;
+        }
     }
 
     /// <summary>
