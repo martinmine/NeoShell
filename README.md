@@ -1,9 +1,9 @@
 # NeoShell
+A replacement for the Windows 11 `explorer.exe` shell, built with WinUI 3 and .NET 10.
+
 <img width="1947" height="1062" alt="image" src="https://github.com/user-attachments/assets/4e1c6742-c7d5-44eb-953f-3cf724f2ac9b" />
 <img width="1942" height="1061" alt="image" src="https://github.com/user-attachments/assets/840975f5-642d-40e8-b412-ab1121f42fdc" />
 
-
-A replacement for the Windows 11 `explorer.exe` shell, built with WinUI 3 and .NET 10.
 
 - Wallpaper
 - A Windows 11 style taskbar: pinned and running apps, grouping, live thumbnails, system tray, network, volume
