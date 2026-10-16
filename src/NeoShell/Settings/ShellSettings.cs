@@ -134,6 +134,21 @@ public sealed record ShellSettings
     public IReadOnlyList<FrameRule> WindowFrameRules { get; set; } = [];
     /// <summary>Let AI agents reach NeoShell through its MCP server (<see cref="Agents.AgentServer"/>); off by default.</summary>
     public bool AgentAccessEnabled { get; set; }
+    /// <summary>What connected agents may do (<see cref="Agents.AgentToolGroup"/>): see the shell, yes; act in it, not unasked.</summary>
+    public bool AgentReadAllowed { get; set; } = true;
+    public bool AgentControlAllowed { get; set; }
+    public bool AgentScreenAllowed { get; set; }
+    public bool AgentPresenceAllowed { get; set; } = true;
+
+    [JsonIgnore]
+    public IReadOnlySet<Agents.AgentToolGroup> AllowedAgentTools => new HashSet<Agents.AgentToolGroup>(
+        new (bool Allowed, Agents.AgentToolGroup Group)[]
+        {
+            (AgentReadAllowed, Agents.AgentToolGroup.Read),
+            (AgentControlAllowed, Agents.AgentToolGroup.Control),
+            (AgentScreenAllowed, Agents.AgentToolGroup.Screen),
+            (AgentPresenceAllowed, Agents.AgentToolGroup.Presence),
+        }.Where(group => group.Allowed).Select(group => group.Group));
 
     /// <summary>
     /// The sidebar's widgets until the user changes them. Fixed ids: a note's text is kept by its widget's id, even

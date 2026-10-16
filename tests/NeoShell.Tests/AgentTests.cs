@@ -7,17 +7,17 @@ namespace NeoShell.Tests;
 
 public sealed class McpSessionTests
 {
-    private static readonly AgentTool s_echo = new("echo", "Says the text back.",
+    private static readonly AgentTool s_echo = new("echo", AgentToolGroup.Read, "Says the text back.",
         new JsonObject { ["type"] = "object", ["properties"] = new JsonObject { ["text"] = new JsonObject { ["type"] = "string" } } },
         arguments => arguments["text"] is JsonValue text && text.TryGetValue(out string? value)
             ? ToolResult.FromData(new JsonObject { ["text"] = value })
             : throw new ToolArgumentException("text is missing"));
 
-    private static readonly AgentTool s_failing = new("fail", "Fails.", AgentTool.NoArguments(),
+    private static readonly AgentTool s_failing = new("fail", AgentToolGroup.Read, "Fails.", AgentTool.NoArguments(),
         ToolResult (_) => throw new InvalidOperationException("broken"));
 
     private static McpSession Session() =>
-        new([s_echo, s_failing], handler => handler(), TimeSpan.FromSeconds(5), "1.2.3");
+        new([s_echo, s_failing], _ => true, handler => handler(), TimeSpan.FromSeconds(5), "1.2.3");
 
     private static async Task<JsonObject> Answer(McpSession session, string request) =>
         (JsonObject)JsonNode.Parse((await session.HandleAsync(request))!)!;
@@ -133,12 +133,12 @@ public sealed class McpSessionTests
     [Fact]
     public async Task An_async_tool_answers_when_it_finishes()
     {
-        var later = new AgentTool("later", "Answers after a while.", AgentTool.NoArguments(), async _ =>
+        var later = new AgentTool("later", AgentToolGroup.Read, "Answers after a while.", AgentTool.NoArguments(), async _ =>
         {
             await Task.Delay(20);
             return new ToolResult("later");
         });
-        var session = new McpSession([later], handler => handler(), TimeSpan.FromSeconds(5), "1");
+        var session = new McpSession([later], _ => true, handler => handler(), TimeSpan.FromSeconds(5), "1");
 
         JsonObject answer = await Answer(session, Call(10, "later", "{}"));
 
@@ -148,7 +148,7 @@ public sealed class McpSessionTests
     [Fact]
     public async Task A_busy_UI_thread_makes_the_call_an_error_after_the_timeout()
     {
-        var session = new McpSession([s_echo], _ => new TaskCompletionSource<ToolResult>().Task, TimeSpan.FromMilliseconds(50), "1");
+        var session = new McpSession([s_echo], _ => true, _ => new TaskCompletionSource<ToolResult>().Task, TimeSpan.FromMilliseconds(50), "1");
 
         JsonObject answer = await Answer(session, Call(9, "echo", """{"text":"hi"}"""));
 
@@ -160,12 +160,12 @@ public sealed class McpSessionTests
     public async Task Calls_over_a_stream_are_answered_as_they_finish()
     {
         var release = new TaskCompletionSource();
-        var slow = new AgentTool("slow", "Waits.", AgentTool.NoArguments(), _ =>
+        var slow = new AgentTool("slow", AgentToolGroup.Read, "Waits.", AgentTool.NoArguments(), _ =>
         {
             release.Task.Wait();
             return new ToolResult("slow");
         });
-        var session = new McpSession([slow, s_echo], handler => Task.Run(handler), TimeSpan.FromSeconds(5), "1");
+        var session = new McpSession([slow, s_echo], _ => true, handler => Task.Run(handler), TimeSpan.FromSeconds(5), "1");
         var (server, client) = Duplex.Create();
         Task running = session.RunAsync(server, CancellationToken.None);
         var lines = new LineEnd(client);
@@ -187,7 +187,7 @@ public sealed class McpBridgeTests
     private const string Initialize =
         """{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","clientInfo":{"name":"test"}}}""";
 
-    private static readonly AgentTool s_echo = new("echo", "Says hi.", AgentTool.NoArguments(), _ => new ToolResult("hi"));
+    private static readonly AgentTool s_echo = new("echo", AgentToolGroup.Read, "Says hi.", AgentTool.NoArguments(), _ => new ToolResult("hi"));
 
     /// <summary>A stand-in for NeoShell: an MCP session behind the bridge's connect, which can be stopped and started.</summary>
     private sealed class FakeNeoShell
@@ -204,12 +204,12 @@ public sealed class McpBridgeTests
             Connections++;
             var (server, bridge) = Duplex.Create();
             Connection = server;
-            var blocking = new AgentTool("wait", "Waits.", AgentTool.NoArguments(), _ =>
+            var blocking = new AgentTool("wait", AgentToolGroup.Read, "Waits.", AgentTool.NoArguments(), _ =>
             {
                 Release.Task.Wait();
                 return new ToolResult("done");
             });
-            _ = new McpSession([s_echo, blocking], handler => Task.Run(handler), TimeSpan.FromSeconds(5), "1")
+            _ = new McpSession([s_echo, blocking], _ => true, handler => Task.Run(handler), TimeSpan.FromSeconds(5), "1")
                 .RunAsync(server, CancellationToken.None);
             return Task.FromResult<Stream?>(bridge);
         }

@@ -2,16 +2,30 @@ using System.Text.Json.Nodes;
 
 namespace NeoShell.Agents;
 
+/// <summary>What a tool lets an agent do, each allowed or not in the Agents settings.</summary>
+public enum AgentToolGroup
+{
+    /// <summary>See windows, the tray, indicators, notifications and search.</summary>
+    Read,
+    /// <summary>Arrange windows, start apps, open shell surfaces, change volume and Do not disturb.</summary>
+    Control,
+    /// <summary>Take screenshots.</summary>
+    Screen,
+    /// <summary>Show the agent's own state on the taskbar and send notifications.</summary>
+    Presence,
+}
+
 /// <summary>
-/// A tool agents can call: its name, the description and argument schema they read, and what it does. The handler
-/// starts on the UI thread (and may await work elsewhere); it throws <see cref="ToolArgumentException"/> for
+/// A tool agents can call: its name, group, the description and argument schema they read, and what it does. The
+/// handler starts on the UI thread (and may await work elsewhere); it throws <see cref="ToolArgumentException"/> for
 /// arguments it can't use.
 /// </summary>
-public sealed record AgentTool(string Name, string Description, JsonObject InputSchema, Func<JsonObject, Task<ToolResult>> Handler)
+public sealed record AgentTool(
+    string Name, AgentToolGroup Group, string Description, JsonObject InputSchema, Func<JsonObject, Task<ToolResult>> Handler)
 {
     /// <summary>A tool whose handler finishes on the UI thread.</summary>
-    public AgentTool(string name, string description, JsonObject inputSchema, Func<JsonObject, ToolResult> handler)
-        : this(name, description, inputSchema, arguments => Task.FromResult(handler(arguments)))
+    public AgentTool(string name, AgentToolGroup group, string description, JsonObject inputSchema, Func<JsonObject, ToolResult> handler)
+        : this(name, group, description, inputSchema, arguments => Task.FromResult(handler(arguments)))
     {
     }
 

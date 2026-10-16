@@ -45,7 +45,7 @@ accent comes from the theme resources. 1100 × 820 epx, centred on the primary m
 - One at a time (`SettingsWindow.Open`): opening it again brings it to the front (`TopLevelWindows.Activate`), on the
   page asked for if any. Closed on `/exit`.
 - Pages (`SettingsPage` enum, titles and glyphs in `SettingsPages`): Taskbar, Start, Desktop and wallpaper, Widgets,
-  Window frames, About. A page is made each time it's shown (`SettingsPageView` subclasses).
+  Window frames, Agents, About. A page is made each time it's shown (`SettingsPageView` subclasses).
 - `SettingsPageView` fills a page's controls from the settings when it's loaded and again when something else changes
   them (the sidebar's edge dragged, Start resized); its own changes are saved at once through `SettingsStore.Update`,
   without reloading itself. `IsFilling` keeps the controls' change events while filling from saving.
@@ -64,6 +64,9 @@ accent comes from the theme resources. 1100 × 820 epx, centred on the primary m
   - **Window frames**: the prototype's window as a page (`Frames/WindowFramesPage`); its preview window closes when
     the page is left. Since 2026-10-12 it also starts, stops, installs and removes NeoShell.Frames.exe, which draws the
     XP Luna style ([Luna through overlay windows](window-frames-overlay.md#as-built)).
+  - **Agents** (glyph E99A): agent access on/off, what agents may do (four switches, greyed while access is off), the
+    connected agents with Disconnect (filled again as agents come and go), and the `claude mcp add` command for this
+    NeoShell.exe in a read-only box ([Agent access](agents.md#permissions-and-safety)).
   - **About**: version (`1.0.0 (commit)` from the informational version), run mode, Switch to Explorer (as the shell,
     asked first as in Start) or Exit NeoShell (alongside), a link to docs/design.md on GitHub.
 - Settings opened from NeoShell as the shell use `Launcher.OpenSettings`, which falls back to Control Panel (see
@@ -98,14 +101,17 @@ accent comes from the theme resources. 1100 × 820 epx, centred on the primary m
 ## AutomationIds
 
 Window: `SettingsNavigation`, `<Page>NavigationItem` (`TaskbarNavigationItem`, `StartNavigationItem`,
-`DesktopNavigationItem`, `WidgetsNavigationItem`, `WindowFramesNavigationItem`, `AboutNavigationItem`),
+`DesktopNavigationItem`, `WidgetsNavigationItem`, `WindowFramesNavigationItem`, `AgentsNavigationItem`,
+`AboutNavigationItem`),
 `SettingsPageTitle`, `SettingsPageScroller`. Taskbar: `TaskbarItemsExpander`, `SearchModeBox`, `ShowWidgetsToggle`,
 `OtherTrayIconsExpander`, `HiddenIconMenuToggle`, `TaskbarBehaviorsExpander`, `TaskbarAlignmentBox`,
 `AutoHideCheckBox`, `AllDisplaysCheckBox`, `CombineButtonsBox`, `ThemeBox`, `TaskbarBackdropBox`,
 `WindowsTaskbarSettingsLink`.
 Start: `ResetStartSizeButton`, `WindowsStartSettingsLink`, `StartFoldersLink`. Desktop: `BackgroundSettingsLink`,
 `DesktopIconSettingsLink`. Widgets: `WidgetSidebarToggle`, `WidgetPanelToggle`, `WidgetSidebarWidthSlider`. Window
-frames: as listed in [Window frames](window-frames.md). About: `NeoShellVersionText`, `RunModeText`,
+frames: as listed in [Window frames](window-frames.md). Agents: `AgentAccessToggle`, `AgentReadToggle`,
+`AgentControlToggle`, `AgentScreenToggle`, `AgentPresenceToggle`, `AgentDisconnectButton` (one per agent, named
+"Disconnect <client>"), `NoAgentsText`, `AgentCommandBox`; the taskbar's `AgentIndicator`. About: `NeoShellVersionText`, `RunModeText`,
 `SwitchToExplorerSettingsButton`, `ExitNeoShellButton`, `DocumentationLink`. Elsewhere: `NeoShellSettingsButton`
 (Start), `TaskbarSettingsMenuItem` (taskbar menu), `WidgetSettingsMenuItem` (sidebar menu).
 

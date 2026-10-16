@@ -16,23 +16,23 @@ internal static class ShellTools
 
     public static IReadOnlyList<AgentTool> Create(Taskbars taskbars) =>
     [
-        new("shell_state",
+        new("shell_state", AgentToolGroup.Read,
             "NeoShell's version, whether it is the shell or runs alongside Explorer, its theme, the taskbar's settings, " +
             "the widget sidebar and the monitors with their work areas (screen pixels).",
             AgentTool.NoArguments(), _ => ShellState(taskbars)),
-        new("list_windows",
+        new("list_windows", AgentToolGroup.Read,
             "The windows with taskbar buttons: handle, title, app, process, which is in front, minimized or maximized, " +
             "bounds (screen pixels), monitor (an index from shell_state), flashing, progress and badge." + UntrustedNote,
             AgentTool.NoArguments(), _ => ListWindows(taskbars)),
-        new("list_tray_icons",
+        new("list_tray_icons", AgentToolGroup.Read,
             "The system tray's icons: tooltip, process, and whether each shows on the taskbar or behind the chevron. " +
             "Only while NeoShell is the shell (alongside Explorer the tray is Explorer's)." + UntrustedNote,
             AgentTool.NoArguments(), _ => ListTrayIcons(taskbars)),
-        new("indicators",
+        new("indicators", AgentToolGroup.Read,
             "What the taskbar's indicators show: network, volume and mute, battery, Do not disturb, focus session, " +
             "airplane mode, energy saver, and the apps using the microphone or the location.",
             AgentTool.NoArguments(), _ => Indicators(taskbars)),
-        new("list_notifications",
+        new("list_notifications", AgentToolGroup.Read,
             "The notifications in the notification center, newest first: app, time, title and body." + UntrustedNote,
             new JsonObject
             {
@@ -40,7 +40,7 @@ internal static class ShellTools
                 ["properties"] = new JsonObject { ["limit"] = ToolArguments.IntegerSchema("How many, at most (default 20)", 1, 100) },
             },
             arguments => ListNotifications(taskbars, arguments)),
-        new("search",
+        new("search", AgentToolGroup.Read,
             "Searches as Start does: installed apps by name (with the id that starts them) and, from the Windows " +
             "Search index, files and folders.",
             new JsonObject

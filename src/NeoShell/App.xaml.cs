@@ -127,17 +127,25 @@ public partial class App : Application
         }
     }
 
-    /// <summary>Opens or closes the agents' pipe as the setting says.</summary>
+    /// <summary>Opens or closes the agents' pipe, and lets them use the groups of tools, as the settings say.</summary>
     private void UpdateAgentAccess()
     {
         if (!_settings.Current.AgentAccessEnabled)
         {
-            _agentServer?.Dispose();
+            if (_agentServer is null)
+                return;
+            _taskbars!.Agents = null;
+            _agentServer.Dispose();
             _agentServer = null;
+        }
+        else if (_agentServer is null)
+        {
+            _agentServer = new AgentServer(DispatcherQueue.GetForCurrentThread(), ShellTools.Create(_taskbars!), _settings.Current.AllowedAgentTools);
+            _taskbars!.Agents = _agentServer;
         }
         else
         {
-            _agentServer ??= new AgentServer(DispatcherQueue.GetForCurrentThread(), ShellTools.Create(_taskbars!));
+            _agentServer.SetAllowed(_settings.Current.AllowedAgentTools);
         }
     }
 
@@ -171,6 +179,8 @@ public partial class App : Application
         ShellWorkArea.BeginExit();
         _shellSession?.Dispose();
         _settings.Changed -= UpdateAgentAccess;
+        if (_taskbars is not null)
+            _taskbars.Agents = null;
         _agentServer?.Dispose();
         // Other apps' windows get their own frames back.
         _settings.Changed -= UpdateWindowFrames;

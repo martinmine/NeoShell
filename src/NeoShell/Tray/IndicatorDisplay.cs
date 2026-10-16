@@ -100,6 +100,17 @@ public static class IndicatorDisplay
         return string.Join("\n\n", parts);
     }
 
+    /// <summary>
+    /// The agents the agent indicator names: those not disconnected, while agents may act in the shell or see the
+    /// screen (only seeing the shell's state shows nothing, as reading a window's title doesn't light the privacy
+    /// indicator either).
+    /// </summary>
+    public static IReadOnlyList<string> AgentsToShow(IEnumerable<(string Name, bool Revoked)> connections, bool canActOrSee) =>
+        canActOrSee ? [.. connections.Where(connection => !connection.Revoked).Select(connection => connection.Name)] : [];
+
+    public static string AgentToolTip(IReadOnlyList<string> agents) =>
+        "Connected agents that can act in the shell:\n" + string.Join("\n", agents);
+
     /// <summary>The privacy indicator's glyph: Explorer's glyph also decides what its click and menu are about.</summary>
     public static string PrivacyGlyph(bool location, bool microphone) => (location, microphone) switch
     {

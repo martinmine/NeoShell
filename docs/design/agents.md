@@ -3,8 +3,8 @@
 An MCP server through which AI agents (Claude Code, Claude Desktop, any MCP client) can see the shell and act in it:
 what windows are open, what the tray and notifications say, launching and arranging apps, and showing their own state
 on the taskbar and in notifications. Part of the [NeoShell design](../design.md). Status: the transport and protocol
-(A1 in plan.md, "Agent access (MCP)") and the Read tools (A2) are built; turned on by `AgentAccessEnabled` in
-settings.json until the Agents page exists.
+(A1 in plan.md, "Agent access (MCP)"), the Read tools (A2) and the Agents settings page with its permissions (A3) are
+built; Control, Screen and Presence have their switches but no tools yet.
 
 ## Goals
 
@@ -108,11 +108,23 @@ reading other apps' contents.
 
 ## Permissions and safety
 
-- **Off by default.** A new Settings page, Agents: "Let AI agents connect to NeoShell" (the pipe exists only while
-  on), and one switch per group: Read (on), Control (off), Screen (off), Presence (on). A group that is off isn't in
-  `tools/list`.
-- **Who is connected:** the page lists connections (client name, process, since when) with Disconnect, and the tray
-  shows an indicator (as the privacy indicator does) while an agent is connected with Control or Screen on.
+- **Off by default.** Settings > Agents: "Let AI agents connect to NeoShell" (`AgentAccessEnabled`; the pipe exists
+  only while on), and one switch per group (`AgentToolGroup`): See the shell (Read, `AgentReadAllowed`, on), Act in the
+  shell (Control, off), See the screen (Screen, off), Show what they're doing (Presence, on). A group that is off isn't
+  in `tools/list`, and a call to one of its tools is a tool error naming the setting. Changing a group tells every
+  connected client (`notifications/tools/list_changed`), so it asks for its tools again.
+- **Who is connected:** the page lists each connection: the client's name from `initialize`, the agent's process
+  and when it connected. The process comes from the pipe's client (`GetNamedPipeClientProcessId`, the bridge) and the
+  processes that started it (a ToolHelp snapshot): the first that isn't NeoShell.exe, cmd.exe or conhost.exe, so
+  Claude Code shows as its own process. A parent that has exited may have its id reused; the chain is a guide.
+- **Disconnect** takes the agent's tools away (`McpSession.Revoke`): it gets `list_changed`, an empty list, and a
+  tool error for every call, and its row stays, marked disconnected, until its bridge leaves. The pipe is left open on
+  purpose: closed, the bridge would connect again two seconds later. A NeoShell restart forgets it.
+- **The agent indicator**, beside the privacy indicator on the Windows 11 taskbar (`AgentIndicator`, the robot glyph
+  in the accent's text colour): shown while an agent that isn't disconnected is connected and Control or Screen is
+  allowed, its tooltip naming the agents; a click opens Settings > Agents. Read alone shows nothing, as an app
+  reading a window's title lights no privacy indicator. The other themes have no privacy indicator, and no agent
+  indicator either.
 - **Data is data.** Window titles, notification texts and tooltips come from other apps and may hold text aimed at
   the agent; tool descriptions say so, and results put them in fields, never in prose NeoShell writes.
 - **Every call is logged** (tool, client, result, time), arguments without text payloads.
@@ -124,7 +136,8 @@ reading other apps' contents.
 
 ```
 src/NeoShell/Agents/
-  AgentServer.cs       The pipe: listening while on, connections, Disconnect; created by App
+  AgentServer.cs       The pipe: listening while on, connections, the allowed groups, Disconnect; created by App
+  AgentConnection.cs   A connection: its session, the processes behind it, when it came
   McpSession.cs        One connection's JSON-RPC: initialize, ping, tools/list, tools/call; no UI types
   McpProtocol.cs       What the session and the bridge both build: versions, results, errors, parsing
   McpBridge.cs         NeoShell.exe /mcp: stdio to the pipe, answering for NeoShell while it isn't there
@@ -132,7 +145,8 @@ src/NeoShell/Agents/
   AgentData.cs         The JSON agents read: windows, monitors, network, battery, notifications, search results
   ShellTools.cs        The tools above, over Taskbars, Tray, NotificationCenter, StartMenu search, Snap, Capture
   AgentPresence.cs     Agent status on task buttons and agent notifications, cleared per connection
-  AgentsPage.xaml(.cs) The Settings page
+src/NeoShell/Settings/AgentSettingsPage.xaml(.cs)  The Settings page
+src/NeoShell.Interop/Shell/Processes.cs  A pipe's client process and the processes that started it
 ```
 
 `McpSession` takes the tool list and a "run on the UI thread" function, so the protocol is unit-tested without WinUI.

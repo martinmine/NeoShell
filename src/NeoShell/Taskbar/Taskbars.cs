@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Globalization;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
+using NeoShell.Agents;
 using NeoShell.Desktop;
 using NeoShell.Interop.Shell;
 using NeoShell.Interop.Windowing;
@@ -41,6 +42,7 @@ internal sealed class Taskbars : IDisposable
     // The taskbar the notification center and calendar last opened on: its clock keeps its plate while they're open.
     private ITaskbarView? _clockFlyoutTaskbar;
     private ToastPopups? _toasts;
+    private AgentServer? _agents;
     // Other apps' app bars, served with the tray.
     private AppBars? _appBars;
     private long _lastKeyboardToggle;
@@ -124,6 +126,26 @@ internal sealed class Taskbars : IDisposable
 
     /// <summary>The focus session, once the notification center has started.</summary>
     public FocusSession? Focus => _focus;
+
+    /// <summary>The agents' MCP server while agent access is on (set by <see cref="App"/>).</summary>
+    public AgentServer? Agents
+    {
+        get => _agents;
+        set
+        {
+            if (_agents is not null)
+                _agents.Changed -= OnAgentsChanged;
+            _agents = value;
+            if (_agents is not null)
+                _agents.Changed += OnAgentsChanged;
+            AgentsChanged?.Invoke();
+        }
+    }
+
+    /// <summary>Agent access was turned on or off, or agents came, went or were disconnected. On the UI thread.</summary>
+    public event Action? AgentsChanged;
+
+    private void OnAgentsChanged() => _dispatcher.TryEnqueue(() => AgentsChanged?.Invoke());
 
     /// <summary>The system tray; only when NeoShell is the shell and no other tray is running.</summary>
     public NotificationArea? Tray { get; private set; }

@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.IO.Pipes;
 using Microsoft.UI.Dispatching;
+using NeoShell.Interop.Shell;
 using NeoShell.Logging;
 
 namespace NeoShell.Agents;
@@ -22,16 +23,57 @@ public sealed class AgentServer : IDisposable
     private readonly CancellationTokenSource _stop = new();
     private readonly Lock _lock = new();
     private readonly List<NamedPipeServerStream> _pipes = [];
+    private readonly List<AgentConnection> _connections = [];
+    private volatile IReadOnlySet<AgentToolGroup> _allowed;
 
     /// <summary>The pipe's name, one per Windows session as NeoShell is one per session.</summary>
     public static string PipeName { get; } = $"NeoShell.Agents.{Process.GetCurrentProcess().SessionId}";
 
-    public AgentServer(DispatcherQueue dispatcher, IReadOnlyList<AgentTool> tools)
+    /// <param name="allowed">The groups of tools the user lets agents use.</param>
+    public AgentServer(DispatcherQueue dispatcher, IReadOnlyList<AgentTool> tools, IReadOnlySet<AgentToolGroup> allowed)
     {
         _dispatcher = dispatcher;
         _tools = tools;
+        _allowed = allowed;
         _ = Task.Run(ListenAsync);
         Log.Info($"Agent access on: pipe {PipeName}");
+    }
+
+    /// <summary>
+    /// An agent connected, said who it is, was disconnected or left, or the allowed groups changed. Raised on a
+    /// thread-pool thread, or the thread that changed them.
+    /// </summary>
+    public event Action? Changed;
+
+    public IReadOnlyList<AgentConnection> Connections
+    {
+        get
+        {
+            lock (_lock)
+                return [.. _connections];
+        }
+    }
+
+    public IReadOnlySet<AgentToolGroup> Allowed => _allowed;
+
+    /// <summary>Changes which groups agents may use; connected agents are told to ask for their tools again.</summary>
+    public void SetAllowed(IReadOnlySet<AgentToolGroup> allowed)
+    {
+        if (allowed.SetEquals(_allowed))
+            return;
+        _allowed = allowed;
+        Log.Info($"Agent tool groups allowed: {string.Join(", ", allowed)}");
+        foreach (AgentConnection connection in Connections)
+            connection.Session.NotifyToolsChanged();
+        Changed?.Invoke();
+    }
+
+    /// <summary>Takes an agent's tools away for as long as its bridge stays connected (see <see cref="McpSession.Revoke"/>).</summary>
+    public void Disconnect(AgentConnection connection)
+    {
+        Log.Info($"Agent {connection.Session.ClientName} disconnected by the user");
+        connection.Session.Revoke();
+        Changed?.Invoke();
     }
 
     public void Dispose()
@@ -97,8 +139,14 @@ public sealed class AgentServer : IDisposable
 
     private async Task ServeAsync(NamedPipeServerStream pipe)
     {
-        var session = new McpSession(_tools, RunOnUiThread, s_callTimeout, _version);
-        Log.Info("Agent connected");
+        var session = new McpSession(_tools, group => _allowed.Contains(group), RunOnUiThread, s_callTimeout, _version);
+        IReadOnlyList<ProcessEntry> processes = Processes.PipeClient(pipe.SafePipeHandle) is { } client ? Processes.Ancestry(client) : [];
+        var connection = new AgentConnection(session, processes, DateTime.Now);
+        lock (_lock)
+            _connections.Add(connection);
+        session.Initialized += () => Changed?.Invoke();
+        Log.Info($"Agent connected: {string.Join(" < ", processes.Select(process => $"{process.Name} ({process.Id})"))}");
+        Changed?.Invoke();
         try
         {
             await session.RunAsync(pipe, _stop.Token);
@@ -111,8 +159,11 @@ public sealed class AgentServer : IDisposable
         {
             Log.Error($"Agent {session.ClientName}'s session failed", ex);
         }
-        Log.Info($"Agent {session.ClientName} disconnected");
+        Log.Info($"Agent {session.ClientName} left");
+        lock (_lock)
+            _connections.Remove(connection);
         Untrack(pipe);
+        Changed?.Invoke();
     }
 
     private Task<ToolResult> RunOnUiThread(Func<Task<ToolResult>> handler)

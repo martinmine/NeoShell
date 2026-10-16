@@ -16,6 +16,7 @@ using NeoShell.Interop.Input;
 using NeoShell.Interop.Power;
 using NeoShell.Interop.Shell;
 using NeoShell.Interop.Tray;
+using NeoShell.Agents;
 using NeoShell.Logging;
 using NeoShell.QuickSettings;
 using NeoShell.Settings;
@@ -197,6 +198,8 @@ internal sealed partial class TaskbarWindow : Window, ITaskbarView
             };
             _indicators.Changed += RefreshIndicators;
             RefreshIndicators();
+            owner.AgentsChanged += RefreshAgentIndicator;
+            RefreshAgentIndicator();
         }
 
         Clock.Clicked += () => owner.ToggleClockFlyout(this);
@@ -230,6 +233,7 @@ internal sealed partial class TaskbarWindow : Window, ITaskbarView
             if (_indicators is not null)
             {
                 _indicators.Changed -= RefreshIndicators;
+                owner.AgentsChanged -= RefreshAgentIndicator;
                 _quickSettings?.Detach();
             }
             owner.Tracker.Minimized -= OnWindowMinimized;
@@ -772,6 +776,20 @@ internal sealed partial class TaskbarWindow : Window, ITaskbarView
     // Get Help's sound troubleshooter, as Explorer opens it.
     private void TroubleshootSound_Click(object sender, RoutedEventArgs e) =>
         Launcher.Launch(new PinnedApp("Troubleshoot sound problems", Path: "ms-contact-support://windows-speaker-icon/"));
+
+    // NeoShell's own indicator, beside the privacy one: agents connected that may act in the shell or see the screen.
+    private void RefreshAgentIndicator()
+    {
+        AgentServer? agents = _owner.Agents;
+        IReadOnlyList<string> names = agents is null ? [] : IndicatorDisplay.AgentsToShow(
+            agents.Connections.Select(connection => (connection.Session.ClientName, connection.Session.IsRevoked)),
+            agents.Allowed.Contains(AgentToolGroup.Control) || agents.Allowed.Contains(AgentToolGroup.Screen));
+        AgentButton.Visibility = names.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        if (names.Count > 0)
+            SetToolTip(AgentButton, IndicatorDisplay.AgentToolTip(names));
+    }
+
+    private void Agent_Click(object sender, RoutedEventArgs e) => _owner.OpenSettings(SettingsPage.Agents);
 
     // The page of what's in use, Privacy's for both, as Explorer's; as the shell, Sound's Recording tab for the
     // microphone and otherwise Control Panel, which has no privacy or location pages.

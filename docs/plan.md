@@ -819,9 +819,15 @@ An MCP server through which AI agents see the shell and act in it, off by defaul
       unit tests for the data, the arguments and async handlers. Live alongside Explorer through the bridge: every
       tool, the index answering files and folders, the tray tool saying it's Explorer's. Not run live: as the shell
       (the tray icons), a battery, progress and badges on real windows, a second monitor
-- [ ] A3 The Agents settings page: the main switch, the permission groups (Read, Control, Screen, Presence),
-      connections with Disconnect; `tools/list_changed` on a change; the tray indicator while a Control or Screen
-      agent is connected
+- [x] A3 The Agents settings page (2026-10-16): the main switch, the permission groups (Read, Control, Screen,
+      Presence; a group off is unlisted and its calls refused), the connected agents (client name, the agent's
+      process found from the pipe's client and its parents, since when) with Disconnect (the session's tools taken
+      away, the pipe kept so the bridge doesn't reconnect), `tools/list_changed` on every change, the
+      `claude mcp add` command; the agent indicator on the Windows 11 taskbar while Control or Screen is allowed;
+      unit tests for groups, revoking, the agent process, the texts and the settings. Live alongside Explorer through
+      UIA with a client connected: the page and its row, Read off and on (list_changed, calls refused, back), the
+      indicator with Control, Disconnect, access off and on. Not run live: as the shell, two agents at once,
+      Claude Code as the client (the row's process), keyboard on the page, the light theme
 - [ ] A4 Control tools: `activate_window`, `arrange_window` (Snap's zones), `close_window`, `launch` (app catalog
       only), `show_surface`, `set_volume`, `set_do_not_disturb`; what each can't do alongside Explorer
 - [ ] A5 Screen: `screenshot` of a monitor or window, scaled, off the UI thread

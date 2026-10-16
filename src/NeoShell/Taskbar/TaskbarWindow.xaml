@@ -663,6 +663,17 @@
                 As Explorer's, the chevron, the tray icons, these and the clock sit right against each other.
             -->
             <StackPanel x:Name="IndicatorArea" Orientation="Horizontal" VerticalAlignment="Center" Visibility="Collapsed">
+                <!-- NeoShell's own: AI agents connected that may act in the shell or see the screen (Settings > Agents). -->
+                <Button
+                    x:Name="AgentButton"
+                    AutomationProperties.AutomationId="AgentIndicator"
+                    Width="32"
+                    Margin="0"
+                    Style="{StaticResource FlatButtonStyle}"
+                    Visibility="Collapsed"
+                    Click="Agent_Click">
+                    <FontIcon Glyph="&#xE99A;" FontSize="16" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
+                </Button>
                 <!-- Explorer's privacy indicator: the microphone, the location arrow or both, in the accent's text colour. -->
                 <Button
                     x:Name="PrivacyButton"
