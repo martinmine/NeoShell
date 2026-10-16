@@ -112,5 +112,5 @@ Each area has its own file in [design/](design/):
 - [Settings window](design/settings-window.md) — NeoShell's Settings window, Start's button for it, and the menus
   whose settings moved into it.
 - [Agent access (MCP)](design/agents.md) — The MCP server for AI agents: the bridge and pipe, the tools, presence on
-  the taskbar, permissions.
+  the taskbar, permissions. Setting it up in Claude and every tool's arguments: [mcp-server.md](mcp-server.md).
 - [Testing strategy](design/testing.md) — How NeoShell is tested: unit tests, live UI checks, shell mode.

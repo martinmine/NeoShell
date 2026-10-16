@@ -2,9 +2,11 @@
 
 An MCP server through which AI agents (Claude Code, Claude Desktop, any MCP client) can see the shell and act in it:
 what windows are open, what the tray and notifications say, launching and arranging apps, and showing their own state
-on the taskbar and in notifications. Part of the [NeoShell design](../design.md). Status: the transport and protocol
-(A1 in plan.md, "Agent access (MCP)"), the Read tools (A2), the Agents settings page with its permissions (A3) and the
-Control tools (A4), the screenshot (A5) and the Presence tools (A6) are built.
+on the taskbar and in notifications. Part of the [NeoShell design](../design.md). Status: built and run live (A1-A7 in
+plan.md, "Agent access (MCP)"): the bridge and the pipe, the protocol, the Read, Control, Screen and Presence tools,
+and the Agents settings page.
+Setting it up in Claude Code, Claude Desktop and other clients, and every tool's arguments: [MCP server: setup and
+reference](../mcp-server.md).
 
 ## Goals
 
@@ -169,10 +171,22 @@ src/NeoShell.Interop/Shell/Processes.cs  A pipe's client process and the process
 
 ## Testing
 
-- Unit tests: framing (lines split across reads, several in one), `initialize` and version negotiation, unknown
-  methods and malformed JSON, `tools/list` per enabled group, argument validation against each tool's schema,
-  `isError` results, the bridge's replay of `initialize` after a reconnect, timeouts.
-- Live: a scripted client (Python over stdio, in `E:\NeoShellWork\mcp`) for every tool in both run modes; Claude Code
-  with `claude mcp add` for a real session (list, arrange two windows, a notify with buttons, status on its own
-  terminal); restarting NeoShell under a connected client; a second Windows user's process refused by the pipe; a
-  low-integrity process refused.
+- Unit tests: the session (initialize and version negotiation, ping, unknown methods and malformed input, tools/list
+  by the allowed groups, calls, tool errors, async tools, timeouts of the session and of a tool, answers as they
+  finish, revoking, the caller, ending), the bridge (answering for NeoShell, passing through, failing unanswered
+  requests, replaying `initialize` and `list_changed` after NeoShell comes back), each tool's arguments and data,
+  the agent's process and window, the screenshot's scaling and PNG, the settings and the page's texts.
+- How to test live: turn agent access (and the groups wanted) on in settings.json while NeoShell is stopped, run a
+  client that starts `NeoShell.exe /mcp` with pipes (Python's `subprocess` writing JSON lines), and act only on
+  windows the test starts itself (Paint): list_windows lists the owner's windows too. UI Automation reaches the
+  Agents page (`AgentAccessToggle`…), the agent indicator (`AgentIndicator`) and an agent toast's buttons
+  (`ToastButton`, named by their label).
+- Run live (2026-10-16): every tool alongside Explorer and as the shell (tray icons, Snap's arranging, Windows'
+  toast host answering a button); NeoShell started after its client, exiting and starting again under it; a
+  low-integrity process refused (`UnauthorizedAccessException`) where the same process at medium connects; Claude
+  Code 2.1.299 starting the bridge from a `--mcp-config` and initializing (`claude-code`, its process found), its
+  model's calls not run as that copy wasn't signed in.
+- Not run live: another Windows user's process (no second account on the VM; `CurrentUserOnly` makes the pipe's
+  DACL the user's alone), an elevated client, a second monitor, Claude Code's model calling the tools. Not compared
+  with Explorer: restoring a maximized window that was snapped brings it back to its size before the snap, not to its
+  zone.

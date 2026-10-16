@@ -321,6 +321,10 @@ the desktop and back. Full spec in docs/design/widgets.md.
   it by invoking `StartButton` then `NeoShellSettingsButton`; select pages through the items' SelectionItem pattern.
 - When testing the UI live, drive it through UI Automation (set `AutomationProperties.AutomationId` on interactive
   controls). Never use global keystrokes like SendKeys: they go to whichever window has focus.
+- The agents' MCP server: turn `AgentAccessEnabled` (and the `Agent*Allowed` groups wanted) on in settings.json while
+  NeoShell is stopped, and drive it with a client that starts `NeoShell.exe /mcp` with pipes and writes JSON lines.
+  Its tools see and act on the owner's windows too: act only on windows the test starts (Paint), and don't
+  `launch` an app just to see an error (it starts). design/agents.md, Testing.
 - NeoShell.Frames.exe runs elevated from the task `NeoShell\Window frames` (`schtasks /Run` starts it from any
   integrity; `NeoShell.Frames.exe /install` and `/uninstall` from an elevated shell add and remove the task). Stop it
   with `NeoShell.Frames.exe /exit` (or Stop on the Window frames page) before building: it locks its DLLs in NeoShell's

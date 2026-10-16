@@ -854,6 +854,9 @@ An MCP server through which AI agents see the shell and act in it, off by defaul
       without buttons, one answered by a button through UIA, one timing out, the agent leaving with a status and a
       notification up (both gone). Not run live: as the shell (with Windows' toasts), Claude Code in Windows
       Terminal finding its window, Do not disturb refusing, the light theme
-- [ ] A7 Live: a scripted client for every tool in both run modes, Claude Code through `claude mcp add`, NeoShell
-      restarted under a connected client, other users and low integrity refused; docs (architecture.md, CLAUDE.md
-      layout, settings-window.md)
+- [x] A7 Live (2026-10-16): every tool through a scripted client alongside Explorer (A2-A6) and as the shell (tray
+      icons, Snap's arranging, Windows' toast host answering a button), NeoShell restarted under a connected client
+      (A1), a low-integrity process refused where medium connects, Claude Code 2.1.299 starting the bridge and
+      initializing through `--mcp-config` (not `claude mcp add`, to leave the owner's Claude Code settings alone);
+      docs (architecture.md, CLAUDE.md, settings-window.md, design/agents.md's testing). Not run: another Windows
+      user's process, an elevated client, Claude Code's model calling the tools (that copy wasn't signed in)
