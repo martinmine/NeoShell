@@ -67,13 +67,13 @@ internal sealed class TaskButtonList(WindowTracker tracker) : ObservableCollecti
             if (hwnd == tracker.Foreground && !TopLevelWindows.IsMinimized(hwnd))
                 TopLevelWindows.MinimizeAndActivateNext(hwnd);
             else
-                TopLevelWindows.Activate(hwnd);
+                TaskbarActivation.BringToFront(hwnd, tracker, "Task button");
         }
     }
 
     /// <summary>Win+1…9 on a button of several windows: each press brings the next one to the front.</summary>
-    public void ActivateNext(TaskButton button) =>
-        TopLevelWindows.Activate(TaskActivation.NextWindow([.. button.Windows.Select(w => w.Handle)], tracker.Foreground));
+    public void ActivateNext(TaskButton button) => TaskbarActivation.BringToFront(
+        TaskActivation.NextWindow([.. button.Windows.Select(w => w.Handle)], tracker.Foreground), tracker, "Next window of a button");
 
     /// <summary>
     /// Win+Ctrl+1…9: the button's window that was in front last, then round its windows; starts the app when it has
@@ -84,8 +84,8 @@ internal sealed class TaskButtonList(WindowTracker tracker) : ObservableCollecti
         if (button.Windows.Count == 0)
             Launcher.Launch(button.App);
         else
-            TopLevelWindows.Activate(TaskActivation.LastActiveWindow(
-                [.. button.Windows.Select(w => w.Handle)], TopLevelWindows.GetAll(), tracker.Foreground));
+            TaskbarActivation.BringToFront(TaskActivation.LastActiveWindow(
+                [.. button.Windows.Select(w => w.Handle)], TopLevelWindows.GetAll(), tracker.Foreground), tracker, "Last window of a button");
     }
 
     private int IndexOf(string key, int start)
