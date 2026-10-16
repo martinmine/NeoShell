@@ -844,8 +844,16 @@ An MCP server through which AI agents see the shell and act in it, off by defaul
       test's own whole under the Settings window covering it, the errors (both a handle and a monitor, minimized).
       Not run live: as the shell, a second monitor, other DPIs, an elevated window, a UWP (CoreWindow) app, a client
       showing the image to a model
-- [ ] A6 Presence: `set_agent_status` on the agent's own window's task button (found through the bridge's parent
-      processes), `notify` with buttons answered through the open call; cleared when the connection closes
+- [x] A6 Presence (2026-10-16): `set_agent_status` (working, progress, paused, error over the app's own progress;
+      attention as a flash) on the agent's own window, found from its processes, or a handle; `notify` as a toast
+      named as the agent's, with up to three buttons answered through the open call (or closed, or timed out after
+      its own wait), alongside Explorer through a toast host for agents alone; handlers get the calling session;
+      what an agent shows goes when it leaves or is disconnected; unit tests for finding the window, the statuses,
+      the buttons' list, the caller, per-tool timeouts and the session ending. Live alongside Explorer on a Paint
+      window of the test's own: every status (the bar seen under its button), attention flashing, a notification
+      without buttons, one answered by a button through UIA, one timing out, the agent leaving with a status and a
+      notification up (both gone). Not run live: as the shell (with Windows' toasts), Claude Code in Windows
+      Terminal finding its window, Do not disturb refusing, the light theme
 - [ ] A7 Live: a scripted client for every tool in both run modes, Claude Code through `claude mcp add`, NeoShell
       restarted under a connected client, other users and low integrity refused; docs (architecture.md, CLAUDE.md
       layout, settings-window.md)

@@ -139,9 +139,12 @@ public sealed class AgentServer : IDisposable
 
     private async Task ServeAsync(NamedPipeServerStream pipe)
     {
-        var session = new McpSession(_tools, group => _allowed.Contains(group), RunOnUiThread, s_callTimeout, _version);
         IReadOnlyList<ProcessEntry> processes = Processes.PipeClient(pipe.SafePipeHandle) is { } client ? Processes.Ancestry(client) : [];
-        var connection = new AgentConnection(session, processes, DateTime.Now);
+        var session = new McpSession(_tools, group => _allowed.Contains(group), RunOnUiThread, s_callTimeout, _version)
+        {
+            Processes = processes,
+        };
+        var connection = new AgentConnection(session, DateTime.Now);
         lock (_lock)
             _connections.Add(connection);
         session.Initialized += () => Changed?.Invoke();

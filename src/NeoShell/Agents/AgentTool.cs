@@ -17,17 +17,26 @@ public enum AgentToolGroup
 
 /// <summary>
 /// A tool agents can call: its name, group, the description and argument schema they read, and what it does. The
-/// handler starts on the UI thread (and may await work elsewhere); it throws <see cref="ToolArgumentException"/> for
-/// arguments it can't use.
+/// handler starts on the UI thread (and may await work elsewhere) with the arguments and the calling agent's session;
+/// it throws <see cref="ToolArgumentException"/> for arguments it can't use.
 /// </summary>
 public sealed record AgentTool(
-    string Name, AgentToolGroup Group, string Description, JsonObject InputSchema, Func<JsonObject, Task<ToolResult>> Handler)
+    string Name, AgentToolGroup Group, string Description, JsonObject InputSchema, Func<JsonObject, McpSession, Task<ToolResult>> Handler)
 {
-    /// <summary>A tool whose handler finishes on the UI thread.</summary>
-    public AgentTool(string name, AgentToolGroup group, string description, JsonObject inputSchema, Func<JsonObject, ToolResult> handler)
-        : this(name, group, description, inputSchema, arguments => Task.FromResult(handler(arguments)))
+    /// <summary>A tool that doesn't need to know who calls it.</summary>
+    public AgentTool(string name, AgentToolGroup group, string description, JsonObject inputSchema, Func<JsonObject, Task<ToolResult>> handler)
+        : this(name, group, description, inputSchema, (arguments, _) => handler(arguments))
     {
     }
+
+    /// <summary>A tool whose handler finishes on the UI thread.</summary>
+    public AgentTool(string name, AgentToolGroup group, string description, JsonObject inputSchema, Func<JsonObject, ToolResult> handler)
+        : this(name, group, description, inputSchema, (arguments, _) => Task.FromResult(handler(arguments)))
+    {
+    }
+
+    /// <summary>How long a call may take, for a tool that waits for the user (a notification's buttons); null: the session's.</summary>
+    public TimeSpan? Timeout { get; init; }
 
     /// <summary>The schema of a tool that takes no arguments.</summary>
     public static JsonObject NoArguments() => new() { ["type"] = "object", ["properties"] = new JsonObject() };
@@ -77,6 +86,18 @@ public static class ToolArguments
         JsonValue value when value.TryGetValue(out bool flag) => flag,
         _ => throw new ToolArgumentException($"{name} must be true or false"),
     };
+
+    /// <summary>A list of texts, at most <paramref name="max"/> of at most <paramref name="maxLength"/> characters; empty if not given.</summary>
+    public static IReadOnlyList<string> Strings(JsonObject arguments, string name, int max, int maxLength)
+    {
+        if (arguments[name] is null)
+            return [];
+        if (arguments[name] is not JsonArray items || items.Count > max)
+            throw new ToolArgumentException($"{name} must be a list of at most {max} texts");
+        return [.. items.Select(item => item is JsonValue value && value.TryGetValue(out string? text) && text.Length is > 0 and var length && length <= maxLength
+            ? text
+            : throw new ToolArgumentException($"Each of {name} must be a text of 1 to {maxLength} characters"))];
+    }
 
     public static bool RequiredBoolean(JsonObject arguments, string name) =>
         OptionalBoolean(arguments, name) ?? throw new ToolArgumentException($"{name} is required");

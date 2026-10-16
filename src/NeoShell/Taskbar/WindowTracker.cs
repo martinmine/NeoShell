@@ -43,6 +43,8 @@ internal sealed class WindowTracker : IDisposable
     private readonly Dictionary<nint, ImageSource?> _windowIcons = [];
     private readonly Dictionary<string, string> _appNames = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<nint, TaskProgress> _progress = [];
+    // What agents show on their own windows' buttons (set_agent_status), over the apps' own progress.
+    private readonly Dictionary<nint, TaskProgress> _agentProgress = [];
     private readonly Dictionary<nint, ImageSource> _overlays = [];
     private readonly HashSet<nint> _markedFullScreen = [];
     private readonly Dictionary<nint, ThumbBar> _thumbBars = [];
@@ -153,7 +155,32 @@ internal sealed class WindowTracker : IDisposable
     public int FlashMessages(nint hwnd) => _flashMessages.GetValueOrDefault(hwnd);
 
     /// <summary>The progress the window's app reports through ITaskbarList3, or null for none.</summary>
-    public TaskProgress? Progress(nint hwnd) => _progress.GetValueOrDefault(hwnd);
+    public TaskProgress? Progress(nint hwnd) => _agentProgress.GetValueOrDefault(hwnd) ?? _progress.GetValueOrDefault(hwnd);
+
+    /// <summary>An agent's progress on its window's button, over the app's own; null takes it away.</summary>
+    public void SetAgentProgress(nint hwnd, TaskProgress? progress)
+    {
+        if (!IsTracked(hwnd))
+            return;
+        if (progress is null)
+            _agentProgress.Remove(hwnd);
+        else
+            _agentProgress[hwnd] = progress;
+        QueueChanged();
+    }
+
+    /// <summary>
+    /// An agent asking for attention: its window's button flashes as if the app had called <c>FlashWindow</c>, until
+    /// the window is brought to the front (and not with flashing turned off in Windows' taskbar settings).
+    /// </summary>
+    public void FlashForAgent(nint hwnd)
+    {
+        if (!_showFlashing || !IsTracked(hwnd))
+            return;
+        _flashing.Add(hwnd);
+        _flashMessages[hwnd] = FlashMessages(hwnd) + 1;
+        QueueChanged();
+    }
 
     /// <summary>The overlay badge the window's app set through ITaskbarList3, or null.</summary>
     public ImageSource? Overlay(nint hwnd) => _overlays.GetValueOrDefault(hwnd);
@@ -420,6 +447,7 @@ internal sealed class WindowTracker : IDisposable
         _flashMessages.Remove(hwnd);
         _windowIcons.Remove(hwnd);
         _progress.Remove(hwnd);
+        _agentProgress.Remove(hwnd);
         _overlays.Remove(hwnd);
         _markedFullScreen.Remove(hwnd);
         _thumbBars.Remove(hwnd);

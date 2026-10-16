@@ -6,7 +6,7 @@ namespace NeoShell.Agents;
 /// An agent connected to NeoShell: its MCP session, and the processes behind it, the bridge first. The agent itself
 /// is the bridge's parent (Claude Code, an editor...), which started <c>NeoShell.exe /mcp</c>.
 /// </summary>
-public sealed class AgentConnection(McpSession session, IReadOnlyList<ProcessEntry> processes, DateTime since)
+public sealed class AgentConnection(McpSession session, DateTime since)
 {
     // Started between an agent and its bridge on the way: not the agent.
     private static readonly HashSet<string> s_launchers = new(StringComparer.OrdinalIgnoreCase)
@@ -17,7 +17,7 @@ public sealed class AgentConnection(McpSession session, IReadOnlyList<ProcessEnt
     public McpSession Session { get; } = session;
 
     /// <summary>The connected process and those that started it, nearest first.</summary>
-    public IReadOnlyList<ProcessEntry> Processes { get; } = processes;
+    public IReadOnlyList<ProcessEntry> Processes => Session.Processes;
 
     public DateTime Since { get; } = since;
 

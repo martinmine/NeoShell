@@ -1,3 +1,4 @@
+using System.Globalization;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Media;
@@ -46,22 +47,32 @@ internal sealed class ToastPopups : IDisposable
     // The toast whose sound plays, if any.
     private Toast? _sounding;
 
+    /// <summary>The app id agents' notifications go by: Windows' settings for it (banners on or off) apply.</summary>
+    public const string AgentAppId = "NeoShell.Agent";
+
     /// <param name="anchor">The primary monitor and its taskbar, the toasts go above it.</param>
     /// <param name="suppressed">True while toasts shouldn't show (the notification center is open).</param>
+    /// <param name="showsWindowsToasts">
+    /// False alongside Explorer, which shows Windows' toasts itself: then only NeoShell's own (agents') show.
+    /// </param>
     public ToastPopups(
         NotificationCenter center,
         RunMode runMode,
         Func<(DisplayMonitor Monitor, RectInt32 Taskbar)?> anchor,
         Func<(ElementTheme Theme, Color? Accent)> theme,
-        Func<bool> suppressed)
+        Func<bool> suppressed,
+        bool showsWindowsToasts = true)
     {
         _center = center;
         _runMode = runMode;
         _anchor = anchor;
         _theme = theme;
         _suppressed = suppressed;
-        center.Arrived += Show;
-        center.Changed += OnNotificationsChanged;
+        if (showsWindowsToasts)
+        {
+            center.Arrived += Show;
+            center.Changed += OnNotificationsChanged;
+        }
     }
 
     public void Dispose()
@@ -162,6 +173,31 @@ internal sealed class ToastPopups : IDisposable
             if (result == BalloonEvent.Clicked)
                 invoked(false);
         }, NotificationCenter.SoundFor(info), UserNotifications.PopupDuration);
+        return true;
+    }
+
+    /// <summary>
+    /// An agent's notification (<c>notify</c>): its title and text with up to three buttons, named as the agent's so
+    /// it can't pass for Windows' or an app's. With buttons it stays until one is clicked or it's closed; without, it
+    /// goes as other toasts do. Returns false when it can't show (Do not disturb, banners turned off for agents, the
+    /// notification center open). Only a banner: NeoShell can't store a notification in Windows' list.
+    /// </summary>
+    /// <param name="answered">The button clicked, or null for the toast closed, clicked elsewhere or timed out.</param>
+    public bool ShowAgentToast(string key, string agent, string title, string text, IReadOnlyList<string> buttons, Action<string?> answered)
+    {
+        Hide(key);
+        if (_suppressed() || _anchor() is null || !_center.ShowsBanner(AgentAppId))
+            return false;
+
+        ToastAction[] actions = [.. buttons.Select((button, index) =>
+            new ToastAction(index.ToString(CultureInfo.InvariantCulture), button, "", "foreground", false, null, null, null))];
+        var content = new ToastContent(title, text, null, false, false, null, null, [], $"From the AI agent {agent}", null, null, [], actions);
+        var info = new ToastInfo(0, AgentAppId, $"{agent} (AI agent)", DateTimeOffset.Now, title, text, null, content);
+        var card = new NotificationCard(info, isToast: true);
+        card.ShowDefaultLogo();
+        string? clicked = null;
+        card.ButtonInvoked += (_, action, _) => clicked = buttons[int.Parse(action.InvokeId, CultureInfo.InvariantCulture)];
+        Show(card, key, _ => answered(clicked), NotificationCenter.SoundFor(info), buttons.Count > 0 ? null : UserNotifications.PopupDuration);
         return true;
     }
 

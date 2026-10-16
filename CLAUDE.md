@@ -123,7 +123,8 @@ src/NeoShell/                 WinUI app
                               pipe), AgentServer (the pipe, per-user, connections, allowed groups), McpSession
                               (JSON-RPC), AgentTool and its groups, ShellTools (the Read tools), ControlTools (the
                               Control tools: windows, launch, surfaces, volume, Do not disturb), ScreenTools (the
-                              screenshot), AgentData
+                              screenshot), PresenceTools (the agent's status on its taskbar button, its
+                              notifications), AgentData
                               (the JSON they return); the page is Settings/AgentSettingsPage
   Desktop/                    WallpaperWindow (one per monitor), slideshow, IDesktopWallpaper server, desktop icons and
                               their menus (every monitor)
@@ -313,7 +314,8 @@ the desktop and back. Full spec in docs/design/widgets.md.
   pixels), the 2088 concept (the ask line's commands, its date), the agents' MCP server (the session's protocol, the
   bridge's relaying, answering for NeoShell and reconnecting; the tools' data and arguments; permission groups,
   revoking, the agent's process, the agent indicator; finding apps to launch, arrange positions, window handles;
-  screenshot scaling, crops, scaled PNGs and image content).
+  screenshot scaling, crops, scaled PNGs and image content; the agent's window, its statuses, notification buttons,
+  per-tool timeouts and sessions ending).
 - The Settings window's controls all have AutomationIds (`<Page>NavigationItem`, `SettingsPageTitle`, `SearchModeBox`,
   `TaskbarAlignmentBox`, `AutoHideCheckBox`, `WidgetSidebarWidthSlider`…; list in docs/design/settings-window.md). Open
   it by invoking `StartButton` then `NeoShellSettingsButton`; select pages through the items' SelectionItem pattern.

@@ -4,7 +4,7 @@ An MCP server through which AI agents (Claude Code, Claude Desktop, any MCP clie
 what windows are open, what the tray and notifications say, launching and arranging apps, and showing their own state
 on the taskbar and in notifications. Part of the [NeoShell design](../design.md). Status: the transport and protocol
 (A1 in plan.md, "Agent access (MCP)"), the Read tools (A2), the Agents settings page with its permissions (A3) and the
-Control tools (A4) and the screenshot (A5) are built; Presence has its switch but no tools yet.
+Control tools (A4), the screenshot (A5) and the Presence tools (A6) are built.
 
 ## Goals
 
@@ -90,21 +90,33 @@ apps in Start's catalog, and do what a click on the taskbar, a thumbnail, Start 
 | `launch` | Control | Start an app from Start's catalog, by the id `search` gives or its exact name (two apps of one name: the ids are asked for), as Start does (`Launcher.Launch`). No arguments: the catalog holds cmd and PowerShell, so arguments would be any command line |
 | `show_surface` | Control | Open Start, Quick Settings, the notification center, the Settings window on a page |
 | `set_volume`, `set_do_not_disturb` | Control | As their Quick Settings controls |
-| `notify` | Presence | A notification from the agent: title, text, up to three buttons; returns the button chosen (or dismissed / timed out) |
-| `set_agent_status` | Presence | Show the agent's state on a window's task button: working (indeterminate progress), progress %, needs attention (flash), done, cleared |
+| `notify` | Presence | A notification from the agent: title, text, up to three buttons; returns the button chosen (or closed / timed out) |
+| `set_agent_status` | Presence | Show the agent's state on its own window's task button: working (indeterminate progress), progress %, paused, error, attention (flash), clear |
 
 Deliberately left out: settings writes beyond these, power (sign out, shut down), Explorer switching, ending tasks,
 reading other apps' contents.
 
 ### Presence
 
-- **`set_agent_status`** targets the agent's own window, normally its terminal or app; the client names it by
-  handle or by a process ID the bridge knows (the bridge's parent process chain, so "my terminal" works without the
-  agent finding its own handle). NeoShell shows it as it shows `ITaskbarList3` progress and flashing, layered over
-  the app's own state and cleared when the connection closes.
-- **`notify`** is a NeoShell notification (toast, then the notification center) under the client's name from
-  `initialize` (`clientInfo.name`), with NeoShell's toast look. Its buttons are answered through the open tool call;
-  the notification says which agent sent it, so a page can't pose as the system.
+- **Who calls.** A tool's handler gets the calling `McpSession` with the arguments; the session carries the
+  processes behind it (the bridge, the agent, what started the agent, nearest first) and raises `Ended` once, when
+  the client's input closes (not when its last call finishes) or the user disconnects it. What an agent showed goes
+  then: its progress comes off its buttons and its waiting notifications close, their calls answering at once.
+- **`set_agent_status`** targets the agent's own window without it having to find its handle: the first of its
+  processes, nearest first, with a taskbar window (`PresenceTools.AgentWindow`; of several, the one used last), so
+  Claude Code in Windows Terminal lands on the terminal and the Claude app on its own window; or the handle given.
+  Progress (working: indeterminate; progress: percent; paused and error: at the percent or full) is a layer in the
+  `WindowTracker` over the app's own `ITaskbarList3` progress, which shows again once the agent clears it or leaves.
+  Attention is a flash as an app's `FlashWindow` (`WindowTracker.FlashForAgent`): the button blinks and stays lit
+  until the window comes to the front, and not at all with Windows' flashing setting off.
+- **`notify`** is a NeoShell toast (`ToastPopups.ShowAgentToast`) named as the agent's: "<client> (AI agent)" over
+  the title and "From the AI agent <client>" under the text, with the default logo, so it can't pass for Windows' or
+  an app's. Up to three buttons (40 characters each); with buttons it stays until one is clicked or it's closed, and
+  the call answers with the button, null for closed, or `timedOut` after `waitSeconds` (1-600, 120 by default; the
+  tool's own timeout, longer than the session's 10 s). It's a banner only, not kept in the notification center,
+  and it follows Do not disturb and Windows' banner setting for the app id `NeoShell.Agent`. As the shell it goes
+  with Windows' toasts; alongside Explorer, whose toasts they are, NeoShell keeps a toast host for agents alone
+  (`Taskbars.AgentToasts`, not listening to Windows' notifications).
 - Later, if useful: MCP elicitation (`elicitation/create`) the other way round is the client's business, not
   NeoShell's.
 
@@ -148,7 +160,7 @@ src/NeoShell/Agents/
   ShellTools.cs        The Read tools, over Taskbars, Tray, NotificationCenter and Start's search; all tools' list
   ControlTools.cs      The Control tools, over the task list, Snap, the launcher, the flyouts, audio and the bell
   ScreenTools.cs       The screenshot, over ScreenCapture (Capture, CaptureWindow, EncodeScaledPngAsync)
-  AgentPresence.cs     Agent status on task buttons and agent notifications, cleared per connection
+  PresenceTools.cs     Agent status on task buttons and agent notifications, cleared when the agent ends
 src/NeoShell/Settings/AgentSettingsPage.xaml(.cs)  The Settings page
 src/NeoShell.Interop/Shell/Processes.cs  A pipe's client process and the processes that started it
 ```

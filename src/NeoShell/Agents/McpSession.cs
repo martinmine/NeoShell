@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Text;
 using System.Text.Json.Nodes;
+using NeoShell.Interop.Shell;
 using NeoShell.Logging;
 
 namespace NeoShell.Agents;
@@ -34,6 +35,23 @@ public sealed class McpSession(
     /// <summary>Disconnected by the user: the session stays open but offers no tools and refuses every call.</summary>
     public bool IsRevoked => _revoked;
 
+    /// <summary>The connected process and those that started it, nearest first (set by <see cref="AgentServer"/>).</summary>
+    public IReadOnlyList<ProcessEntry> Processes { get; init; } = [];
+
+    /// <summary>
+    /// The agent left or was disconnected: what it showed in the shell (its status, its notifications) goes. Raised
+    /// once, on the thread that ended it.
+    /// </summary>
+    public event Action? Ended;
+
+    private int _ended;
+
+    private void End()
+    {
+        if (Interlocked.Exchange(ref _ended, 1) == 0)
+            Ended?.Invoke();
+    }
+
     /// <summary>
     /// Takes the agent's tools away. The pipe stays open on purpose: closed, the agent's bridge would connect again
     /// two seconds later.
@@ -42,6 +60,7 @@ public sealed class McpSession(
     {
         _revoked = true;
         NotifyToolsChanged();
+        End();
     }
 
     /// <summary>Tells the client to ask for the tools again: the groups the user allows have changed.</summary>
@@ -62,6 +81,8 @@ public sealed class McpSession(
                     answering.Add(AnswerAsync(line));
                 answering.RemoveAll(task => task.IsCompleted);
             }
+            // Gone now, not once its calls finish: a notification waiting for the user goes with it.
+            End();
             await Task.WhenAll(answering);
         }
         finally
@@ -69,6 +90,7 @@ public sealed class McpSession(
             await _writing.WaitAsync(CancellationToken.None);
             _writer = null;
             _writing.Release();
+            End();
         }
 
         async Task AnswerAsync(string line)
@@ -168,7 +190,7 @@ public sealed class McpSession(
     {
         try
         {
-            return await runOnUiThread(() => Invoke(tool, arguments)).WaitAsync(timeout);
+            return await runOnUiThread(() => Invoke(tool, arguments)).WaitAsync(tool.Timeout ?? timeout);
         }
         catch (TimeoutException)
         {
@@ -181,11 +203,11 @@ public sealed class McpSession(
         }
     }
 
-    private static async Task<ToolResult> Invoke(AgentTool tool, JsonObject arguments)
+    private async Task<ToolResult> Invoke(AgentTool tool, JsonObject arguments)
     {
         try
         {
-            return await tool.Handler(arguments);
+            return await tool.Handler(arguments, this);
         }
         catch (ToolArgumentException ex)
         {
