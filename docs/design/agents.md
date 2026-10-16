@@ -3,8 +3,8 @@
 An MCP server through which AI agents (Claude Code, Claude Desktop, any MCP client) can see the shell and act in it:
 what windows are open, what the tray and notifications say, launching and arranging apps, and showing their own state
 on the taskbar and in notifications. Part of the [NeoShell design](../design.md). Status: the transport and protocol
-(A1 in plan.md, "Agent access (MCP)"), the Read tools (A2) and the Agents settings page with its permissions (A3) are
-built; Control, Screen and Presence have their switches but no tools yet.
+(A1 in plan.md, "Agent access (MCP)"), the Read tools (A2), the Agents settings page with its permissions (A3) and the
+Control tools (A4) are built; Screen and Presence have their switches but no tools yet.
 
 ## Goals
 
@@ -71,7 +71,9 @@ call what a click would call; nothing slow runs on the UI thread (screenshots an
 
 ## Tools
 
-Each tool belongs to a permission group (below). Names are snake_case verbs, grouped by prefix in the list.
+Each tool belongs to a permission group (below). Names are snake_case verbs, grouped by prefix in the list. The
+Control tools act only on windows with taskbar buttons (`list_windows`' handles; any other handle is refused) and
+apps in Start's catalog, and do what a click on the taskbar, a thumbnail, Start or Quick Settings would.
 
 | Tool | Group | What |
 |---|---|---|
@@ -82,10 +84,10 @@ Each tool belongs to a permission group (below). Names are snake_case verbs, gro
 | `list_notifications` | Read | The notification center's notifications: app, time, texts |
 | `search` | Read | Start's search: apps from the app catalog with the id that starts them, ranked as Start ranks them, and indexed files and folders in Start's groups |
 | `screenshot` | Screen | A monitor or a window as PNG (image content), scaled down to a size given |
-| `activate_window` | Control | Bring a window to the front (as a task button click), restore if minimized |
-| `arrange_window` | Control | Minimize, maximize, restore, or snap to a layout zone (Snap's zones and its window arranging) |
-| `close_window` | Control | `WM_CLOSE`, as the thumbnail's close button; the app may still ask to save |
-| `launch` | Control | Start an app from the app catalog (by AUMID or name, as Start), optionally with a file or URL argument; not arbitrary command lines |
+| `activate_window` | Control | Bring a window to the front as a task button click does (`TaskbarActivation.BringToFront`: NeoShell's own key when Windows' foreground lock refuses), restoring it if minimized |
+| `arrange_window` | Control | Minimize, maximize, restore, or a half or quarter of a monitor's work area, on its own monitor or another. As the shell through Snap (`WindowSnapping.Arrange`: animated, remembered for restoring, no Snap Assist); alongside Explorer Snap is Explorer's, so the window is placed in the zone (`TopLevelWindows.Place`) and an elevated window is refused. Answers with the state once the window is in it (minimizing is posted) |
+| `close_window` | Control | `SC_CLOSE`, as the thumbnail's close button; the app may still ask to save |
+| `launch` | Control | Start an app from Start's catalog, by the id `search` gives or its exact name (two apps of one name: the ids are asked for), as Start does (`Launcher.Launch`). No arguments: the catalog holds cmd and PowerShell, so arguments would be any command line |
 | `show_surface` | Control | Open Start, Quick Settings, the notification center, the Settings window on a page |
 | `set_volume`, `set_do_not_disturb` | Control | As their Quick Settings controls |
 | `notify` | Presence | A notification from the agent: title, text, up to three buttons; returns the button chosen (or dismissed / timed out) |
@@ -143,7 +145,8 @@ src/NeoShell/Agents/
   McpBridge.cs         NeoShell.exe /mcp: stdio to the pipe, answering for NeoShell while it isn't there
   AgentTool.cs         A tool: name, description, group, input/output schema, handler; ToolArguments
   AgentData.cs         The JSON agents read: windows, monitors, network, battery, notifications, search results
-  ShellTools.cs        The tools above, over Taskbars, Tray, NotificationCenter, StartMenu search, Snap, Capture
+  ShellTools.cs        The Read tools, over Taskbars, Tray, NotificationCenter and Start's search; all tools' list
+  ControlTools.cs      The Control tools, over the task list, Snap, the launcher, the flyouts, audio and the bell
   AgentPresence.cs     Agent status on task buttons and agent notifications, cleared per connection
 src/NeoShell/Settings/AgentSettingsPage.xaml(.cs)  The Settings page
 src/NeoShell.Interop/Shell/Processes.cs  A pipe's client process and the processes that started it

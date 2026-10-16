@@ -828,8 +828,15 @@ An MCP server through which AI agents see the shell and act in it, off by defaul
       UIA with a client connected: the page and its row, Read off and on (list_changed, calls refused, back), the
       indicator with Control, Disconnect, access off and on. Not run live: as the shell, two agents at once,
       Claude Code as the client (the row's process), keyboard on the page, the light theme
-- [ ] A4 Control tools: `activate_window`, `arrange_window` (Snap's zones), `close_window`, `launch` (app catalog
-      only), `show_surface`, `set_volume`, `set_do_not_disturb`; what each can't do alongside Explorer
+- [x] A4 Control tools (2026-10-16): `activate_window` (the task button's bring-to-front), `arrange_window` (Snap's
+      `Arrange` as the shell, placed in the zone alongside Explorer; answered once the window is in its state),
+      `close_window`, `launch` (Start's catalog by id or exact name, no arguments), `show_surface` (Start, Quick
+      Settings, the notification center, Settings on a page), `set_volume`, `set_do_not_disturb`; windows only from
+      the task list; unit tests for finding apps, positions, window handles and the arguments. Live alongside
+      Explorer on a Paint window of the test's own: every position, activate, the four surfaces (seen through UIA and
+      a screenshot), volume and mute set and put back, Do not disturb on and off, close; the errors (unknown handle,
+      position, monitor, app). Not run live: as the shell (Snap's arranging, its animation), a second monitor, an
+      elevated window, two apps of one name
 - [ ] A5 Screen: `screenshot` of a monitor or window, scaled, off the UI thread
 - [ ] A6 Presence: `set_agent_status` on the agent's own window's task button (found through the bridge's parent
       processes), `notify` with buttons answered through the open call; cleared when the connection closes

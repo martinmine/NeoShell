@@ -70,6 +70,55 @@ public static class ToolArguments
         throw new ToolArgumentException($"{name} must be a whole number from {min} to {max}");
     }
 
+    public static bool? OptionalBoolean(JsonObject arguments, string name) => arguments[name] switch
+    {
+        null => null,
+        JsonValue value when value.TryGetValue(out bool flag) => flag,
+        _ => throw new ToolArgumentException($"{name} must be true or false"),
+    };
+
+    public static bool RequiredBoolean(JsonObject arguments, string name) =>
+        OptionalBoolean(arguments, name) ?? throw new ToolArgumentException($"{name} is required");
+
+    /// <summary>One of a fixed set of names, as the schema's <c>enum</c> lists them.</summary>
+    public static T Choice<T>(JsonObject arguments, string name, IReadOnlyDictionary<string, T> choices) =>
+        RequiredString(arguments, name) is var value && choices.TryGetValue(value, out T? choice)
+            ? choice
+            : throw new ToolArgumentException($"{name} must be one of {string.Join(", ", choices.Keys)}");
+
+    /// <summary>
+    /// The window a <c>handle</c> argument names, among the windows with taskbar buttons: agents act on those only,
+    /// not on NeoShell's own windows or ones they made up a handle for.
+    /// </summary>
+    public static T Window<T>(JsonObject arguments, IEnumerable<T> windows, Func<T, nint> handleOf)
+    {
+        if (arguments["handle"] is not JsonValue value || !value.TryGetValue(out long handle))
+            throw new ToolArgumentException("handle is required: a window's handle from list_windows");
+        foreach (T window in windows)
+        {
+            if (handleOf(window) == (nint)handle)
+                return window;
+        }
+        throw new ToolArgumentException($"No window with a taskbar button has handle {handle}; list_windows gives them");
+    }
+
+    public static JsonObject BooleanSchema(string description) => new() { ["type"] = "boolean", ["description"] = description };
+
+    public static JsonObject ChoiceSchema(string description, IEnumerable<string> choices) =>
+        new() { ["type"] = "string", ["description"] = description, ["enum"] = new JsonArray([.. choices.Select(c => (JsonNode)c)]) };
+
+    public static JsonObject HandleSchema() =>
+        new() { ["type"] = "integer", ["description"] = "The window's handle, from list_windows" };
+
+    /// <summary>A tool's arguments: their schemas by name, and which must be given.</summary>
+    public static JsonObject Schema(JsonObject properties, params string[] required)
+    {
+        var schema = new JsonObject { ["type"] = "object", ["properties"] = properties };
+        if (required.Length > 0)
+            schema["required"] = new JsonArray([.. required.Select(name => (JsonNode)name)]);
+        return schema;
+    }
+
     /// <summary>The schema of a string argument.</summary>
     public static JsonObject StringSchema(string description) => new() { ["type"] = "string", ["description"] = description };
 
