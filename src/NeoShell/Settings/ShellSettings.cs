@@ -132,6 +132,8 @@ public sealed record ShellSettings
     /// <summary>The user's own styles; the presets aren't stored.</summary>
     public IReadOnlyList<FrameStyle> WindowFrameStyles { get; set; } = [];
     public IReadOnlyList<FrameRule> WindowFrameRules { get; set; } = [];
+    /// <summary>Let AI agents reach NeoShell through its MCP server (<see cref="Agents.AgentServer"/>); off by default.</summary>
+    public bool AgentAccessEnabled { get; set; }
 
     /// <summary>
     /// The sidebar's widgets until the user changes them. Fixed ids: a note's text is kept by its widget's id, even

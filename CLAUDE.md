@@ -119,6 +119,9 @@ src/NeoShell/                 WinUI app
   ShellSession.cs             Shell-mode duties: registration, ready event, startup apps, session end
   ShellWorkArea.cs            Shell-mode work area: what the taskbar and app bars reserve
   Logging/                    Small file logger
+  Agents/                     MCP server for AI agents (design/agents.md): NeoShell.exe /mcp (McpBridge, stdio to a
+                              pipe), AgentServer (the pipe, per-user), McpSession (JSON-RPC), AgentTool, ShellTools
+                              (the tools over Taskbars), AgentData (the JSON they return)
   Desktop/                    WallpaperWindow (one per monitor), slideshow, IDesktopWallpaper server, desktop icons and
                               their menus (every monitor)
   Themes/                     The theme seam: ITaskbarView, IStartMenuView, ThemeViews (each theme's views),
@@ -303,7 +306,8 @@ the desktop and back. Full spec in docs/design/widgets.md.
   window's pages, version and run mode texts, themes (the choice, names, the setting) and a theme's taskbar height,
   the XP theme (button widths, grouping, tray and Quick Launch widths, group menu titles, system menu states, the Start
   Menu folders, Start's layout), the 98 theme (button widths, bands and tray, Start's layout, the taskbar's and Start's
-  pixels), the 2088 concept (the ask line's commands, its date).
+  pixels), the 2088 concept (the ask line's commands, its date), the agents' MCP server (the session's protocol, the
+  bridge's relaying, answering for NeoShell and reconnecting; the tools' data and arguments).
 - The Settings window's controls all have AutomationIds (`<Page>NavigationItem`, `SettingsPageTitle`, `SearchModeBox`,
   `TaskbarAlignmentBox`, `AutoHideCheckBox`, `WidgetSidebarWidthSlider`…; list in docs/design/settings-window.md). Open
   it by invoking `StartButton` then `NeoShellSettingsButton`; select pages through the items' SelectionItem pattern.

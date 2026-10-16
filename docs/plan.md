@@ -797,3 +797,36 @@ NeoShell's taskbar and Start in the look of other Windows versions, over the sam
         theme switching. Not run live: drags between the sidebar and the desktop, the panel hidden
   - [x] The widgets' styled text in the concept's type, and their settings flyouts in its look (2026-10-13)
   - [x] The sidebar's menus and the widget buttons' tooltips in the concept's type and plate (2026-10-13)
+
+## Agent access (MCP)
+
+An MCP server through which AI agents see the shell and act in it, off by default (design/agents.md).
+
+- [x] A1 Transport (2026-10-16): `NeoShell.exe /mcp` bridge (stdio to the pipe, before the single-instance mutex, no
+      WinUI), the pipe server in `Agents/AgentServer` (current user only, the first instance NeoShell's own, created
+      while `AgentAccessEnabled` is on), the bridge answering for NeoShell while it's away, failing its unanswered
+      requests, and replaying `initialize` with `tools/list_changed` when it's back; `McpSession` (initialize and
+      version negotiation, ping, tools/list, tools/call, answers as calls finish) over `System.Text.Json`; calls on
+      the UI thread with a 5 s timeout, each logged; unit tests for the session and the bridge. Live with a stdio
+      client alongside Explorer: started before NeoShell, connected 2 s after its start, across an /exit and a
+      restart, clean exits. Not run live: as the shell, an elevated client, another user's or a low-integrity
+      process refused, Claude Code itself (no tools yet). Found on the way (not this change): an /exit about a second
+      after start crashes on Start's account picture, and about one exit in three or more ends in an access violation
+      in a COM object's finalizer
+- [x] A2 Read tools (2026-10-16): `shell_state`, `list_windows`, `list_tray_icons`, `indicators`,
+      `list_notifications`, `search` (`ShellTools` over `Taskbars`; the JSON in `AgentData`); handlers may await
+      (search's catalog and index on the thread pool), calls time out after 10 s; argument errors are tool errors;
+      unit tests for the data, the arguments and async handlers. Live alongside Explorer through the bridge: every
+      tool, the index answering files and folders, the tray tool saying it's Explorer's. Not run live: as the shell
+      (the tray icons), a battery, progress and badges on real windows, a second monitor
+- [ ] A3 The Agents settings page: the main switch, the permission groups (Read, Control, Screen, Presence),
+      connections with Disconnect; `tools/list_changed` on a change; the tray indicator while a Control or Screen
+      agent is connected
+- [ ] A4 Control tools: `activate_window`, `arrange_window` (Snap's zones), `close_window`, `launch` (app catalog
+      only), `show_surface`, `set_volume`, `set_do_not_disturb`; what each can't do alongside Explorer
+- [ ] A5 Screen: `screenshot` of a monitor or window, scaled, off the UI thread
+- [ ] A6 Presence: `set_agent_status` on the agent's own window's task button (found through the bridge's parent
+      processes), `notify` with buttons answered through the open call; cleared when the connection closes
+- [ ] A7 Live: a scripted client for every tool in both run modes, Claude Code through `claude mcp add`, NeoShell
+      restarted under a connected client, other users and low integrity refused; docs (architecture.md, CLAUDE.md
+      layout, settings-window.md)

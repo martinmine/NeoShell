@@ -3,6 +3,7 @@ using System.Security;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.Win32;
+using NeoShell.Agents;
 using NeoShell.Desktop;
 using NeoShell.Frames;
 using NeoShell.Interop.Shell;
@@ -29,6 +30,7 @@ public partial class App : Application
     private Sidebar? _sidebar;
     private WindowFrames? _windowFrames;
     private ShellSession? _shellSession;
+    private AgentServer? _agentServer;
     private bool _shuttingDown;
     private bool _startExplorerOnExit;
 
@@ -92,6 +94,9 @@ public partial class App : Application
             _settings.Changed += UpdateWindowFrames;
         });
 
+        UpdateAgentAccess();
+        _settings.Changed += UpdateAgentAccess;
+
         if (_shellRegistration is not null)
         {
             Wallpaper? wallpaper = _wallpaper;
@@ -119,6 +124,20 @@ public partial class App : Application
         else
         {
             _windowFrames.StyleAll();
+        }
+    }
+
+    /// <summary>Opens or closes the agents' pipe as the setting says.</summary>
+    private void UpdateAgentAccess()
+    {
+        if (!_settings.Current.AgentAccessEnabled)
+        {
+            _agentServer?.Dispose();
+            _agentServer = null;
+        }
+        else
+        {
+            _agentServer ??= new AgentServer(DispatcherQueue.GetForCurrentThread(), ShellTools.Create(_taskbars!));
         }
     }
 
@@ -151,6 +170,8 @@ public partial class App : Application
         Log.Info("Shutting down");
         ShellWorkArea.BeginExit();
         _shellSession?.Dispose();
+        _settings.Changed -= UpdateAgentAccess;
+        _agentServer?.Dispose();
         // Other apps' windows get their own frames back.
         _settings.Changed -= UpdateWindowFrames;
         _windowFrames?.Dispose();

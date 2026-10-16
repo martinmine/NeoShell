@@ -122,6 +122,9 @@ internal sealed class Taskbars : IDisposable
     /// <summary>The notifications Windows keeps, and Do not disturb.</summary>
     public NotificationCenter? Notifications { get; private set; }
 
+    /// <summary>The focus session, once the notification center has started.</summary>
+    public FocusSession? Focus => _focus;
+
     /// <summary>The system tray; only when NeoShell is the shell and no other tray is running.</summary>
     public NotificationArea? Tray { get; private set; }
 
