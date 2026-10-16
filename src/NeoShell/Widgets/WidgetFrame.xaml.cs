@@ -90,6 +90,8 @@ internal sealed partial class WidgetFrame : UserControl
             }
             LayoutUpdated += OnLayoutUpdated;
             HudWidgets.ApplyFont(Card, _fonted);
+            ToolTipService.SetToolTip(SettingsButton, HudWidgets.ToolTip("SETTINGS // 設定"));
+            ToolTipService.SetToolTip(CloseButton, HudWidgets.ToolTip("CLOSE // 閉じる"));
         }
         else
         {
@@ -104,6 +106,8 @@ internal sealed partial class WidgetFrame : UserControl
             LayoutUpdated -= OnLayoutUpdated;
             _fontTimer?.Stop();
             HudWidgets.RestoreFont(_fonted);
+            ToolTipService.SetToolTip(SettingsButton, "Settings");
+            ToolTipService.SetToolTip(CloseButton, "Close");
         }
         Widget.SetConcept(on);
         // The plate is drawn behind the card (the palette clears the card's own fill and outline), the widget under

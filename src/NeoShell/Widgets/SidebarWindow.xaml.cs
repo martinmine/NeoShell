@@ -141,6 +141,10 @@ internal sealed partial class SidebarWindow : Window
             Root.Children.Insert(0, _conceptEdge);
             _conceptTitle = Themes.Concept2088.HudWidgets.Title();
             Header.Children.Insert(0, _conceptTitle);
+            // The menus on a solid plate of their own, which the acrylic would only show behind.
+            AddMenu.MenuFlyoutPresenterStyle = SidebarMenu.MenuFlyoutPresenterStyle = Themes.Concept2088.HudWidgets.MenuStyle();
+            AddMenu.SystemBackdrop = SidebarMenu.SystemBackdrop = null;
+            ToolTipService.SetToolTip(AddButton, Themes.Concept2088.HudWidgets.ToolTip("ADD WIDGET // 追加"));
         }
         else
         {
@@ -149,6 +153,10 @@ internal sealed partial class SidebarWindow : Window
             Root.Children.Remove(_conceptEdge);
             Header.Children.Remove(_conceptTitle);
             _conceptEdge = _conceptTitle = null;
+            AddMenu.MenuFlyoutPresenterStyle = SidebarMenu.MenuFlyoutPresenterStyle = (Style)Root.Resources["SidebarMenuPresenterStyle"];
+            AddMenu.SystemBackdrop = _addMenuBackdrop;
+            SidebarMenu.SystemBackdrop = _sidebarMenuBackdrop;
+            ToolTipService.SetToolTip(AddButton, "Add widget");
         }
     }
 
@@ -308,7 +316,11 @@ internal sealed partial class SidebarWindow : Window
             SidebarMenu.ShowAt(Root);
     }
 
-    private void SidebarMenu_Opening(object sender, object e) => FillAddMenu(AddSubMenu.Items);
+    private void SidebarMenu_Opening(object sender, object e)
+    {
+        FillAddMenu(AddSubMenu.Items);
+        SetMenuFont(SidebarMenu.Items);
+    }
 
     private void WidgetSettings_Click(object sender, RoutedEventArgs e) => _owner.OpenSettings();
 
@@ -338,6 +350,19 @@ internal sealed partial class SidebarWindow : Window
             AutomationProperties.SetAutomationId(item, $"Add{kind}WidgetMenuItem");
             item.Click += (_, _) => _owner.Add(kind);
             items.Add(item);
+        }
+        SetMenuFont(items);
+    }
+
+    // The 2088 concept's type on the menus' items: a menu item takes its font from its own style, not the window.
+    private void SetMenuFont(IList<MenuFlyoutItemBase> items)
+    {
+        foreach (MenuFlyoutItemBase item in items)
+        {
+            if (_conceptEdge is not null)
+                item.FontFamily = Themes.Concept2088.Hud.Display;
+            else
+                item.ClearValue(Control.FontFamilyProperty);
         }
     }
 

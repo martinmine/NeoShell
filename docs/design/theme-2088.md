@@ -163,10 +163,16 @@ when the theme changes: `SidebarWindow.SetConcept`, `WidgetFrame.SetConcept`, `W
   (`RESOURCE USAGE // 資源監視 · SETTINGS 設定`), the concept's type, and its palette for the controls: toggle switches,
   the focus line of number and text boxes, combo boxes and buttons in its reds and lines, corners square. Resource
   usage's colour swatches offer the concept's four colours first (nine to a row; the check mark dark on the white).
+  A combo box's drop-down takes the Panel plate with a red outline.
+- **Menus and tooltips**: the sidebar's Add widget menu and its right-click menu (with the Add widget submenu) on a
+  solid Panel plate with a red outline and square corners instead of the acrylic (`HudWidgets.MenuStyle`), their
+  items in Bahnschrift (a menu item takes its font from its own style); the Add widget, settings and close buttons'
+  tooltips on the same plate, bilingual (`ADD WIDGET // 追加`, `SETTINGS // 設定`, `CLOSE // 閉じる`). Now playing's
+  own tooltips (previous, play, next) keep Windows 11's.
 
 Checked live as the shell: the sidebar over the Field, hover, a floating Notes widget, the fonts, Resource usage's
-settings flyout, and switching to Windows 11 and back with the widgets open (Segoe UI and Windows 11's flyout come
-back). Not run live: dragging a widget between the sidebar and the desktop in the concept, the sidebar's panel
+and Notes' settings flyouts with the drop-down, both menus, the Add widget tooltip, and switching to Windows 11 and back with the widgets open (Segoe UI, Windows 11's flyout and the acrylic
+menus come back). Not run live: dragging a widget between the sidebar and the desktop in the concept, the sidebar's panel
 hidden (only the cards).
 
 ## What stays Windows 11's

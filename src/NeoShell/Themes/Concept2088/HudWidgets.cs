@@ -86,6 +86,8 @@ internal static class HudWidgets
             ["ComboBoxBorderBrush"] = Hud.Solid(Hud.LineBright),
             ["ComboBoxBorderBrushPointerOver"] = Hud.Solid(Hud.Red),
             ["ComboBoxItemPillFillBrush"] = Hud.Solid(Hud.Red),
+            ["ComboBoxDropDownBackground"] = Hud.Solid(Hud.Panel),
+            ["ComboBoxDropDownBorderBrush"] = Hud.Solid(Hud.Red),
             ["ButtonBackground"] = Hud.Solid(Hud.Void),
             ["ButtonBackgroundPointerOver"] = Hud.Solid(Hud.Raised),
             ["ButtonBorderBrush"] = Hud.Solid(Hud.LineBright),
@@ -107,6 +109,35 @@ internal static class HudWidgets
             new Setter(Control.CornerRadiusProperty, new CornerRadius(0)),
             new Setter(Control.PaddingProperty, new Thickness(16, 14, 16, 16)),
         },
+    };
+
+    /// <summary>
+    /// The sidebar's menus (Add widget, its right-click menu): a solid Panel plate with a red outline, square, in place
+    /// of the acrylic the theme's menus have.
+    /// </summary>
+    public static Style MenuStyle() => new(typeof(MenuFlyoutPresenter))
+    {
+        BasedOn = (Style)Application.Current.Resources["DefaultMenuFlyoutPresenterStyle"],
+        Setters =
+        {
+            new Setter(Control.BackgroundProperty, Hud.Solid(Hud.Panel)),
+            new Setter(Control.BorderBrushProperty, Hud.Solid(Hud.Red)),
+            new Setter(Control.BorderThicknessProperty, new Thickness(1)),
+            new Setter(Control.CornerRadiusProperty, new CornerRadius(0)),
+        },
+    };
+
+    /// <summary>A tooltip on the concept's plate, in its type: a button's name and its Japanese.</summary>
+    public static ToolTip ToolTip(string text) => new()
+    {
+        Content = text,
+        Background = Hud.Solid(Hud.Panel),
+        BorderBrush = Hud.Solid(Hud.Red),
+        BorderThickness = new Thickness(1),
+        CornerRadius = new CornerRadius(0),
+        Foreground = Hud.Solid(Hud.Text),
+        FontFamily = Hud.Display,
+        CharacterSpacing = 80,
     };
 
     /// <summary>The settings flyout's heading: the widget's name, then what the flyout is.</summary>

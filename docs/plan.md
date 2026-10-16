@@ -796,3 +796,4 @@ NeoShell's taskbar and Start in the look of other Windows versions, over the sam
         cut-corner cards with bilingual headings, the widgets in the concept's palette, red resource graphs; live
         theme switching. Not run live: drags between the sidebar and the desktop, the panel hidden
   - [x] The widgets' styled text in the concept's type, and their settings flyouts in its look (2026-10-13)
+  - [x] The sidebar's menus and the widget buttons' tooltips in the concept's type and plate (2026-10-13)
