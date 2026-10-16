@@ -37,6 +37,7 @@ internal static unsafe partial class User32
     public const uint WS_MINIMIZEBOX = 0x0002_0000;
     public const uint WS_MAXIMIZEBOX = 0x0001_0000;
     public const uint WS_THICKFRAME = 0x0004_0000;
+    public const uint WS_CAPTION = 0x00C0_0000;
     public const uint WS_EX_TOPMOST = 0x0000_0008;
     public const uint WS_EX_TOOLWINDOW = 0x0000_0080;
 

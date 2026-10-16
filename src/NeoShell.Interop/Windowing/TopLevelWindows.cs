@@ -76,6 +76,10 @@ public static unsafe class TopLevelWindows
 
     public static bool IsMaximized(nint hwnd) => User32.IsZoomed(hwnd);
 
+    /// <summary>Whether the window has a title bar; full-screen apps take theirs off.</summary>
+    public static bool HasCaption(nint hwnd) =>
+        ((uint)User32.GetWindowLongPtr(hwnd, User32.GWL_STYLE) & User32.WS_CAPTION) == User32.WS_CAPTION;
+
     public static bool Exists(nint hwnd) => User32.IsWindow(hwnd);
 
     private static readonly uint s_taskbarButtonCreated = User32.RegisterWindowMessage("TaskbarButtonCreated");

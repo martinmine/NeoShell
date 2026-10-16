@@ -487,8 +487,9 @@ internal sealed class Taskbars : IDisposable
         bool candidate = foreground != 0
             && TopLevelWindows.Exists(foreground)
             && !TopLevelWindows.IsMinimized(foreground)
-            // Maximized fills the screen too when nothing reserves space (auto-hide), but isn't full screen.
-            && !TopLevelWindows.IsMaximized(foreground)
+            // Maximized fills the screen too when nothing reserves space (auto-hide), but isn't full screen. A browser
+            // going full screen from maximized stays maximized, though: it takes its title bar off instead.
+            && !(TopLevelWindows.IsMaximized(foreground) && TopLevelWindows.HasCaption(foreground))
             && TopLevelWindows.GetProcessId(foreground) != Environment.ProcessId
             && !TopLevelWindows.IsDesktop(foreground);
         nint monitor = candidate ? TopLevelWindows.MonitorOf(foreground) : 0;

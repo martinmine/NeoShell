@@ -75,8 +75,9 @@ and task buttons. Part of the [NeoShell design](../design.md).
   check waits for the `XamlRoot`.
 - Full-screen apps: while the foreground window covers its monitor (or the app marked it with
   `ITaskbarList2::MarkFullscreenWindow`), that monitor's taskbar leaves the topmost band and sits just below it.
-  Maximized windows, minimized ones, NeoShell's own and the desktop (shell window, `Progman`, `WorkerW`) don't
-  count. Re-checked on foreground changes, minimize/restore and the foreground window moving (`EVENT_OBJECT_LOCATIONCHANGE`).
+  Maximized windows with a title bar, minimized ones, NeoShell's own and the desktop (shell window, `Progman`,
+  `WorkerW`) don't count. A browser's video gone full screen from a maximized window stays maximized (`WS_MAXIMIZE`)
+  with its title bar taken off: it counts (Edge, measured; Explorer's taskbar makes way for it). Re-checked on foreground changes, minimize/restore and the foreground window moving (`EVENT_OBJECT_LOCATIONCHANGE`).
   Explorer would send `ABN_FULLSCREENAPP`; NeoShell is the one deciding, alongside Explorer too.
 - Auto-hide (setting): no screen space is reserved (no AppBar, no work area change). The taskbar slides down until
   2 pixels show; the pointer on them slides it back, whatever window is over them (T39d): Explorer's taskbar goes by
