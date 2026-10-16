@@ -200,9 +200,13 @@ public sealed class McpSession(
 
     private static JsonObject ToJson(ToolResult result)
     {
+        var content = new JsonArray();
+        if (result.Png is { } png)
+            content.Add((JsonNode)new JsonObject { ["type"] = "image", ["data"] = Convert.ToBase64String(png), ["mimeType"] = "image/png" });
+        content.Add((JsonNode)new JsonObject { ["type"] = "text", ["text"] = result.Text });
         var json = new JsonObject
         {
-            ["content"] = new JsonArray(new JsonObject { ["type"] = "text", ["text"] = result.Text }),
+            ["content"] = content,
             ["isError"] = result.IsError,
         };
         if (result.Data is JsonObject data)

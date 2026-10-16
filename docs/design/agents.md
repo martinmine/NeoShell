@@ -4,7 +4,7 @@ An MCP server through which AI agents (Claude Code, Claude Desktop, any MCP clie
 what windows are open, what the tray and notifications say, launching and arranging apps, and showing their own state
 on the taskbar and in notifications. Part of the [NeoShell design](../design.md). Status: the transport and protocol
 (A1 in plan.md, "Agent access (MCP)"), the Read tools (A2), the Agents settings page with its permissions (A3) and the
-Control tools (A4) are built; Screen and Presence have their switches but no tools yet.
+Control tools (A4) and the screenshot (A5) are built; Presence has its switch but no tools yet.
 
 ## Goals
 
@@ -83,7 +83,7 @@ apps in Start's catalog, and do what a click on the taskbar, a thumbnail, Start 
 | `indicators` | Read | Network, volume and mute, battery, Do not disturb and focus session, apps using the microphone or location |
 | `list_notifications` | Read | The notification center's notifications: app, time, texts |
 | `search` | Read | Start's search: apps from the app catalog with the id that starts them, ranked as Start ranks them, and indexed files and folders in Start's groups |
-| `screenshot` | Screen | A monitor or a window as PNG (image content), scaled down to a size given |
+| `screenshot` | Screen | A monitor (the screen's pixels, `ScreenCapture.Capture`) or a window with a taskbar button drawn on its own whatever covers it (`PrintWindow` with `PW_RENDERFULLCONTENT`, cut to its visible frame), as MCP image content before a text with the sizes; scaled down (Fant) so the longest side is at most `maxSize`, 1568 by default (what vision models take in whole). Capturing and encoding run on the thread pool. A minimized window is refused (nothing to draw) |
 | `activate_window` | Control | Bring a window to the front as a task button click does (`TaskbarActivation.BringToFront`: NeoShell's own key when Windows' foreground lock refuses), restoring it if minimized |
 | `arrange_window` | Control | Minimize, maximize, restore, or a half or quarter of a monitor's work area, on its own monitor or another. As the shell through Snap (`WindowSnapping.Arrange`: animated, remembered for restoring, no Snap Assist); alongside Explorer Snap is Explorer's, so the window is placed in the zone (`TopLevelWindows.Place`) and an elevated window is refused. Answers with the state once the window is in it (minimizing is posted) |
 | `close_window` | Control | `SC_CLOSE`, as the thumbnail's close button; the app may still ask to save |
@@ -147,6 +147,7 @@ src/NeoShell/Agents/
   AgentData.cs         The JSON agents read: windows, monitors, network, battery, notifications, search results
   ShellTools.cs        The Read tools, over Taskbars, Tray, NotificationCenter and Start's search; all tools' list
   ControlTools.cs      The Control tools, over the task list, Snap, the launcher, the flyouts, audio and the bell
+  ScreenTools.cs       The screenshot, over ScreenCapture (Capture, CaptureWindow, EncodeScaledPngAsync)
   AgentPresence.cs     Agent status on task buttons and agent notifications, cleared per connection
 src/NeoShell/Settings/AgentSettingsPage.xaml(.cs)  The Settings page
 src/NeoShell.Interop/Shell/Processes.cs  A pipe's client process and the processes that started it

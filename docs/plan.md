@@ -837,7 +837,13 @@ An MCP server through which AI agents see the shell and act in it, off by defaul
       a screenshot), volume and mute set and put back, Do not disturb on and off, close; the errors (unknown handle,
       position, monitor, app). Not run live: as the shell (Snap's arranging, its animation), a second monitor, an
       elevated window, two apps of one name
-- [ ] A5 Screen: `screenshot` of a monitor or window, scaled, off the UI thread
+- [x] A5 Screen (2026-10-16): `screenshot` of a monitor (the screen's pixels) or of a window drawn on its own
+      (`PrintWindow` full content, cut to its visible frame), scaled by its longest side (1568 by default) and
+      returned as MCP image content; capture and encoding on the thread pool; unit tests for the scaling, the crop,
+      the PNG's size and image content. Live alongside Explorer: the monitor at two sizes, a Paint window of the
+      test's own whole under the Settings window covering it, the errors (both a handle and a monitor, minimized).
+      Not run live: as the shell, a second monitor, other DPIs, an elevated window, a UWP (CoreWindow) app, a client
+      showing the image to a model
 - [ ] A6 Presence: `set_agent_status` on the agent's own window's task button (found through the bridge's parent
       processes), `notify` with buttons answered through the open call; cleared when the connection closes
 - [ ] A7 Live: a scripted client for every tool in both run modes, Claude Code through `claude mcp add`, NeoShell

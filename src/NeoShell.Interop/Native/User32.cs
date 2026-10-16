@@ -479,6 +479,13 @@ internal static unsafe partial class User32
     [return: MarshalAs(UnmanagedType.Bool)]
     public static partial bool GetWindowRect(nint hwnd, out RECT rect);
 
+    /// <summary>PrintWindow: the window's content as DWM composes it, even where other windows cover it.</summary>
+    public const uint PW_RENDERFULLCONTENT = 0x2;
+
+    [LibraryImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static partial bool PrintWindow(nint hwnd, nint dc, uint flags);
+
     public const uint MONITOR_DEFAULTTONULL = 0;
     public const uint MONITOR_DEFAULTTONEAREST = 2;
 

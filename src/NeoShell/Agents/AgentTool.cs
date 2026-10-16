@@ -34,7 +34,8 @@ public sealed record AgentTool(
 }
 
 /// <summary>What a tool call returns: text for the agent to read, the same as data when it is data, or an error.</summary>
-public sealed record ToolResult(string Text, JsonNode? Data = null, bool IsError = false)
+/// <param name="Png">A picture for the agent to look at (MCP image content), before the text.</param>
+public sealed record ToolResult(string Text, JsonNode? Data = null, bool IsError = false, byte[]? Png = null)
 {
     public static ToolResult Error(string message) => new(message, IsError: true);
 
