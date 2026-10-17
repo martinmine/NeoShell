@@ -576,7 +576,8 @@ internal sealed partial class QuickSettingsPanel : UserControl
 
     private void SoundOutputButton_Click(object sender, RoutedEventArgs e) => ShowPage(SoundOutputPage, animate: true);
 
-    // Brightness: only where Windows can set the screen's (an internal panel, or a monitor it controls).
+    // Brightness: only where the screen's can be set (an internal panel or a monitor Windows controls, or a desktop
+    // monitor over DDC/CI).
 
     private void RefreshBrightness(int? percent)
     {

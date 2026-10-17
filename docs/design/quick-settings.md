@@ -139,6 +139,15 @@ WinUI 2 brushes they use come from `SystemApps\Microsoft.UI.Xaml.CBS_8wekyb3d8bb
     (SettingsHandlers_Display) fails fast a few seconds after it's opened outside Settings (`CShellHintManager::
     OnSingletonInit`), and the PCDisplay handler still held when a process exits leaves its last thread waiting on an
     LPC reply for good, so `SystemSetting.Dispose` releases each handler's object before NeoShell exits.
+    Desktop monitors, which Windows' handler doesn't reach, are set over their cable with DDC/CI as Twinkle Tray does
+    (`MonitorBrightness`: `dxva2.dll`'s `GetPhysicalMonitorsFromHMONITOR`, VCP code 0x10 through
+    `GetVCPFeatureAndVCPFeatureReply` / `SetVCPFeature`): the slider also shows while any monitor answers, reads
+    Windows' screen first and else the first monitor, and sets every one to the same percentage of its own maximum.
+    The monitors are opened again on every read (Quick Settings opening), since they come and go and a sleeping one's
+    handle can go stale; a read that fails is tried once more (monitors miss requests, more so after waking). DDC/CI
+    requests take tens of milliseconds and monitors save each value, so they go out on the thread pool one at a time
+    and only the latest of a drag is sent. A monitor's own buttons change it without telling anyone; the slider shows
+    that the next time Quick Settings opens.
   - **Cast** reads `SystemSettings_DeviceDiscovery_Connect_QuickAction` too: Windows labels the tile with its
     `QuickActionStatus` and fills it while `QuickActionIsActive`, so on this VM it's "Wired display", on (a monitor on
     a cable counts); "Cast", off, otherwise. Its glyph is the registry's U+F117 (the screen with the waves at the

@@ -294,6 +294,11 @@ Tick items off as they land. The feature details are in [design.md](design.md) a
       a shell copy) — not run live: NeoShell with labelled buttons (Explorer's bar was measured under the icon there
       too), pinned buttons, the light taskbar; differs: the plate's first ~50 ms fade-in (Explorer's brush transition
       passes through a whitish tint)
+- [x] Brightness on desktops (owner's request, instead of Twinkle Tray): Quick Settings' brightness slider shows for
+      monitors that take DDC/CI (VCP 0x10 through `dxva2.dll`, as Twinkle Tray) as well as for the screens Windows
+      controls, and sets them all to the same percentage of each monitor's own range; unit tests for the range
+      mapping. Not run live: a DDC/CI monitor (the VM's VMware screen doesn't answer DDC/CI, so the slider stays
+      hidden there, as before), a laptop with a monitor plugged in
 
 ## 19. Explorer parity (2)
 

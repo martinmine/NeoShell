@@ -218,6 +218,28 @@ public sealed class QuickSettingsTests
         Assert.Equal(on, tile.IsOn);
     }
 
+    [Theory]
+    [InlineData(50u, 100u, 50)]
+    [InlineData(0u, 100u, 0)]
+    [InlineData(255u, 255u, 100)]
+    [InlineData(128u, 255u, 50)]
+    [InlineData(120u, 100u, 100)] // a monitor reporting more than its maximum
+    public void A_ddc_monitors_brightness_reads_as_a_percentage_of_its_maximum(uint current, uint maximum, int percent)
+    {
+        Assert.Equal(percent, MonitorBrightness.ToPercent(current, maximum));
+    }
+
+    [Theory]
+    [InlineData(50, 100u, 50u)]
+    [InlineData(100, 255u, 255u)]
+    [InlineData(50, 255u, 128u)]
+    [InlineData(-5, 100u, 0u)]
+    [InlineData(150, 100u, 100u)]
+    public void A_percentage_is_sent_to_a_ddc_monitor_in_its_own_range(int percent, uint maximum, uint value)
+    {
+        Assert.Equal(value, MonitorBrightness.FromPercent(percent, maximum));
+    }
+
     [Fact]
     public void Vpn_connections_are_the_phonebooks_entries_of_type_two()
     {

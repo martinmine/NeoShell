@@ -173,7 +173,7 @@ src/NeoShell.Frames/          NeoShell.Frames.exe: FrameHost (which windows), Ap
                               the frame style model (FrameStyle, FrameRules, FramePresets, FrameColors)
 src/NeoShell.Interop/
   Native/                     LibraryImport: User32, Shell32, Dwmapi, Kernel32, Advapi32, PowrProf, Comctl32, Pdh, Hid,
-                              Wintrust, Combase, Rasapi32, BluetoothApis, WindowsStorage
+                              Dxva2, Wintrust, Combase, Rasapi32, BluetoothApis, WindowsStorage
   Com/                        Core Audio, IShellItem/IShellItemImageFactory, IPropertyStore, ITaskbarList, ISearchQueryHelper,
                               IQuietHoursSettings, IHWEventHandler
   Windowing/                  MessageWindow, WindowSubclass, AppBar, ShellHook, DwmThumbnail, KeyboardHook, WindowInfo,
@@ -188,7 +188,7 @@ src/NeoShell.Interop/
   Radios/                     RadioSwitches (Wi-Fi/Bluetooth radios), AirplaneMode (Radio Management API)
   Bluetooth/                  BluetoothDevices (paired devices), BluetoothAudio (connecting their audio)
   Power/                      EnergySaver, BatteryMonitor
-  Display/                    DisplayProjection (Win+P modes), AutoRotation
+  Display/                    DisplayProjection (Win+P modes), AutoRotation, MonitorBrightness (DDC/CI)
   Accessibility/              StickyKeys
   Performance/                SystemUsage (CPU, disk and memory use through PDH)
   Media/                      NowPlaying (system media transport controls)
@@ -302,7 +302,7 @@ the desktop and back. Full spec in docs/design/widgets.md.
   Alt+Tab items, finding a maximize button, Start's pin folders and folder buttons, Start's All categories, order, New/System and tile store, All's folders, hidden apps and arrow-key navigation, the folder panel's colour, the light accent Start's colour, the taskbar search setting and its collapse, labelled task buttons narrowing as the taskbar fills, thumbnail toolbar data and image lists, pinning by drag, clock settings and notification bell, widget placement and order, which widget an exception came through, MET forecast parsing, Vista's widgets (clock hands and zones, the calendar's
   weeks, the sliding puzzle, exchange rates, stock quotes and symbols), wireless device protocols, Windows product name,
   AutoPlay content, events, choice lists and saving, autorun.inf parsing, optical drive names, toast sounds,
-  Quick Settings' rotation lock tile and VPN phonebook entries, the Bluetooth page's rows (status, battery, choosing),
+  Quick Settings' rotation lock tile, DDC/CI brightness ranges and VPN phonebook entries, the Bluetooth page's rows (status, battery, choosing),
   input indicator labels and Win+Space keys, the Copilot key and its choice, task button badges, flashing buttons' blinks and when progress shows, task button animations (pill morph, minimize/restore bounce), Start account menu order and "…",
   Alt+Tab's keys (Ctrl+Alt+Tab) and most-recently-used order, the title bar shake setting, snips (window targets,
   freeform masks, Snipping Tool's settings and editor link, the Print Screen key), what a focus session changes in

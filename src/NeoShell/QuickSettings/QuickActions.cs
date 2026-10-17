@@ -17,7 +17,8 @@ public readonly record struct QuickActionState(
 }
 
 /// <summary>
-/// What <see cref="QuickActions"/> last read; <see cref="Brightness"/> is null without a brightness to set, and
+/// What <see cref="QuickActions"/> last read; <see cref="Brightness"/> is null without a brightness to set (neither
+/// a screen Windows controls nor a monitor that takes DDC/CI), and
 /// <see cref="HasAirplaneMode"/> says whether Windows offers airplane mode here (it doesn't without radios).
 /// <see cref="Cast"/> is the Cast tile's label and state: "Wired display", on, while a cable's display is in use.
 /// <see cref="ColorFilters"/> and <see cref="MonoAudio"/> are the Accessibility page's switches.
@@ -44,7 +45,8 @@ internal sealed record QuickActionsState(
 /// sharing in the Connected Devices Platform, the hotspot and VPN in the network service), read and switched through
 /// the same Settings handlers Windows' Quick Settings uses, so they work as the shell too, and shown where Windows'
 /// settings environment says the PC has them, as Windows' Quick Settings does; colour filters and mono audio too, which
-/// Windows' Accessibility page switches as quick actions of their own. They're opened in the background at start;
+/// Windows' Accessibility page switches as quick actions of their own. The brightness slider also sets desktop
+/// monitors over DDC/CI, which Windows' handler doesn't reach. They're opened in the background at start;
 /// <see cref="Changed"/> comes on a thread-pool thread.
 /// </summary>
 internal sealed class QuickActions : IDisposable
@@ -73,6 +75,11 @@ internal sealed class QuickActions : IDisposable
     private SystemSetting? _colorFilters;
     private SystemSetting? _monoAudio;
     private RegistryWatcher? _monoAudioWatcher;
+    // Opened again on every read, as monitors come and go (and a sleeping one's handle can go stale); taken under
+    // the lock, which also keeps DDC/CI requests to one at a time.
+    private IReadOnlyList<MonitorBrightness> _monitors = [];
+    private readonly Lock _monitorsLock = new();
+    private volatile bool _hasWindowsBrightness;
     private int _refreshQueued;
     private int _brightnessWanted = -1;
     private int _brightnessQueued;
@@ -111,7 +118,10 @@ internal sealed class QuickActions : IDisposable
             ThreadPool.QueueUserWorkItem(_ => ReadState());
     }
 
-    /// <summary>Sets the brightness (0 to 100); while a slider is dragged only the latest value is sent.</summary>
+    /// <summary>
+    /// Sets the brightness (0 to 100) of the screen Windows controls and of every DDC/CI monitor; while a slider is
+    /// dragged only the latest value is sent.
+    /// </summary>
     public void SetBrightness(int percent)
     {
         Interlocked.Exchange(ref _brightnessWanted, percent);
@@ -126,6 +136,12 @@ internal sealed class QuickActions : IDisposable
             setting?.Dispose();
         _monoAudioWatcher?.Dispose();
         _environment?.Dispose();
+        lock (_monitorsLock)
+        {
+            foreach (MonitorBrightness monitor in _monitors)
+                monitor.Dispose();
+            _monitors = [];
+        }
     }
 
     private void Open()
@@ -205,7 +221,7 @@ internal sealed class QuickActions : IDisposable
                 {
                     Label = _cast?.GetValue("QuickActionStatus") as string is { Length: > 0 } status ? status : null,
                 },
-                _brightness is { IsApplicable: true } brightness && brightness.GetValue() is int percent ? percent : null,
+                ReadBrightness(),
                 IsApplicable(AirplaneModeId),
                 _colorFilters?.GetValue() is true,
                 _monoAudio?.GetValue() is true);
@@ -214,6 +230,37 @@ internal sealed class QuickActions : IDisposable
         catch (Exception ex)
         {
             Log.Warn("Quick Settings: reading Windows' quick actions failed", ex);
+        }
+    }
+
+    // Windows' screen first (a laptop's panel), else the first monitor that answers DDC/CI.
+    private int? ReadBrightness()
+    {
+        int? percent = _brightness is { IsApplicable: true } brightness && brightness.GetValue() is int value ? value : null;
+        _hasWindowsBrightness = percent is not null;
+        IReadOnlyList<MonitorBrightness> monitors = OpenMonitors();
+        return percent ?? (monitors.Count > 0 ? monitors[0].Percent : null);
+    }
+
+    private IReadOnlyList<MonitorBrightness> OpenMonitors()
+    {
+        lock (_monitorsLock)
+        {
+            foreach (MonitorBrightness monitor in _monitors)
+                monitor.Dispose();
+            _monitors = [];
+            if (_disposed)
+                return _monitors;
+
+            try
+            {
+                _monitors = MonitorBrightness.Open();
+            }
+            catch (Exception ex)
+            {
+                Log.Warn("Quick Settings: could not list the monitors for DDC/CI brightness", ex);
+            }
+            return _monitors;
         }
     }
 
@@ -252,16 +299,31 @@ internal sealed class QuickActions : IDisposable
     {
         Interlocked.Exchange(ref _brightnessQueued, 0);
         int percent = Interlocked.Exchange(ref _brightnessWanted, -1);
-        if (percent < 0 || _brightness is not { } brightness)
+        if (percent < 0)
             return;
 
-        try
+        // A later value waits here for the one being sent and is the only one sent after it: monitors save each
+        // value they're given.
+        lock (_monitorsLock)
         {
-            brightness.SetValue(percent);
-        }
-        catch (Exception ex)
-        {
-            Log.Warn($"Could not set the brightness to {percent}%", ex);
+            if (Volatile.Read(ref _brightnessWanted) >= 0)
+                return;
+
+            try
+            {
+                if (_hasWindowsBrightness && _brightness is { } brightness)
+                    brightness.SetValue(percent);
+            }
+            catch (Exception ex)
+            {
+                Log.Warn($"Could not set the brightness to {percent}%", ex);
+            }
+
+            foreach (MonitorBrightness monitor in _monitors)
+            {
+                if (!monitor.SetPercent(percent))
+                    Log.Warn($"{monitor.Name} didn't take the brightness {percent}% over DDC/CI");
+            }
         }
     }
 }
