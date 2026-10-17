@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Runtime.CompilerServices;
 using NeoShell.Interop.Native;
 using NeoShell.Interop.Performance;
 using NeoShell.Interop.Windowing;
@@ -234,6 +235,47 @@ public sealed class WidgetTests
     public void Architecture_is_written_as_settings_writes_it(System.Runtime.InteropServices.Architecture architecture, string expected)
     {
         Assert.Equal(expected, WindowsVersion.ArchitectureName(architecture));
+    }
+
+    [Fact]
+    public void An_exception_thrown_in_a_widget_is_the_widgets()
+    {
+        Exception exception = Assert.Throws<InvalidOperationException>(FailingWidget.Fail);
+
+        Assert.Equal(typeof(FailingWidget), WidgetFaults.FirstThrough(exception, typeof(TestWidget)));
+    }
+
+    [Fact]
+    public async Task An_exception_from_a_task_a_widget_awaited_is_the_widgets()
+    {
+        // As the crash it's for: thrown in NowPlaying, below an await in MediaWidget.Refresh.
+        Exception exception = await Assert.ThrowsAsync<NullReferenceException>(FailingWidget.RefreshAsync);
+
+        Assert.Equal(typeof(FailingWidget), WidgetFaults.FirstThrough(exception, typeof(TestWidget)));
+    }
+
+    [Fact]
+    public void An_exception_that_never_went_through_a_widget_is_nobodys()
+    {
+        Exception exception = Assert.Throws<InvalidOperationException>(Fail);
+
+        Assert.Null(WidgetFaults.FirstThrough(exception, typeof(TestWidget)));
+
+        static void Fail() => throw new InvalidOperationException();
+    }
+
+    // Stands in for WidgetView, which tests can't derive from; never made, only its code's frames matter.
+    private class TestWidget;
+
+    private sealed class FailingWidget : TestWidget
+    {
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        public static void Fail() => throw new InvalidOperationException();
+
+        public static async Task RefreshAsync() => await Task.Run(ReadElsewhere);
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static void ReadElsewhere() => throw new NullReferenceException();
     }
 
     // Sets the thread's culture for one test.

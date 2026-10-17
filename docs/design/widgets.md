@@ -80,6 +80,12 @@ Small widgets about the computer and its user, as Windows Vista's sidebar gadget
   (its card stays behind, lifted: empty, invisible and without height, holding the pointer; each card keeps its gap
   below itself rather than the panel's spacing, so a lifted one leaves none), and back into its card if the pointer
   comes back. With the panel background off the sidebar's window region follows the cards, the one being dragged in.
+- A widget's exception doesn't end NeoShell (`WidgetFaults.Thrower`): one on the UI thread whose stack goes through
+  a `WidgetView` subclass is logged ("Exception in the MediaWidget, contained") and ends only what the widget was
+  doing; the widget stays and its next refresh or click runs as usual. Found from a crash dump (2026-10-17): Now
+  playing's `GetPlaybackInfo()` returned null for the current session during a burst of changes, and the
+  NullReferenceException, rethrown from an async void method into a `DispatcherQueue` callback, fail-fasted the
+  shell (`0xc000027b`). Code a widget runs on the thread pool is outside this, unless the widget awaits it.
 - A floating note can be resized by its bottom-right corner (`WidgetView.CanResize`): its width (200 to 640 epx) and
   the height of its text (60 to 900 epx), saved as `FloatingWidth` and `ContentHeight`; the text keeps its height when
   the note is docked.

@@ -54,9 +54,13 @@ public sealed class NowPlaying : IDisposable
 
         try
         {
-            GlobalSystemMediaTransportControlsSessionMediaProperties properties = await session.TryGetMediaPropertiesAsync();
-            GlobalSystemMediaTransportControlsSessionPlaybackInfo playback = session.GetPlaybackInfo();
-            GlobalSystemMediaTransportControlsSessionPlaybackControls controls = playback.Controls;
+            // Each of these comes back null now and then for a session that is still current (a crash dump caught
+            // GetPlaybackInfo doing it during a burst of changes); the change that follows reads it again.
+            if (await session.TryGetMediaPropertiesAsync() is not { } properties
+                || session.GetPlaybackInfo() is not { } playback
+                || playback.Controls is not { } controls)
+                return null;
+
             return new MediaInfo(
                 properties.Title,
                 properties.Artist.Length > 0 ? properties.Artist : properties.AlbumArtist,

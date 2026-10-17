@@ -43,7 +43,18 @@ public partial class App : Application
 
         // A shell keeps running without windows; it only exits through /exit or its menu.
         DispatcherShutdownMode = DispatcherShutdownMode.OnExplicitShutdown;
-        UnhandledException += (_, e) => Program.OnUnhandledException(e.Exception, "XAML");
+        UnhandledException += (_, e) =>
+        {
+            if (WidgetFaults.Thrower(e.Exception) is { } widget)
+            {
+                UiThread.LogContained(widget, e.Exception);
+                e.Handled = true;
+            }
+            else
+            {
+                Program.OnUnhandledException(e.Exception, "XAML");
+            }
+        };
     }
 
     protected override void OnLaunched(LaunchActivatedEventArgs args)

@@ -1,13 +1,15 @@
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml.Media;
 using NeoShell.Logging;
+using NeoShell.Widgets;
 
 namespace NeoShell;
 
 /// <summary>
 /// Work queued to the UI thread. WinUI ends the process at once (fail-fast) when a queued callback throws, without
 /// raising any unhandled-exception event, so the exception is logged here first; the shell watchdog then starts
-/// Explorer (see <see cref="Program"/>).
+/// Explorer (see <see cref="Program"/>). One that came through a widget's code is only logged
+/// (<see cref="WidgetFaults.Thrower"/>): a widget's bug isn't worth the shell.
 /// </summary>
 internal static class UiThread
 {
@@ -38,12 +40,20 @@ internal static class UiThread
         {
             action();
         }
+        catch (Exception ex) when (WidgetFaults.Thrower(ex) is { } widget)
+        {
+            LogContained(widget, ex);
+        }
         catch (Exception ex)
         {
             Log.Error("Unhandled exception on the UI thread", ex);
             throw;
         }
     }
+
+    /// <summary>A widget's bug ends only what it was doing; the widget and the shell carry on.</summary>
+    public static void LogContained(Type widget, Exception exception) =>
+        Log.Error($"Exception in the {widget.Name}, contained", exception);
 
     /// <summary>The synchronization context for await and async void on the UI thread, logging the same way.</summary>
     public sealed class LoggingSynchronizationContext(DispatcherQueue dispatcher) : DispatcherQueueSynchronizationContext(dispatcher)

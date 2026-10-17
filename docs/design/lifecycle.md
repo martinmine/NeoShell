@@ -16,6 +16,9 @@ can't be the shell. Part of the [NeoShell design](../design.md).
     `TaskScheduler.UnobservedTaskException`) that log. WinUI fail-fasts on an exception in a `DispatcherQueue`
     callback without raising any of these, so UI-thread work goes through `UiThread.Post` and a logging
     `SynchronizationContext`, which log the exception before it ends the process.
+  - An exception whose stack goes through a widget's code (a `WidgetView` subclass, its lambdas or async methods,
+    and what it awaited) is logged and goes no further, there and in `Application.UnhandledException` (`Handled`):
+    a widget's bug isn't worth the shell (`WidgetFaults`, see [Widgets](widgets.md#each-widget-widgetframe-widgetview)).
   - **Watchdog** (shell mode): `Main` starts `NeoShell.exe /watch <pid>`, which waits for NeoShell to exit. A clean
     exit returns 0; any other exit (crash, fail-fast, stack overflow, killed from Task Manager) makes the watchdog
     start `explorer.exe` — unless another shell has registered or the session is ending. NeoShell is gone by then, so
