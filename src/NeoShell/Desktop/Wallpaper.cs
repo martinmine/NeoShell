@@ -31,6 +31,7 @@ internal sealed class Wallpaper(SettingsStore settings, Action closeRequested) :
     public void Show()
     {
         QueueUpdate(displaysChanged: true);
+        settings.Changed += ShowField;
         _shown.Raised += (_, hwnd) => RaiseAboveWallpaper(hwnd);
 
         _slideshow = new Slideshow(OnSlideshowChanged);
@@ -52,6 +53,7 @@ internal sealed class Wallpaper(SettingsStore settings, Action closeRequested) :
     public void Dispose()
     {
         _updateVersion++;
+        settings.Changed -= ShowField;
         _shown.Dispose();
         _service?.Dispose();
         _slideshow?.Dispose();
@@ -172,7 +174,16 @@ internal sealed class Wallpaper(SettingsStore settings, Action closeRequested) :
             window.AppWindow.Show(activateWindow: false);
             _windows.Add(window);
         }
+        ShowField();
         Log.Info($"Wallpaper windows for {monitors.Count} monitor(s), virtual screen {WallpaperWindow.Format(virtualScreen)}");
+    }
+
+    // The 2088 concept themes the desktop too; the other themes leave it to the wallpaper.
+    private void ShowField()
+    {
+        bool on = settings.Current.Theme == ShellTheme.Concept2088;
+        for (int i = 0; i < _windows.Count; i++)
+            _windows[i].ShowField(on, i + 1);
     }
 
     private void CloseWindows()

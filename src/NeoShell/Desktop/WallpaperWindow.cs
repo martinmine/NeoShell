@@ -18,6 +18,9 @@ internal sealed class WallpaperWindow : Window
     private readonly RectInt32 _virtualScreen;
     private readonly Grid _root = new();
     private Canvas _canvas = new();
+    // Over the picture and under the icons: what a theme lays on the desktop (the 2088 concept's Field).
+    private readonly Grid _scene = new();
+    private Themes.Concept2088.FieldDesktop? _field;
     private readonly FramelessWindow _frameless;
     private readonly WindowSubclass _messages;
     private readonly PinnedWindow _placement;
@@ -34,6 +37,7 @@ internal sealed class WallpaperWindow : Window
         _virtualScreen = virtualScreen;
 
         _root.Children.Add(_canvas);
+        _root.Children.Add(_scene);
         _root.SizeChanged += (_, _) => Arrange();
         _root.Loaded += (_, _) => _root.XamlRoot.Changed += (_, _) => Arrange();
         Content = _root;
@@ -63,6 +67,7 @@ internal sealed class WallpaperWindow : Window
 
         Closed += (_, _) =>
         {
+            _field?.Stop();
             _placement.Dispose();
             _messages.Dispose();
             _frameless.Dispose();
@@ -82,6 +87,26 @@ internal sealed class WallpaperWindow : Window
     }
 
     public DisplayMonitor Monitor => _monitor;
+
+    /// <summary>Lays the 2088 concept's Field over the picture, or takes it away.</summary>
+    /// <param name="number">The monitor's number, 1 for the first, as the Field labels it.</param>
+    public void ShowField(bool on, int number)
+    {
+        if (on == (_field is not null))
+            return;
+
+        if (on)
+        {
+            _field = new Themes.Concept2088.FieldDesktop(_monitor, number);
+            _scene.Children.Add(_field);
+        }
+        else
+        {
+            _field!.Stop();
+            _scene.Children.Clear();
+            _field = null;
+        }
+    }
 
     public nint Handle { get; }
 

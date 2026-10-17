@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="utf-8"?>
+<local:SettingsPageView
+    x:Class="NeoShell.Settings.AgentSettingsPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:NeoShell.Settings">
+    <local:SettingsPageView.Resources>
+        <ResourceDictionary Source="ms-appx:///Settings/SettingsStyles.xaml" />
+    </local:SettingsPageView.Resources>
+
+    <StackPanel Spacing="4">
+        <local:SettingsCard
+            Glyph="&#xE99A;"
+            Header="Let AI agents connect to NeoShell"
+            Description="Agents such as Claude Code reach NeoShell through its MCP server; only your own programs can connect">
+            <ToggleSwitch
+                x:Name="AccessToggle"
+                MinWidth="0"
+                AutomationProperties.AutomationId="AgentAccessToggle"
+                AutomationProperties.Name="Let AI agents connect to NeoShell"
+                Toggled="AccessToggle_Toggled" />
+        </local:SettingsCard>
+
+        <TextBlock Style="{StaticResource SettingsSectionStyle}" Text="What agents may do" />
+        <local:SettingsCard Glyph="&#xE7B3;" Header="See the shell" Description="The open windows, the system tray, the indicators, your notifications and search">
+            <ToggleSwitch
+                x:Name="ReadToggle"
+                MinWidth="0"
+                AutomationProperties.AutomationId="AgentReadToggle"
+                AutomationProperties.Name="See the shell"
+                Toggled="GroupToggle_Toggled" />
+        </local:SettingsCard>
+        <local:SettingsCard Glyph="&#xE7C4;" Header="Act in the shell" Description="Arrange and close windows, start apps, open Start and Quick Settings, change the volume and Do not disturb">
+            <ToggleSwitch
+                x:Name="ControlToggle"
+                MinWidth="0"
+                AutomationProperties.AutomationId="AgentControlToggle"
+                AutomationProperties.Name="Act in the shell"
+                Toggled="GroupToggle_Toggled" />
+        </local:SettingsCard>
+        <local:SettingsCard Glyph="&#xE722;" Header="See the screen" Description="Take screenshots of a display or a window">
+            <ToggleSwitch
+                x:Name="ScreenToggle"
+                MinWidth="0"
+                AutomationProperties.AutomationId="AgentScreenToggle"
+                AutomationProperties.Name="See the screen"
+                Toggled="GroupToggle_Toggled" />
+        </local:SettingsCard>
+        <local:SettingsCard Glyph="&#xE7E7;" Header="Show what they're doing" Description="Their progress on their window's taskbar button, and notifications that ask you something">
+            <ToggleSwitch
+                x:Name="PresenceToggle"
+                MinWidth="0"
+                AutomationProperties.AutomationId="AgentPresenceToggle"
+                AutomationProperties.Name="Show what they're doing"
+                Toggled="GroupToggle_Toggled" />
+        </local:SettingsCard>
+
+        <TextBlock Style="{StaticResource SettingsSectionStyle}" Text="Connected agents" />
+        <StackPanel x:Name="ConnectionList" Spacing="4" AutomationProperties.AutomationId="AgentConnectionList" />
+        <TextBlock
+            x:Name="NoConnectionsText"
+            Margin="1,0,0,0"
+            Style="{StaticResource SettingsDescriptionStyle}"
+            AutomationProperties.AutomationId="NoAgentsText" />
+
+        <TextBlock Style="{StaticResource SettingsSectionStyle}" Text="Connect an agent" />
+        <local:SettingsCard Glyph="&#xE756;" Header="Claude Code" Description="Run this once to add NeoShell to Claude Code. Other MCP clients start NeoShell.exe /mcp as a stdio server">
+            <TextBox
+                x:Name="CommandBox"
+                Width="340"
+                IsReadOnly="True"
+                FontFamily="Consolas"
+                AutomationProperties.AutomationId="AgentCommandBox"
+                AutomationProperties.Name="Command that adds NeoShell to Claude Code" />
+        </local:SettingsCard>
+    </StackPanel>
+</local:SettingsPageView>

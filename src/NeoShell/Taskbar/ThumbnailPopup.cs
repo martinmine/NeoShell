@@ -243,7 +243,7 @@ internal sealed class ThumbnailPopup : Window
         cell.Tapped += (_, _) =>
         {
             // Brought to the front first, so ending the peek doesn't show the old front window in between.
-            TopLevelWindows.Activate(window.Handle);
+            TaskbarActivation.BringToFront(window.Handle, _tracker, "Preview");
             Hide();
         };
 

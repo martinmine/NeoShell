@@ -655,7 +655,7 @@ internal sealed class XpTaskbarWindow : Window, ITaskbarView
         {
             Text = GroupItemTitle(window.Title, button.App.DisplayName),
             Icon = () => ThemeIcons.OfWindow(window.Handle),
-            Invoke = () => TopLevelWindows.Activate(window.Handle),
+            Invoke = () => TaskbarActivation.BringToFront(window.Handle, _owner.Tracker, "Group menu"),
             AutomationId = "GroupMenuItem",
         })], XpMenuStyle.Group, ToScreen(x, 0, width, 0), XpMenuPlacement.Above, width + 9);
     }

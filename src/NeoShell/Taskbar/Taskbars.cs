@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Globalization;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
+using NeoShell.Agents;
 using NeoShell.Desktop;
 using NeoShell.Interop.Shell;
 using NeoShell.Interop.Windowing;
@@ -41,6 +42,9 @@ internal sealed class Taskbars : IDisposable
     // The taskbar the notification center and calendar last opened on: its clock keeps its plate while they're open.
     private ITaskbarView? _clockFlyoutTaskbar;
     private ToastPopups? _toasts;
+    // Alongside Explorer, which shows Windows' toasts: NeoShell's own for agents, made when the first comes.
+    private ToastPopups? _agentToasts;
+    private AgentServer? _agents;
     // Other apps' app bars, served with the tray.
     private AppBars? _appBars;
     private long _lastKeyboardToggle;
@@ -122,6 +126,44 @@ internal sealed class Taskbars : IDisposable
     /// <summary>The notifications Windows keeps, and Do not disturb.</summary>
     public NotificationCenter? Notifications { get; private set; }
 
+    /// <summary>The focus session, once the notification center has started.</summary>
+    public FocusSession? Focus => _focus;
+
+    /// <summary>
+    /// Where agents' notifications show: with Windows' toasts as the shell; alongside Explorer, NeoShell's own toasts for
+    /// them alone. Null until the notification center has started.
+    /// </summary>
+    public ToastPopups? AgentToasts =>
+        _toasts ?? (Notifications is null || _disposed ? null : _agentToasts ??= CreateToasts(showsWindowsToasts: false));
+
+    private ToastPopups CreateToasts(bool showsWindowsToasts) => new(
+        Notifications!,
+        RunMode,
+        () => PrimaryWindow is { } window ? (window.Monitor, window.ScreenBounds) : null,
+        () => (_theme, _accent),
+        () => IsClockFlyoutOpen,
+        showsWindowsToasts);
+
+    /// <summary>The agents' MCP server while agent access is on (set by <see cref="App"/>).</summary>
+    public AgentServer? Agents
+    {
+        get => _agents;
+        set
+        {
+            if (_agents is not null)
+                _agents.Changed -= OnAgentsChanged;
+            _agents = value;
+            if (_agents is not null)
+                _agents.Changed += OnAgentsChanged;
+            AgentsChanged?.Invoke();
+        }
+    }
+
+    /// <summary>Agent access was turned on or off, or agents came, went or were disconnected. On the UI thread.</summary>
+    public event Action? AgentsChanged;
+
+    private void OnAgentsChanged() => _dispatcher.TryEnqueue(() => AgentsChanged?.Invoke());
+
     /// <summary>The system tray; only when NeoShell is the shell and no other tray is running.</summary>
     public NotificationArea? Tray { get; private set; }
 
@@ -148,14 +190,7 @@ internal sealed class Taskbars : IDisposable
         Notifications = new NotificationCenter();
         // Explorer shows toasts itself while it runs.
         if (RunMode == RunMode.Shell)
-        {
-            _toasts = new ToastPopups(
-                Notifications,
-                RunMode,
-                () => PrimaryWindow is { } window ? (window.Monitor, window.ScreenBounds) : null,
-                () => (_theme, _accent),
-                () => IsClockFlyoutOpen);
-        }
+            _toasts = CreateToasts(showsWindowsToasts: true);
         _recreate = true;
         Update();
         // Start, the clock's flyout and Quick Settings take over half a second to build: the taskbar shows first.
@@ -202,6 +237,7 @@ internal sealed class Taskbars : IDisposable
         Indicators?.Dispose();
         _startMenu?.Close();
         _toasts?.Dispose();
+        _agentToasts?.Dispose();
         _clockFlyout?.Dispose();
         _focus?.Dispose();
         Notifications?.Dispose();
@@ -487,8 +523,9 @@ internal sealed class Taskbars : IDisposable
         bool candidate = foreground != 0
             && TopLevelWindows.Exists(foreground)
             && !TopLevelWindows.IsMinimized(foreground)
-            // Maximized fills the screen too when nothing reserves space (auto-hide), but isn't full screen.
-            && !TopLevelWindows.IsMaximized(foreground)
+            // Maximized fills the screen too when nothing reserves space (auto-hide), but isn't full screen. A browser
+            // going full screen from maximized stays maximized, though: it takes its title bar off instead.
+            && !(TopLevelWindows.IsMaximized(foreground) && TopLevelWindows.HasCaption(foreground))
             && TopLevelWindows.GetProcessId(foreground) != Environment.ProcessId
             && !TopLevelWindows.IsDesktop(foreground);
         nint monitor = candidate ? TopLevelWindows.MonitorOf(foreground) : 0;

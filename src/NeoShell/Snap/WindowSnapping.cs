@@ -96,6 +96,22 @@ internal sealed class WindowSnapping : IDisposable
             && PositionOf(hwnd) is not (SnapPosition.None or SnapPosition.Maximized or SnapPosition.Minimized);
     }
 
+    /// <summary>
+    /// An agent's <c>arrange_window</c>: maximized or in a half or quarter, on its own monitor or another, as
+    /// Win+arrows put it there (animated, remembered for restoring), without Snap Assist. False if Snap can't move it.
+    /// </summary>
+    public bool Arrange(nint hwnd, SnapPosition position, nint monitor)
+    {
+        if (!CanSnap(hwnd) || MonitorOf(hwnd) is not { } current)
+            return false;
+        DisplayMonitor target = ShellWorkArea.Monitors().FirstOrDefault(m => m.Handle == monitor) ?? current;
+        if (target.Handle == current.Handle)
+            Snap(hwnd, position, current);
+        else
+            SnapAcross(hwnd, position, current, target);
+        return true;
+    }
+
     /// <summary>Win+arrow (or Win+Shift+arrow) on the window in front.</summary>
     public void SnapForeground(SnapKey key)
     {

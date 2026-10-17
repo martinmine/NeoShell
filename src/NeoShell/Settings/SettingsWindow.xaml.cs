@@ -94,6 +94,7 @@ internal sealed partial class SettingsWindow : Window
             SettingsPage.Desktop => new DesktopSettingsPage(_taskbars),
             SettingsPage.Widgets => new WidgetSettingsPage(_taskbars),
             SettingsPage.WindowFrames => new WindowFramesPage(_taskbars),
+            SettingsPage.Agents => new AgentSettingsPage(_taskbars),
             _ => new AboutSettingsPage(_taskbars),
         };
         PageScroller.ChangeView(null, 0, null, disableAnimation: true);

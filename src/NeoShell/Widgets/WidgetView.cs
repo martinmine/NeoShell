@@ -31,6 +31,11 @@ internal partial class WidgetView : UserControl
         WidgetKind.Notes => "Notes",
         WidgetKind.Wireless => "Wireless devices",
         WidgetKind.Windows => "About Windows",
+        WidgetKind.Clock => "Clock",
+        WidgetKind.Calendar => "Calendar",
+        WidgetKind.Puzzle => "Picture puzzle",
+        WidgetKind.Currency => "Currency",
+        WidgetKind.Stocks => "Stocks",
         _ => kind.ToString(),
     };
 
@@ -45,11 +50,20 @@ internal partial class WidgetView : UserControl
         WidgetKind.Notes => "",
         WidgetKind.Wireless => "",
         WidgetKind.Windows => "",
+        WidgetKind.Clock => "",
+        WidgetKind.Calendar => "",
+        WidgetKind.Puzzle => "",
+        WidgetKind.Currency => "",
+        WidgetKind.Stocks => "",
         _ => "",
     };
 
-    /// <summary>Whether the sidebar and desktop may show more than one of this kind.</summary>
-    public static bool AllowsSeveral(WidgetKind kind) => kind is WidgetKind.Pictures or WidgetKind.Notes;
+    /// <summary>
+    /// Whether the sidebar and desktop may show more than one of this kind: several clocks show several time zones,
+    /// and several converters several pairs of currencies.
+    /// </summary>
+    public static bool AllowsSeveral(WidgetKind kind) =>
+        kind is WidgetKind.Pictures or WidgetKind.Notes or WidgetKind.Clock or WidgetKind.Currency;
 
     /// <summary>
     /// The widget can be resized while it floats: its width, and the height of <see cref="ContentHeight"/>'s part.
@@ -67,6 +81,14 @@ internal partial class WidgetView : UserControl
     /// only while the pointer is near them, not anywhere over the widget, so they don't hide it while it's used.
     /// </summary>
     public virtual bool ContentUnderButtons => false;
+
+    /// <summary>
+    /// The 2088 concept took over the card, or gave it back (<see cref="WidgetFrame.SetConcept"/>): for colours the
+    /// widget picks itself rather than from the theme's resources.
+    /// </summary>
+    public virtual void SetConcept(bool on)
+    {
+    }
 
     /// <summary>The controls of the settings flyout, built each time it opens.</summary>
     public virtual FrameworkElement CreateSettings() => new StackPanel();

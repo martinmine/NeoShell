@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
+using NeoShell.Agents;
 using NeoShell.Interop;
 using NeoShell.Interop.Shell;
 using NeoShell.Interop.Windowing;
@@ -12,6 +13,7 @@ public static class Program
 {
     private const string SingleInstanceMutexName = @"Local\NeoShell.SingleInstance";
     private const string WatchArgument = "/watch";
+    private const string McpArgument = "/mcp";
 
     public static string DataDirectory { get; } =
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "NeoShell");
@@ -22,6 +24,9 @@ public static class Program
         // The watchdog is this same executable; it never starts the UI.
         if (args is [WatchArgument, var processId] && int.TryParse(processId, out int watchedProcess))
             return Watch(watchedProcess);
+        // An agent's MCP client starts NeoShell.exe /mcp; it talks to the running NeoShell and never starts the UI.
+        if (args is [McpArgument])
+            return McpBridge.Run();
 
         bool exitRequested = args.Any(arg => arg.Equals("/exit", StringComparison.OrdinalIgnoreCase));
 

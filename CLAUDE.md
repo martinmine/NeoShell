@@ -119,6 +119,13 @@ src/NeoShell/                 WinUI app
   ShellSession.cs             Shell-mode duties: registration, ready event, startup apps, session end
   ShellWorkArea.cs            Shell-mode work area: what the taskbar and app bars reserve
   Logging/                    Small file logger
+  Agents/                     MCP server for AI agents (design/agents.md): NeoShell.exe /mcp (McpBridge, stdio to a
+                              pipe), AgentServer (the pipe, per-user, connections, allowed groups), McpSession
+                              (JSON-RPC), AgentTool and its groups, ShellTools (the Read tools), ControlTools (the
+                              Control tools: windows, launch, surfaces, volume, Do not disturb), ScreenTools (the
+                              screenshot), PresenceTools (the agent's status on its taskbar button, its
+                              notifications), AgentData
+                              (the JSON they return); the page is Settings/AgentSettingsPage
   Desktop/                    WallpaperWindow (one per monitor), slideshow, IDesktopWallpaper server, desktop icons and
                               their menus (every monitor)
   Themes/                     The theme seam: ITaskbarView, IStartMenuView, ThemeViews (each theme's views),
@@ -132,6 +139,10 @@ src/NeoShell/                 WinUI app
     Windows98/                98's taskbar and Start (groundwork: banner and top-level items), drawn in code from
                               measured numbers (Win98Art, Win98Painting's 3D edges); AutomationIds: StartButton,
                               QuickLaunchButton, TaskButton, TrayIcon, ClockButton, <Item>MenuItem (ProgramsMenuItem…)
+    Concept2088/              The 2088 concept, XAML built in code: Hud (palette, HudFrame, SegmentBar), the Spine
+                              (taskbar), Nexus (Start, NexusIntents for its ask line), the Field (a layer over the
+                              wallpaper), HudWidgets (the widgets' cards and palette, through SetConcept); AutomationIds: StartButton, SearchBox, TaskButton, TrayIcon, ClockButton,
+                              StartSearchBox, PinnedApp, SearchResult, AllAppsButton, <Power>Button
   Taskbar/                    Taskbars, TaskbarWindow (Windows 11's view), TaskbarDock (what every theme's taskbar
                               shares: placement, auto-hide, full screen), TaskButtonList, task list + grouping, pinned
                               apps, thumbnail popup, clock
@@ -149,7 +160,8 @@ src/NeoShell/                 WinUI app
   Capture/                    Screenshots: Win+PrtScn, Win+Shift+S snip (shell mode)
   AutoPlay/                   AutoPlay for inserted media (shell mode): content and choices, toast, Windows 8 flyout
   Widgets/                    Widget sidebar, floating widgets, and the widgets (profile, resources, pictures, media,
-                              weather, notes, wireless devices, about Windows)
+                              weather, notes, wireless devices, about Windows; Vista's clock, calendar, picture
+                              puzzle, currency and stocks)
   Frames/                     Window frames (prototype): other apps' title bars restyled through DWM attributes, by
                               style and app rule; its page in the Settings window (also NeoShell.Frames.exe's card)
                               and the preview window
@@ -167,7 +179,8 @@ src/NeoShell.Interop/
   Windowing/                  MessageWindow, WindowSubclass, AppBar, ShellHook, DwmThumbnail, KeyboardHook, WindowInfo,
                               WindowFrame (DWM attributes on other apps' frames), OverlayWindow (owned layered popups),
                               MessageLoop (a Win32 loop with posted work and timers), WindowCaption, CaptionInput
-  Imaging/                    IconBitmap (BGRA pixels), ScreenCapture (screen pixels, clipboard, PNG), Pictures (decode),
+  Imaging/                    IconBitmap (BGRA pixels), ScreenCapture (screen and window pixels, clipboard, PNG,
+                              scaled PNG), Pictures (decode),
                               GdiText (GDI text on pixels)
   Tray/                       TrayHost (owns Shell_TrayWnd), NOTIFYICONDATA parsing (32/64-bit)
   Audio/                      AudioEndpoint (volume/mute + events), mixer, outputs
@@ -236,7 +249,8 @@ the desktop and back. Full spec in docs/design/widgets.md.
   right-click menu, resize edge, drop slot), one `FloatingWidgetWindow` per floating widget, the drag/dock logic and
   the shared services (`ResourceMonitor`, `WirelessMonitor`). `WidgetFrame` is the card around a widget: hover
   settings/close buttons and the drag gesture. Each widget is a `WidgetView` subclass (`ProfileWidget`,
-  `ResourcesWidget`, `PicturesWidget`, `MediaWidget`, `WeatherWidget`, `NotesWidget`, `WirelessWidget`, `WindowsWidget`).
+  `ResourcesWidget`, `PicturesWidget`, `MediaWidget`, `WeatherWidget`, `NotesWidget`, `WirelessWidget`, `WindowsWidget`,
+  and Vista's: `ClockWidget`, `CalendarWidget`, `PuzzleWidget`, `CurrencyWidget`, `StocksWidget`).
 - **State.** `ShellSettings.Widgets` lists every widget (`WidgetSettings`: id, kind, X/Y while floating, floating size,
   the kind's options; unset options take defaults). Docked ones show in list order. Only `Sidebar` writes the list;
   a view saves its own options through `SaveSettings`, and `Sidebar` keeps the stored position and size when it does.
@@ -285,7 +299,8 @@ the desktop and back. Full spec in docs/design/widgets.md.
   app bar placing, search ranking,
   indexer query building, startup entries, settings, wallpaper style mapping, AppBar rects, desktop icon
   filtering, sorting and grid places, icon spacing and Explorer's saved icon layouts (IconLayouts), icons off the grid, wallpaper per monitor, slideshow order and timing, Explorer's wallpaper and slideshow formats, snap zones and keys, windows moved to another monitor, Snap's settings, suggestions, Snap Assist's zones and card rows, snap groups and their
-  Alt+Tab items, finding a maximize button, Start's pin folders and folder buttons, Start's All categories, order, New/System and tile store, All's folders, hidden apps and arrow-key navigation, the folder panel's colour, the light accent Start's colour, the taskbar search setting and its collapse, labelled task buttons narrowing as the taskbar fills, thumbnail toolbar data and image lists, pinning by drag, clock settings and notification bell, widget placement and order, MET forecast parsing, wireless device protocols, Windows product name,
+  Alt+Tab items, finding a maximize button, Start's pin folders and folder buttons, Start's All categories, order, New/System and tile store, All's folders, hidden apps and arrow-key navigation, the folder panel's colour, the light accent Start's colour, the taskbar search setting and its collapse, labelled task buttons narrowing as the taskbar fills, thumbnail toolbar data and image lists, pinning by drag, clock settings and notification bell, widget placement and order, MET forecast parsing, Vista's widgets (clock hands and zones, the calendar's
+  weeks, the sliding puzzle, exchange rates, stock quotes and symbols), wireless device protocols, Windows product name,
   AutoPlay content, events, choice lists and saving, autorun.inf parsing, optical drive names, toast sounds,
   Quick Settings' rotation lock tile and VPN phonebook entries, the Bluetooth page's rows (status, battery, choosing),
   input indicator labels and Win+Space keys, the Copilot key and its choice, task button badges, flashing buttons' blinks and when progress shows, task button animations (pill morph, minimize/restore bounce), Start account menu order and "…",
@@ -299,12 +314,20 @@ the desktop and back. Full spec in docs/design/widgets.md.
   window's pages, version and run mode texts, themes (the choice, names, the setting) and a theme's taskbar height,
   the XP theme (button widths, grouping, tray and Quick Launch widths, group menu titles, system menu states, the Start
   Menu folders, Start's layout), the 98 theme (button widths, bands and tray, Start's layout, the taskbar's and Start's
-  pixels).
+  pixels), the 2088 concept (the ask line's commands, its date), the agents' MCP server (the session's protocol, the
+  bridge's relaying, answering for NeoShell and reconnecting; the tools' data and arguments; permission groups,
+  revoking, the agent's process, the agent indicator; finding apps to launch, arrange positions, window handles;
+  screenshot scaling, crops, scaled PNGs and image content; the agent's window, its statuses, notification buttons,
+  per-tool timeouts and sessions ending).
 - The Settings window's controls all have AutomationIds (`<Page>NavigationItem`, `SettingsPageTitle`, `SearchModeBox`,
   `TaskbarAlignmentBox`, `AutoHideCheckBox`, `WidgetSidebarWidthSlider`…; list in docs/design/settings-window.md). Open
   it by invoking `StartButton` then `NeoShellSettingsButton`; select pages through the items' SelectionItem pattern.
 - When testing the UI live, drive it through UI Automation (set `AutomationProperties.AutomationId` on interactive
   controls). Never use global keystrokes like SendKeys: they go to whichever window has focus.
+- The agents' MCP server: turn `AgentAccessEnabled` (and the `Agent*Allowed` groups wanted) on in settings.json while
+  NeoShell is stopped, and drive it with a client that starts `NeoShell.exe /mcp` with pipes and writes JSON lines.
+  Its tools see and act on the owner's windows too: act only on windows the test starts (Paint), and don't
+  `launch` an app just to see an error (it starts). design/agents.md, Testing.
 - NeoShell.Frames.exe runs elevated from the task `NeoShell\Window frames` (`schtasks /Run` starts it from any
   integrity; `NeoShell.Frames.exe /install` and `/uninstall` from an elevated shell add and remove the task). Stop it
   with `NeoShell.Frames.exe /exit` (or Stop on the Window frames page) before building: it locks its DLLs in NeoShell's

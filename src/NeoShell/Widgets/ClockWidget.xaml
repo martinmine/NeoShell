@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="utf-8"?>
+<local:WidgetView
+    x:Class="NeoShell.Widgets.ClockWidget"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:NeoShell.Widgets">
+    <!-- No heading: the widget's buttons show over the top right while the pointer is over it. -->
+    <StackPanel Spacing="6">
+        <!-- A face of 150 epx: its marks are drawn in code, the hands turn about its middle. -->
+        <Grid
+            x:Name="Face"
+            Width="150"
+            Height="150"
+            HorizontalAlignment="Center"
+            AutomationProperties.AutomationId="ClockFace">
+            <Ellipse
+                Fill="{ThemeResource SubtleFillColorSecondaryBrush}"
+                Stroke="{ThemeResource ControlStrokeColorDefaultBrush}"
+                StrokeThickness="1" />
+            <Path x:Name="MinuteMarks" Stroke="{ThemeResource TextFillColorTertiaryBrush}" StrokeThickness="1" />
+            <Path
+                x:Name="HourMarks"
+                Stroke="{ThemeResource TextFillColorSecondaryBrush}"
+                StrokeThickness="2.5"
+                StrokeStartLineCap="Round"
+                StrokeEndLineCap="Round" />
+            <Canvas>
+                <Line
+                    X1="75" Y1="84" X2="75" Y2="38"
+                    Stroke="{ThemeResource TextFillColorPrimaryBrush}"
+                    StrokeThickness="5"
+                    StrokeStartLineCap="Round"
+                    StrokeEndLineCap="Round">
+                    <Line.RenderTransform>
+                        <RotateTransform x:Name="HourAngle" CenterX="75" CenterY="75" />
+                    </Line.RenderTransform>
+                </Line>
+                <Line
+                    X1="75" Y1="86" X2="75" Y2="18"
+                    Stroke="{ThemeResource TextFillColorPrimaryBrush}"
+                    StrokeThickness="3.5"
+                    StrokeStartLineCap="Round"
+                    StrokeEndLineCap="Round">
+                    <Line.RenderTransform>
+                        <RotateTransform x:Name="MinuteAngle" CenterX="75" CenterY="75" />
+                    </Line.RenderTransform>
+                </Line>
+                <Line
+                    x:Name="SecondHand"
+                    X1="75" Y1="92" X2="75" Y2="13"
+                    Stroke="{ThemeResource AccentFillColorDefaultBrush}"
+                    StrokeThickness="1.5"
+                    StrokeStartLineCap="Round"
+                    StrokeEndLineCap="Round">
+                    <Line.RenderTransform>
+                        <RotateTransform x:Name="SecondAngle" CenterX="75" CenterY="75" />
+                    </Line.RenderTransform>
+                </Line>
+                <Ellipse Canvas.Left="71" Canvas.Top="71" Width="8" Height="8" Fill="{ThemeResource AccentFillColorDefaultBrush}" />
+            </Canvas>
+        </Grid>
+
+        <StackPanel x:Name="Caption" HorizontalAlignment="Center">
+            <TextBlock
+                x:Name="NameText"
+                AutomationProperties.AutomationId="ClockName"
+                HorizontalAlignment="Center"
+                Style="{StaticResource BodyStrongTextBlockStyle}"
+                TextTrimming="CharacterEllipsis" />
+            <TextBlock
+                x:Name="DifferenceText"
+                AutomationProperties.AutomationId="ClockDifference"
+                HorizontalAlignment="Center"
+                Style="{StaticResource CaptionTextBlockStyle}"
+                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                TextTrimming="CharacterEllipsis" />
+        </StackPanel>
+    </StackPanel>
+</local:WidgetView>

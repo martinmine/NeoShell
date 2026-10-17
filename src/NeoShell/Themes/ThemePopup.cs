@@ -85,8 +85,17 @@ internal sealed class ThemePopup : Window
         if (_bitmap is null || _shut)
             return;
 
-        _placement.Bounds = new RectInt32(topLeft.X, topLeft.Y,
-            (int)Math.Ceiling(_bitmap.PixelWidth * scale), (int)Math.Ceiling(_bitmap.PixelHeight * scale));
+        ShowIn(new RectInt32(topLeft.X, topLeft.Y,
+            (int)Math.Ceiling(_bitmap.PixelWidth * scale), (int)Math.Ceiling(_bitmap.PixelHeight * scale)));
+    }
+
+    /// <summary>Shows it over a rectangle of the screen (physical pixels): for content laid out in XAML rather than drawn.</summary>
+    public void ShowIn(RectInt32 bounds)
+    {
+        if (_shut)
+            return;
+
+        _placement.Bounds = bounds;
         _placement.SetLayer(PinnedLayer.Topmost);
         IsShown = true;
         AppWindow.Show(activateWindow: Activates);

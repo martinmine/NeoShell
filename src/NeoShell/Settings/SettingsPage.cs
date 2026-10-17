@@ -1,7 +1,7 @@
 namespace NeoShell.Settings;
 
 /// <summary>The pages of NeoShell's Settings window, in the order its navigation lists them.</summary>
-public enum SettingsPage { Taskbar, Start, Desktop, Widgets, WindowFrames, About }
+public enum SettingsPage { Taskbar, Start, Desktop, Widgets, WindowFrames, Agents, About }
 
 public static class SettingsPages
 {
@@ -12,6 +12,7 @@ public static class SettingsPages
         SettingsPage.Desktop => "Desktop and wallpaper",
         SettingsPage.Widgets => "Widgets",
         SettingsPage.WindowFrames => "Window frames",
+        SettingsPage.Agents => "Agents",
         _ => "About",
     };
 
@@ -23,6 +24,7 @@ public static class SettingsPages
         SettingsPage.Desktop => "",
         SettingsPage.Widgets => "",
         SettingsPage.WindowFrames => "",
+        SettingsPage.Agents => "",
         _ => "",
     };
 
@@ -40,6 +42,12 @@ public static class SettingsPages
         string commit = informationalVersion[(plus + 1)..];
         return $"{informationalVersion[..plus]} ({commit[..Math.Min(7, commit.Length)]})";
     }
+
+    /// <summary>The command that adds NeoShell to Claude Code as an MCP server (user scope: every project).</summary>
+    public static string ClaudeCodeCommand(string neoShellPath) => $"claude mcp add --scope user neoshell -- \"{neoShellPath}\" /mcp";
+
+    public static string NoAgentsText(bool accessOn) =>
+        accessOn ? "No agents are connected." : "Agents can't connect while agent access is off.";
 
     public static string RunModeTitle(RunMode runMode) =>
         runMode == RunMode.Shell ? "As the shell" : "Alongside Explorer";

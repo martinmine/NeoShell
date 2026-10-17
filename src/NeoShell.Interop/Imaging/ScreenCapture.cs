@@ -40,6 +40,56 @@ public static class ScreenCapture
     }
 
     /// <summary>
+    /// A window's own pixels, as DWM composes it, whatever covers it, cut to what's drawn of it (without the invisible
+    /// resize borders), opaque. Blocking while the window's thread draws: call it off the UI thread.
+    /// </summary>
+    public static IconBitmap CaptureWindow(nint hwnd)
+    {
+        if (!User32.GetWindowRect(hwnd, out User32.RECT window))
+            throw new Win32Exception("The window is gone.");
+        RectInt32 bounds = window.ToRectInt32();
+        RectInt32 visible = Windowing.TopLevelWindows.GetVisibleBounds(hwnd);
+        nint screen = User32.GetDC(0);
+        nint memory = Gdi32.CreateCompatibleDC(screen);
+        nint bitmap = Gdi32.CreateCompatibleBitmap(screen, bounds.Width, bounds.Height);
+        try
+        {
+            nint previous = Gdi32.SelectObject(memory, bitmap);
+            bool printed = User32.PrintWindow(hwnd, memory, User32.PW_RENDERFULLCONTENT);
+            Gdi32.SelectObject(memory, previous);
+            if (!printed || IconBitmap.Read(bitmap) is not { } image)
+                throw new Win32Exception("The window could not be drawn.");
+            return Opaque(Crop(image, visible.X - bounds.X, visible.Y - bounds.Y, visible.Width, visible.Height));
+        }
+        finally
+        {
+            Gdi32.DeleteObject(bitmap);
+            Gdi32.DeleteDC(memory);
+            User32.ReleaseDC(0, screen);
+        }
+    }
+
+    /// <summary>Part of a picture; the part is kept inside it.</summary>
+    public static IconBitmap Crop(IconBitmap image, int x, int y, int width, int height)
+    {
+        x = Math.Clamp(x, 0, image.Width);
+        y = Math.Clamp(y, 0, image.Height);
+        width = Math.Clamp(width, 0, image.Width - x);
+        height = Math.Clamp(height, 0, image.Height - y);
+        byte[] pixels = new byte[width * height * 4];
+        for (int row = 0; row < height; row++)
+            Array.Copy(image.Pixels, ((y + row) * image.Width + x) * 4, pixels, row * width * 4, width * 4);
+        return new IconBitmap(width, height, pixels);
+    }
+
+    private static IconBitmap Opaque(IconBitmap image)
+    {
+        for (int i = 3; i < image.Pixels.Length; i += 4)
+            image.Pixels[i] = 255;
+        return image;
+    }
+
+    /// <summary>
     /// Puts the picture on the clipboard as a bitmap, which every app can paste, and with <paramref name="png"/> as a
     /// PNG too, as Snipping Tool puts its snips (apps that take PNG keep a freeform snip's transparency).
     /// </summary>
@@ -130,13 +180,27 @@ public static class ScreenCapture
         return memory.ToArray();
     }
 
-    private static async Task WritePngAsync(IconBitmap image, Stream target, bool transparent)
+    /// <summary>The picture as an opaque PNG file's bytes, scaled down (Fant, as photo viewers do) to the size given.</summary>
+    public static async Task<byte[]> EncodeScaledPngAsync(IconBitmap image, int width, int height)
+    {
+        using var memory = new MemoryStream();
+        await WritePngAsync(image, memory, transparent: false, width, height);
+        return memory.ToArray();
+    }
+
+    private static async Task WritePngAsync(IconBitmap image, Stream target, bool transparent, int? width = null, int? height = null)
     {
         using IRandomAccessStream stream = target.AsRandomAccessStream();
         BitmapEncoder encoder = await BitmapEncoder.CreateAsync(BitmapEncoder.PngEncoderId, stream);
         encoder.SetPixelData(
             BitmapPixelFormat.Bgra8, transparent ? BitmapAlphaMode.Premultiplied : BitmapAlphaMode.Ignore,
             (uint)image.Width, (uint)image.Height, 96, 96, image.Pixels);
+        if (width is { } w && height is { } h && (w != image.Width || h != image.Height))
+        {
+            encoder.BitmapTransform.ScaledWidth = (uint)w;
+            encoder.BitmapTransform.ScaledHeight = (uint)h;
+            encoder.BitmapTransform.InterpolationMode = BitmapInterpolationMode.Fant;
+        }
         await encoder.FlushAsync();
     }
 

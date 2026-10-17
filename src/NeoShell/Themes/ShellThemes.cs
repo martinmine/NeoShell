@@ -15,6 +15,7 @@ public static class ShellThemes
     {
         ShellTheme.WindowsXP => "Windows XP",
         ShellTheme.Windows98 => "Windows 98",
+        ShellTheme.Concept2088 => "2088 (concept)",
         _ => "Windows 11",
     };
 }
@@ -29,6 +30,7 @@ internal static class ThemeViews
     {
         ShellTheme.WindowsXP => new WindowsXp.XpTaskbarWindow(owner, monitor, settings),
         ShellTheme.Windows98 => new Windows98.Win98TaskbarWindow(owner, monitor, settings),
+        ShellTheme.Concept2088 => new Concept2088.SpineTaskbarWindow(owner, monitor, settings),
         _ => new TaskbarWindow(owner, monitor, settings, owner.Theme, owner.Accent),
     };
 
@@ -36,6 +38,7 @@ internal static class ThemeViews
     {
         ShellTheme.WindowsXP => new WindowsXp.XpStartMenuWindow(owner),
         ShellTheme.Windows98 => new Windows98.Win98StartMenuWindow(owner),
+        ShellTheme.Concept2088 => new Concept2088.NexusStartMenu(owner),
         _ => new StartMenuWindow(owner),
     };
 }

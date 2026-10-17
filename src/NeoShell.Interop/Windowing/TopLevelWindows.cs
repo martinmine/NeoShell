@@ -76,6 +76,46 @@ public static unsafe class TopLevelWindows
 
     public static bool IsMaximized(nint hwnd) => User32.IsZoomed(hwnd);
 
+    public static bool IsTopmost(nint hwnd) => (User32.GetWindowLongPtr(hwnd, User32.GWL_EXSTYLE) & User32.WS_EX_TOPMOST) != 0;
+
+    /// <summary>
+    /// The windows on screen above <paramref name="hwnd"/> in the z-order that overlap it, topmost first; its own
+    /// owned windows (dialogs, tool windows) aren't counted.
+    /// </summary>
+    public static IReadOnlyList<nint> WindowsCovering(nint hwnd)
+    {
+        RectInt32 bounds = GetVisibleBounds(hwnd);
+        var covering = new List<nint>();
+        foreach (nint window in GetAll())
+        {
+            if (window == hwnd)
+                break;
+            if (!IsOnScreen(window) || IsOwnedBy(window, hwnd))
+                continue;
+            RectInt32 other = GetVisibleBounds(window);
+            if (other.X < bounds.X + bounds.Width && bounds.X < other.X + other.Width
+                && other.Y < bounds.Y + bounds.Height && bounds.Y < other.Y + other.Height)
+            {
+                covering.Add(window);
+            }
+        }
+        return covering;
+    }
+
+    private static bool IsOwnedBy(nint window, nint owner)
+    {
+        for (nint next = User32.GetWindow(window, User32.GW_OWNER); next != 0; next = User32.GetWindow(next, User32.GW_OWNER))
+        {
+            if (next == owner)
+                return true;
+        }
+        return false;
+    }
+
+    /// <summary>Whether the window has a title bar; full-screen apps take theirs off.</summary>
+    public static bool HasCaption(nint hwnd) =>
+        ((uint)User32.GetWindowLongPtr(hwnd, User32.GWL_STYLE) & User32.WS_CAPTION) == User32.WS_CAPTION;
+
     public static bool Exists(nint hwnd) => User32.IsWindow(hwnd);
 
     private static readonly uint s_taskbarButtonCreated = User32.RegisterWindowMessage("TaskbarButtonCreated");
@@ -424,13 +464,13 @@ public static unsafe class TopLevelWindows
 
     /// <summary>
     /// Brings a window to the front, restoring it if minimized. Windows allows this because the user's click on the
-    /// taskbar was the last input.
+    /// taskbar was the last input. False when Windows refused the foreground (its foreground lock).
     /// </summary>
-    public static void Activate(nint hwnd)
+    public static bool Activate(nint hwnd)
     {
         if (User32.IsIconic(hwnd))
             Show(hwnd, User32.SW_RESTORE, User32.SC_RESTORE);
-        User32.SetForegroundWindow(hwnd);
+        return User32.SetForegroundWindow(hwnd);
     }
 
     /// <summary>
@@ -442,10 +482,10 @@ public static unsafe class TopLevelWindows
     /// Not <c>SwitchToThisWindow</c>: that sends the window left behind to the bottom of the stack, out of the most
     /// recently used order the next Alt+Tab goes by.
     /// </remarks>
-    public static void SwitchTo(nint hwnd)
+    public static bool SwitchTo(nint hwnd)
     {
         KeyboardHook.MaskModifierKeys();
-        Activate(hwnd);
+        return Activate(hwnd);
     }
 
     /// <summary>Minimizes and activates the next window, as clicking the active window's taskbar button does.</summary>

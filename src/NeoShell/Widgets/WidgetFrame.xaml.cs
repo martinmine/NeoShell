@@ -1,8 +1,11 @@
+using System.Runtime.CompilerServices;
+using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 using NeoShell.Interop.Windowing;
+using NeoShell.Themes.Concept2088;
 using Windows.Foundation;
 using Windows.Graphics;
 
@@ -16,9 +19,19 @@ internal sealed partial class WidgetFrame : UserControl
     // How near the buttons, in effective pixels, the pointer brings them up over content under them.
     private const double ButtonsReach = 16;
 
+    // The 2088 concept's card (SetConcept): its plate and heading, and the palette the widget draws with.
+    private HudFrame? _hud;
+    private FrameworkElement? _heading;
+    private ResourceDictionary? _palette;
+    // The widget's text set in the concept's type, with the font it had; set again shortly after its layout changes
+    // (a widget adds text as it loads and updates).
+    private readonly ConditionalWeakTable<DependencyObject, Microsoft.UI.Xaml.Media.FontFamily> _fonted = new();
+    private DispatcherQueueTimer? _fontTimer;
     private (PointInt32 Start, Point Grab)? _press;
     private bool _dragging;
     private bool _pointerOver;
+    // Anywhere over the widget, even where its buttons don't show: the concept's outline lights up.
+    private bool _pointerInside;
 
     /// <param name="floating">On the desktop: the window is the card, so the frame draws none of its own.</param>
     public WidgetFrame(WidgetView widget, bool floating)
@@ -45,6 +58,66 @@ internal sealed partial class WidgetFrame : UserControl
     }
 
     public WidgetView Widget { get; }
+
+    /// <summary>
+    /// The card as the 2088 concept draws it, floating too (its window is see-through then): a cut-corner plate
+    /// with the widget's name over it, and the widget in the concept's colours and type. Off, the theme's card again.
+    /// </summary>
+    public void SetConcept(bool on)
+    {
+        if (on == (_hud is not null))
+            return;
+
+        if (on)
+        {
+            _hud = new HudFrame(14, Hud.Panel, Hud.Line) { MarkerLength = 8 };
+            _heading = HudWidgets.Heading(Widget.Settings.Kind);
+            Root.Children.Insert(0, _hud);
+            Root.Children.Insert(2, _heading);
+            Resources.MergedDictionaries.Add(_palette = HudWidgets.Palette());
+            FontFamily = Hud.Display;
+            Foreground = Hud.Solid(Hud.Text);
+            if (_fontTimer is null)
+            {
+                _fontTimer = DispatcherQueue.GetForCurrentThread().CreateTimer();
+                _fontTimer.Interval = TimeSpan.FromMilliseconds(300);
+                _fontTimer.IsRepeating = false;
+                _fontTimer.Tick += (_, _) =>
+                {
+                    if (_hud is not null)
+                        HudWidgets.ApplyFont(Card, _fonted);
+                };
+            }
+            LayoutUpdated += OnLayoutUpdated;
+            HudWidgets.ApplyFont(Card, _fonted);
+            ToolTipService.SetToolTip(SettingsButton, HudWidgets.ToolTip("SETTINGS // 設定"));
+            ToolTipService.SetToolTip(CloseButton, HudWidgets.ToolTip("CLOSE // 閉じる"));
+        }
+        else
+        {
+            Root.Children.Remove(_hud);
+            Root.Children.Remove(_heading);
+            Resources.MergedDictionaries.Remove(_palette);
+            _hud = null;
+            _heading = null;
+            _palette = null;
+            ClearValue(FontFamilyProperty);
+            ClearValue(ForegroundProperty);
+            LayoutUpdated -= OnLayoutUpdated;
+            _fontTimer?.Stop();
+            HudWidgets.RestoreFont(_fonted);
+            ToolTipService.SetToolTip(SettingsButton, "Settings");
+            ToolTipService.SetToolTip(CloseButton, "Close");
+        }
+        Widget.SetConcept(on);
+        // The plate is drawn behind the card (the palette clears the card's own fill and outline), the widget under
+        // the heading.
+        Card.Padding = on ? Widget.FillsCard ? new Thickness(1, 32, 1, 1) : new Thickness(14, 34, 14, 14)
+            : Widget.FillsCard ? new Thickness(0) : new Thickness(12);
+        // The widget's ThemeResources are looked up again only when the theme changes: change it there and back.
+        RequestedTheme = ElementTheme.Light;
+        RequestedTheme = on ? ElementTheme.Dark : ElementTheme.Default;
+    }
 
     public event Action<WidgetFrame>? CloseRequested;
 
@@ -79,7 +152,18 @@ internal sealed partial class WidgetFrame : UserControl
     /// <summary>Puts the view back after <see cref="Release"/>, from wherever it went since (it must have left there).</summary>
     public void Return() => Card.Child = Widget;
 
-    private void Root_PointerEntered(object sender, PointerRoutedEventArgs e) => SetPointerOver(NearButtons(e));
+    // Once the layout settles, not on every pass: a drag lays the widget out each frame.
+    private void OnLayoutUpdated(object? sender, object e)
+    {
+        if (_fontTimer is { IsRunning: false })
+            _fontTimer.Start();
+    }
+
+    private void Root_PointerEntered(object sender, PointerRoutedEventArgs e)
+    {
+        _pointerInside = true;
+        SetPointerOver(NearButtons(e));
+    }
 
     // Anywhere over the widget, unless its content runs under the buttons.
     private bool NearButtons(PointerRoutedEventArgs e)
@@ -90,7 +174,11 @@ internal sealed partial class WidgetFrame : UserControl
         return point.X >= -ButtonsReach && point.Y <= Buttons.ActualHeight + ButtonsReach;
     }
 
-    private void Root_PointerExited(object sender, PointerRoutedEventArgs e) => SetPointerOver(false);
+    private void Root_PointerExited(object sender, PointerRoutedEventArgs e)
+    {
+        _pointerInside = false;
+        SetPointerOver(false);
+    }
 
     private void SetPointerOver(bool over)
     {
@@ -106,17 +194,30 @@ internal sealed partial class WidgetFrame : UserControl
         bool shown = _pointerOver || SettingsFlyout.IsOpen;
         Buttons.Opacity = shown ? 1 : 0;
         Buttons.IsHitTestVisible = shown;
+        _hud?.SetLook(Hud.Panel, shown || _pointerInside ? Hud.Red : Hud.Line);
     }
 
     private void SettingsFlyout_Opening(object sender, object e)
     {
         var panel = new StackPanel { Width = 280, Spacing = 12 };
-        panel.Children.Add(new TextBlock
+        if (_hud is not null)
         {
-            Text = WidgetView.Title(Widget.Settings.Kind),
-            Style = (Style)Application.Current.Resources["BodyStrongTextBlockStyle"],
-        });
+            // Before the controls go in, so they take the concept's colours as they're made.
+            panel.Resources.MergedDictionaries.Add(HudWidgets.Palette());
+            panel.RequestedTheme = ElementTheme.Dark;
+            panel.Children.Add(HudWidgets.SettingsHeading(Widget.Settings.Kind));
+            panel.Loaded += (_, _) => HudWidgets.ApplyFont(panel, new());
+        }
+        else
+        {
+            panel.Children.Add(new TextBlock
+            {
+                Text = WidgetView.Title(Widget.Settings.Kind),
+                Style = (Style)Application.Current.Resources["BodyStrongTextBlockStyle"],
+            });
+        }
         panel.Children.Add(Widget.CreateSettings());
+        SettingsFlyout.FlyoutPresenterStyle = _hud is null ? null : HudWidgets.FlyoutStyle();
         SettingsFlyout.Content = panel;
         ShowButtons();
     }

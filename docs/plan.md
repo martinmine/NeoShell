@@ -238,6 +238,13 @@ Tick items off as they land. The feature details are in [design.md](design.md) a
 - [x] Fix: crash (fail-fast) reordering a widget in the sidebar after it had been docked back from the desktop: its
       card's every `Loaded` closed the floating window it came from again, and the second time `SetWindowSubclass`
       failed on the destroyed window
+- [x] Vista's gadgets as widgets, in the WinUI look of the others (2026-10-17): Clock (analogue, a name, a time
+      zone, the second hand), Calendar (month and day page), Picture puzzle (Windows' wallpaper or a chosen picture,
+      timed, peek), Currency (ECB rates through Frankfurter), Stocks (Yahoo Finance's chart service, each row expands
+      to the day). Not brought over: Contacts and Feed Headlines (left out by the owner), the CPU meter (Resource
+      usage covers it), Vista's clock faces. Checked live alongside Explorer in the Windows 11 and 2088 themes (a
+      day and its page, day steps, a stock's chart, converting both ways, slides and the timer, a Tokyo clock);
+      not run live: the settings flyouts (picture picker, time zone list, symbols), a solved puzzle, midnight
 - Not run live: Now playing with media playing (nothing plays on the VM), the weather from the computer's location
   (location is off on the VM), a second monitor
 
@@ -783,3 +790,80 @@ NeoShell's taskbar and Start in the look of other Windows versions, over the sam
         flashing, Quick Launch beyond four, the volume icon, task buttons' small icons
   - [ ] The 98 window frame in the frames program (specified in design/theme-98.md)
   - [ ] Live: shell mode, auto-hide, a second monitor, other DPIs
+- [x] 2088 concept theme (2026-10-13, design/theme-2088.md): the desktop, taskbar and Start as they might be in 2088,
+      dark with white text, signal red and Japanese signage, cut-corner panels with edge markers. The Field over the
+      wallpaper (shade, red glow, scan lines, a grid of faint crosses, the time and the machine's vitals; shell mode;
+      the perspective floor, the sweep, the REC caption, the corner marks, the "2088" and the status line taken out on
+      review), the Spine (Nexus block, ask field hidden with Explorer's search setting, numbered chips per window, tray
+      with readouts for the network, volume and battery, clock with the weekday in kanji) and Nexus (ask line resolving
+      apps and commands, pinned modules, all apps, telemetry, recent apps, power row); unit tests for the commands and
+      the date. Live alongside Explorer and as the shell. Not run live: a second monitor, other DPIs, auto-hide, a
+      battery, chip progress and attention, the power buttons
+  - [x] The widget sidebar and floating widgets (2026-10-13): see-through and dark over the Field, a red ruled edge,
+        cut-corner cards with bilingual headings, the widgets in the concept's palette, red resource graphs; live
+        theme switching. Not run live: drags between the sidebar and the desktop, the panel hidden
+  - [x] The widgets' styled text in the concept's type, and their settings flyouts in its look (2026-10-13)
+  - [x] The sidebar's menus and the widget buttons' tooltips in the concept's type and plate (2026-10-13)
+
+## Agent access (MCP)
+
+An MCP server through which AI agents see the shell and act in it, off by default (design/agents.md).
+
+- [x] A1 Transport (2026-10-16): `NeoShell.exe /mcp` bridge (stdio to the pipe, before the single-instance mutex, no
+      WinUI), the pipe server in `Agents/AgentServer` (current user only, the first instance NeoShell's own, created
+      while `AgentAccessEnabled` is on), the bridge answering for NeoShell while it's away, failing its unanswered
+      requests, and replaying `initialize` with `tools/list_changed` when it's back; `McpSession` (initialize and
+      version negotiation, ping, tools/list, tools/call, answers as calls finish) over `System.Text.Json`; calls on
+      the UI thread with a 5 s timeout, each logged; unit tests for the session and the bridge. Live with a stdio
+      client alongside Explorer: started before NeoShell, connected 2 s after its start, across an /exit and a
+      restart, clean exits. Not run live: as the shell, an elevated client, another user's or a low-integrity
+      process refused, Claude Code itself (no tools yet). Found on the way (not this change): an /exit about a second
+      after start crashes on Start's account picture, and about one exit in three or more ends in an access violation
+      in a COM object's finalizer
+- [x] A2 Read tools (2026-10-16): `shell_state`, `list_windows`, `list_tray_icons`, `indicators`,
+      `list_notifications`, `search` (`ShellTools` over `Taskbars`; the JSON in `AgentData`); handlers may await
+      (search's catalog and index on the thread pool), calls time out after 10 s; argument errors are tool errors;
+      unit tests for the data, the arguments and async handlers. Live alongside Explorer through the bridge: every
+      tool, the index answering files and folders, the tray tool saying it's Explorer's. Not run live: as the shell
+      (the tray icons), a battery, progress and badges on real windows, a second monitor
+- [x] A3 The Agents settings page (2026-10-16): the main switch, the permission groups (Read, Control, Screen,
+      Presence; a group off is unlisted and its calls refused), the connected agents (client name, the agent's
+      process found from the pipe's client and its parents, since when) with Disconnect (the session's tools taken
+      away, the pipe kept so the bridge doesn't reconnect), `tools/list_changed` on every change, the
+      `claude mcp add` command; the agent indicator on the Windows 11 taskbar while Control or Screen is allowed;
+      unit tests for groups, revoking, the agent process, the texts and the settings. Live alongside Explorer through
+      UIA with a client connected: the page and its row, Read off and on (list_changed, calls refused, back), the
+      indicator with Control, Disconnect, access off and on. Not run live: as the shell, two agents at once,
+      Claude Code as the client (the row's process), keyboard on the page, the light theme
+- [x] A4 Control tools (2026-10-16): `activate_window` (the task button's bring-to-front), `arrange_window` (Snap's
+      `Arrange` as the shell, placed in the zone alongside Explorer; answered once the window is in its state),
+      `close_window`, `launch` (Start's catalog by id or exact name, no arguments), `show_surface` (Start, Quick
+      Settings, the notification center, Settings on a page), `set_volume`, `set_do_not_disturb`; windows only from
+      the task list; unit tests for finding apps, positions, window handles and the arguments. Live alongside
+      Explorer on a Paint window of the test's own: every position, activate, the four surfaces (seen through UIA and
+      a screenshot), volume and mute set and put back, Do not disturb on and off, close; the errors (unknown handle,
+      position, monitor, app). Not run live: as the shell (Snap's arranging, its animation), a second monitor, an
+      elevated window, two apps of one name
+- [x] A5 Screen (2026-10-16): `screenshot` of a monitor (the screen's pixels) or of a window drawn on its own
+      (`PrintWindow` full content, cut to its visible frame), scaled by its longest side (1568 by default) and
+      returned as MCP image content; capture and encoding on the thread pool; unit tests for the scaling, the crop,
+      the PNG's size and image content. Live alongside Explorer: the monitor at two sizes, a Paint window of the
+      test's own whole under the Settings window covering it, the errors (both a handle and a monitor, minimized).
+      Not run live: as the shell, a second monitor, other DPIs, an elevated window, a UWP (CoreWindow) app, a client
+      showing the image to a model
+- [x] A6 Presence (2026-10-16): `set_agent_status` (working, progress, paused, error over the app's own progress;
+      attention as a flash) on the agent's own window, found from its processes, or a handle; `notify` as a toast
+      named as the agent's, with up to three buttons answered through the open call (or closed, or timed out after
+      its own wait), alongside Explorer through a toast host for agents alone; handlers get the calling session;
+      what an agent shows goes when it leaves or is disconnected; unit tests for finding the window, the statuses,
+      the buttons' list, the caller, per-tool timeouts and the session ending. Live alongside Explorer on a Paint
+      window of the test's own: every status (the bar seen under its button), attention flashing, a notification
+      without buttons, one answered by a button through UIA, one timing out, the agent leaving with a status and a
+      notification up (both gone). Not run live: as the shell (with Windows' toasts), Claude Code in Windows
+      Terminal finding its window, Do not disturb refusing, the light theme
+- [x] A7 Live (2026-10-16): every tool through a scripted client alongside Explorer (A2-A6) and as the shell (tray
+      icons, Snap's arranging, Windows' toast host answering a button), NeoShell restarted under a connected client
+      (A1), a low-integrity process refused where medium connects, Claude Code 2.1.299 starting the bridge and
+      initializing through `--mcp-config` (not `claude mcp add`, to leave the owner's Claude Code settings alone);
+      docs (architecture.md, CLAUDE.md, settings-window.md, design/agents.md's testing). Not run: another Windows
+      user's process, an elevated client, Claude Code's model calling the tools (that copy wasn't signed in)

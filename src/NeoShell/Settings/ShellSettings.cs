@@ -13,10 +13,10 @@ public enum Backdrop { Acrylic, Mica, Translucent, Transparent }
 
 public enum DesktopSortOrder { Name, Size, ItemType, DateModified }
 
-public enum WidgetKind { Profile, Resources, Pictures, Media, Weather, Notes, Wireless, Windows }
+public enum WidgetKind { Profile, Resources, Pictures, Media, Weather, Notes, Wireless, Windows, Clock, Calendar, Puzzle, Currency, Stocks }
 
 /// <summary>Which Windows the taskbar and Start look like (see <see cref="Themes.ShellThemes"/>).</summary>
-public enum ShellTheme { Windows11, WindowsXP, Windows98 }
+public enum ShellTheme { Windows11, WindowsXP, Windows98, Concept2088 }
 
 /// <summary>
 /// One widget: in the sidebar, in the order of <see cref="ShellSettings.Widgets"/>, or floating on the desktop. Its
@@ -33,8 +33,12 @@ public sealed record WidgetSettings
     public double? FloatingWidth { get; set; }
     public double? ContentHeight { get; set; }
 
-    // Profile
+    // Profile and Clock (a clock's second hand)
     public bool? ShowSeconds { get; set; }
+
+    // Clock: the name shown on it and its time zone (Windows' id); without one, the computer's.
+    public string? ClockName { get; set; }
+    public string? TimeZoneId { get; set; }
 
     // Resources: each graph's colour, as #RRGGBB, and whether drives and network adapters show one by one.
     public string? CpuColor { get; set; }
@@ -61,6 +65,17 @@ public sealed record WidgetSettings
 
     // Wireless devices: how often their batteries are read, in minutes.
     public int? PollMinutes { get; set; }
+
+    // Picture puzzle: the picture cut into tiles; without one, Windows' own wallpaper.
+    public string? PuzzlePicture { get; set; }
+
+    // Currency: the two currencies (ISO codes) and the amount of the first.
+    public string? CurrencyFrom { get; set; }
+    public string? CurrencyTo { get; set; }
+    public double? CurrencyAmount { get; set; }
+
+    // Stocks: the symbols, as Yahoo Finance writes them ("MSFT", "^DJI", "EQNR.OL").
+    public IReadOnlyList<string>? StockSymbols { get; set; }
 
     [JsonIgnore]
     public bool IsFloating => X is not null && Y is not null;
@@ -132,6 +147,23 @@ public sealed record ShellSettings
     /// <summary>The user's own styles; the presets aren't stored.</summary>
     public IReadOnlyList<FrameStyle> WindowFrameStyles { get; set; } = [];
     public IReadOnlyList<FrameRule> WindowFrameRules { get; set; } = [];
+    /// <summary>Let AI agents reach NeoShell through its MCP server (<see cref="Agents.AgentServer"/>); off by default.</summary>
+    public bool AgentAccessEnabled { get; set; }
+    /// <summary>What connected agents may do (<see cref="Agents.AgentToolGroup"/>): see the shell, yes; act in it, not unasked.</summary>
+    public bool AgentReadAllowed { get; set; } = true;
+    public bool AgentControlAllowed { get; set; }
+    public bool AgentScreenAllowed { get; set; }
+    public bool AgentPresenceAllowed { get; set; } = true;
+
+    [JsonIgnore]
+    public IReadOnlySet<Agents.AgentToolGroup> AllowedAgentTools => new HashSet<Agents.AgentToolGroup>(
+        new (bool Allowed, Agents.AgentToolGroup Group)[]
+        {
+            (AgentReadAllowed, Agents.AgentToolGroup.Read),
+            (AgentControlAllowed, Agents.AgentToolGroup.Control),
+            (AgentScreenAllowed, Agents.AgentToolGroup.Screen),
+            (AgentPresenceAllowed, Agents.AgentToolGroup.Presence),
+        }.Where(group => group.Allowed).Select(group => group.Group));
 
     /// <summary>
     /// The sidebar's widgets until the user changes them. Fixed ids: a note's text is kept by its widget's id, even

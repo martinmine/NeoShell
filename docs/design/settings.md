@@ -33,4 +33,6 @@ WindowFramesEnabled  bool (off)
 WindowFrameStyle     the global frame style's name (Windows default)
 WindowFrameStyles    list of the user's frame styles (see Window frames)
 WindowFrameRules     list (process, optional class, style name or null = leave alone)
+AgentAccessEnabled   bool (off): the agents' MCP pipe (see Agent access)
+Agent*Allowed        bool each: Read (on), Control (off), Screen (off), Presence (on): what agents may do
 ```

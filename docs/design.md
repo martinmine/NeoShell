@@ -20,7 +20,8 @@ The architecture, and every part of Windows NeoShell uses, is in [architecture.m
   is the shell.
 - Start's Quick Link menu (right-click Start, Win+X) and, while NeoShell is the shell, Alt+Tab, Explorer's other
   Win+ shortcuts, Snap layouts (Win+Z) and screenshots (Win+PrtScn, Win+Shift+S).
-- Themes: the taskbar and Start as Windows 11's (the default), Windows XP's (blue Luna) or Windows 98's (groundwork).
+- Themes: the taskbar and Start as Windows 11's (the default), Windows XP's (blue Luna) or Windows 98's (groundwork),
+  or "2088 (concept)": the desktop, taskbar and Start as they might be in 2088 (dark, red, Japanese signage).
 - A widget sidebar, as Windows Vista's: profile and clock, resource usage, pictures, now playing, weather, notes and
   wireless devices' batteries, docked along the right of the screen or dragged out to float on the desktop.
 
@@ -81,6 +82,8 @@ Each area has its own file in [design/](design/):
   grouping, menus, tooltips), how the XP views draw them in code, and how close they come.
 - [Theme: Windows 98](design/theme-98.md) — 98's taskbar, Start, menus, tooltips, window frame and dialogs measured in
   98 (sizes, edges, colours, fonts, the banner), what the groundwork builds and what remains.
+- [Theme: 2088](design/theme-2088.md) — The 2088 concept: the premise, its visual language and Japanese labels, the
+  Field (desktop), the Spine (taskbar) and Nexus (Start with its ask line), and what it would take further.
 - [Taskbar](design/taskbar.md) — The taskbar window (placement, display changes, flyouts and menus, the Quick Link
   menu), its layout, window tracking and task buttons.
 - [Taskbar: pinned apps, jump lists and thumbnails](design/taskbar-apps.md) — Pinned apps, jump lists, thumbnails,
@@ -108,4 +111,6 @@ Each area has its own file in [design/](design/):
 - [Settings](design/settings.md) — The settings record and its file.
 - [Settings window](design/settings-window.md) — NeoShell's Settings window, Start's button for it, and the menus
   whose settings moved into it.
+- [Agent access (MCP)](design/agents.md) — The MCP server for AI agents: the bridge and pipe, the tools, presence on
+  the taskbar, permissions. Setting it up in Claude and every tool's arguments: [mcp-server.md](mcp-server.md).
 - [Testing strategy](design/testing.md) — How NeoShell is tested: unit tests, live UI checks, shell mode.

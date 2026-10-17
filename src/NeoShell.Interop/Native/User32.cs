@@ -37,6 +37,7 @@ internal static unsafe partial class User32
     public const uint WS_MINIMIZEBOX = 0x0002_0000;
     public const uint WS_MAXIMIZEBOX = 0x0001_0000;
     public const uint WS_THICKFRAME = 0x0004_0000;
+    public const uint WS_CAPTION = 0x00C0_0000;
     public const uint WS_EX_TOPMOST = 0x0000_0008;
     public const uint WS_EX_TOOLWINDOW = 0x0000_0080;
 
@@ -477,6 +478,13 @@ internal static unsafe partial class User32
     [LibraryImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     public static partial bool GetWindowRect(nint hwnd, out RECT rect);
+
+    /// <summary>PrintWindow: the window's content as DWM composes it, even where other windows cover it.</summary>
+    public const uint PW_RENDERFULLCONTENT = 0x2;
+
+    [LibraryImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static partial bool PrintWindow(nint hwnd, nint dc, uint flags);
 
     public const uint MONITOR_DEFAULTTONULL = 0;
     public const uint MONITOR_DEFAULTTONEAREST = 2;
