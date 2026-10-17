@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="utf-8"?>
+<local:WidgetView
+    x:Class="NeoShell.Widgets.CurrencyWidget"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:NeoShell.Widgets">
+    <local:WidgetView.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="ms-appx:///FlatButtons.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </local:WidgetView.Resources>
+
+    <!-- The first currency reaches the top right: the widget's buttons show only near them (ContentUnderButtons). -->
+    <StackPanel Spacing="8">
+        <Grid x:Name="Converter" ColumnSpacing="8" RowSpacing="8" Visibility="Collapsed">
+            <Grid.RowDefinitions>
+                <RowDefinition />
+                <RowDefinition />
+            </Grid.RowDefinitions>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition />
+                <ColumnDefinition Width="96" />
+            </Grid.ColumnDefinitions>
+            <!-- Typing an amount into either converts it into the other. -->
+            <NumberBox
+                x:Name="FromAmount"
+                AutomationProperties.AutomationId="CurrencyFromAmount"
+                AutomationProperties.Name="First amount"
+                ValueChanged="FromAmount_ValueChanged" />
+            <ComboBox
+                x:Name="FromCurrency"
+                Grid.Column="1"
+                HorizontalAlignment="Stretch"
+                AutomationProperties.AutomationId="CurrencyFromBox"
+                AutomationProperties.Name="First currency"
+                SelectionChanged="Currency_SelectionChanged" />
+            <NumberBox
+                x:Name="ToAmount"
+                Grid.Row="1"
+                AutomationProperties.AutomationId="CurrencyToAmount"
+                AutomationProperties.Name="Second amount"
+                ValueChanged="ToAmount_ValueChanged" />
+            <ComboBox
+                x:Name="ToCurrency"
+                Grid.Row="1"
+                Grid.Column="1"
+                HorizontalAlignment="Stretch"
+                AutomationProperties.AutomationId="CurrencyToBox"
+                AutomationProperties.Name="Second currency"
+                SelectionChanged="Currency_SelectionChanged" />
+        </Grid>
+
+        <Grid x:Name="Footer" Visibility="Collapsed">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <StackPanel VerticalAlignment="Center">
+                <TextBlock
+                    x:Name="RateText"
+                    AutomationProperties.AutomationId="CurrencyRate"
+                    Style="{StaticResource CaptionTextBlockStyle}"
+                    TextTrimming="CharacterEllipsis" />
+                <TextBlock
+                    x:Name="DateText"
+                    Style="{StaticResource CaptionTextBlockStyle}"
+                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                    TextTrimming="CharacterEllipsis" />
+            </StackPanel>
+            <Button
+                Grid.Column="1"
+                Width="32"
+                Height="32"
+                Margin="0"
+                AutomationProperties.AutomationId="CurrencySwapButton"
+                AutomationProperties.Name="Swap currencies"
+                ToolTipService.ToolTip="Swap currencies"
+                Style="{StaticResource FlatButtonStyle}"
+                Click="SwapButton_Click">
+                <FontIcon Glyph="&#xE8AB;" FontSize="14" />
+            </Button>
+        </Grid>
+
+        <TextBlock
+            x:Name="StatusText"
+            Margin="0,0,64,0"
+            AutomationProperties.AutomationId="CurrencyStatus"
+            Style="{StaticResource CaptionTextBlockStyle}"
+            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+            TextWrapping="Wrap"
+            Text="Loading…" />
+    </StackPanel>
+</local:WidgetView>

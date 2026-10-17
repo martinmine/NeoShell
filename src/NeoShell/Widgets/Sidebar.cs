@@ -236,6 +236,11 @@ internal sealed class Sidebar : IDisposable
             WidgetKind.Weather => new WeatherWidget(widget),
             WidgetKind.Wireless => new WirelessWidget(widget, _wireless),
             WidgetKind.Windows => new WindowsWidget(widget),
+            WidgetKind.Clock => new ClockWidget(widget),
+            WidgetKind.Calendar => new CalendarWidget(widget),
+            WidgetKind.Puzzle => new PuzzleWidget(widget),
+            WidgetKind.Currency => new CurrencyWidget(widget),
+            WidgetKind.Stocks => new StocksWidget(widget),
             _ => new NotesWidget(widget),
         };
         // The widget's copy may have an old position and size: it was made before the widget was last dragged or resized.

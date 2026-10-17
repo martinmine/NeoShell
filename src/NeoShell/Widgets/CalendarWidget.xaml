@@ -1,0 +1,123 @@
+<?xml version="1.0" encoding="utf-8"?>
+<local:WidgetView
+    x:Class="NeoShell.Widgets.CalendarWidget"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:NeoShell.Widgets">
+    <local:WidgetView.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="ms-appx:///FlatButtons.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+
+            <Style x:Key="ArrowButtonStyle" TargetType="Button" BasedOn="{StaticResource FlatButtonStyle}">
+                <Setter Property="Width" Value="28" />
+                <Setter Property="Height" Value="28" />
+                <Setter Property="Margin" Value="0" />
+            </Style>
+            <Style x:Key="DayButtonStyle" TargetType="Button" BasedOn="{StaticResource FlatButtonStyle}">
+                <Setter Property="Width" Value="Auto" />
+                <Setter Property="Height" Value="32" />
+                <Setter Property="Margin" Value="0" />
+                <Setter Property="HorizontalAlignment" Value="Stretch" />
+            </Style>
+            <Style x:Key="WeekdayTextStyle" TargetType="TextBlock" BasedOn="{StaticResource CaptionTextBlockStyle}">
+                <Setter Property="Foreground" Value="{ThemeResource TextFillColorSecondaryBrush}" />
+                <Setter Property="HorizontalAlignment" Value="Center" />
+            </Style>
+
+            <!-- Today on an accent circle, as Windows' calendar flyout; the days around the month dimmed. -->
+            <DataTemplate x:Key="DayTemplate" x:DataType="local:CalendarDay">
+                <Grid Width="28" Height="28">
+                    <Ellipse Fill="{ThemeResource AccentFillColorDefaultBrush}" Visibility="{x:Bind IsToday}" />
+                    <TextBlock
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        Text="{x:Bind Number}"
+                        Foreground="{ThemeResource TextFillColorPrimaryBrush}"
+                        Opacity="{x:Bind local:CalendarWidget.DayOpacity(InMonth)}"
+                        Visibility="{x:Bind local:CalendarWidget.Not(IsToday)}" />
+                    <TextBlock
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        FontWeight="SemiBold"
+                        Text="{x:Bind Number}"
+                        Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}"
+                        Visibility="{x:Bind IsToday}" />
+                </Grid>
+            </DataTemplate>
+        </ResourceDictionary>
+    </local:WidgetView.Resources>
+
+    <!-- The arrows reach the top right: the widget's buttons show only near them (ContentUnderButtons). -->
+    <StackPanel Spacing="4">
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <!-- Back to today. -->
+            <Button
+                x:Name="TitleButton"
+                Padding="6,4"
+                AutomationProperties.AutomationId="CalendarTitleButton"
+                ToolTipService.ToolTip="Today"
+                Style="{StaticResource FlatButtonStyle}"
+                Width="Auto"
+                Height="Auto"
+                Margin="-6,0,0,0"
+                Click="TitleButton_Click">
+                <TextBlock x:Name="TitleText" Style="{StaticResource BodyStrongTextBlockStyle}" />
+            </Button>
+            <Button
+                x:Name="PreviousButton"
+                Grid.Column="1"
+                AutomationProperties.AutomationId="CalendarPreviousButton"
+                Style="{StaticResource ArrowButtonStyle}"
+                Click="PreviousButton_Click">
+                <FontIcon Glyph="&#xE70E;" FontSize="12" />
+            </Button>
+            <Button
+                x:Name="NextButton"
+                Grid.Column="2"
+                AutomationProperties.AutomationId="CalendarNextButton"
+                Style="{StaticResource ArrowButtonStyle}"
+                Click="NextButton_Click">
+                <FontIcon Glyph="&#xE70D;" FontSize="12" />
+            </Button>
+        </Grid>
+
+        <!-- The month: the weekdays' names over six weeks of days. -->
+        <Grid x:Name="Month" AutomationProperties.AutomationId="CalendarMonth" RowSpacing="2" />
+
+        <!-- One day, large, as a page of a desk calendar; clicking it goes back to its month. -->
+        <Button
+            x:Name="DayPage"
+            AutomationProperties.AutomationId="CalendarDayPage"
+            Style="{StaticResource FlatButtonStyle}"
+            Width="Auto"
+            Height="Auto"
+            Margin="0"
+            Padding="0,8,0,12"
+            HorizontalAlignment="Stretch"
+            Visibility="Collapsed"
+            Click="DayPage_Click">
+            <StackPanel>
+                <TextBlock
+                    x:Name="DayNumberText"
+                    HorizontalAlignment="Center"
+                    FontSize="72"
+                    FontWeight="SemiBold"
+                    LineHeight="80" />
+                <TextBlock x:Name="WeekdayText" HorizontalAlignment="Center" Style="{StaticResource SubtitleTextBlockStyle}" />
+                <TextBlock
+                    x:Name="TodayText"
+                    HorizontalAlignment="Center"
+                    Style="{StaticResource CaptionTextBlockStyle}"
+                    Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"
+                    Text="Today" />
+            </StackPanel>
+        </Button>
+    </StackPanel>
+</local:WidgetView>

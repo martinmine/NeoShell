@@ -238,6 +238,13 @@ Tick items off as they land. The feature details are in [design.md](design.md) a
 - [x] Fix: crash (fail-fast) reordering a widget in the sidebar after it had been docked back from the desktop: its
       card's every `Loaded` closed the floating window it came from again, and the second time `SetWindowSubclass`
       failed on the destroyed window
+- [x] Vista's gadgets as widgets, in the WinUI look of the others (2026-10-17): Clock (analogue, a name, a time
+      zone, the second hand), Calendar (month and day page), Picture puzzle (Windows' wallpaper or a chosen picture,
+      timed, peek), Currency (ECB rates through Frankfurter), Stocks (Yahoo Finance's chart service, each row expands
+      to the day). Not brought over: Contacts and Feed Headlines (left out by the owner), the CPU meter (Resource
+      usage covers it), Vista's clock faces. Checked live alongside Explorer in the Windows 11 and 2088 themes (a
+      day and its page, day steps, a stock's chart, converting both ways, slides and the timer, a Tokyo clock);
+      not run live: the settings flyouts (picture picker, time zone list, symbols), a solved puzzle, midnight
 - Not run live: Now playing with media playing (nothing plays on the VM), the weather from the computer's location
   (location is off on the VM), a second monitor
 

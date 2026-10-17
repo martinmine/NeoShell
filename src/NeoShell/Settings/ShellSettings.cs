@@ -13,7 +13,7 @@ public enum Backdrop { Acrylic, Mica, Translucent, Transparent }
 
 public enum DesktopSortOrder { Name, Size, ItemType, DateModified }
 
-public enum WidgetKind { Profile, Resources, Pictures, Media, Weather, Notes, Wireless, Windows }
+public enum WidgetKind { Profile, Resources, Pictures, Media, Weather, Notes, Wireless, Windows, Clock, Calendar, Puzzle, Currency, Stocks }
 
 /// <summary>Which Windows the taskbar and Start look like (see <see cref="Themes.ShellThemes"/>).</summary>
 public enum ShellTheme { Windows11, WindowsXP, Windows98, Concept2088 }
@@ -33,8 +33,12 @@ public sealed record WidgetSettings
     public double? FloatingWidth { get; set; }
     public double? ContentHeight { get; set; }
 
-    // Profile
+    // Profile and Clock (a clock's second hand)
     public bool? ShowSeconds { get; set; }
+
+    // Clock: the name shown on it and its time zone (Windows' id); without one, the computer's.
+    public string? ClockName { get; set; }
+    public string? TimeZoneId { get; set; }
 
     // Resources: each graph's colour, as #RRGGBB, and whether drives and network adapters show one by one.
     public string? CpuColor { get; set; }
@@ -61,6 +65,17 @@ public sealed record WidgetSettings
 
     // Wireless devices: how often their batteries are read, in minutes.
     public int? PollMinutes { get; set; }
+
+    // Picture puzzle: the picture cut into tiles; without one, Windows' own wallpaper.
+    public string? PuzzlePicture { get; set; }
+
+    // Currency: the two currencies (ISO codes) and the amount of the first.
+    public string? CurrencyFrom { get; set; }
+    public string? CurrencyTo { get; set; }
+    public double? CurrencyAmount { get; set; }
+
+    // Stocks: the symbols, as Yahoo Finance writes them ("MSFT", "^DJI", "EQNR.OL").
+    public IReadOnlyList<string>? StockSymbols { get; set; }
 
     [JsonIgnore]
     public bool IsFloating => X is not null && Y is not null;

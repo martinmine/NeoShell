@@ -24,6 +24,11 @@ internal static class HudWidgets
         WidgetKind.Notes => "記録",
         WidgetKind.Wireless => "無線機器",
         WidgetKind.Windows => "系統情報",
+        WidgetKind.Clock => "時計",
+        WidgetKind.Calendar => "暦",
+        WidgetKind.Puzzle => "絵合わせ",
+        WidgetKind.Currency => "通貨",
+        WidgetKind.Stocks => "株価",
         _ => "部品",
     };
 

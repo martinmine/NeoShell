@@ -31,6 +31,11 @@ internal partial class WidgetView : UserControl
         WidgetKind.Notes => "Notes",
         WidgetKind.Wireless => "Wireless devices",
         WidgetKind.Windows => "About Windows",
+        WidgetKind.Clock => "Clock",
+        WidgetKind.Calendar => "Calendar",
+        WidgetKind.Puzzle => "Picture puzzle",
+        WidgetKind.Currency => "Currency",
+        WidgetKind.Stocks => "Stocks",
         _ => kind.ToString(),
     };
 
@@ -45,11 +50,20 @@ internal partial class WidgetView : UserControl
         WidgetKind.Notes => "",
         WidgetKind.Wireless => "",
         WidgetKind.Windows => "",
+        WidgetKind.Clock => "",
+        WidgetKind.Calendar => "",
+        WidgetKind.Puzzle => "",
+        WidgetKind.Currency => "",
+        WidgetKind.Stocks => "",
         _ => "",
     };
 
-    /// <summary>Whether the sidebar and desktop may show more than one of this kind.</summary>
-    public static bool AllowsSeveral(WidgetKind kind) => kind is WidgetKind.Pictures or WidgetKind.Notes;
+    /// <summary>
+    /// Whether the sidebar and desktop may show more than one of this kind: several clocks show several time zones,
+    /// and several converters several pairs of currencies.
+    /// </summary>
+    public static bool AllowsSeveral(WidgetKind kind) =>
+        kind is WidgetKind.Pictures or WidgetKind.Notes or WidgetKind.Clock or WidgetKind.Currency;
 
     /// <summary>
     /// The widget can be resized while it floats: its width, and the height of <see cref="ContentHeight"/>'s part.

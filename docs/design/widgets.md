@@ -17,8 +17,8 @@ Small widgets about the computer and its user, as Windows Vista's sidebar gadget
   Windows' own, which follows a moment later. While the edge is dragged only the window moves; the width is saved when
   it's let go.
 - No header text: only an add button at the top right, invisible until the pointer is over it (or its menu is
-  open), whose menu lists every kind; Profile, Resource usage, Now playing and
-  Weather show once only (disabled in the menu while shown), Pictures and Notes as often as wanted. Widgets are cards
+  open), whose menu lists every kind; Pictures, Notes, Clock and Currency show as often as wanted (several clocks for
+  several time zones), the others once only (disabled in the menu while shown). Widgets are cards
   in a scrolling column.
 - Hidden or shown from the Settings window (Taskbar > Widgets, or the Widgets page; `ShowWidgetSidebar`); floating
   widgets stay.
@@ -53,7 +53,8 @@ Small widgets about the computer and its user, as Windows Vista's sidebar gadget
   solid plate at the top right.
 - No widget shows a heading: each says what it is by itself. Its name (`WidgetView.Title`) is in the add menu, its
   settings flyout and its UI Automation name. Where the widget's own content reaches the top right
-  (`WidgetView.ContentUnderButtons`: Resource usage's first value, Wireless devices' first level, a note's text), the
+  (`WidgetView.ContentUnderButtons`: Resource usage's first value, Wireless devices' first level, a note's text, the
+  calendar's arrows, the converter's first currency, the first stock's price), the
   buttons show only while the pointer is near them (16 epx around the plate), so they don't hide the content while
   it's read, expanded or typed into.
 - Pressing anywhere the widget's own controls don't take and moving 4 epx drags it. While a widget is over the
@@ -129,5 +130,39 @@ Small widgets about the computer and its user, as Windows Vista's sidebar gadget
   edition, version, OS build with its revision, architecture and install date, read once from
   `HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion`. That key's ProductName still says "Windows 10" on Windows 11,
   so builds from 22000 are named "Windows 11", as winver does. One at a time.
+- **Clock**: an analogue clock, as Vista's gadget: a 150 epx face with hour and minute marks, hour and minute hands
+  in the text colour and a second hand in the accent colour (on by default, as Vista's; off in its settings, and the
+  clock then ticks once a minute). Its settings give it a name, shown under the face, and a time zone (Windows' own
+  list; the computer's by default); a clock in another zone says how it differs from here under the face ("Tomorrow,
+  9 hours ahead", as Windows' Clock app). Vista's eight faces aren't brought over: the face is drawn in the theme's
+  colours instead. As many as wanted.
+- **Calendar**: the month, as Vista's gadget, in six weeks so its height doesn't change: the weekdays' names in two
+  letters from Windows' first day of the week, the days around the month dimmed, today on an accent circle (as
+  Windows' calendar flyout). Clicking a day shows it as a page of a desk calendar (the day's number large, its
+  weekday, "Today" for today), and clicking the page goes back to its month; the arrows go a month, or on the page a
+  day, back or on, and the title (month and year) back to today's month. Just after midnight a calendar left on
+  today's month or day follows to the new day. One at a time.
+- **Picture puzzle**: Vista's sliding puzzle: a picture cut into fifteen tiles in four rows of four with a gap,
+  square and as wide as the card; clicking a tile beside the gap slides it in (animated,
+  `RepositionThemeTransition`). The board is mixed by 200 random slides, so it can always be solved, and again with
+  the shuffle button. The time runs from the first slide until it's solved ("Solved in 1:23"), when the picture shows
+  whole; holding the peek button shows it meanwhile. The picture is Windows' wallpaper
+  (`Web\Wallpaper\Windows\img0.jpg`) or one chosen in its settings, cut to a square from its middle and decoded at
+  about the size shown; without one the tiles are numbered. One at a time.
+- **Currency**: Vista's converter: two amounts and their currencies, either amount typed into converts into the other,
+  and a swap button; below them the rate ("1 USD = 9.4410 NOK") and its date. The European Central Bank's reference
+  rates (about 30 currencies, set once a working day) through Frankfurter (`api.frankfurter.dev`, free and without a
+  key; MSN's service, which Vista's used, is gone), fetched once an hour at most for every converter and checked every
+  six hours; a failed fetch is tried again five minutes later, keeping rates already shown. A new one converts US
+  dollars into the computer's own currency (euros where that is the dollar or one the bank doesn't set); the two
+  currencies and the first amount are kept in its settings. The currencies' names (Windows' English names) show as
+  tooltips. As many as wanted.
+- **Stocks**: Vista's stocks gadget: a row per symbol (its symbol and name, the price and the change since the last
+  close, up in Windows' green and down in its red), each expanding to the day so far against the last close (a
+  dashed line), as Resource usage's rows expand. Quotes from Yahoo Finance's chart service
+  (`query1.finance.yahoo.com/v8/finance/chart`, a request per symbol, without a key, delayed as exchanges require;
+  unofficial, so it may change), refreshed every five minutes while shown; a symbol Yahoo doesn't know shows "Not
+  found", and one that fails keeps what it showed. The symbols are typed into its settings, separated by commas (up
+  to 20; the Dow Jones and NASDAQ indexes and Microsoft by default). One at a time.
 - **Notes**: plain text, straight on the card (no box or underline, focused or not), saved half a second after typing stops, to `notes\<id>.txt` next to the settings; text size
   in its settings. Closing a note keeps its file.
